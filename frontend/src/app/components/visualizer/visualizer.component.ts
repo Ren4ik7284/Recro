@@ -16,8 +16,8 @@ import { FormsModule } from '@angular/forms';
 import { AudioService } from '../../services/audio.service';
 import { LibraryService } from '../../services/library.service';
 
-export type VisualizerType = 'bars' | 'wave' | 'circle';
-export type VisualizerTheme = 'mono' | 'green';
+export type VisualizerType = 'bars' | 'wave' | 'circle' | 'road';
+export type VisualizerTheme = 'mono' | 'green' | 'album';
 
 @Component({
   selector: 'app-visualizer',
@@ -37,15 +37,25 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('visualizerContainer') containerRef?: ElementRef<HTMLDivElement>;
 
   readonly visualType = signal<VisualizerType>('bars');
-  readonly colorTheme = signal<VisualizerTheme>('mono');
+  readonly colorTheme = signal<VisualizerTheme>('album');
   readonly sensitivity = signal<number>(1.2);
   readonly isFullscreen = signal<boolean>(false);
   readonly circleDiameter = signal<number>(220);
   readonly circleScale = signal<number>(1);
 
+  // Динамически извлекаемый доминирующий цвет альбома
+  readonly albumColor = signal<{ primary: string; secondary: string; glow: string; peak: string }>({
+    primary: '#ffffff',
+    secondary: '#3f3f46',
+    glow: 'rgba(255, 255, 255, 0.4)',
+    peak: '#ffffff',
+  });
+
   private animationFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private smoothedPulse = 0;
+  private roadOffset = 0;
+  private lastTrackCover: string | null = null;
 
   private readonly bufferLength = 128;
   private readonly freqData = new Uint8Array(this.bufferLength);
@@ -59,6 +69,11 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit() {
     this.peakCaps = new Array(this.bufferLength).fill(0);
     this.capHoldFrames = new Array(this.bufferLength).fill(0);
+
+    const cur = this.audioService.currentTrack();
+    if (cur?.coverUrl) {
+      this.extractAlbumColor(cur.coverUrl);
+    }
   }
 
   ngAfterViewInit() {
@@ -88,6 +103,8 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
         this.setVisualType('wave');
       } else if (event.key === '3') {
         this.setVisualType('circle');
+      } else if (event.key === '4') {
+        this.setVisualType('road');
       }
     }
   }
@@ -98,6 +115,66 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   setColorTheme(theme: VisualizerTheme) {
     this.colorTheme.set(theme);
+  }
+
+  private extractAlbumColor(coverUrl: string) {
+    if (!coverUrl || typeof window === 'undefined') return;
+    this.lastTrackCover = coverUrl;
+
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const cvs = document.createElement('canvas');
+        cvs.width = 24;
+        cvs.height = 24;
+        const ctx = cvs.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, 24, 24);
+        const data = ctx.getImageData(0, 0, 24, 24).data;
+
+        let bestR = 255, bestG = 255, bestB = 255;
+        let maxSat = 0;
+        let avgR = 0, avgG = 0, avgB = 0, count = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const brightness = (r + g + b) / 3;
+
+          if (brightness > 30 && brightness < 235) {
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            const sat = max === 0 ? 0 : (max - min) / max;
+
+            if (sat > maxSat) {
+              maxSat = sat;
+              bestR = r;
+              bestG = g;
+              bestB = b;
+            }
+
+            avgR += r;
+            avgG += g;
+            avgB += b;
+            count++;
+          }
+        }
+
+        const fR = maxSat > 0.2 ? bestR : (count > 0 ? Math.round(avgR / count) : 255);
+        const fG = maxSat > 0.2 ? bestG : (count > 0 ? Math.round(avgG / count) : 255);
+        const fB = maxSat > 0.2 ? bestB : (count > 0 ? Math.round(avgB / count) : 255);
+
+        this.albumColor.set({
+          primary: `rgb(${fR}, ${fG}, ${fB})`,
+          secondary: `rgba(${fR}, ${fG}, ${fB}, 0.25)`,
+          glow: `rgba(${fR}, ${fG}, ${fB}, 0.6)`,
+          peak: `rgb(${Math.min(255, fR + 60)}, ${Math.min(255, fG + 60)}, ${Math.min(255, fB + 60)})`,
+        });
+      } catch {}
+    };
+    img.src = coverUrl;
   }
 
   close() {
@@ -170,11 +247,22 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   } {
     const theme = this.colorTheme();
 
+    if (theme === 'album') {
+      const alb = this.albumColor();
+      return {
+        primary: alb.primary,
+        secondary: alb.secondary,
+        glow: alb.glow,
+        gradient: alb.primary,
+        peak: alb.peak,
+      };
+    }
+
     if (theme === 'green') {
       return {
         primary: '#22c55e',
         secondary: '#3f3f46',
-        glow: 'transparent',
+        glow: 'rgba(34, 197, 94, 0.4)',
         gradient: '#22c55e',
         peak: '#fafafa',
       };
@@ -183,7 +271,7 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     return {
       primary: '#fafafa',
       secondary: '#3f3f46',
-      glow: 'transparent',
+      glow: 'rgba(255, 255, 255, 0.3)',
       gradient: '#e4e4e7',
       peak: '#ffffff',
     };
@@ -192,6 +280,12 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   private draw() {
     const canvas = this.canvasRef?.nativeElement;
     if (!canvas) return;
+
+    // Автоматическое обновление цвета альбома при смене трека
+    const curTrack = this.audioService.currentTrack();
+    if (curTrack && curTrack.coverUrl && curTrack.coverUrl !== this.lastTrackCover) {
+      this.extractAlbumColor(curTrack.coverUrl);
+    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -251,7 +345,113 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
       this.drawWaveform(ctx, w, h);
     } else if (type === 'circle') {
       this.drawCircle(ctx, w, h);
+    } else if (type === 'road') {
+      this.drawRoad(ctx, w, h);
     }
+  }
+
+  /**
+   * Отрисовка бегущей 3D звуковой трассы (Road) в реальном времени
+   */
+  private drawRoad(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const isPlaying = this.audioService.isPlaying();
+    if (isPlaying) {
+      this.roadOffset = (this.roadOffset + 3.5) % 40;
+    }
+    const colors = this.getThemeColors(ctx, h);
+    const horizonY = h * 0.44;
+    const centerX = w / 2;
+    const sens = this.sensitivity();
+
+    // 1. Неоновый закат и свечение на горизонте
+    const glowGrad = ctx.createRadialGradient(centerX, horizonY, 10, centerX, horizonY, w * 0.45);
+    glowGrad.addColorStop(0, colors.glow);
+    glowGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(0, 0, w, horizonY + 30);
+
+    // 2. Перспективная поверхность бегущей дороги
+    const roadTopW = w * 0.12;
+    const roadBotW = w * 0.82;
+
+    ctx.beginPath();
+    ctx.moveTo(centerX - roadTopW / 2, horizonY);
+    ctx.lineTo(centerX + roadTopW / 2, horizonY);
+    ctx.lineTo(centerX + roadBotW / 2, h);
+    ctx.lineTo(centerX - roadBotW / 2, h);
+    ctx.closePath();
+    ctx.fillStyle = '#060609';
+    ctx.fill();
+
+    // 3. Бегущие горизонтальные линии дороги в перспективе
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = colors.primary;
+    ctx.shadowColor = colors.primary;
+    ctx.shadowBlur = 6;
+
+    const numHorizLines = 14;
+    for (let i = 0; i < numHorizLines; i++) {
+      const p = Math.pow((i + (this.roadOffset / 40)) / numHorizLines, 2.2);
+      const y = horizonY + p * (h - horizonY);
+      const curHalfW = (roadTopW + p * (roadBotW - roadTopW)) / 2;
+
+      ctx.beginPath();
+      ctx.moveTo(centerX - curHalfW, y);
+      ctx.lineTo(centerX + curHalfW, y);
+      ctx.stroke();
+    }
+
+    // 4. Продольные полосы дороги
+    const lanes = [-0.5, -0.16, 0.16, 0.5];
+    for (const lane of lanes) {
+      ctx.beginPath();
+      ctx.moveTo(centerX + lane * roadTopW, horizonY);
+      ctx.lineTo(centerX + lane * roadBotW, h);
+      ctx.stroke();
+    }
+
+    // 5. Звуковые столбы эквалайзера по краям трассы в реальном времени
+    const numBarsSide = 22;
+    const step = Math.max(1, Math.floor(this.bufferLength / (numBarsSide * 2)));
+
+    for (let i = 0; i < numBarsSide; i++) {
+      const p = (i + 1) / numBarsSide;
+      const y = horizonY + Math.pow(p, 1.8) * (h - horizonY);
+      const halfW = (roadTopW + p * (roadBotW - roadTopW)) / 2;
+
+      const dataIdx = Math.min(this.bufferLength - 1, i * step);
+      const val = Math.min(1.0, (this.freqData[dataIdx] / 255) * sens);
+      const barH = Math.max(4, val * (h * 0.32) * (0.35 + p * 0.65));
+      const barW = Math.max(3, p * 12);
+
+      // Левый звуковой столб
+      const leftX = centerX - halfW - barW - 6 * p;
+      ctx.fillStyle = colors.primary;
+      ctx.fillRect(leftX, y - barH, barW, barH);
+
+      // Правый звуковой столб
+      const rightX = centerX + halfW + 6 * p;
+      ctx.fillRect(rightX, y - barH, barW, barH);
+    }
+
+    // 6. Бегущая звуковая синусоида (live time-domain audio wave) по центру дороги
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#ffffff';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#ffffff';
+    ctx.beginPath();
+    for (let i = 0; i < this.bufferLength; i++) {
+      const p = i / this.bufferLength;
+      const y = horizonY + p * (h - horizonY);
+      const waveVal = ((this.timeData[i] - 128) / 128) * sens;
+      const maxWiggle = ((roadTopW + p * (roadBotW - roadTopW)) * 0.28);
+      const x = centerX + waveVal * maxWiggle;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
   }
 
   private drawBars(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -356,7 +556,14 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private drawCircle(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    const colors = this.getThemeColors(ctx, h);
+    // В режиме КРУГА полоски автоматически окрашиваются в оттенки обложки альбома
+    const alb = this.albumColor();
+    const isMono = this.colorTheme() === 'mono';
+    const isGreen = this.colorTheme() === 'green';
+    const colors = isMono 
+      ? this.getThemeColors(ctx, h) 
+      : (isGreen ? this.getThemeColors(ctx, h) : alb);
+
     const centerX = w / 2;
     const centerY = h / 2;
     const isMobile = w < 600 || h < 600;
@@ -385,9 +592,9 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.beginPath();
     ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
     ctx.strokeStyle = colors.primary;
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = colors.primary;
-    ctx.shadowBlur = 12;
+    ctx.lineWidth = 2.8;
+    ctx.shadowColor = colors.glow || colors.primary;
+    ctx.shadowBlur = 16;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
@@ -413,7 +620,9 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.strokeStyle = colors.primary;
-      ctx.lineWidth = Math.max(2, (w / 500) * (isMobile ? 2.5 : 2.2));
+      ctx.shadowColor = colors.glow || colors.primary;
+      ctx.shadowBlur = val > 0.35 ? 10 : 0;
+      ctx.lineWidth = Math.max(2, (w / 500) * (isMobile ? 2.6 : 2.3));
       ctx.lineCap = 'round';
       ctx.stroke();
 

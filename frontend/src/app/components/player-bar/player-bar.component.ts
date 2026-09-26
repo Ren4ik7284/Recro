@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AudioService } from '../../services/audio.service';
 import { LibraryService } from '../../services/library.service';
 import { OfflineService } from '../../services/offline.service';
+import { LyricsService } from '../../services/lyrics.service';
 import { VisualizerComponent } from '../visualizer/visualizer.component';
 import { Track } from '../../models/track.model';
 
@@ -19,6 +20,7 @@ export class PlayerBarComponent {
   readonly audioService = inject(AudioService);
   readonly libraryService = inject(LibraryService);
   readonly offlineService = inject(OfflineService);
+  readonly lyricsService = inject(LyricsService);
 
   @Output() toggleQueueDrawer = new EventEmitter<void>();
   @Output() expandMobilePlayer = new EventEmitter<void>();

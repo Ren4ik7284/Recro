@@ -1,0 +1,291 @@
+<div class="lyrics-overlay" [class.open]="lyricsService.isLyricsOpen()">
+  <!-- Dynamic blurred background from album art -->
+  <div class="lyrics-backdrop">
+    @if (audioService.currentTrack()?.coverUrl) {
+      <div 
+        class="lyrics-blur-cover" 
+        [style.background-image]="'url(' + audioService.currentTrack()!.coverUrl + ')'"
+      ></div>
+    } @else {
+      <div class="lyrics-blur-default"></div>
+    }
+    <div class="lyrics-backdrop-tint"></div>
+  </div>
+
+  <!-- Top Action Bar -->
+  <header class="lyrics-topbar">
+    <div class="lyrics-track-summary">
+      <span class="lyrics-badge font-mono">ТЕКСТ ПЕСНИ</span>
+      @if (lyricsService.currentLyrics()?.isSynced) {
+        <span class="lyrics-synced-pill font-mono">СИНХРОНИЗИРОВАНО</span>
+      }
+      @if (lyricsService.syncOffsetMs() !== 0) {
+        <span class="lyrics-offset-pill font-mono">
+          СДВИГ: {{ lyricsService.syncOffsetMs() > 0 ? '+' : '' }}{{ lyricsService.syncOffsetMs() }}мс
+        </span>
+      }
+    </div>
+
+    <div class="lyrics-actions-group">
+      <!-- Timing Offset adjustment -->
+      <div class="timing-controls" title="Подстройка таймингов, если текст спешит или отстает">
+        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(-500)" title="Текст спешит (-0.5с)">
+          -0.5с
+        </button>
+        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(-100)" title="Текст спешит (-0.1с)">
+          -0.1с
+        </button>
+        @if (lyricsService.syncOffsetMs() !== 0) {
+          <button type="button" class="btn-time-reset" (click)="lyricsService.resetOffset()" title="Сбросить сдвиг">
+            Сброс
+          </button>
+        }
+        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(100)" title="Текст отстает (+0.1с)">
+          +0.1с
+        </button>
+        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(500)" title="Текст отстает (+0.5с)">
+          +0.5с
+        </button>
+      </div>
+
+      <!-- Import Custom LRC Button -->
+      <button type="button" class="btn-lyrics-tool" (click)="openImportDialog()" title="Импортировать свой файл .lrc или вставить текст">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span class="desktop-only">Импорт LRC</span>
+      </button>
+
+      <!-- Reload from web -->
+      <button type="button" class="btn-lyrics-tool" (click)="reloadFromWeb()" title="Найти заново в базе текстов">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+          <path d="M16 21h5v-5"/>
+        </svg>
+      </button>
+
+      <!-- Close Fullscreen Lyrics -->
+      <button type="button" class="btn-lyrics-close" (click)="lyricsService.closeLyrics()" title="Закрыть текст (Esc)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Body: Two Columns on PC, Single Scrollable on Mobile -->
+  <main class="lyrics-main-content">
+    <!-- Left Column: Album Art & Mini Player (Desktop) -->
+    <aside class="lyrics-player-panel desktop-only">
+      <div class="lyrics-art-box">
+        @if (audioService.currentTrack()?.coverUrl) {
+          <img [src]="audioService.currentTrack()!.coverUrl" alt="Cover" class="lyrics-album-art" />
+        } @else {
+          <div class="lyrics-art-placeholder">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 8v8M8 12h8"/>
+            </svg>
+          </div>
+        }
+      </div>
+
+      <div class="lyrics-track-info">
+        <h1 class="lyrics-song-title">{{ audioService.currentTrack()?.title || 'Без названия' }}</h1>
+        <p class="lyrics-song-artist">{{ audioService.currentTrack()?.artist || 'Неизвестный исполнитель' }}</p>
+      </div>
+
+      <!-- Scrubber in lyrics panel -->
+      <div class="lyrics-scrubber-box">
+        <div class="lyrics-time-display font-mono">
+          <span>{{ formatTime(audioService.currentTime()) }}</span>
+          <span>{{ formatTime(audioService.duration()) }}</span>
+        </div>
+        <div class="lyrics-progress-track">
+          <div class="lyrics-progress-bar" [style.width.%]="audioService.progressPercent()"></div>
+        </div>
+      </div>
+
+      <!-- Transport controls in lyrics panel -->
+      <div class="lyrics-controls-row">
+        <button type="button" class="lyrics-ctrl-btn" (click)="audioService.prev()" title="Предыдущий трек">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="19 20 9 12 19 4 19 20"/>
+            <line x1="5" y1="19" x2="5" y2="5"/>
+          </svg>
+        </button>
+
+        <button type="button" class="lyrics-play-btn" (click)="audioService.togglePlay()" title="Пуск / Пауза">
+          @if (audioService.isPlaying()) {
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <rect width="4" height="16" x="6" y="4" rx="1"/>
+              <rect width="4" height="16" x="14" y="4" rx="1"/>
+            </svg>
+          } @else {
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 3 20 12 6 21 6 3"/>
+            </svg>
+          }
+        </button>
+
+        <button type="button" class="lyrics-ctrl-btn" (click)="audioService.next()" title="Следующий трек">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 4 15 12 5 20 5 4"/>
+            <line x1="19" y1="5" x2="19" y2="19"/>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Right Column: Karaoke Live Scrolling Lyrics -->
+    <section 
+      #lyricsScrollContainer 
+      class="lyrics-scroll-viewport"
+      (scroll)="onContainerScroll()"
+    >
+      @if (lyricsService.isLoading()) {
+        <div class="lyrics-status-box">
+          <div class="lyrics-spinner"></div>
+          <p class="lyrics-status-text">Поиск синхронизированного текста...</p>
+        </div>
+      } @else if (lyricsService.currentLyrics(); as lyrics) {
+        @if (lyrics.lines.length > 0) {
+          <div class="lyrics-lines-wrapper">
+            <!-- Top padding space so first line can center -->
+            <div class="lyrics-spacer"></div>
+
+            @for (line of lyrics.lines; track $index; let i = $index) {
+              <div 
+                class="lyric-line-item"
+                [attr.data-line-index]="i"
+                [class.active]="i === lyricsService.activeLineIndex()"
+                [class.past]="i < lyricsService.activeLineIndex()"
+                [class.future]="i > lyricsService.activeLineIndex()"
+                (click)="onLineClick(line)"
+                title="Нажмите для перемотки на эту строку"
+              >
+                @if (line.words && line.words.length > 0) {
+                  <!-- Word by word display -->
+                  <span class="lyric-words-row">
+                    @for (w of line.words; track $index) {
+                      <span class="lyric-word">{{ w.text }} </span>
+                    }
+                  </span>
+                } @else {
+                  <span class="lyric-line-text">{{ line.text }}</span>
+                }
+              </div>
+            }
+
+            <!-- Bottom padding space -->
+            <div class="lyrics-spacer"></div>
+          </div>
+        } @else {
+          <div class="lyrics-status-box">
+            <p class="lyrics-status-text">Текст пуст</p>
+            <button type="button" class="btn-import-prompt" (click)="openImportDialog()">
+              Добавить свой текст (.LRC)
+            </button>
+          </div>
+        }
+      } @else {
+        <div class="lyrics-status-box">
+          <div class="lyrics-empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <h3 class="lyrics-empty-title">Текст для этого трека не найден</h3>
+          <p class="lyrics-empty-sub">Вы можете легко добавить файл синхронизированного текста (.lrc) с таймингами.</p>
+          <div class="lyrics-empty-actions">
+            <button type="button" class="btn-import-prompt" (click)="openImportDialog()">
+              Импортировать .LRC файл
+            </button>
+            <button type="button" class="btn-reload-prompt" (click)="reloadFromWeb()">
+              Попробовать найти снова
+            </button>
+          </div>
+        </div>
+      }
+
+      @if (lyricsService.isAutoScrollLocked()) {
+        <button type="button" class="btn-resume-autoscroll font-mono" (click)="lyricsService.unlockAutoScroll()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+          <span>Вернуться к текущей строке</span>
+        </button>
+      }
+    </section>
+  </main>
+
+  <!-- Import / Edit Modal -->
+  @if (isImportModalOpen()) {
+    <div class="import-modal-backdrop" (click)="closeImportDialog()">
+      <div class="import-modal-card" (click)="$event.stopPropagation()">
+        <div class="import-modal-header">
+          <div>
+            <h3 class="import-modal-title">Импорт текста песни (.LRC)</h3>
+            <p class="import-modal-subtitle">Поддерживается синхронизированный формат с таймингами [мм:сс.хх]</p>
+          </div>
+          <button type="button" class="btn-close-import" (click)="closeImportDialog()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="import-modal-body">
+          <!-- File Drop Zone -->
+          <div 
+            class="import-dropzone" 
+            [class.dragging]="isDraggingFile()"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event)"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Перетащите сюда .lrc или .txt файл или</span>
+            <label class="btn-select-file">
+              Выбрать файл
+              <input type="file" accept=".lrc,.txt" (change)="onFileSelected($event)" style="display: none;" />
+            </label>
+          </div>
+
+          <!-- Textarea for direct editing / pasting -->
+          <div class="import-textarea-box">
+            <label class="field-label">Текст песни или LRC разметка:</label>
+            <textarea 
+              rows="10"
+              class="import-textarea font-mono"
+              placeholder="[00:12.34]Первая строка песни&#10;[00:16.80]Вторая строка песни&#10;[00:21.05]Третья строка песни..."
+              [ngModel]="importTextInput()"
+              (ngModelChange)="importTextInput.set($event)"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="import-modal-footer">
+          <button type="button" class="btn-import-cancel" (click)="closeImportDialog()">
+            Отмена
+          </button>
+          <button type="button" class="btn-import-save" (click)="applyImportedText()">
+            Применить текст
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

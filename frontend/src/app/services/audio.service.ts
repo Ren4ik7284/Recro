@@ -40,6 +40,8 @@ export class AudioService {
   private isHandlingEnd = false;
   private isFadingOut = false;
   private hasRecordedCompletion = false;
+  private hasPreloadedNextTrack = false;
+  private lastPreloadedTrackId: string | null = null;
   private isReplenishingQueue = false;
   private consecutiveErrorCount = 0;
   private errorTimeoutId: any = null;
@@ -259,6 +261,12 @@ export class AudioService {
       // Proactively ensure smart queue before current track ends
       if (this.recService.isMixActive() && total > 15 && actual >= total - 12) {
         this.ensureSmartQueue();
+      }
+
+      // Preload next track audio stream in advance so transition is instantaneous
+      if (actual >= 4 && !this.hasPreloadedNextTrack) {
+        this.hasPreloadedNextTrack = true;
+        this.preloadNextTrack();
       }
 
       if (total > 0 && actual >= total - 0.5 && this.isPlaying()) {
@@ -508,6 +516,7 @@ export class AudioService {
     this.streamSeekOffset.set(0);
     this.currentTime.set(0);
     this.hasRecordedCompletion = false;
+    this.hasPreloadedNextTrack = false;
 
     const initialDuration = track.duration && track.duration > 0 ? track.duration : 0;
     this.duration.set(initialDuration);
@@ -834,6 +843,49 @@ export class AudioService {
     this.queueIndex.set(0);
   }
 
+  preloadNextTrack() {
+    const q = this.queue();
+    const idx = this.queueIndex();
+    if (idx < 0 || idx >= q.length - 1) return;
+    const nextTrack = q[idx + 1];
+    if (!nextTrack || !nextTrack.audioUrl || nextTrack.id === this.lastPreloadedTrackId) return;
+
+    if (nextTrack.audioUrl.startsWith('blob:') || nextTrack.isLiveStream) return;
+
+    let targetUrl = nextTrack.audioUrl;
+    const activeBase = this.libraryService.getBackendUrl();
+
+    if (targetUrl.startsWith('/api/stream')) {
+      targetUrl = `${activeBase}${targetUrl}`;
+    } else if (targetUrl.includes('/api/stream')) {
+      const sIdx = targetUrl.indexOf('/api/stream');
+      targetUrl = `${activeBase}${targetUrl.slice(sIdx)}`;
+    } else if (
+      targetUrl.includes('youtube.com') ||
+      targetUrl.includes('youtu.be') ||
+      targetUrl.includes('soundcloud.com')
+    ) {
+      targetUrl = `${activeBase}/api/stream?url=${encodeURIComponent(targetUrl)}`;
+    }
+
+    if (targetUrl.includes('/api/stream')) {
+      if (!targetUrl.includes('title=') && nextTrack.title) {
+        const glue = targetUrl.includes('?') ? '&' : '?';
+        targetUrl = `${targetUrl}${glue}title=${encodeURIComponent(nextTrack.title)}`;
+      }
+      if (!targetUrl.includes('artist=') && nextTrack.artist) {
+        const glue = targetUrl.includes('?') ? '&' : '?';
+        targetUrl = `${targetUrl}${glue}artist=${encodeURIComponent(nextTrack.artist)}`;
+      }
+      this.lastPreloadedTrackId = nextTrack.id;
+      const glue = targetUrl.includes('?') ? '&' : '?';
+      const prefetchUrl = `${targetUrl}${glue}prefetch=true`;
+      try {
+        fetch(prefetchUrl, { priority: 'low' as any, cache: 'no-store' }).catch(() => {});
+      } catch {}
+    }
+  }
+
   async ensureSmartQueue() {
     if (!this.recService.isMixActive() || this.isReplenishingQueue) return;
     const q = this.queue();
@@ -859,6 +911,7 @@ export class AudioService {
 
       if (nextCandidates.length > 0) {
         this.queue.update((curQ) => [...curQ, ...nextCandidates]);
+        this.preloadNextTrack();
       }
     } finally {
       this.isReplenishingQueue = false;

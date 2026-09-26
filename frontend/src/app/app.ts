@@ -19,6 +19,8 @@ import { VisualizerComponent } from './components/visualizer/visualizer.componen
 import { OfflineService } from './services/offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './services/auth.service';
 import { RecommendationService } from './services/recommendation.service';
+import { LyricsService } from './services/lyrics.service';
+import { LyricsComponent } from './components/lyrics/lyrics.component';
 
 declare global {
   interface Window {
@@ -29,7 +31,15 @@ declare global {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, HeaderComponent, SidebarComponent, PlayerBarComponent, VisualizerComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    HeaderComponent,
+    SidebarComponent,
+    PlayerBarComponent,
+    VisualizerComponent,
+    LyricsComponent,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   encapsulation: ViewEncapsulation.None,
@@ -40,6 +50,7 @@ export class App implements OnInit {
   readonly offlineService = inject(OfflineService);
   readonly authService = inject(AuthService);
   readonly recService = inject(RecommendationService);
+  readonly lyricsService = inject(LyricsService);
 
   readonly isQuickStartMixModalOpen = signal<boolean>(false);
   readonly isMixSettingsModalOpen = signal<boolean>(false);

@@ -17,6 +17,7 @@ pub struct StreamParams {
     pub ss: Option<u64>,
     pub title: Option<String>,
     pub artist: Option<String>,
+    pub prefetch: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

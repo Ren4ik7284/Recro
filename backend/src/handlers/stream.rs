@@ -418,6 +418,11 @@ pub async fn stream_audio(
         return Err(StatusCode::NOT_FOUND);
     }
 
+    // Если это запрос фонового прогрева кэша - возвращаем успешный 204 No Content
+    if params.prefetch.unwrap_or(false) {
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
+
     let referer = if direct_url.contains("soundcloud") || direct_url.contains("sndcdn") {
         "https://soundcloud.com/"
     } else if direct_url.contains("audius") || direct_url.contains("cidstream") {
@@ -440,11 +445,11 @@ pub async fn stream_audio(
         "-reconnect_delay_max".to_string(),
         "5".to_string(),
         "-fflags".to_string(),
-        "+nobuffer".to_string(),
+        "+nobuffer+fastseek".to_string(),
         "-probesize".to_string(),
-        "65536".to_string(),
+        "32768".to_string(),
         "-analyzeduration".to_string(),
-        "200000".to_string(),
+        "100000".to_string(),
     ];
 
     if let Some(seek_sec) = params.ss {
@@ -461,7 +466,7 @@ pub async fn stream_audio(
         "-f".to_string(),
         "mp3".to_string(),
         "-b:a".to_string(),
-        "192k".to_string(),
+        "320k".to_string(),
         "-flush_packets".to_string(),
         "1".to_string(),
         "pipe:1".to_string(),

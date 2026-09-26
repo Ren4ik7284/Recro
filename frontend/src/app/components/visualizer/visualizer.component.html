@@ -61,12 +61,27 @@
         >
           КРУГ
         </button>
+        <button 
+          class="vis-pill-btn" 
+          [class.active]="visualType() === 'road'"
+          (click)="setVisualType('road')"
+          title="Бегущая звуковая трасса / Дорога (4)"
+        >
+          ДОРОГА
+        </button>
       </div>
 
       <!-- Controls & Themes -->
       <div class="vis-actions">
         <!-- Theme Switcher -->
         <div class="vis-theme-picker font-mono">
+          <button 
+            class="vis-theme-dot theme-album" 
+            [class.active]="colorTheme() === 'album'"
+            [style.background]="albumColor().primary"
+            (click)="setColorTheme('album')"
+            title="Тема: Оттенки альбома трека"
+          ></button>
           <button 
             class="vis-theme-dot theme-mono" 
             [class.active]="colorTheme() === 'mono'"
@@ -208,7 +223,7 @@
 
           <!-- Shortcuts Hint -->
           <div class="vis-shortcuts font-mono desktop-only">
-            <span>[1-3] РЕЖИМЫ</span>
+            <span>[1-4] РЕЖИМЫ</span>
             <span>[F] FULLSCREEN</span>
             <span>[ESC] ЗАКРЫТЬ</span>
           </div>
