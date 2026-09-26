@@ -1,7 +1,7 @@
 <div class="app-layout" (click)="activePlaylistPickerTrackId.set(null)">
   
   <app-header-bar
-    (openAddModal)="isAddModalOpen.set(true)"
+    (openAddModal)="openAddModalGuarded()"
     (openOnlineSearch)="openOnlineSearchWithQuery($event)"
     (openAuthModal)="openAuthModal()"
     (openWrappedModal)="openWrappedModal()"
@@ -23,6 +23,34 @@
     <main class="app-main">
       <div class="view-container">
         
+        @if (!authService.isAuthenticated() && !isGuestBannerDismissed()) {
+          <div class="guest-welcome-banner">
+            <div class="guest-banner-info">
+              <div class="guest-banner-tag-row">
+                <span class="guest-banner-badge font-mono">РЕЖИМ ГОСТЯ</span>
+                <span class="guest-banner-hint font-mono">МУЗЫКА БЕЗ ОГРАНИЧЕНИЙ</span>
+              </div>
+              <h2 class="guest-banner-title">Слушайте треки, радио и потоки свободно</h2>
+              <p class="guest-banner-sub">
+                Вам доступен полный плеер, поиск и радио. Войдите в аккаунт, чтобы сохранять треки в избранное, создавать плейлисты и слушать оффлайн.
+              </p>
+            </div>
+            <div class="guest-banner-actions">
+              <button type="button" class="btn-guest-action btn-guest-reg" (click)="openAuthModal('register')">
+                Создать аккаунт
+              </button>
+              <button type="button" class="btn-guest-action btn-guest-login" (click)="openAuthModal('login')">
+                Войти
+              </button>
+              <button type="button" class="btn-guest-dismiss" (click)="dismissGuestBanner()" title="Скрыть подсказку">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        }
         
         <div class="view-header">
           <div class="view-header-main-row">
@@ -669,13 +697,19 @@
                 <h3 class="empty-title">Ваша медиатека пуста</h3>
                 <p class="empty-desc">Вставьте ссылку на YouTube (видео или плейлист) или найдите треки через поиск.</p>
                 <div class="empty-actions-row">
-                  <button class="btn-empty-action" (click)="addModalTab.set('youtube'); isAddModalOpen.set(true)">
+                  <button class="btn-empty-action" (click)="openAddModalGuarded('youtube')">
                     <span>Добавить ссылку с YouTube</span>
                   </button>
-                  <button class="btn-empty-secondary" (click)="addModalTab.set('search'); isAddModalOpen.set(true)">
+                  <button class="btn-empty-secondary" (click)="openAddModalGuarded('search')">
                     Поиск онлайн
                   </button>
                 </div>
+                @if (!authService.isAuthenticated()) {
+                  <p class="empty-desc" style="margin-top: 16px; opacity: 0.6; font-size: 12px;">
+                    <span (click)="openAuthModal('register')" style="cursor: pointer; text-decoration: underline; opacity: 1;">Создайте аккаунт</span>,
+                    чтобы сохранять избранное, плейлисты и историю
+                  </p>
+                }
               } @else if (activeTab() === 'playlist') {
                 <h3 class="empty-title">В этом плейлисте нет треков</h3>
                 <p class="empty-desc">Перейдите в каталог и добавьте нужные треки, или добавьте YouTube-плейлист.</p>
@@ -1805,6 +1839,21 @@
         </div>
 
         <div class="modal-body auth-modal-body">
+          @if (authModalReason(); as reason) {
+            <div class="auth-reason-card">
+              <div class="reason-icon-bubble">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <div class="reason-text-block">
+                <span class="reason-badge font-mono">РЕЖИМ ГОСТЯ</span>
+                <p class="reason-message">{{ reason }}</p>
+              </div>
+            </div>
+          }
+
           @if (authService.authError(); as err) {
             <div class="auth-error-banner font-mono">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2240,7 +2289,7 @@
 
           <!-- 3 Primary Action Tiles -->
           <div class="quick-start-actions-grid">
-            <button class="qs-action-card" (click)="isQuickStartMixModalOpen.set(false); addModalTab.set('file'); isAddModalOpen.set(true)">
+            <button class="qs-action-card" (click)="isQuickStartMixModalOpen.set(false); openAddModalGuarded('file')">
               <div class="qs-card-icon">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
@@ -2254,7 +2303,7 @@
               </div>
             </button>
 
-            <button class="qs-action-card" (click)="isQuickStartMixModalOpen.set(false); addModalTab.set('youtube'); isAddModalOpen.set(true)">
+            <button class="qs-action-card" (click)="isQuickStartMixModalOpen.set(false); openAddModalGuarded('youtube')">
               <div class="qs-card-icon">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
@@ -2267,7 +2316,7 @@
               </div>
             </button>
 
-            <button class="qs-action-card" (click)="isQuickStartMixModalOpen.set(false); addModalTab.set('search'); isAddModalOpen.set(true)">
+            <button class="qs-action-card" (click)="isQuickStartMixModalOpen.set(false); openAddModalGuarded('search')">
               <div class="qs-card-icon">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <circle cx="11" cy="11" r="8"/>
@@ -2671,8 +2720,10 @@
   }
 
   @if (toastMessage()) {
-    <div class="system-toast font-mono">
-      <span class="toast-dot"></span>
+    <div class="system-toast" role="status" aria-live="polite">
+      <div class="toast-indicator">
+        <span class="toast-dot"></span>
+      </div>
       <span class="toast-content">{{ toastMessage() }}</span>
     </div>
   }

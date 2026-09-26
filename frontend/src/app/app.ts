@@ -51,6 +51,10 @@ export class App implements OnInit {
   readonly showPassword = signal<boolean>(false);
   readonly isGoogleConfigOpen = signal<boolean>(false);
   readonly customGoogleClientIdInput = signal<string>('');
+  readonly authModalReason = signal<string | null>(null);
+  readonly isGuestBannerDismissed = signal<boolean>(
+    typeof window !== 'undefined' && sessionStorage.getItem('signal_guest_banner_dismissed') === 'true'
+  );
 
   readonly isWrappedModalOpen = signal<boolean>(false);
   readonly wrappedStats = signal<WrappedStats | null>(null);
@@ -240,8 +244,42 @@ export class App implements OnInit {
     }, 3000);
   }
 
-  openAuthModal(tab: 'login' | 'register' = 'login') {
+
+  dismissGuestBanner() {
+    this.isGuestBannerDismissed.set(true);
+    try {
+      sessionStorage.setItem('signal_guest_banner_dismissed', 'true');
+    } catch {}
+  }
+
+  /** Guard: требует авторизацию, иначе открывает модалку с поясняющей плашкой */
+  requireAuth(actionName?: string): boolean {
+    if (this.authService.isAuthenticated()) return true;
+    const toastMsg = actionName
+      ? `Действие требует аккаунт: ${actionName}`
+      : 'Войдите в аккаунт для этого действия';
+    this.showToast(toastMsg);
+
+    // Легкая вибрация на смартфонах при блокировке действия
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try { navigator.vibrate(30); } catch {}
+    }
+
+    const reason = actionName
+      ? `Чтобы ${actionName}, необходимо войти в аккаунт или зарегистрироваться.`
+      : 'Для доступа к этой функции необходимо войти в систему.';
+    this.openAuthModal('register', reason);
+    return false;
+  }
+
+  openAddModalGuarded(tab?: 'youtube' | 'search' | 'radio' | 'url' | 'file') {
+    if (tab) this.addModalTab.set(tab);
+    this.isAddModalOpen.set(true);
+  }
+
+  openAuthModal(tab: 'login' | 'register' = 'login', reason?: string) {
     this.authModalTab.set(tab);
+    this.authModalReason.set(reason || null);
     this.authUsernameInput.set('');
     this.authPasswordInput.set('');
     this.authService.authError.set(null);
@@ -407,7 +445,7 @@ export class App implements OnInit {
   async openWrappedModal() {
     if (!this.authService.isAuthenticated()) {
       this.showToast('Войдите в аккаунт для просмотра Recro Wrapped');
-      this.openAuthModal('login');
+      this.openAuthModal('login', 'Чтобы посмотреть персональную статистику и итоги прослушиваний Recro Wrapped, войдите в аккаунт.');
       return;
     }
 
@@ -426,7 +464,7 @@ export class App implements OnInit {
   async openHistoryModal() {
     if (!this.authService.isAuthenticated()) {
       this.showToast('Войдите в аккаунт для просмотра истории');
-      this.openAuthModal('login');
+      this.openAuthModal('login', 'Чтобы просматривать и быстро воспроизводить историю прослушиваний, войдите в аккаунт.');
       return;
     }
 
@@ -513,6 +551,7 @@ export class App implements OnInit {
 
   toggleFavorite(track: Track, event?: Event) {
     if (event) event.stopPropagation();
+    if (!this.requireAuth('добавлять в избранное')) return;
     const isNowFav = this.libraryService.toggleFavorite(track.id, track);
     this.audioService.updateTrackFavoriteStatus(track.id, isNowFav, track);
     if (isNowFav) {
@@ -531,6 +570,7 @@ export class App implements OnInit {
 
   openAddToPlaylistModal(track: Track, event?: Event) {
     if (event) event.stopPropagation();
+    if (!this.requireAuth('управлять плейлистами')) return;
     this.targetTrackForPlaylist.set(track);
     this.isAddToPlaylistModalOpen.set(true);
   }
@@ -581,6 +621,7 @@ export class App implements OnInit {
 
   async toggleOfflineTrack(track: Track, event?: Event) {
     if (event) event.stopPropagation();
+    if (!this.requireAuth('сохранять оффлайн')) return;
     if (track.isLiveStream) {
       this.showToast('Прямой эфир нельзя сохранить оффлайн');
       return;
@@ -642,6 +683,7 @@ export class App implements OnInit {
   }
 
   openMixSettings() {
+    if (!this.requireAuth('настраивать персональную Мою Волну')) return;
     this.isMixSettingsModalOpen.set(true);
   }
 
@@ -679,6 +721,7 @@ export class App implements OnInit {
   }
 
   dislikeCurrentTrack() {
+    if (!this.requireAuth('обучать персональные рекомендации')) return;
     const cur = this.audioService.currentTrack();
     if (!cur) return;
     this.audioService.dislikeCurrentTrack();
@@ -789,6 +832,7 @@ export class App implements OnInit {
   }
 
   importAllExtractedTracks(onlySelected = false) {
+    if (!this.requireAuth('импортировать плейлист')) return;
     const data = this.extractedResult();
     if (!data || data.tracks.length === 0) return;
 
@@ -857,6 +901,7 @@ export class App implements OnInit {
   }
 
   addRadioStationToMyList(station: RadioStation) {
+    if (!this.requireAuth('сохранять станции')) return;
     this.libraryService.addRadioStation({
       name: station.name,
       streamUrl: station.streamUrl,
@@ -868,16 +913,19 @@ export class App implements OnInit {
   }
 
   deleteRadioStation(stationId: string) {
+    if (!this.requireAuth('управлять радиостанциями')) return;
     this.libraryService.removeRadioStation(stationId);
     this.showToast('Радиостанция удалена');
   }
 
   resetRadioStations() {
+    if (!this.requireAuth('управлять радиостанциями')) return;
     this.libraryService.resetDefaultStations();
     this.showToast('Список радиостанций сброшен по умолчанию');
   }
 
   saveCustomStation() {
+    if (!this.requireAuth('управлять радиостанциями')) return;
     const name = this.newStationName().trim();
     const url = this.newStationUrl().trim();
     if (!url) return;
@@ -895,12 +943,14 @@ export class App implements OnInit {
   }
 
   openCreatePlaylistModal() {
+    if (!this.requireAuth('создавать плейлисты')) return;
     this.playlistTitleInput.set('');
     this.playlistDescInput.set('');
     this.isPlaylistModalOpen.set(true);
   }
 
   submitCreatePlaylist() {
+    if (!this.requireAuth('создавать плейлисты')) return;
     const title = this.playlistTitleInput().trim();
     if (!title) return;
 
@@ -912,6 +962,7 @@ export class App implements OnInit {
   }
 
   deleteCurrentPlaylist() {
+    if (!this.requireAuth('управлять плейлистами')) return;
     const pl = this.currentPlaylist();
     if (!pl) return;
     this.libraryService.deletePlaylist(pl.id);
@@ -1073,11 +1124,13 @@ export class App implements OnInit {
   }
 
   exportLibrary() {
+    if (!this.requireAuth('экспортировать медиатеку')) return;
     this.libraryService.exportLibrary();
     this.showToast('Медиатека экспортирована в файл');
   }
 
   onBackupFileSelected(event: Event) {
+    if (!this.requireAuth('импортировать бэкап')) return;
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       const file = input.files[0];

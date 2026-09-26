@@ -2505,24 +2505,40 @@
   position: fixed;
   bottom: 84px;
   right: 20px;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-muted);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  padding: 8px 14px;
-  border-radius: 8px;
+  background-color: rgba(18, 18, 22, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  padding: 10px 16px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
-  z-index: 1000;
-  animation: fadeIn 0.15s ease-out;
+  z-index: 99999;
+  animation: toastFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 420px;
+
+  .toast-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
   .toast-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background-color: var(--accent-white);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  }
+
+  .toast-content {
+    line-height: 1.4;
+    word-break: break-word;
   }
 }
 
@@ -3546,9 +3562,39 @@
   }
 
   .system-toast {
-    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
-    right: 12px;
-    left: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-width: none;
+    z-index: 99999;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background-color: rgba(22, 22, 26, 0.98);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12);
+    animation: toastSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .guest-welcome-banner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+    gap: 12px;
+    margin-bottom: 16px;
+
+    .guest-banner-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 6px;
+      align-items: center;
+
+      .btn-guest-action {
+        text-align: center;
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+    }
   }
 }
 
@@ -5507,5 +5553,186 @@
     }
   }
 }
+
+/* ==========================================================================
+   GUEST MODE BANNER & AUTH REASON PLATES
+   ========================================================================== */
+
+.guest-welcome-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(20, 20, 24, 0.8) 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  animation: fadeIn 0.2s ease-out;
+
+  .guest-banner-info {
+    flex: 1;
+
+    .guest-banner-tag-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+
+      .guest-banner-badge {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding: 2px 7px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+        color: var(--text-primary);
+      }
+
+      .guest-banner-hint {
+        font-size: 10px;
+        color: var(--text-muted);
+      }
+    }
+
+    .guest-banner-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 4px 0;
+    }
+
+    .guest-banner-sub {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+  }
+
+  .guest-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .btn-guest-action {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+
+      &.btn-guest-reg {
+        background: var(--text-primary);
+        color: #000;
+        border: none;
+
+        &:hover {
+          opacity: 0.9;
+          transform: translateY(-1px);
+        }
+      }
+
+      &.btn-guest-login {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-primary);
+        border: 1px solid var(--border-muted);
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.14);
+        }
+      }
+    }
+
+    .btn-guest-dismiss {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s ease;
+
+      &:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.06);
+      }
+    }
+  }
+}
+
+.auth-reason-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(24, 24, 27, 0.6));
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 10px;
+  animation: fadeIn 0.15s ease-out;
+
+  .reason-icon-bubble {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .reason-text-block {
+    flex: 1;
+
+    .reason-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #fbbf24;
+      margin-bottom: 2px;
+    }
+
+    .reason-message {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text-primary);
+    }
+  }
+}
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 
 
