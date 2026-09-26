@@ -63,6 +63,11 @@ export class AudioService {
     return true;
   });
 
+  getPreciseCurrentTime(): number {
+    if (!this.audio) return this.currentTime();
+    return this.streamSeekOffset() + (this.audio.currentTime || 0);
+  }
+
   constructor() {
     if (typeof document !== 'undefined') {
       this.audio = document.createElement('audio');

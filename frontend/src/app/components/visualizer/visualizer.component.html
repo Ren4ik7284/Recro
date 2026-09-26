@@ -159,6 +159,7 @@
                 @for (line of lyrics.lines; track $index; let i = $index) {
                   <div 
                     class="vis-lyric-line"
+                    [attr.data-line-index]="i"
                     [class.active]="i === lyricsService.activeLineIndex()"
                     [class.past]="i < lyricsService.activeLineIndex()"
                     [class.future]="i > lyricsService.activeLineIndex()"

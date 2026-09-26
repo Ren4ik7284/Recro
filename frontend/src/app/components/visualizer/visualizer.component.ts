@@ -354,18 +354,21 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private lastActiveLyricsIndex = -1;
+
   /**
-   * Плавный автоскролл текста караоке по центру экрана в визуализаторе
+   * Плавный автоскролл текста караоке по центру экрана в визуализаторе при смене строки
    */
   private autoScrollVisualizerLyrics() {
-    if (!this.visLyricsBox) return;
+    const activeIdx = this.lyricsService.activeLineIndex();
+    if (activeIdx === this.lastActiveLyricsIndex || activeIdx < 0 || !this.visLyricsBox) return;
+    this.lastActiveLyricsIndex = activeIdx;
+
     const box = this.visLyricsBox.nativeElement;
-    const activeEl = box.querySelector('.vis-lyric-line.active') as HTMLElement;
+    const activeEl = box.querySelector(`[data-line-index="${activeIdx}"]`) as HTMLElement;
     if (activeEl) {
       const targetTop = activeEl.offsetTop - box.clientHeight / 2 + activeEl.clientHeight / 2;
-      if (Math.abs(box.scrollTop - targetTop) > 6) {
-        box.scrollTo({ top: targetTop, behavior: 'smooth' });
-      }
+      box.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
     }
   }
 

@@ -146,7 +146,8 @@
     <section 
       #lyricsScrollContainer 
       class="lyrics-scroll-viewport"
-      (scroll)="onContainerScroll()"
+      (wheel)="onUserTouchScroll()"
+      (touchstart)="onUserTouchScroll()"
     >
       @if (lyricsService.isLoading()) {
         <div class="lyrics-status-box">

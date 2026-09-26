@@ -59,8 +59,12 @@ export class LyricsComponent {
     }
   }
 
+  private lastScrolledIndex = -1;
+
   scrollToActiveLine(index: number) {
-    if (!this.scrollContainer) return;
+    if (!this.scrollContainer || index < 0 || index === this.lastScrolledIndex) return;
+    this.lastScrolledIndex = index;
+
     const container = this.scrollContainer.nativeElement;
     const lineElement = container.querySelector(`[data-line-index="${index}"]`) as HTMLElement;
 
@@ -78,7 +82,7 @@ export class LyricsComponent {
     }
   }
 
-  onContainerScroll() {
+  onUserTouchScroll() {
     this.lyricsService.onUserScroll();
   }
 
