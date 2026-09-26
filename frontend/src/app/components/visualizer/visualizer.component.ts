@@ -15,8 +15,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AudioService } from '../../services/audio.service';
 import { LibraryService } from '../../services/library.service';
+import { LyricsService } from '../../services/lyrics.service';
 
-export type VisualizerType = 'bars' | 'wave' | 'circle' | 'road';
+export type VisualizerType = 'bars' | 'wave' | 'circle' | 'lyrics';
 export type VisualizerTheme = 'mono' | 'green' | 'album';
 
 @Component({
@@ -30,11 +31,13 @@ export type VisualizerTheme = 'mono' | 'green' | 'album';
 export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly audioService = inject(AudioService);
   readonly libraryService = inject(LibraryService);
+  readonly lyricsService = inject(LyricsService);
 
   readonly mode = input<'mini' | 'full'>('full');
 
   @ViewChild('visCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('visualizerContainer') containerRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('visLyricsBox') visLyricsBox?: ElementRef<HTMLDivElement>;
 
   readonly visualType = signal<VisualizerType>('bars');
   readonly colorTheme = signal<VisualizerTheme>('album');
@@ -104,7 +107,7 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
       } else if (event.key === '3') {
         this.setVisualType('circle');
       } else if (event.key === '4') {
-        this.setVisualType('road');
+        this.setVisualType('lyrics');
       }
     }
   }
@@ -345,113 +348,51 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
       this.drawWaveform(ctx, w, h);
     } else if (type === 'circle') {
       this.drawCircle(ctx, w, h);
-    } else if (type === 'road') {
-      this.drawRoad(ctx, w, h);
+    } else if (type === 'lyrics') {
+      this.drawLyricsWave(ctx, w, h);
+      this.autoScrollVisualizerLyrics();
     }
   }
 
   /**
-   * Отрисовка бегущей 3D звуковой трассы (Road) в реальном времени
+   * Плавный автоскролл текста караоке по центру экрана в визуализаторе
    */
-  private drawRoad(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    const isPlaying = this.audioService.isPlaying();
-    if (isPlaying) {
-      this.roadOffset = (this.roadOffset + 3.5) % 40;
+  private autoScrollVisualizerLyrics() {
+    if (!this.visLyricsBox) return;
+    const box = this.visLyricsBox.nativeElement;
+    const activeEl = box.querySelector('.vis-lyric-line.active') as HTMLElement;
+    if (activeEl) {
+      const targetTop = activeEl.offsetTop - box.clientHeight / 2 + activeEl.clientHeight / 2;
+      if (Math.abs(box.scrollTop - targetTop) > 6) {
+        box.scrollTo({ top: targetTop, behavior: 'smooth' });
+      }
     }
+  }
+
+  /**
+   * Отрисовка фонового звукового эквалайзера в режиме караоке-текста
+   */
+  private drawLyricsWave(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const colors = this.getThemeColors(ctx, h);
-    const horizonY = h * 0.44;
-    const centerX = w / 2;
     const sens = this.sensitivity();
+    const numBars = Math.min(64, Math.floor(w / 14));
+    const barWidth = (w / numBars) * 0.65;
+    const gap = (w / numBars) * 0.35;
+    const step = Math.max(1, Math.floor(this.bufferLength / numBars));
 
-    // 1. Неоновый закат и свечение на горизонте
-    const glowGrad = ctx.createRadialGradient(centerX, horizonY, 10, centerX, horizonY, w * 0.45);
-    glowGrad.addColorStop(0, colors.glow);
-    glowGrad.addColorStop(1, 'transparent');
-    ctx.fillStyle = glowGrad;
-    ctx.fillRect(0, 0, w, horizonY + 30);
+    ctx.save();
+    ctx.fillStyle = colors.glow || 'rgba(255, 255, 255, 0.18)';
 
-    // 2. Перспективная поверхность бегущей дороги
-    const roadTopW = w * 0.12;
-    const roadBotW = w * 0.82;
-
-    ctx.beginPath();
-    ctx.moveTo(centerX - roadTopW / 2, horizonY);
-    ctx.lineTo(centerX + roadTopW / 2, horizonY);
-    ctx.lineTo(centerX + roadBotW / 2, h);
-    ctx.lineTo(centerX - roadBotW / 2, h);
-    ctx.closePath();
-    ctx.fillStyle = '#060609';
-    ctx.fill();
-
-    // 3. Бегущие горизонтальные линии дороги в перспективе
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = colors.primary;
-    ctx.shadowColor = colors.primary;
-    ctx.shadowBlur = 6;
-
-    const numHorizLines = 14;
-    for (let i = 0; i < numHorizLines; i++) {
-      const p = Math.pow((i + (this.roadOffset / 40)) / numHorizLines, 2.2);
-      const y = horizonY + p * (h - horizonY);
-      const curHalfW = (roadTopW + p * (roadBotW - roadTopW)) / 2;
-
-      ctx.beginPath();
-      ctx.moveTo(centerX - curHalfW, y);
-      ctx.lineTo(centerX + curHalfW, y);
-      ctx.stroke();
-    }
-
-    // 4. Продольные полосы дороги
-    const lanes = [-0.5, -0.16, 0.16, 0.5];
-    for (const lane of lanes) {
-      ctx.beginPath();
-      ctx.moveTo(centerX + lane * roadTopW, horizonY);
-      ctx.lineTo(centerX + lane * roadBotW, h);
-      ctx.stroke();
-    }
-
-    // 5. Звуковые столбы эквалайзера по краям трассы в реальном времени
-    const numBarsSide = 22;
-    const step = Math.max(1, Math.floor(this.bufferLength / (numBarsSide * 2)));
-
-    for (let i = 0; i < numBarsSide; i++) {
-      const p = (i + 1) / numBarsSide;
-      const y = horizonY + Math.pow(p, 1.8) * (h - horizonY);
-      const halfW = (roadTopW + p * (roadBotW - roadTopW)) / 2;
-
+    for (let i = 0; i < numBars; i++) {
       const dataIdx = Math.min(this.bufferLength - 1, i * step);
       const val = Math.min(1.0, (this.freqData[dataIdx] / 255) * sens);
-      const barH = Math.max(4, val * (h * 0.32) * (0.35 + p * 0.65));
-      const barW = Math.max(3, p * 12);
+      const barHeight = Math.max(3, val * (h * 0.16));
+      const x = i * (barWidth + gap) + gap / 2;
+      const y = h - barHeight;
 
-      // Левый звуковой столб
-      const leftX = centerX - halfW - barW - 6 * p;
-      ctx.fillStyle = colors.primary;
-      ctx.fillRect(leftX, y - barH, barW, barH);
-
-      // Правый звуковой столб
-      const rightX = centerX + halfW + 6 * p;
-      ctx.fillRect(rightX, y - barH, barW, barH);
+      ctx.fillRect(x, y, barWidth, barHeight);
     }
-
-    // 6. Бегущая звуковая синусоида (live time-domain audio wave) по центру дороги
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#ffffff';
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#ffffff';
-    ctx.beginPath();
-    for (let i = 0; i < this.bufferLength; i++) {
-      const p = i / this.bufferLength;
-      const y = horizonY + p * (h - horizonY);
-      const waveVal = ((this.timeData[i] - 128) / 128) * sens;
-      const maxWiggle = ((roadTopW + p * (roadBotW - roadTopW)) * 0.28);
-      const x = centerX + waveVal * maxWiggle;
-
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   private drawBars(ctx: CanvasRenderingContext2D, w: number, h: number) {

@@ -63,11 +63,11 @@
         </button>
         <button 
           class="vis-pill-btn" 
-          [class.active]="visualType() === 'road'"
-          (click)="setVisualType('road')"
-          title="Бегущая звуковая трасса / Дорога (4)"
+          [class.active]="visualType() === 'lyrics'"
+          (click)="setVisualType('lyrics')"
+          title="Слова песни / Караоке в реальном времени (4)"
         >
-          ДОРОГА
+          ТЕКСТ
         </button>
       </div>
 
@@ -141,6 +141,51 @@
             </div>
           }
           <div class="circle-cover-vignette"></div>
+        </div>
+      }
+
+      <!-- Spotify-style Live Scrolling Lyrics in Visualizer -->
+      @if (visualType() === 'lyrics') {
+        <div class="vis-lyrics-stage">
+          @if (lyricsService.isLoading()) {
+            <div class="vis-lyrics-loading">
+              <div class="vis-lyrics-spinner"></div>
+              <p>Поиск текста песни...</p>
+            </div>
+          } @else if (lyricsService.currentLyrics(); as lyrics) {
+            @if (lyrics.lines.length > 0) {
+              <div class="vis-lyrics-scroll-box" #visLyricsBox>
+                <div class="vis-lyrics-spacer"></div>
+                @for (line of lyrics.lines; track $index; let i = $index) {
+                  <div 
+                    class="vis-lyric-line"
+                    [class.active]="i === lyricsService.activeLineIndex()"
+                    [class.past]="i < lyricsService.activeLineIndex()"
+                    [class.future]="i > lyricsService.activeLineIndex()"
+                    (click)="lyricsService.seekToLine(line)"
+                    title="Перемотать сюда"
+                  >
+                    {{ line.text }}
+                  </div>
+                }
+                <div class="vis-lyrics-spacer"></div>
+              </div>
+            } @else {
+              <div class="vis-lyrics-empty">
+                <p>{{ lyrics.plainText || 'Текст песни не содержит временных меток' }}</p>
+                <button type="button" class="btn-vis-import font-mono" (click)="lyricsService.openLyrics()">
+                  ИМПОРТИРОВАТЬ .LRC
+                </button>
+              </div>
+            }
+          } @else {
+            <div class="vis-lyrics-empty">
+              <p>Текст для этого трека не найден</p>
+              <button type="button" class="btn-vis-import font-mono" (click)="lyricsService.openLyrics()">
+                ДОБАВИТЬ ТЕКСТ (.LRC)
+              </button>
+            </div>
+          }
         </div>
       }
     </main>

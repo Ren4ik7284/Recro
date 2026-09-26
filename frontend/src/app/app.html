@@ -976,6 +976,46 @@
           <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
         </svg>
       </div>
+
+      <!-- Spotify-style Live Lyrics Card in Mobile Sheet -->
+      <div class="sheet-lyrics-card" (click)="lyricsService.openLyrics()">
+        <div class="sheet-lyrics-card-header">
+          <span class="sheet-lyrics-title font-mono">ТЕКСТ ПЕСНИ</span>
+          <button type="button" class="sheet-lyrics-expand-btn font-mono">
+            НА ВЕСЬ ЭКРАН
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 3 21 3 21 9"/>
+              <polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/>
+              <line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="sheet-lyrics-preview">
+          @if (lyricsService.isLoading()) {
+            <p class="sheet-lyrics-loading font-mono">Поиск текста песни...</p>
+          } @else if (lyricsService.currentLyrics(); as lyrics) {
+            @if (lyrics.lines.length > 0) {
+              @for (line of lyrics.lines; track $index; let i = $index) {
+                @if (i >= lyricsService.activeLineIndex() - 1 && i <= lyricsService.activeLineIndex() + 2) {
+                  <p 
+                    class="sheet-lyrics-line"
+                    [class.active]="i === lyricsService.activeLineIndex()"
+                    [class.past]="i < lyricsService.activeLineIndex()"
+                  >
+                    {{ line.text }}
+                  </p>
+                }
+              }
+            } @else {
+              <p class="sheet-lyrics-line active">{{ lyrics.plainText || 'Текст доступен' }}</p>
+            }
+          } @else {
+            <p class="sheet-lyrics-line past">Нажмите, чтобы открыть или загрузить текст песни</p>
+          }
+        </div>
+      </div>
     </div>
   }
 
