@@ -41,7 +41,7 @@ export class LyricsComponent {
       const isOpen = this.lyricsService.isLyricsOpen();
 
       if (isOpen && activeIdx >= 0 && !isLocked) {
-        setTimeout(() => this.scrollToActiveLine(activeIdx), 50);
+        requestAnimationFrame(() => this.scrollToActiveLine(activeIdx));
       }
     });
 
@@ -67,6 +67,12 @@ export class LyricsComponent {
       } else {
         this.lyricsService.closeLyrics();
       }
+    } else if (event.key === '[' || event.key === 'х' || event.key === 'Х') {
+      event.preventDefault();
+      this.lyricsService.adjustOffset(-200);
+    } else if (event.key === ']' || event.key === 'ъ' || event.key === 'Ъ') {
+      event.preventDefault();
+      this.lyricsService.adjustOffset(200);
     }
   }
 

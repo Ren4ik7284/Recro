@@ -47,7 +47,11 @@ export class LyricsService {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    // Упреждение (lookahead 350мс) как в Spotify и Apple Music:
+    // Нивелирует аппаратную буферизацию звука и длительность плавной анимации скролла,
+    // благодаря чему строка подсвечивается и встает по центру точно к моменту звучания слов
+    const leadTimeSec = 0.35;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
 
     let activeIdx = -1;
     for (let i = 0; i < lyrics.lines.length; i++) {
@@ -56,17 +60,6 @@ export class LyricsService {
         activeIdx = i;
       } else if (line.startTime > t) {
         break;
-      }
-    }
-
-    // Если между строками долгая инструментальная пауза (>2.5с), снимаем подсветку
-    if (activeIdx >= 0) {
-      const cur = lyrics.lines[activeIdx];
-      if (cur.endTime && t > cur.endTime + 0.8 && activeIdx < lyrics.lines.length - 1) {
-        const next = lyrics.lines[activeIdx + 1];
-        if (next.startTime - cur.endTime > 2.5) {
-          return -1;
-        }
       }
     }
 
@@ -82,7 +75,8 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
-    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const leadTimeSec = 0.35;
+    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
     const end = currentLine.endTime || (nextLine && nextLine.startTime >= 0 ? nextLine.startTime : start + 4);
