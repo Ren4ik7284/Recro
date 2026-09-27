@@ -27,32 +27,11 @@
     </div>
 
     <div class="lyrics-actions-group">
-      <!-- Timing Offset adjustment -->
-      <div class="timing-controls" title="Подстройка таймингов, если текст спешит или отстает">
-        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(-1000)" title="Текст спешит (-1с)">
-          -1с
+      @if (lyricsService.syncOffsetMs() !== 0) {
+        <button type="button" class="btn-auto-offset-indicator font-mono" (click)="lyricsService.resetOffset()" title="Авто-выравнивание синхронизации активно. Нажмите для сброса.">
+          АВТО-СИНХРОНИЗАЦИЯ: {{ lyricsService.syncOffsetMs() > 0 ? '+' : '' }}{{ lyricsService.syncOffsetMs() }}мс
         </button>
-        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(-500)" title="Текст спешит (-0.5с)">
-          -0.5с
-        </button>
-        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(-100)" title="Текст спешит (-0.1с)">
-          -0.1с
-        </button>
-        @if (lyricsService.syncOffsetMs() !== 0) {
-          <button type="button" class="btn-time-reset" (click)="lyricsService.resetOffset()" title="Сбросить сдвиг">
-            Сброс
-          </button>
-        }
-        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(100)" title="Текст отстает (+0.1с)">
-          +0.1с
-        </button>
-        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(500)" title="Текст отстает (+0.5с)">
-          +0.5с
-        </button>
-        <button type="button" class="btn-time-adjust" (click)="lyricsService.adjustOffset(1000)" title="Текст отстает (+1с)">
-          +1с
-        </button>
-      </div>
+      }
 
       <!-- Import Custom LRC Button -->
       <button type="button" class="btn-lyrics-tool" (click)="openImportDialog()" title="Импортировать свой файл .lrc или вставить текст">

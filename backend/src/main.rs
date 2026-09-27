@@ -22,6 +22,7 @@ use handlers::cover::{health_check, proxy_cover};
 use handlers::history::{clear_history, get_history, record_play};
 use handlers::library::{get_library, save_library};
 use handlers::search::{extract_info, search_music};
+use handlers::lyrics::{get_lyrics, LyricsCache};
 use handlers::stats::get_wrapped;
 use handlers::stream::stream_audio;
 
@@ -36,6 +37,7 @@ pub struct AppState {
     pub endpoint_rate_limits: EndpointRateLimits,
     pub heavy_process_semaphore: Arc<tokio::sync::Semaphore>,
     pub stream_cache: StreamCache,
+    pub lyrics_cache: LyricsCache,
 }
 
 #[tokio::main]
@@ -57,6 +59,7 @@ async fn main() {
         endpoint_rate_limits: Arc::new(Mutex::new(HashMap::new())),
         heavy_process_semaphore: Arc::new(tokio::sync::Semaphore::new(16)),
         stream_cache: Arc::new(Mutex::new(HashMap::new())),
+        lyrics_cache: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {
@@ -91,6 +94,7 @@ async fn main() {
         .route("/api/search", get(search_music))
         .route("/api/extract", get(extract_info))
         .route("/api/stream", get(stream_audio))
+        .route("/api/lyrics", get(get_lyrics))
         .layer(RequestBodyLimitLayer::new(5 * 1024 * 1024))
         .layer(cors)
         .with_state(state);

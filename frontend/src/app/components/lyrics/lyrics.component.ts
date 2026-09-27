@@ -69,10 +69,18 @@ export class LyricsComponent {
       }
     } else if (event.key === '[' || event.key === 'х' || event.key === 'Х') {
       event.preventDefault();
-      this.lyricsService.adjustOffset(-200);
+      if (event.shiftKey) {
+        this.lyricsService.shiftByLine(-1);
+      } else {
+        this.lyricsService.adjustOffset(-200);
+      }
     } else if (event.key === ']' || event.key === 'ъ' || event.key === 'Ъ') {
       event.preventDefault();
-      this.lyricsService.adjustOffset(200);
+      if (event.shiftKey) {
+        this.lyricsService.shiftByLine(1);
+      } else {
+        this.lyricsService.adjustOffset(200);
+      }
     }
   }
 

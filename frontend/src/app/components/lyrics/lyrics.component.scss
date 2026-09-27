@@ -103,40 +103,22 @@
     align-items: center;
     gap: 8px;
 
-    .timing-controls {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 2px 4px;
+    .btn-auto-offset-indicator {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      color: #38bdf8;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 4px 8px;
       border-radius: 6px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.15s ease;
 
-      .btn-time-adjust {
-        background: transparent;
-        border: none;
-        color: rgba(255, 255, 255, 0.7);
-        font-family: monospace;
-        font-size: 10px;
-        padding: 3px 6px;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.15s ease;
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.15);
-          color: #fff;
-        }
-      }
-
-      .btn-time-reset {
+      &:hover {
         background: rgba(239, 68, 68, 0.2);
-        border: 1px solid rgba(239, 68, 68, 0.4);
+        border-color: rgba(239, 68, 68, 0.4);
         color: #ef4444;
-        font-size: 10px;
-        padding: 2px 5px;
-        border-radius: 4px;
-        cursor: pointer;
       }
     }
 
