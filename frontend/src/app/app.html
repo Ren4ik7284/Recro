@@ -729,8 +729,8 @@
 
   
   <app-player-bar
-    (toggleQueueDrawer)="isQueueDrawerOpen.update(v => !v)"
-    (expandMobilePlayer)="isMobilePlayerExpanded.set(true)"
+    (toggleQueueDrawer)="toggleQueueDrawer()"
+    (expandMobilePlayer)="expandMobilePlayer()"
     (openAddToPlaylist)="openAddToPlaylistModal($event)"
   ></app-player-bar>
 
@@ -779,7 +779,7 @@
       <span>Радио</span>
     </button>
 
-    <button class="m-nav-item" [class.active]="activeTab() === 'playlist'" (click)="isMobilePlaylistsOpen.set(true)">
+    <button class="m-nav-item" [class.active]="activeTab() === 'playlist'" (click)="openMobilePlaylists()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 6h16M4 12h16M4 18h7"/>
       </svg>
@@ -791,7 +791,7 @@
   @if (isMobilePlayerExpanded() && audioService.currentTrack(); as cur) {
     <div class="mobile-player-sheet">
       <div class="sheet-top-bar">
-        <button class="btn-sheet-close" (click)="isMobilePlayerExpanded.set(false)">
+        <button class="btn-sheet-close" (click)="collapseMobilePlayer()">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -810,7 +810,7 @@
               <path d="M12 20V10M18 20V4M6 20v-4"/>
             </svg>
           </button>
-          <button class="btn-sheet-close" (click)="isQueueDrawerOpen.set(true)">
+          <button class="btn-sheet-close" (click)="openQueueDrawer()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
             </svg>
@@ -1021,11 +1021,11 @@
 
   
   @if (isMobilePlaylistsOpen()) {
-    <div class="modal-backdrop" (click)="isMobilePlaylistsOpen.set(false)">
+    <div class="modal-backdrop" (click)="closeMobilePlaylists()">
       <div class="modal-dialog mobile-playlists-sheet" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3 class="modal-title">Ваши плейлисты</h3>
-          <button class="btn-create-pl-mini" (click)="openCreatePlaylistModal(); isMobilePlaylistsOpen.set(false)">
+          <button class="btn-create-pl-mini" (click)="openCreatePlaylistModal(); closeMobilePlaylists()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
@@ -1081,7 +1081,7 @@
 
   
   @if (isQueueDrawerOpen()) {
-    <div class="drawer-backdrop" (click)="isQueueDrawerOpen.set(false)">
+    <div class="drawer-backdrop" (click)="closeQueueDrawer()">
       <div class="drawer-panel" (click)="$event.stopPropagation()">
         <div class="drawer-header">
           <div>
@@ -1090,7 +1090,7 @@
           </div>
           <div class="drawer-actions">
             <button class="btn-text-sm" (click)="audioService.clearQueue()">Очистить</button>
-            <button class="btn-close-sm" (click)="isQueueDrawerOpen.set(false)">
+            <button class="btn-close-sm" (click)="closeQueueDrawer()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -1133,14 +1133,14 @@
 
   
   @if (isAddModalOpen()) {
-    <div class="modal-backdrop" (click)="isAddModalOpen.set(false)">
+    <div class="modal-backdrop" (click)="closeAddModal()">
       <div class="modal-dialog add-music-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
             <h3 class="modal-title">Добавить музыку</h3>
             <p class="modal-subtitle">YouTube видео и плейлисты, поиск онлайн, файлы или радио</p>
           </div>
-          <button class="btn-close-sm" (click)="isAddModalOpen.set(false)">
+          <button class="btn-close-sm" (click)="closeAddModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -1473,7 +1473,7 @@
               </div>
               <div class="presets-grid">
                 @for (station of libraryService.radioStations(); track station.id) {
-                  <div class="preset-card" (click)="playRadioStation(station); isAddModalOpen.set(false)">
+                  <div class="preset-card" (click)="playRadioStation(station); closeAddModal()">
                     <div class="preset-info">
                       <span class="preset-title">{{ station.name }}</span>
                       <span class="preset-genre">{{ station.genre }} • {{ station.country || 'Live' }}</span>
@@ -1590,7 +1590,7 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" (click)="isAddModalOpen.set(false)">Закрыть</button>
+          <button class="btn-cancel" (click)="closeAddModal()">Закрыть</button>
           
           @if (addModalTab() === 'url') {
             <button class="btn-confirm-action" [disabled]="(!inputUrl().trim() && !inputTitle().trim()) || isUrlValidating()" (click)="submitUrlTrack()">
@@ -1667,11 +1667,11 @@
 
   
   @if (isPlaylistModalOpen()) {
-    <div class="modal-backdrop" (click)="isPlaylistModalOpen.set(false)">
+    <div class="modal-backdrop" (click)="closeCreatePlaylistModal()">
       <div class="modal-dialog playlist-modal" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3 class="modal-title">Новый плейлист</h3>
-          <button class="btn-close-sm" (click)="isPlaylistModalOpen.set(false)">
+          <button class="btn-close-sm" (click)="closeCreatePlaylistModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -1706,7 +1706,7 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" (click)="isPlaylistModalOpen.set(false)">Отмена</button>
+          <button class="btn-cancel" (click)="closeCreatePlaylistModal()">Отмена</button>
           <button class="btn-confirm-action" [disabled]="!playlistTitleInput().trim()" (click)="submitCreatePlaylist()">
             Создать
           </button>
@@ -1716,14 +1716,14 @@
   }
 
   @if (isAddToPlaylistModalOpen() && targetTrackForPlaylist()) {
-    <div class="modal-backdrop" (click)="isAddToPlaylistModalOpen.set(false)">
+    <div class="modal-backdrop" (click)="closeAddToPlaylistModal()">
       <div class="modal-dialog add-to-pl-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
             <h3 class="modal-title">Добавить в плейлист</h3>
             <p class="modal-subtitle">{{ targetTrackForPlaylist()?.title }} — {{ targetTrackForPlaylist()?.artist }}</p>
           </div>
-          <button class="btn-close-sm" (click)="isAddToPlaylistModalOpen.set(false)">
+          <button class="btn-close-sm" (click)="closeAddToPlaylistModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -1763,10 +1763,10 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-new-pl" (click)="isAddToPlaylistModalOpen.set(false); openCreatePlaylistModal()">
+          <button class="btn-new-pl" (click)="closeAddToPlaylistModal(); openCreatePlaylistModal()">
             + Создать новый плейлист
           </button>
-          <button class="btn-confirm-action" (click)="isAddToPlaylistModalOpen.set(false)">
+          <button class="btn-confirm-action" (click)="closeAddToPlaylistModal()">
             Готово
           </button>
         </div>
@@ -1775,14 +1775,14 @@
   }
 
   @if (isPwaModalOpen()) {
-    <div class="modal-backdrop" (click)="isPwaModalOpen.set(false)">
+    <div class="modal-backdrop" (click)="closePwaModal()">
       <div class="modal-dialog pwa-install-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
             <h3 class="modal-title">Установка Recro</h3>
             <p class="modal-subtitle">Приложение без рамок браузера на вашем телефоне</p>
           </div>
-          <button class="btn-close-sm" (click)="isPwaModalOpen.set(false)">
+          <button class="btn-close-sm" (click)="closePwaModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -1830,7 +1830,7 @@
           }
         </div>
         <div class="modal-footer">
-          <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="isPwaModalOpen.set(false)">
+          <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="closePwaModal()">
             Понятно
           </button>
         </div>
@@ -1839,7 +1839,7 @@
   }
 
   @if (isAuthModalOpen()) {
-    <div class="modal-backdrop" (click)="isAuthModalOpen.set(false)">
+    <div class="modal-backdrop" (click)="closeAuthModal()">
       <div class="modal-dialog auth-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
@@ -1858,7 +1858,7 @@
               }
             </p>
           </div>
-          <button class="btn-close-sm" (click)="isAuthModalOpen.set(false)">
+          <button class="btn-close-sm" (click)="closeAuthModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -2062,7 +2062,7 @@
         </div>
 
         <div class="modal-footer auth-modal-footer">
-          <button type="button" class="btn-cancel" (click)="isAuthModalOpen.set(false)">Отмена</button>
+          <button type="button" class="btn-cancel" (click)="closeAuthModal()">Отмена</button>
           
           @if (authModalTab() === 'login') {
             <button 
@@ -2097,7 +2097,7 @@
   }
 
   @if (isWrappedModalOpen()) {
-    <div class="modal-backdrop" (click)="isWrappedModalOpen.set(false)">
+    <div class="modal-backdrop" (click)="closeWrappedModal()">
       <div class="modal-dialog wrapped-dialog" (click)="$event.stopPropagation()">
         <div class="wrapped-dialog-header">
           <div class="wrapped-badge-row">
@@ -2106,7 +2106,7 @@
           </div>
           <h2 class="wrapped-main-title">ТВОЙ МУЗЫКАЛЬНЫЙ ИТОГ</h2>
           <p class="wrapped-user-sub font-mono">Слушатель: {{ wrappedStats()?.username || authService.currentUser()?.username }}</p>
-          <button class="btn-wrapped-close" (click)="isWrappedModalOpen.set(false)">
+          <button class="btn-wrapped-close" (click)="closeWrappedModal()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -2235,7 +2235,7 @@
         </div>
 
         <div class="wrapped-dialog-footer">
-          <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="isWrappedModalOpen.set(false)">
+          <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="closeWrappedModal()">
             Закрыть
           </button>
         </div>
@@ -2244,7 +2244,7 @@
   }
 
   @if (isHistoryModalOpen()) {
-    <div class="modal-backdrop" (click)="isHistoryModalOpen.set(false)">
+    <div class="modal-backdrop" (click)="closeHistoryModal()">
       <div class="modal-dialog history-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
@@ -2255,7 +2255,7 @@
             @if (historyList().length > 0) {
               <button class="btn-text-sm btn-danger-soft" (click)="clearListeningHistory()">Очистить</button>
             }
-            <button class="btn-close-sm" (click)="isHistoryModalOpen.set(false)">
+            <button class="btn-close-sm" (click)="closeHistoryModal()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
@@ -2305,7 +2305,7 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" style="width: 100%; text-align: center;" (click)="isHistoryModalOpen.set(false)">
+          <button class="btn-cancel" style="width: 100%; text-align: center;" (click)="closeHistoryModal()">
             Закрыть
           </button>
         </div>

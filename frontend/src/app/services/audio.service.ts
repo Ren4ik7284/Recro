@@ -3,6 +3,7 @@ import { Track } from '../models/track.model';
 import { LibraryService } from './library.service';
 import { OfflineService } from './offline.service';
 import { RecommendationService, MixMood } from './recommendation.service';
+import { NavigationService } from './navigation.service';
 
 @Injectable({
   providedIn: 'root',
@@ -11,6 +12,7 @@ export class AudioService {
   private libraryService = inject(LibraryService);
   private offlineService = inject(OfflineService);
   readonly recService = inject(RecommendationService);
+  private navService = inject(NavigationService);
   private audio: HTMLAudioElement;
 
   // Web Audio API Nodes for Normalization & Crossfade & Visualizer
@@ -159,17 +161,26 @@ export class AudioService {
   }
 
   toggleVisualizer() {
-    this.ensureAudioContext();
-    this.isVisualizerOpen.update((v) => !v);
+    if (this.isVisualizerOpen()) {
+      this.closeVisualizer();
+    } else {
+      this.openVisualizer();
+    }
   }
 
-  openVisualizer() {
+  openVisualizer(pushHistory = true) {
     this.ensureAudioContext();
     this.isVisualizerOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('visualizer');
+    }
   }
 
-  closeVisualizer() {
+  closeVisualizer(popHistory = true) {
     this.isVisualizerOpen.set(false);
+    if (popHistory) {
+      this.navService.closeOverlay('visualizer');
+    }
   }
 
   getAudioFrequencyData(array: Uint8Array): boolean {

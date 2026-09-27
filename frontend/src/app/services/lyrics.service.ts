@@ -1,5 +1,6 @@
 import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { AudioService } from './audio.service';
+import { NavigationService } from './navigation.service';
 import { Track } from '../models/track.model';
 
 export interface LyricWord {
@@ -29,6 +30,7 @@ export interface ParsedLyrics {
 })
 export class LyricsService {
   private readonly audioService = inject(AudioService);
+  private readonly navService = inject(NavigationService);
 
   readonly isLyricsOpen = signal<boolean>(false);
   readonly isLoading = signal<boolean>(false);
@@ -118,26 +120,29 @@ export class LyricsService {
   }
 
   toggleLyricsView() {
-    const nextState = !this.isLyricsOpen();
-    this.isLyricsOpen.set(nextState);
-    if (nextState) {
-      const cur = this.audioService.currentTrack();
-      if (cur) {
-        this.loadLyricsForTrack(cur);
-      }
+    if (this.isLyricsOpen()) {
+      this.closeLyrics();
+    } else {
+      this.openLyrics();
     }
   }
 
-  openLyrics() {
+  openLyrics(pushHistory = true) {
     this.isLyricsOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('lyrics');
+    }
     const cur = this.audioService.currentTrack();
     if (cur) {
       this.loadLyricsForTrack(cur);
     }
   }
 
-  closeLyrics() {
+  closeLyrics(popHistory = true) {
     this.isLyricsOpen.set(false);
+    if (popHistory) {
+      this.navService.closeOverlay('lyrics');
+    }
   }
 
   adjustOffset(deltaMs: number) {

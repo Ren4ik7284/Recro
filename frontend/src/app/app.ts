@@ -21,6 +21,7 @@ import { AuthService, HistoryItem, WrappedStats } from './services/auth.service'
 import { RecommendationService } from './services/recommendation.service';
 import { LyricsService } from './services/lyrics.service';
 import { LyricsComponent } from './components/lyrics/lyrics.component';
+import { NavigationService } from './services/navigation.service';
 
 declare global {
   interface Window {
@@ -51,6 +52,7 @@ export class App implements OnInit {
   readonly authService = inject(AuthService);
   readonly recService = inject(RecommendationService);
   readonly lyricsService = inject(LyricsService);
+  readonly navService = inject(NavigationService);
 
   readonly isQuickStartMixModalOpen = signal<boolean>(false);
   readonly isMixSettingsModalOpen = signal<boolean>(false);
@@ -161,6 +163,71 @@ export class App implements OnInit {
     this.libraryService.checkBackendHealth();
     this.authService.fetchAuthConfig(this.libraryService.getBackendUrl());
 
+    this.navService.init((state) => {
+      this.setView(state.tab, state.playlistId || undefined, false);
+
+      const o = state.overlay;
+
+      // Lyrics
+      if (o === 'lyrics') {
+        this.lyricsService.openLyrics(false);
+      } else if (this.lyricsService.isLyricsOpen()) {
+        this.lyricsService.closeLyrics(false);
+      }
+
+      // Visualizer
+      if (o === 'visualizer') {
+        this.audioService.openVisualizer(false);
+      } else if (this.audioService.isVisualizerOpen()) {
+        this.audioService.closeVisualizer(false);
+      }
+
+      // Mobile player
+      this.isMobilePlayerExpanded.set(o === 'player');
+
+      // Queue drawer
+      this.isQueueDrawerOpen.set(o === 'queue');
+
+      // Add modal
+      this.isAddModalOpen.set(o === 'add');
+
+      // Mobile playlists
+      this.isMobilePlaylistsOpen.set(o === 'playlists');
+
+      // Create playlist
+      this.isPlaylistModalOpen.set(o === 'playlist-new');
+
+      // Add to playlist
+      this.isAddToPlaylistModalOpen.set(o === 'playlist-add');
+
+      // History
+      if (o === 'history') {
+        if (!this.isHistoryModalOpen()) {
+          this.openHistoryModal(false);
+        }
+      } else {
+        this.isHistoryModalOpen.set(false);
+      }
+
+      // Mix settings
+      this.isMixSettingsModalOpen.set(o === 'mix-settings');
+
+      // Auth
+      this.isAuthModalOpen.set(o === 'auth');
+
+      // Wrapped
+      if (o === 'wrapped') {
+        if (!this.isWrappedModalOpen()) {
+          this.openWrappedModal(false);
+        }
+      } else {
+        this.isWrappedModalOpen.set(false);
+      }
+
+      // PWA
+      this.isPwaModalOpen.set(o === 'pwa');
+    });
+
     if (typeof window !== 'undefined') {
       const isIosDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       this.isIos.set(isIosDevice);
@@ -182,7 +249,7 @@ export class App implements OnInit {
     }
   }
 
-  openPwaInstallModal() {
+  openPwaInstallModal(pushHistory = true) {
     if (this.deferredPrompt) {
       this.deferredPrompt.prompt();
       this.deferredPrompt.userChoice.then((choice: any) => {
@@ -195,6 +262,14 @@ export class App implements OnInit {
       return;
     }
     this.isPwaModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('pwa');
+    }
+  }
+
+  closePwaModal() {
+    this.isPwaModalOpen.set(false);
+    this.navService.closeOverlay('pwa');
   }
 
   installPwa() {
@@ -240,8 +315,32 @@ export class App implements OnInit {
       this.audioService.toggleVisualizer();
       this.showToast(this.audioService.isVisualizerOpen() ? 'Визуализатор открыт' : 'Визуализатор закрыт');
     } else if (event.key === 'Escape') {
-      if (this.audioService.isVisualizerOpen()) {
+      if (this.lyricsService.isLyricsOpen()) {
+        this.lyricsService.closeLyrics();
+      } else if (this.audioService.isVisualizerOpen()) {
         this.audioService.closeVisualizer();
+      } else if (this.isQueueDrawerOpen()) {
+        this.closeQueueDrawer();
+      } else if (this.isAddModalOpen()) {
+        this.closeAddModal();
+      } else if (this.isPlaylistModalOpen()) {
+        this.closeCreatePlaylistModal();
+      } else if (this.isAddToPlaylistModalOpen()) {
+        this.closeAddToPlaylistModal();
+      } else if (this.isAuthModalOpen()) {
+        this.closeAuthModal();
+      } else if (this.isWrappedModalOpen()) {
+        this.closeWrappedModal();
+      } else if (this.isHistoryModalOpen()) {
+        this.closeHistoryModal();
+      } else if (this.isMixSettingsModalOpen()) {
+        this.closeMixSettings();
+      } else if (this.isPwaModalOpen()) {
+        this.closePwaModal();
+      } else if (this.isMobilePlaylistsOpen()) {
+        this.closeMobilePlaylists();
+      } else if (this.isMobilePlayerExpanded()) {
+        this.collapseMobilePlayer();
       }
     }
   }
@@ -283,12 +382,20 @@ export class App implements OnInit {
     return false;
   }
 
-  openAddModalGuarded(tab?: 'youtube' | 'search' | 'radio' | 'url' | 'file') {
+  openAddModalGuarded(tab?: 'youtube' | 'search' | 'radio' | 'url' | 'file', pushHistory = true) {
     if (tab) this.addModalTab.set(tab);
     this.isAddModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('add');
+    }
   }
 
-  openAuthModal(tab: 'login' | 'register' = 'login', reason?: string) {
+  closeAddModal() {
+    this.isAddModalOpen.set(false);
+    this.navService.closeOverlay('add');
+  }
+
+  openAuthModal(tab: 'login' | 'register' = 'login', reason?: string, pushHistory = true) {
     this.authModalTab.set(tab);
     this.authModalReason.set(reason || null);
     this.authUsernameInput.set('');
@@ -297,8 +404,16 @@ export class App implements OnInit {
     this.isGoogleConfigOpen.set(false);
     this.customGoogleClientIdInput.set(this.authService.googleClientId() || '');
     this.isAuthModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('auth');
+    }
 
     this.renderGoogleButton();
+  }
+
+  closeAuthModal() {
+    this.isAuthModalOpen.set(false);
+    this.navService.closeOverlay('auth');
   }
 
   toggleGoogleConfig() {
@@ -339,7 +454,7 @@ export class App implements OnInit {
               response.credential
             );
             if (ok) {
-              this.isAuthModalOpen.set(false);
+              this.closeAuthModal();
               const username = this.authService.currentUser()?.username || 'пользователь';
               this.showToast(`Вход выполнен! С возвращением, ${username}!`);
               this.audioService.resetSessionAudio();
@@ -413,7 +528,7 @@ export class App implements OnInit {
       const ok = await this.authService.login(backendUrl, loginVal, pass);
       if (ok) {
         this.authPasswordInput.set('');
-        this.isAuthModalOpen.set(false);
+        this.closeAuthModal();
         this.showToast(`Добро пожаловать, ${this.authService.currentUser()?.username || loginVal}!`);
         this.audioService.resetSessionAudio();
         await this.libraryService.onUserLoggedIn();
@@ -445,7 +560,7 @@ export class App implements OnInit {
       const ok = await this.authService.register(backendUrl, username, pass);
       if (ok) {
         this.authPasswordInput.set('');
-        this.isAuthModalOpen.set(false);
+        this.closeAuthModal();
         this.showToast(`Регистрация успешна! Добро пожаловать, ${username}!`);
         this.audioService.resetSessionAudio();
         await this.libraryService.onUserLoggedIn();
@@ -453,7 +568,7 @@ export class App implements OnInit {
     }
   }
 
-  async openWrappedModal() {
+  async openWrappedModal(pushHistory = true) {
     if (!this.authService.isAuthenticated()) {
       this.showToast('Войдите в аккаунт для просмотра Recro Wrapped');
       this.openAuthModal('login', 'Чтобы посмотреть персональную статистику и итоги прослушиваний Recro Wrapped, войдите в аккаунт.');
@@ -462,6 +577,9 @@ export class App implements OnInit {
 
     this.isLoadingWrapped.set(true);
     this.isWrappedModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('wrapped');
+    }
     try {
       const stats = await this.libraryService.getWrappedStats();
       this.wrappedStats.set(stats);
@@ -472,7 +590,12 @@ export class App implements OnInit {
     }
   }
 
-  async openHistoryModal() {
+  closeWrappedModal() {
+    this.isWrappedModalOpen.set(false);
+    this.navService.closeOverlay('wrapped');
+  }
+
+  async openHistoryModal(pushHistory = true) {
     if (!this.authService.isAuthenticated()) {
       this.showToast('Войдите в аккаунт для просмотра истории');
       this.openAuthModal('login', 'Чтобы просматривать и быстро воспроизводить историю прослушиваний, войдите в аккаунт.');
@@ -481,6 +604,9 @@ export class App implements OnInit {
 
     this.isLoadingHistory.set(true);
     this.isHistoryModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('history');
+    }
     try {
       const history = await this.libraryService.getHistory();
       this.historyList.set(history);
@@ -489,6 +615,11 @@ export class App implements OnInit {
     } finally {
       this.isLoadingHistory.set(false);
     }
+  }
+
+  closeHistoryModal() {
+    this.isHistoryModalOpen.set(false);
+    this.navService.closeOverlay('history');
   }
 
   async clearListeningHistory() {
@@ -541,7 +672,7 @@ export class App implements OnInit {
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
-  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline', playlistId?: string) {
+  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline', playlistId?: string, pushHistory = true) {
     this.activeTab.set(view);
     this.libraryService.selectedView.set(view);
     if (playlistId) {
@@ -550,6 +681,48 @@ export class App implements OnInit {
       this.libraryService.activePlaylistId.set(null);
     }
     this.isMobilePlaylistsOpen.set(false);
+
+    if (pushHistory) {
+      this.navService.setTab(view, playlistId, true);
+    }
+  }
+
+  expandMobilePlayer() {
+    this.isMobilePlayerExpanded.set(true);
+    this.navService.pushOverlay('player');
+  }
+
+  collapseMobilePlayer() {
+    this.isMobilePlayerExpanded.set(false);
+    this.navService.closeOverlay('player');
+  }
+
+  openQueueDrawer() {
+    this.isQueueDrawerOpen.set(true);
+    this.navService.pushOverlay('queue');
+  }
+
+  closeQueueDrawer() {
+    this.isQueueDrawerOpen.set(false);
+    this.navService.closeOverlay('queue');
+  }
+
+  toggleQueueDrawer() {
+    if (this.isQueueDrawerOpen()) {
+      this.closeQueueDrawer();
+    } else {
+      this.openQueueDrawer();
+    }
+  }
+
+  openMobilePlaylists() {
+    this.isMobilePlaylistsOpen.set(true);
+    this.navService.pushOverlay('playlists');
+  }
+
+  closeMobilePlaylists() {
+    this.isMobilePlaylistsOpen.set(false);
+    this.navService.closeOverlay('playlists');
   }
 
   selectGenre(genre: string) {
@@ -579,11 +752,19 @@ export class App implements OnInit {
     this.showToast('Добавлено в очередь');
   }
 
-  openAddToPlaylistModal(track: Track, event?: Event) {
+  openAddToPlaylistModal(track: Track, event?: Event, pushHistory = true) {
     if (event) event.stopPropagation();
     if (!this.requireAuth('управлять плейлистами')) return;
     this.targetTrackForPlaylist.set(track);
     this.isAddToPlaylistModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('playlist-add');
+    }
+  }
+
+  closeAddToPlaylistModal() {
+    this.isAddToPlaylistModalOpen.set(false);
+    this.navService.closeOverlay('playlist-add');
   }
 
   toggleTrackInPlaylistFromModal(playlist: Playlist) {
@@ -693,13 +874,17 @@ export class App implements OnInit {
     }
   }
 
-  openMixSettings() {
+  openMixSettings(pushHistory = true) {
     if (!this.requireAuth('настраивать персональную Мою Волну')) return;
     this.isMixSettingsModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('mix-settings');
+    }
   }
 
   closeMixSettings() {
     this.isMixSettingsModalOpen.set(false);
+    this.navService.closeOverlay('mix-settings');
   }
 
   updateMixMood(mood: MixMood) {
@@ -748,14 +933,12 @@ export class App implements OnInit {
   openOnlineSearchWithQuery(query: string) {
     if (query.startsWith('http://') || query.startsWith('https://')) {
       this.youtubeUrlInput.set(query);
-      this.addModalTab.set('youtube');
-      this.isAddModalOpen.set(true);
+      this.openAddModalGuarded('youtube');
       this.extractYouTubeUrl();
       return;
     }
     this.modalSearchInput.set(query);
-    this.addModalTab.set('search');
-    this.isAddModalOpen.set(true);
+    this.openAddModalGuarded('search');
     this.triggerOnlineSearch();
   }
 
@@ -813,7 +996,7 @@ export class App implements OnInit {
     // Сохраняем в оффлайн кэш
     this.offlineService.saveTrackOffline(track);
 
-    this.isAddModalOpen.set(false);
+    this.closeAddModal();
     this.youtubeUrlInput.set('');
     this.extractedResult.set(null);
   }
@@ -861,7 +1044,7 @@ export class App implements OnInit {
     const title = data.playlistTitle || data.mainVideo?.title || 'YouTube Плейлист';
     const createdPl = this.libraryService.importPlaylist(title, tracksToImport);
     this.showToast(`Создан плейлист "${title}" (${tracksToImport.length} треков)`);
-    this.isAddModalOpen.set(false);
+    this.closeAddModal();
     this.youtubeUrlInput.set('');
     this.extractedResult.set(null);
     this.setView('playlist', createdPl.id);
@@ -876,7 +1059,7 @@ export class App implements OnInit {
 
     this.libraryService.addMultipleTracks(tracksToAdd);
     this.showToast(`Добавлено ${tracksToAdd.length} треков в медиатеку`);
-    this.isAddModalOpen.set(false);
+    this.closeAddModal();
     this.youtubeUrlInput.set('');
     this.extractedResult.set(null);
   }
@@ -953,11 +1136,19 @@ export class App implements OnInit {
     this.showToast(`Станция "${name || 'Мое радио'}" добавлена`);
   }
 
-  openCreatePlaylistModal() {
+  openCreatePlaylistModal(pushHistory = true) {
     if (!this.requireAuth('создавать плейлисты')) return;
     this.playlistTitleInput.set('');
     this.playlistDescInput.set('');
     this.isPlaylistModalOpen.set(true);
+    if (pushHistory) {
+      this.navService.pushOverlay('playlist-new');
+    }
+  }
+
+  closeCreatePlaylistModal() {
+    this.isPlaylistModalOpen.set(false);
+    this.navService.closeOverlay('playlist-new');
   }
 
   submitCreatePlaylist() {
@@ -967,7 +1158,7 @@ export class App implements OnInit {
 
     const desc = this.playlistDescInput().trim();
     const pl = this.libraryService.createPlaylist(title, desc);
-    this.isPlaylistModalOpen.set(false);
+    this.closeCreatePlaylistModal();
     this.showToast(`Плейлист "${pl.title}" создан`);
     this.setView('playlist', pl.id);
   }
@@ -1027,7 +1218,7 @@ export class App implements OnInit {
       }
 
       this.showToast(`Трек "${track.title}" добавлен`);
-      this.isAddModalOpen.set(false);
+      this.closeAddModal();
       this.inputUrl.set('');
       this.inputTitle.set('');
       this.inputArtist.set('');
@@ -1072,7 +1263,7 @@ export class App implements OnInit {
     this.audioService.playTrack(track, this.libraryService.tracks());
     this.offlineService.saveTrackOffline(track);
     this.showToast(`Трек "${track.title}" добавлен в медиатеку`);
-    this.isAddModalOpen.set(false);
+    this.closeAddModal();
     this.modalSearchInput.set('');
   }
 
@@ -1127,7 +1318,7 @@ export class App implements OnInit {
     );
 
     this.showToast(`Файл "${track.title}" добавлен`);
-    this.isAddModalOpen.set(false);
+    this.closeAddModal();
     this.uploadFile.set(null);
     this.uploadFileName.set('');
 
