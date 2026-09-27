@@ -353,20 +353,22 @@ export class LibraryService implements OnDestroy {
 
       const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
 
-      const tracks: Track[] = data.map((item) => ({
-        id: item.id.startsWith('audius-') ? item.id : 'yt-' + item.id,
-        title: item.title,
-        artist: item.artist,
-        duration: Math.round(item.duration),
-        audioUrl: item.audio_url,
-        coverUrl: this.formatCoverUrl(item.cover_url),
-        genre: item.id.startsWith('audius-') ? 'Audius' : 'Online',
-        format: 'mp3',
-        bitrate: '192 kbps',
-        plays: 0,
-        isFavorite: false,
-        addedAt: new Date().toISOString().split('T')[0],
-      }));
+      const tracks: Track[] = data
+        .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
+        .map((item) => ({
+          id: item.id.startsWith('yt-') || item.id.startsWith('sc-') ? item.id : 'yt-' + item.id,
+          title: item.title,
+          artist: item.artist,
+          duration: Math.round(item.duration),
+          audioUrl: item.audio_url,
+          coverUrl: this.formatCoverUrl(item.cover_url),
+          genre: 'Online',
+          format: 'mp3',
+          bitrate: '192 kbps',
+          plays: 0,
+          isFavorite: false,
+          addedAt: new Date().toISOString().split('T')[0],
+        }));
 
       this.onlineSearchResults.set(tracks);
       return tracks;

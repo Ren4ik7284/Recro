@@ -44,6 +44,17 @@ export class LyricsComponent {
         setTimeout(() => this.scrollToActiveLine(activeIdx), 50);
       }
     });
+
+    // Сброс прокрутки при смене трека
+    effect(() => {
+      const track = this.audioService.currentTrack();
+      if (track) {
+        this.lastScrolledIndex = -1;
+        if (this.scrollContainer?.nativeElement) {
+          this.scrollContainer.nativeElement.scrollTop = 0;
+        }
+      }
+    });
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -63,12 +74,12 @@ export class LyricsComponent {
 
   scrollToActiveLine(index: number) {
     if (!this.scrollContainer || index < 0 || index === this.lastScrolledIndex) return;
-    this.lastScrolledIndex = index;
 
     const container = this.scrollContainer.nativeElement;
     const lineElement = container.querySelector(`[data-line-index="${index}"]`) as HTMLElement;
 
     if (lineElement) {
+      this.lastScrolledIndex = index;
       const containerHeight = container.clientHeight;
       const lineTop = lineElement.offsetTop;
       const lineHeight = lineElement.clientHeight;

@@ -70,8 +70,7 @@ pub async fn search_music(
     let yt_arg = format!("ytsearch10:{}", query);
     let sc_arg = format!("scsearch10:{}", query);
 
-    let (audius_res, yt_res, sc_res) = tokio::join!(
-        execute_audius_search(query, 6, &base_url),
+    let (yt_res, sc_res) = tokio::join!(
         execute_yt_dlp_search(&yt_cmd, &yt_arg, 10, &base_url),
         execute_yt_dlp_search(&yt_cmd, &sc_arg, 10, &base_url),
     );
@@ -92,13 +91,6 @@ pub async fn search_music(
         .into_iter()
         .filter(|t| is_valid_duration(t.duration))
         .collect();
-
-    // First add Audius tracks (direct instant streaming, daily independent releases)
-    for t in audius_res {
-        if seen_ids.insert(t.id.clone()) {
-            combined.push(t);
-        }
-    }
 
     let max_len = sc_filtered.len().max(yt_filtered.len());
     for i in 0..max_len {
@@ -392,6 +384,7 @@ pub async fn extract_info(
     }))
 }
 
+#[allow(dead_code)]
 pub async fn execute_audius_search(query: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
     let url = format!(
         "https://discoveryprovider.audius.co/v1/tracks/search?query={}&app_name=RECRO_MUSIC&limit={}",

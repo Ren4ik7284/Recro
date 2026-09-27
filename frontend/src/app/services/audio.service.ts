@@ -38,6 +38,7 @@ export class AudioService {
   readonly queueIndex = signal<number>(-1);
 
   private isHandlingEnd = false;
+  private hasAudioStartedPlaying = false;
   private isFadingOut = false;
   private hasRecordedCompletion = false;
   private hasPreloadedNextTrack = false;
@@ -75,9 +76,6 @@ export class AudioService {
       this.audio.setAttribute('webkit-playsinline', 'true');
       this.audio.setAttribute('x-webkit-airplay', 'allow');
       const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (!isMobile) {
-        this.audio.crossOrigin = 'anonymous';
-      }
       this.audio.preload = 'auto';
       this.audio.style.position = 'fixed';
       this.audio.style.width = '1px';
@@ -95,7 +93,6 @@ export class AudioService {
       }
     } else {
       this.audio = new Audio();
-      this.audio.crossOrigin = 'anonymous';
     }
 
     this.audio.volume = this.volume();
@@ -246,6 +243,7 @@ export class AudioService {
 
   private setupEventListeners() {
     this.audio.addEventListener('timeupdate', () => {
+      if (!this.hasAudioStartedPlaying) return;
       const actual = this.streamSeekOffset() + this.audio.currentTime;
       this.currentTime.set(actual);
 
@@ -272,10 +270,6 @@ export class AudioService {
       if (actual >= 4 && !this.hasPreloadedNextTrack) {
         this.hasPreloadedNextTrack = true;
         this.preloadNextTrack();
-      }
-
-      if (total > 0 && actual >= total - 0.5 && this.isPlaying()) {
-        this.handleTrackEnded();
       }
     });
 
@@ -308,6 +302,7 @@ export class AudioService {
     });
 
     this.audio.addEventListener('playing', () => {
+      this.hasAudioStartedPlaying = true;
       this.consecutiveErrorCount = 0;
       this.isPlaying.set(true);
       this.updateMediaSessionPlaybackState('playing');
@@ -331,6 +326,13 @@ export class AudioService {
     });
 
     this.audio.addEventListener('ended', () => {
+      // Если трек не успел начать играть или длительность слишком мала, это сбой потока
+      const played = this.currentTime();
+      if (!this.hasAudioStartedPlaying || played < 1.5) {
+        console.warn('[AudioService] Premature ended event (<1.5s played), treating as playback failure');
+        this.handlePlaybackFailure('premature_ended');
+        return;
+      }
       this.handleTrackEnded();
     });
 
@@ -343,6 +345,7 @@ export class AudioService {
   private handlePlaybackFailure(source: string) {
     console.warn(`[AudioService] Playback failure from ${source}`);
     this.isPlaying.set(false);
+    this.hasAudioStartedPlaying = false;
     this.updateMediaSessionPlaybackState('paused');
 
     if (this.errorTimeoutId) {
@@ -357,14 +360,16 @@ export class AudioService {
     }
 
     this.consecutiveErrorCount++;
-    // In wave mode, max 2 skips with calm delay to avoid skipping loop
-    if (this.consecutiveErrorCount <= 2) {
+    // В режиме микса делаем максимум одну попытку перейти к следующему треку с мягкой задержкой,
+    // чтобы исключить мгновенное «прощелкивание» треков
+    if (this.consecutiveErrorCount <= 1) {
       this.errorTimeoutId = setTimeout(() => {
         if (this.recService.isMixActive()) {
           this.next();
         }
-      }, 1500);
+      }, 2000);
     } else {
+      console.warn('[AudioService] Playback failure limit reached, pausing Mix to prevent auto-skip storm');
       this.recService.isMixActive.set(false);
       this.consecutiveErrorCount = 0;
     }
@@ -480,7 +485,22 @@ export class AudioService {
     } catch {}
   }
 
-  async playTrack(track: Track, newQueue?: Track[], fromMix: boolean = false) {
+  private canUseCrossOrigin(url: string): boolean {
+    if (!url || typeof window === 'undefined') return false;
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile || url.startsWith('blob:')) return false;
+
+    if (url.startsWith('/') || url.startsWith(window.location.origin) || url.includes('/api/stream')) {
+      return true;
+    }
+    const backendUrl = this.libraryService.getBackendUrl();
+    if (backendUrl && url.startsWith(backendUrl)) {
+      return true;
+    }
+    return false;
+  }
+
+  async playTrack(track: Track, newQueue?: Track[], fromMix: boolean = false, queueIndex?: number) {
     if (this.errorTimeoutId) {
       clearTimeout(this.errorTimeoutId);
       this.errorTimeoutId = null;
@@ -500,19 +520,34 @@ export class AudioService {
     }
 
     this.isFadingOut = false;
+    this.isHandlingEnd = false;
+    this.hasAudioStartedPlaying = false;
+
+    try {
+      this.audio.pause();
+      this.audio.currentTime = 0;
+    } catch {}
 
     if (newQueue && newQueue.length > 0) {
       this.queue.set([...newQueue]);
-      const idx = newQueue.findIndex((t) => t.id === track.id);
-      this.queueIndex.set(idx >= 0 ? idx : 0);
+      if (queueIndex !== undefined && queueIndex >= 0 && queueIndex < newQueue.length) {
+        this.queueIndex.set(queueIndex);
+      } else {
+        const idx = newQueue.findIndex((t) => t.id === track.id);
+        this.queueIndex.set(idx >= 0 ? idx : 0);
+      }
     } else {
       const currentQueue = this.queue();
-      const idx = currentQueue.findIndex((t) => t.id === track.id);
-      if (idx === -1) {
-        this.queue.set([...currentQueue, track]);
-        this.queueIndex.set(this.queue().length - 1);
+      if (queueIndex !== undefined && queueIndex >= 0 && queueIndex < currentQueue.length) {
+        this.queueIndex.set(queueIndex);
       } else {
-        this.queueIndex.set(idx);
+        const idx = currentQueue.findIndex((t) => t.id === track.id);
+        if (idx === -1) {
+          this.queue.set([...currentQueue, track]);
+          this.queueIndex.set(this.queue().length - 1);
+        } else {
+          this.queueIndex.set(idx);
+        }
       }
     }
 
@@ -571,11 +606,10 @@ export class AudioService {
       }
     }
 
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (playUrl.startsWith('blob:') || isMobile) {
-      this.audio.removeAttribute('crossorigin');
-    } else {
+    if (this.canUseCrossOrigin(playUrl)) {
       this.audio.crossOrigin = 'anonymous';
+    } else {
+      this.audio.removeAttribute('crossorigin');
     }
 
     this.audio.src = playUrl;
@@ -593,6 +627,12 @@ export class AudioService {
         this.libraryService.recordHistoryPlay(track);
       })
       .catch((err) => {
+        // Игнорируем прерывание play() при быстром переключении треков или запрете автовоспроизведения браузером
+        if (err && (err.name === 'AbortError' || err.code === 20 || err.name === 'NotAllowedError')) {
+          this.isPlaying.set(false);
+          this.updateMediaSessionPlaybackState('paused');
+          return;
+        }
         console.warn('[AudioService] play() error:', err);
         this.handlePlaybackFailure('play_rejection');
       });
@@ -685,11 +725,10 @@ export class AudioService {
     this.streamSeekOffset.set(clamped);
     this.currentTime.set(clamped);
 
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (newUrl.startsWith('blob:') || isMobile) {
-      this.audio.removeAttribute('crossorigin');
-    } else {
+    if (this.canUseCrossOrigin(newUrl)) {
       this.audio.crossOrigin = 'anonymous';
+    } else {
+      this.audio.removeAttribute('crossorigin');
     }
 
     this.audio.src = newUrl;
@@ -753,7 +792,7 @@ export class AudioService {
     await this.applyFadeOut(0.18);
 
     this.queueIndex.set(nextIdx);
-    this.playTrack(this.queue()[nextIdx], undefined, this.recService.isMixActive());
+    this.playTrack(this.queue()[nextIdx], undefined, this.recService.isMixActive(), nextIdx);
 
     if (this.recService.isMixActive()) {
       this.ensureSmartQueue();
@@ -778,7 +817,7 @@ export class AudioService {
     await this.applyFadeOut(0.18);
 
     this.queueIndex.set(prevIdx);
-    this.playTrack(q[prevIdx], undefined, this.recService.isMixActive());
+    this.playTrack(q[prevIdx], undefined, this.recService.isMixActive(), prevIdx);
   }
 
   private handleTrackEnded() {

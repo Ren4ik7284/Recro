@@ -10,6 +10,7 @@ import {
   inject,
   HostListener,
   ViewEncapsulation,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -68,6 +69,16 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   private capHoldFrames: number[] = [];
   private zeroDataStreak = 0;
   private syntheticPhase = 0;
+
+  constructor() {
+    effect(() => {
+      const isPlaying = this.audioService.isPlaying();
+      const curTrack = this.audioService.currentTrack();
+      if (isPlaying || curTrack) {
+        this.startRenderLoop();
+      }
+    });
+  }
 
   ngOnInit() {
     this.peakCaps = new Array(this.bufferLength).fill(0);
@@ -227,9 +238,12 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private startRenderLoop() {
+    if (this.animationFrameId !== null || typeof window === 'undefined') return;
     const render = () => {
       this.draw();
-      this.animationFrameId = requestAnimationFrame(render);
+      if (this.animationFrameId !== null) {
+        this.animationFrameId = requestAnimationFrame(render);
+      }
     };
     this.animationFrameId = requestAnimationFrame(render);
   }
@@ -334,9 +348,29 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     } else if (!isPlaying) {
       // Gentle decay to 0 when paused
+      let hasSignal = false;
       for (let i = 0; i < this.bufferLength; i++) {
+        if (this.freqData[i] > 0 || Math.abs(this.timeData[i] - 128) > 1) {
+          hasSignal = true;
+        }
         this.freqData[i] = Math.max(0, this.freqData[i] - 6);
         this.timeData[i] = Math.round(128 + (this.timeData[i] - 128) * 0.85);
+      }
+
+      if (!hasSignal && this.peakCaps.every((c) => c <= 0.01)) {
+        // Draw one final idle frame, then stop render loop to save CPU & battery
+        const type = this.mode() === 'mini' ? 'bars' : this.visualType();
+        if (type === 'bars') {
+          this.drawBars(ctx, w, h);
+        } else if (type === 'wave') {
+          this.drawWaveform(ctx, w, h);
+        } else if (type === 'circle') {
+          this.drawCircle(ctx, w, h);
+        } else if (type === 'lyrics') {
+          this.drawLyricsWave(ctx, w, h);
+        }
+        this.stopRenderLoop();
+        return;
       }
     }
 
@@ -362,11 +396,11 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   private autoScrollVisualizerLyrics() {
     const activeIdx = this.lyricsService.activeLineIndex();
     if (activeIdx === this.lastActiveLyricsIndex || activeIdx < 0 || !this.visLyricsBox) return;
-    this.lastActiveLyricsIndex = activeIdx;
 
     const box = this.visLyricsBox.nativeElement;
     const activeEl = box.querySelector(`[data-line-index="${activeIdx}"]`) as HTMLElement;
     if (activeEl) {
+      this.lastActiveLyricsIndex = activeIdx;
       const targetTop = activeEl.offsetTop - box.clientHeight / 2 + activeEl.clientHeight / 2;
       box.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
     }

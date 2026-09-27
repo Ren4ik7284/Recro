@@ -469,6 +469,8 @@ export class RecommendationService {
 
       const results = await this.libraryService.searchOnline(query);
       const filtered = results.filter((t) => 
+        !t.id.startsWith('audius-') &&
+        !t.audioUrl.includes('audius.co') &&
         !excludeIds.has(t.id) && 
         !this.isDisliked(t.id) &&
         (t.duration === 0 || (t.duration >= 45 && t.duration <= 600))

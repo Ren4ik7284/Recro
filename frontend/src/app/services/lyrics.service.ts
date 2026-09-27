@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { AudioService } from './audio.service';
 import { Track } from '../models/track.model';
 
@@ -39,6 +39,7 @@ export class LyricsService {
 
   private lastLoadedTrackId: string | null = null;
   private autoScrollLockTimeout: any = null;
+  private currentAbortController: AbortController | null = null;
   readonly precisePlaybackTime = signal<number>(0);
 
   // Индекс активной строки текста в зависимости от текущего времени трека
@@ -46,17 +47,29 @@ export class LyricsService {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    // +0.16с упреждение: караоке подсвечивает фразу в момент начала звучания первого слога
-    const t = Math.max(0, this.precisePlaybackTime() + 0.16 + this.syncOffsetMs() / 1000);
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
 
     let activeIdx = -1;
     for (let i = 0; i < lyrics.lines.length; i++) {
-      if (t >= lyrics.lines[i].startTime) {
+      const line = lyrics.lines[i];
+      if (line.startTime >= 0 && t >= line.startTime) {
         activeIdx = i;
-      } else {
+      } else if (line.startTime > t) {
         break;
       }
     }
+
+    // Если между строками долгая инструментальная пауза (>2.5с), снимаем подсветку
+    if (activeIdx >= 0) {
+      const cur = lyrics.lines[activeIdx];
+      if (cur.endTime && t > cur.endTime + 0.8 && activeIdx < lyrics.lines.length - 1) {
+        const next = lyrics.lines[activeIdx + 1];
+        if (next.startTime - cur.endTime > 2.5) {
+          return -1;
+        }
+      }
+    }
+
     return activeIdx;
   });
 
@@ -67,10 +80,12 @@ export class LyricsService {
     if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return 0;
 
     const currentLine = lyrics.lines[idx];
-    const adjustedTime = Math.max(0, this.precisePlaybackTime() + 0.16 + this.syncOffsetMs() / 1000);
+    if (currentLine.startTime < 0) return 0;
+
+    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
-    const end = currentLine.endTime || (nextLine ? nextLine.startTime : start + 4);
+    const end = currentLine.endTime || (nextLine && nextLine.startTime >= 0 ? nextLine.startTime : start + 4);
 
     if (end <= start) return 1;
     const progress = (adjustedTime - start) / (end - start);
@@ -81,7 +96,7 @@ export class LyricsService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // 1. Высокоточный таймер синхронизации (25 раз в секунду) для устранения лага timeupdate
+      // 1. Плавный таймер времени воспроизведения без задержек (30 раз в секунду)
       setInterval(() => {
         if (this.audioService.isPlaying()) {
           const exact = this.audioService.getPreciseCurrentTime();
@@ -89,16 +104,22 @@ export class LyricsService {
         } else {
           this.precisePlaybackTime.set(this.audioService.currentTime());
         }
-      }, 40);
+      }, 33);
 
-      // 2. Автоматическая фоновая предзагрузка текста при смене любого трека
-      setInterval(() => {
+      // 2. Реактивная мгновенная загрузка текста при смене трека (0мс задержки вместо setInterval)
+      effect(() => {
         const cur = this.audioService.currentTrack();
-        if (cur && cur.id !== this.lastLoadedTrackId) {
-          this.lastLoadedTrackId = cur.id;
-          this.loadLyricsForTrack(cur);
+        if (cur) {
+          if (cur.id !== this.lastLoadedTrackId) {
+            this.lastLoadedTrackId = cur.id;
+            this.loadLyricsForTrack(cur);
+          }
+        } else {
+          this.lastLoadedTrackId = null;
+          this.currentLyrics.set(null);
+          this.isLoading.set(false);
         }
-      }, 350);
+      });
     }
   }
 
@@ -146,12 +167,13 @@ export class LyricsService {
   }
 
   seekToLine(line: LyricLine) {
+    if (line.startTime < 0) return;
     const target = Math.max(0, line.startTime - this.syncOffsetMs() / 1000);
     this.audioService.seek(target);
     this.unlockAutoScroll();
   }
 
-  // При ручном скролле временно блокируем автоцентровку на 3.5 секунды
+  // При ручном скролле блокируем автоцентровку на 3.5 секунды
   onUserScroll() {
     this.isAutoScrollLocked.set(true);
     if (this.autoScrollLockTimeout) clearTimeout(this.autoScrollLockTimeout);
@@ -168,9 +190,18 @@ export class LyricsService {
   async loadLyricsForTrack(track: Track, forceReload = false) {
     this.errorMessage.set(null);
 
+    // Отменяем любые предыдущие сетевые запросы
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
+    const abortCtrl = new AbortController();
+    this.currentAbortController = abortCtrl;
+    const targetTrackId = track.id;
+
     // Восстанавливаем сохраненный оффсет таймингов
     try {
-      const savedOffset = localStorage.getItem(`signal_lyrics_offset_${track.id}`);
+      const savedOffset = localStorage.getItem(`signal_lyrics_offset_${targetTrackId}`);
       if (savedOffset) {
         this.syncOffsetMs.set(parseInt(savedOffset, 10) || 0);
       } else {
@@ -183,40 +214,66 @@ export class LyricsService {
     // 1. Проверяем локальный сохраненный пользователем текст
     if (!forceReload) {
       try {
-        const savedCustom = localStorage.getItem(`signal_custom_lyrics_${track.id}`);
+        const savedCustom = localStorage.getItem(`signal_custom_lyrics_${targetTrackId}`);
         if (savedCustom) {
           const parsed = this.parseLrc(savedCustom, 'imported');
           if (parsed.lines.length > 0) {
             this.currentLyrics.set(parsed);
+            this.isLoading.set(false);
             return;
           }
         }
       } catch {}
 
-      // Проверяем память кэша сессии
-      const inMemory = this.lyricsCache.get(track.id);
+      // Проверяем кэш сессии
+      const inMemory = this.lyricsCache.get(targetTrackId);
       if (inMemory) {
         this.currentLyrics.set(inMemory);
-        return;
-      }
-    }
-
-    // 2. Ищем в базе LRCLIB
-    this.isLoading.set(true);
-    try {
-      const lyricsData = await this.fetchFromLrcLib(track);
-      if (lyricsData) {
-        this.lyricsCache.set(track.id, lyricsData);
-        this.currentLyrics.set(lyricsData);
         this.isLoading.set(false);
         return;
       }
-    } catch (e) {
+    }
+
+    // Мгновенно очищаем экран от текста предыдущей песни, чтобы не показывать чужой текст
+    this.currentLyrics.set(null);
+    this.isLoading.set(true);
+
+    try {
+      const lyricsData = await this.fetchFromLrcLib(track, abortCtrl.signal);
+
+      // Защита от race condition: если трек уже сменился или запрос отменен - игнорируем
+      if (abortCtrl.signal.aborted || this.audioService.currentTrack()?.id !== targetTrackId) {
+        return;
+      }
+
+      if (lyricsData) {
+        this.lyricsCache.set(targetTrackId, lyricsData);
+        this.currentLyrics.set(lyricsData);
+        this.isLoading.set(false);
+
+        // Восстанавливаем длительность трека, если она отсутствовала или была 0
+        const cur = this.audioService.currentTrack();
+        if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
+          if (lyricsData.lines.length > 0) {
+            const lastLine = lyricsData.lines[lyricsData.lines.length - 1];
+            const estimated = Math.round(lastLine.endTime || (lastLine.startTime + 6));
+            if (estimated > 10) {
+              cur.duration = estimated;
+              this.audioService.duration.set(estimated);
+            }
+          }
+        }
+        return;
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       console.warn('[Lyrics] Failed to fetch from LRCLIB:', e);
     }
 
-    this.isLoading.set(false);
-    this.currentLyrics.set(null);
+    if (!abortCtrl.signal.aborted && this.audioService.currentTrack()?.id === targetTrackId) {
+      this.isLoading.set(false);
+      this.currentLyrics.set(null);
+    }
   }
 
   importLrcText(rawContent: string, trackId?: string) {
@@ -226,6 +283,17 @@ export class LyricsService {
 
     this.currentLyrics.set(parsed);
     const tid = trackId || this.audioService.currentTrack()?.id;
+    if (parsed.lines.length > 0) {
+      const cur = this.audioService.currentTrack();
+      if (cur && (!cur.duration || cur.duration <= 0)) {
+        const lastLine = parsed.lines[parsed.lines.length - 1];
+        const estimated = Math.round(lastLine.endTime || (lastLine.startTime + 6));
+        if (estimated > 10) {
+          cur.duration = estimated;
+          this.audioService.duration.set(estimated);
+        }
+      }
+    }
     if (tid) {
       try {
         localStorage.setItem(`signal_custom_lyrics_${tid}`, rawContent.trim());
@@ -250,21 +318,29 @@ export class LyricsService {
   }
 
   /**
-   * Парсинг LRC и Enhanced LRC (пословного караоке)
+   * Парсинг LRC и Enhanced LRC (пословного караоке) с поддержкой тега [offset: +/- ms]
    */
   parseLrc(lrcText: string, source: 'lrclib' | 'embedded' | 'imported' = 'imported'): ParsedLyrics {
     const lines: LyricLine[] = [];
     let isWordByWord = false;
 
+    // Считываем смещение [offset: +/- ms] по стандарту LRC
+    let fileOffsetSec = 0;
+    const offsetMatch = lrcText.match(/\[offset:\s*([+-]?\d+)\s*\]/i);
+    if (offsetMatch) {
+      const ms = parseInt(offsetMatch[1], 10) || 0;
+      fileOffsetSec = ms / 1000;
+    }
+
     const rawLines = lrcText.split(/\r?\n/);
-    const lineTagRegex = /\[(\d{1,2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
-    const wordTagRegex = /<(\d{1,2}):(\d{2})(?:\.(\d{2,3}))?>([^<]+)/g;
+    const lineTagRegex = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+    const wordTagRegex = /<(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?>([^<]+)/g;
 
     for (const rawLine of rawLines) {
       const trimmed = rawLine.trim();
       if (!trimmed) continue;
 
-      // Пропуск мета-тегов [ar:], [ti:], [al:], etc.
+      // Пропуск мета-тегов [ar:], [ti:], [al:], [offset:], etc.
       if (/^\[(ar|ti|al|by|offset|length|re|ve):/i.test(trimmed)) {
         continue;
       }
@@ -279,8 +355,11 @@ export class LyricsService {
         const mins = parseInt(match[1], 10);
         const secs = parseInt(match[2], 10);
         const msStr = match[3] || '0';
-        const ms = msStr.length === 2 ? parseInt(msStr, 10) * 10 : parseInt(msStr.padEnd(3, '0').slice(0, 3), 10);
-        const timeInSecs = mins * 60 + secs + ms / 1000;
+        const ms = msStr.length === 1
+          ? parseInt(msStr, 10) * 100
+          : (msStr.length === 2 ? parseInt(msStr, 10) * 10 : parseInt(msStr.slice(0, 3), 10));
+        // Корректируем с учетом [offset:]
+        const timeInSecs = Math.max(0, mins * 60 + secs + ms / 1000 - fileOffsetSec);
         timestamps.push(timeInSecs);
         lastMatchEnd = lineTagRegex.lastIndex;
       }
@@ -298,8 +377,10 @@ export class LyricsService {
           const wMins = parseInt(wMatch[1], 10);
           const wSecs = parseInt(wMatch[2], 10);
           const wMsStr = wMatch[3] || '0';
-          const wMs = wMsStr.length === 2 ? parseInt(wMsStr, 10) * 10 : parseInt(wMsStr.padEnd(3, '0').slice(0, 3), 10);
-          const wTime = wMins * 60 + wSecs + wMs / 1000;
+          const wMs = wMsStr.length === 1
+            ? parseInt(wMsStr, 10) * 100
+            : (wMsStr.length === 2 ? parseInt(wMsStr, 10) * 10 : parseInt(wMsStr.slice(0, 3), 10));
+          const wTime = Math.max(0, wMins * 60 + wSecs + wMs / 1000 - fileOffsetSec);
           const wText = wMatch[4].trim();
           if (wText) {
             foundWords.push({ text: wText, startTime: wTime });
@@ -316,7 +397,7 @@ export class LyricsService {
           words = foundWords;
         }
 
-        const cleanText = textPayload.replace(/<\d{1,2}:\d{2}(?:\.\d{2,3})?>/g, '').trim();
+        const cleanText = textPayload.replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, '').trim();
 
         for (const t of timestamps) {
           lines.push({
@@ -334,189 +415,315 @@ export class LyricsService {
       }
     }
 
-    // Сортировка по времени
-    lines.sort((a, b) => a.startTime - b.startTime);
+    const isSynced = lines.some((l) => l.startTime >= 0);
 
-    // Расчет времени окончания строк
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startTime >= 0 && i < lines.length - 1 && lines[i + 1].startTime >= 0) {
-        lines[i].endTime = lines[i + 1].startTime;
+    let finalLines = lines;
+    if (isSynced) {
+      // Оставляем только строки с таймингом и текстом, сортируем по возрастанию времени
+      finalLines = lines.filter((l) => l.startTime >= 0 && l.text.length > 0);
+      finalLines.sort((a, b) => a.startTime - b.startTime);
+
+      // Расчет времени окончания строк
+      for (let i = 0; i < finalLines.length; i++) {
+        if (i < finalLines.length - 1) {
+          finalLines[i].endTime = finalLines[i + 1].startTime;
+        } else {
+          finalLines[i].endTime = finalLines[i].startTime + 5;
+        }
       }
     }
 
-    const isSynced = lines.some((l) => l.startTime >= 0);
-    const plainText = lines.map((l) => l.text).join('\n');
+    const plainText = finalLines.map((l) => l.text).join('\n');
 
     return {
       isSynced,
       isWordByWord,
-      lines,
+      lines: finalLines,
       plainText,
       raw: lrcText,
       source,
     };
   }
 
-  private cleanTitle(title: string): string {
-    return title
+  private cleanTextNoise(text: string): string {
+    return text
       .replace(/\[[^\]]*\]/g, ' ')
-      .replace(/\([^)]*\)/g, ' ')
-      .replace(/\{[^}]*\}/g, ' ')
-      .replace(/\b(official|music|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|feat|ft|prod)\b/gi, ' ')
+      .replace(/\((?:official|music|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|feat|ft|prod|клип|премьера)[^)]*\)/gi, ' ')
+      .replace(/\{(?:official|music|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|feat|ft|prod|клип|премьера)[^}]*\}/gi, ' ')
+      .replace(/\b(?:feat\.?|ft\.?)\s+[^\s–—\-()[\]]+/gi, ' ')
+      .replace(/\b(official\s+music\s+video|official\s+video|official\s+audio|music\s+video|lyric\s+video|lyrics|official|audio|remastered|hd|hq|4k|visualizer|clip\s+officiel|full\s+album|премьера\s+клипа|премьера\s+песни|премьера\s+трека|официальный\s+клип|текст\s+песни|клип|новинка|хит|slowed|reverb)\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
   private cleanArtist(artist: string): string {
-    return artist
-      .replace(/\b(topic|records|vevo|official)\b/gi, ' ')
+    return (artist || '')
+      .replace(/\b(topic|records|vevo|official|channel|music)\b/gi, ' ')
+      .replace(/^[-–—\s]+|[-–—\s]+$/g, '')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
+  private normalizeForComparison(s: string): string {
+    return (s || '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private checkTranslitArtistMatch(exp: string, cand: string): boolean {
+    const pairs: [string, string][] = [
+      ['эндшпиль', 'endspiel'],
+      ['скриптонит', 'scriptonite'],
+      ['баста', 'basta'],
+      ['кино', 'kino'],
+      ['оксимирон', 'oxxxymiron'],
+      ['макс корж', 'max korzh'],
+      ['моргенштерн', 'morgenshtern'],
+      ['лсп', 'lsp'],
+      ['хаски', 'husky'],
+      ['би 2', 'bi 2'],
+      ['би-2', 'bi-2'],
+      ['король и шут', 'korol i shut'],
+      ['земфира', 'zemfira'],
+      ['миджи', 'miyagi'],
+      ['мияги', 'miyagi'],
+    ];
+
+    for (const [ru, en] of pairs) {
+      if ((exp.includes(ru) && cand.includes(en)) || (exp.includes(en) && cand.includes(ru))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
-   * Строгая валидация соответствия кандидата из базы LRCLIB текущему треку.
-   * Отсекает чужие треки, если не совпадают слова названия, исполнитель или хронометраж.
+   * Корректно извлекает артиста и название песни из метаданных трека и строки заголовка
    */
-  private matchScore(item: any, expectedTitle: string, expectedArtist: string, expectedDuration: number): number {
-    let score = 0;
+  extractSearchInfo(track: Track): { artist: string; title: string; fallbackArtist?: string } {
+    let rawTitle = (track.title || '').trim();
+    let rawArtist = (track.artist || '').trim();
 
-    // 1. Проверка длительности трека: разница более 25 секунд — это 100% чужой трек
-    if (expectedDuration > 10 && item.duration) {
-      const diff = Math.abs(item.duration - expectedDuration);
-      if (diff <= 4) score += 40;
-      else if (diff <= 8) score += 25;
-      else if (diff <= 14) score += 10;
-      else if (diff > 25) return -100;
-    }
+    let extractedArtist = '';
+    let extractedTitle = rawTitle;
 
-    const itemTitle = (item.trackName || '').toLowerCase().trim();
-    const cleanExpTitle = expectedTitle.toLowerCase().trim();
-
-    // 2. Проверка совпадения ключевых слов названия
-    const expWords = cleanExpTitle.split(/\s+/).filter((w) => w.length > 2);
-    let matchedWords = 0;
-    for (const w of expWords) {
-      if (itemTitle.includes(w)) matchedWords++;
-    }
-    if (expWords.length > 0) {
-      score += (matchedWords / expWords.length) * 40;
-    }
-
-    if (itemTitle === cleanExpTitle) score += 30;
-    else if (itemTitle.includes(cleanExpTitle) || cleanExpTitle.includes(itemTitle)) score += 20;
-
-    // 3. Проверка исполнителя
-    const itemArtist = (item.artistName || '').toLowerCase().trim();
-    const cleanExpArtist = expectedArtist.toLowerCase().trim();
-    if (cleanExpArtist && cleanExpArtist !== 'разные исполнители') {
-      if (itemArtist.includes(cleanExpArtist) || cleanExpArtist.includes(itemArtist)) {
-        score += 35;
-      } else {
-        const artistWords = cleanExpArtist.split(/[\s,&]+/).filter((w) => w.length > 2);
-        let aMatched = 0;
-        for (const aw of artistWords) {
-          if (itemArtist.includes(aw)) aMatched++;
-        }
-        if (artistWords.length > 0 && aMatched > 0) {
-          score += (aMatched / artistWords.length) * 25;
-        } else {
-          score -= 30;
-        }
+    // Check for common artist-title separators
+    const separators = [' - ', ' – ', ' — ', ' | ', ' // '];
+    for (const sep of separators) {
+      if (rawTitle.includes(sep)) {
+        const parts = rawTitle.split(sep);
+        extractedArtist = parts[0].trim();
+        extractedTitle = parts.slice(1).join(sep).trim();
+        break;
       }
     }
 
-    // 4. Бонус за наличие синхронизированных строк
-    if (item.syncedLyrics && item.syncedLyrics.trim().length > 0) {
+    const cleanCandidateTitle = this.cleanTextNoise(extractedTitle)
+      .replace(/^[-–—\s]+|[-–—\s]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const cleanCandidateArtist = extractedArtist ? this.cleanArtist(extractedArtist) : '';
+    let cleanRawArtist = rawArtist ? this.cleanArtist(rawArtist) : '';
+
+    if (/^(unknown|неизвестный|разные|youtube|soundcloud)/i.test(cleanRawArtist)) {
+      cleanRawArtist = '';
+    }
+
+    let primaryArtist = '';
+    let fallbackArtist = '';
+
+    if (cleanCandidateArtist && cleanRawArtist) {
+      const isGenericRaw =
+        /^(unknown|неизвестный|разные|youtube|soundcloud|topic|vevo|records|music|label|production|official)/i.test(cleanRawArtist) ||
+        cleanRawArtist.toLowerCase() === 'разные исполнители';
+
+      if (isGenericRaw || cleanCandidateArtist.toLowerCase() === cleanRawArtist.toLowerCase()) {
+        primaryArtist = cleanCandidateArtist;
+      } else {
+        primaryArtist = cleanCandidateArtist;
+        fallbackArtist = cleanRawArtist;
+      }
+    } else if (cleanCandidateArtist) {
+      primaryArtist = cleanCandidateArtist;
+    } else {
+      primaryArtist = cleanRawArtist;
+    }
+
+    return {
+      artist: primaryArtist,
+      title: cleanCandidateTitle || this.cleanTextNoise(rawTitle),
+      fallbackArtist: fallbackArtist || undefined,
+    };
+  }
+
+  /**
+   * Строгая валидация соответствия кандидата из LRCLIB текущему треку.
+   * Полностью исключает показ текста чужих песен.
+   */
+  matchScore(item: any, expectedTitle: string, expectedArtist: string, expectedDuration: number): number {
+    const itemTitleNorm = this.normalizeForComparison(item.trackName || item.name);
+    const expTitleNorm = this.normalizeForComparison(expectedTitle);
+    const itemArtistNorm = this.normalizeForComparison(item.artistName);
+    const expArtistNorm = this.normalizeForComparison(expectedArtist);
+
+    if (!itemTitleNorm || !expTitleNorm) return -999;
+
+    // 1. Проверка длительности трека: разница более 25 секунд - чужой трек/клип
+    if (expectedDuration > 20 && item.duration > 20) {
+      const diff = Math.abs(item.duration - expectedDuration);
+      if (diff > 25) return -999;
+    }
+
+    // 2. Строгая проверка артиста: если артист известен, он ОБЯЗАН присутствовать
+    let artistMatched = false;
+    if (expArtistNorm && expArtistNorm.length >= 2) {
+      if (itemArtistNorm === expArtistNorm || itemArtistNorm.includes(expArtistNorm) || expArtistNorm.includes(itemArtistNorm)) {
+        artistMatched = true;
+      } else {
+        const expWords = expArtistNorm.split(' ').filter((w) => w.length >= 3);
+        const itemWords = itemArtistNorm.split(' ').filter((w) => w.length >= 3);
+        for (const ew of expWords) {
+          if (itemWords.some((iw) => iw.includes(ew) || ew.includes(iw)) || itemTitleNorm.includes(ew)) {
+            artistMatched = true;
+            break;
+          }
+        }
+        if (!artistMatched && this.checkTranslitArtistMatch(expArtistNorm, itemArtistNorm)) {
+          artistMatched = true;
+        }
+      }
+
+      if (!artistMatched) {
+        return -999; // АРТИСТ НЕ СОВПАЛ - ДИСКВАЛИФИКАЦИЯ
+      }
+    }
+
+    // 3. Проверка названия
+    let titleScore = 0;
+    if (itemTitleNorm === expTitleNorm) {
+      titleScore = 60;
+    } else {
+      const expWords = expTitleNorm.split(' ').filter((w) => w.length >= 2);
+      const itemWords = itemTitleNorm.split(' ').filter((w) => w.length >= 2);
+
+      if (expWords.length === 1) {
+        // Однословное название (напр. "Stay", "Intro", "Rain"): ТОЛЬКО точное совпадение
+        if (itemTitleNorm === expTitleNorm || (itemWords.length === 1 && itemWords[0] === expWords[0])) {
+          titleScore = 55;
+        } else {
+          return -999; // Запрещаем частичные совпадения для коротких названий
+        }
+      } else {
+        let matched = 0;
+        for (const w of expWords) {
+          if (itemWords.includes(w) || itemTitleNorm.includes(w)) matched++;
+        }
+        const ratio = matched / expWords.length;
+        if (ratio < 0.6) {
+          return -999; // Менее 60% совпадения слов названия - дисквалификация
+        }
+        titleScore = Math.round(ratio * 50);
+      }
+    }
+
+    let score = titleScore;
+    if (artistMatched) {
       score += 25;
+    }
+    if (item.syncedLyrics && item.syncedLyrics.trim().length > 0) {
+      score += 20;
+    }
+    if (expectedDuration > 20 && item.duration > 20) {
+      const diff = Math.abs(item.duration - expectedDuration);
+      if (diff <= 5) score += 15;
+      else if (diff <= 12) score += 8;
     }
 
     return score;
   }
 
-  private async fetchFromLrcLib(track: Track): Promise<ParsedLyrics | null> {
-    const rawTitle = track.title || '';
-    const rawArtist = track.artist || '';
-
-    let cleanT = this.cleanTitle(rawTitle);
-    let cleanA = this.cleanArtist(rawArtist);
-
-    if (rawTitle.includes(' - ')) {
-      const parts = rawTitle.split(' - ');
-      if (!cleanA || cleanA.toLowerCase() === 'разные исполнители') {
-        cleanA = this.cleanArtist(parts[0]);
-      }
-      cleanT = this.cleanTitle(parts.slice(1).join(' '));
-    }
-
+  private async fetchFromLrcLib(track: Track, abortSignal: AbortSignal): Promise<ParsedLyrics | null> {
+    const { artist: cleanA, title: cleanT, fallbackArtist } = this.extractSearchInfo(track);
     if (!cleanT) return null;
 
     const durationSec = Math.round(track.duration || 0);
 
-    // 1. Попытка точного совпадения через /api/get
-    try {
-      let queryParams = `track_name=${encodeURIComponent(cleanT)}`;
-      if (cleanA && cleanA.toLowerCase() !== 'разные исполнители') {
-        queryParams += `&artist_name=${encodeURIComponent(cleanA)}`;
-      }
-      if (durationSec > 10) {
-        queryParams += `&duration=${durationSec}`;
-      }
-
-      const exactRes = await fetch(`https://lrclib.net/api/get?${queryParams}`, {
-        signal: AbortSignal.timeout(3500),
-      });
-
-      if (exactRes.ok) {
-        const data = await exactRes.json();
-        const score = this.matchScore(data, cleanT, cleanA, durationSec);
-        if (score >= 40) {
-          if (data.syncedLyrics) {
-            return this.parseLrc(data.syncedLyrics, 'lrclib');
-          } else if (data.plainLyrics) {
-            return this.parseLrc(data.plainLyrics, 'lrclib');
-          }
-        }
-      }
-    } catch {}
-
-    // 2. Поиск по каталогу с ранжированием и строгой фильтрацией
-    const queries = [
-      cleanA && cleanA.toLowerCase() !== 'разные исполнители' ? `${cleanT} ${cleanA}` : cleanT,
-      cleanT,
-      rawTitle,
-    ];
-
     const allCandidates: any[] = [];
     const seenIds = new Set<number>();
 
-    for (const q of queries) {
-      if (!q || q.trim().length === 0) continue;
-      try {
-        const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q.trim())}`, {
-          signal: AbortSignal.timeout(3500),
-        });
-
-        if (searchRes.ok) {
-          const results: any[] = await searchRes.json();
-          if (Array.isArray(results)) {
-            for (const r of results) {
-              if (r.id && !seenIds.has(r.id)) {
-                seenIds.add(r.id);
-                allCandidates.push(r);
-              }
-            }
-          }
+    const addCandidates = (items: any[]) => {
+      if (!Array.isArray(items)) return;
+      for (const it of items) {
+        if (it && it.id && !seenIds.has(it.id)) {
+          seenIds.add(it.id);
+          allCandidates.push(it);
         }
-      } catch {}
+      }
+    };
+
+    // 1. Попытка точного поиска через /api/get с артистом и названием
+    if (cleanA) {
+      try {
+        let q = `track_name=${encodeURIComponent(cleanT)}&artist_name=${encodeURIComponent(cleanA)}`;
+        if (durationSec > 20) q += `&duration=${durationSec}`;
+        const res = await fetch(`https://lrclib.net/api/get?${q}`, { signal: abortSignal });
+        if (res.ok) {
+          const item = await res.json();
+          addCandidates([item]);
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+      }
     }
+
+    if (abortSignal.aborted) return null;
+
+    // 2. Попытка точного поиска без длительности
+    if (allCandidates.length === 0 && cleanA) {
+      try {
+        const q = `track_name=${encodeURIComponent(cleanT)}&artist_name=${encodeURIComponent(cleanA)}`;
+        const res = await fetch(`https://lrclib.net/api/get?${q}`, { signal: abortSignal });
+        if (res.ok) {
+          const item = await res.json();
+          addCandidates([item]);
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+      }
+    }
+
+    if (abortSignal.aborted) return null;
+
+    // 3. Поиск по каталогу LRCLIB
+    const searchQueries: string[] = [];
+    if (cleanA) searchQueries.push(`${cleanA} ${cleanT}`);
+    if (fallbackArtist && fallbackArtist !== cleanA) searchQueries.push(`${fallbackArtist} ${cleanT}`);
+    searchQueries.push(cleanT);
+
+    for (const q of searchQueries) {
+      if (allCandidates.length >= 8 || abortSignal.aborted) break;
+      try {
+        const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`, { signal: abortSignal });
+        if (res.ok) {
+          const results = await res.json();
+          addCandidates(results);
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+      }
+    }
+
+    if (abortSignal.aborted || allCandidates.length === 0) return null;
 
     // Выбираем кандидата с максимальным совпадением
     let bestCandidate: any = null;
-    let bestScore = 38; // Минимальный порог уверенности
+    let bestScore = 55; // Высокий порог: требует совпадения названия и артиста
 
     for (const item of allCandidates) {
-      const score = this.matchScore(item, cleanT, cleanA, durationSec);
+      const score = this.matchScore(item, cleanT, cleanA || fallbackArtist || '', durationSec);
       if (score > bestScore) {
         bestScore = score;
         bestCandidate = item;
@@ -524,9 +731,13 @@ export class LyricsService {
     }
 
     if (bestCandidate) {
-      if (bestCandidate.syncedLyrics) {
+      if ((!track.duration || track.duration <= 0) && bestCandidate.duration > 0) {
+        track.duration = bestCandidate.duration;
+        this.audioService.duration.set(bestCandidate.duration);
+      }
+      if (bestCandidate.syncedLyrics && bestCandidate.syncedLyrics.trim().length > 0) {
         return this.parseLrc(bestCandidate.syncedLyrics, 'lrclib');
-      } else if (bestCandidate.plainLyrics) {
+      } else if (bestCandidate.plainLyrics && bestCandidate.plainLyrics.trim().length > 0) {
         return this.parseLrc(bestCandidate.plainLyrics, 'lrclib');
       }
     }

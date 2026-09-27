@@ -178,7 +178,7 @@ pub async fn stream_audio(
 
     if let Ok(guard) = state.stream_cache.lock() {
         if let Some((cached_url, cached_at)) = guard.get(&cache_key) {
-            if cached_at.elapsed() < Duration::from_secs(7200) {
+            if cached_at.elapsed() < Duration::from_secs(1200) {
                 direct_url = cached_url.clone();
             }
         }
@@ -241,6 +241,31 @@ pub async fn stream_audio(
                     if let Ok(Ok(alt_out)) = tokio::time::timeout(Duration::from_secs(5), alt_cmd.output()).await {
                         if let Some(u) = extract_stream_url_from_output(&alt_out) {
                             direct_url = u;
+                        }
+                    }
+
+                    // Fallback to YouTube if SoundCloud track has DRM or is unavailable
+                    if direct_url.is_empty() {
+                        let yt_query = if !clean_art.is_empty() {
+                            format!("ytsearch1:{} {}", clean, clean_art)
+                        } else {
+                            format!("ytsearch1:{}", clean)
+                        };
+                        let mut yt_fb_cmd = Command::new(&yt_cmd);
+                        apply_yt_dlp_common_args(&mut yt_fb_cmd);
+                        yt_fb_cmd.args([
+                            "--no-playlist",
+                            "--ignore-errors",
+                            "-g",
+                            "-f", "bestaudio/ba/b",
+                            "--extractor-args", "youtube:player_client=ios,web,mweb",
+                            "--",
+                            &yt_query,
+                        ]);
+                        if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_secs(6), yt_fb_cmd.output()).await {
+                            if let Some(u) = extract_stream_url_from_output(&yt_out) {
+                                direct_url = u;
+                            }
                         }
                     }
                 }
