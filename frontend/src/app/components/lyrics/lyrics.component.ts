@@ -195,4 +195,72 @@ export class LyricsComponent {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   }
+
+  // --- Ручной поиск альтернативного текста (как в Spotify / Apple Music) ---
+  readonly isSearchModalOpen = signal<boolean>(false);
+  readonly searchQuery = signal<string>('');
+  readonly isSearching = signal<boolean>(false);
+  readonly searchResults = signal<any[]>([]);
+
+  isCurrentFavorite(): boolean {
+    const cur = this.audioService.currentTrack();
+    return cur ? this.libraryService.isTrackFavorite(cur) : false;
+  }
+
+  toggleFavorite() {
+    const cur = this.audioService.currentTrack();
+    if (cur) {
+      this.libraryService.toggleFavorite(cur.id, cur);
+    }
+  }
+
+  openSearchDialog() {
+    const cur = this.audioService.currentTrack();
+    const initialQuery = cur ? `${cur.artist} ${cur.title}`.replace(/unknown|неизвестный/gi, '').trim() : '';
+    this.searchQuery.set(initialQuery);
+    this.searchResults.set([]);
+    this.isSearchModalOpen.set(true);
+    if (initialQuery) {
+      this.performSearch();
+    }
+  }
+
+  closeSearchDialog() {
+    this.isSearchModalOpen.set(false);
+  }
+
+  async performSearch() {
+    const q = this.searchQuery().trim();
+    if (!q) return;
+
+    this.isSearching.set(true);
+    try {
+      const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items)) {
+          this.searchResults.set(items.slice(0, 15));
+        } else {
+          this.searchResults.set([]);
+        }
+      }
+    } catch (e) {
+      console.warn('[Lyrics] Search failed:', e);
+      this.searchResults.set([]);
+    } finally {
+      this.isSearching.set(false);
+    }
+  }
+
+  selectSearchResult(item: any) {
+    const content = item.syncedLyrics || item.plainLyrics;
+    if (!content) return;
+
+    const cur = this.audioService.currentTrack();
+    const ok = this.lyricsService.importLrcText(content, cur?.id);
+    if (ok) {
+      this.isSearchModalOpen.set(false);
+    }
+  }
 }

@@ -19,18 +19,76 @@ pub fn parse_track_json(item: &serde_json::Value, base_url: &str) -> Option<Sear
         return None;
     }
 
-    let mut title = "Без названия".to_string();
+    let mut raw_title = "Без названия".to_string();
     if let Some(t) = item["title"].as_str() {
-        title = t.to_string();
+        raw_title = t.trim().to_string();
     }
 
-    let mut artist = "Неизвестный исполнитель".to_string();
-    if let Some(u) = item["uploader"].as_str() {
-        artist = u.to_string();
-    } else if let Some(c) = item["channel"].as_str() {
-        artist = c.to_string();
-    } else if let Some(a) = item["artist"].as_str() {
-        artist = a.to_string();
+    let mut artist = String::new();
+    if let Some(a) = item["artist"].as_str() {
+        if !a.trim().is_empty() {
+            artist = a.trim().to_string();
+        }
+    } else if let Some(c) = item["creator"].as_str() {
+        if !c.trim().is_empty() {
+            artist = c.trim().to_string();
+        }
+    }
+
+    if artist.is_empty() {
+        if let Some(u) = item["uploader"].as_str() {
+            artist = u.trim().to_string();
+        } else if let Some(c) = item["channel"].as_str() {
+            artist = c.trim().to_string();
+        }
+    }
+
+    let mut title = raw_title.clone();
+    // Smart split if video title has "Artist - Song" format
+    let separators = [" - ", " – ", " — ", " // ", " | "];
+    for sep in separators {
+        if raw_title.contains(sep) {
+            let parts: Vec<&str> = raw_title.split(sep).collect();
+            if parts.len() >= 2 {
+                let cand_artist = parts[0].trim();
+                let cand_title = parts[1..].join(sep).trim().to_string();
+                if !cand_artist.is_empty() && !cand_title.is_empty() {
+                    artist = cand_artist.to_string();
+                    title = cand_title;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Clean artist from channel suffixes like " - Topic", "VEVO", "Records"
+    let noise_suffixes = [" - Topic", " Topic", "VEVO", " Vevo", " Official", " Records", " Music", " Channel"];
+    for suf in noise_suffixes {
+        if artist.ends_with(suf) {
+            artist = artist.trim_end_matches(suf).trim().to_string();
+        }
+    }
+
+    // Clean title noise
+    let title_noise = [
+        "(Official Music Video)", "(Official Video)", "(Official Audio)", "[Official Video]",
+        "(Audio)", "(Lyrics Video)", "(Lyric Video)", "(Lyrics)", "(Visualizer)", "[Official Audio]",
+        "(Clip Officiel)", "(клип)", "(Премьера трека)", "(Премьера клипа)", "[HD]", "[4K]", "[HQ]",
+    ];
+    for noise in title_noise {
+        title = title.replace(noise, " ");
+        let lower_noise = noise.to_lowercase();
+        if let Some(idx) = title.to_lowercase().find(&lower_noise) {
+            title.replace_range(idx..idx + lower_noise.len(), " ");
+        }
+    }
+    title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    if title.is_empty() {
+        title = "Без названия".to_string();
+    }
+    if artist.is_empty() {
+        artist = "Неизвестный исполнитель".to_string();
     }
 
     let duration = item["duration"].as_f64().unwrap_or(0.0);

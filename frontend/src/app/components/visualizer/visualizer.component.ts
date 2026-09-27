@@ -383,7 +383,8 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     } else if (type === 'circle') {
       this.drawCircle(ctx, w, h);
     } else if (type === 'lyrics') {
-      this.drawLyricsWave(ctx, w, h);
+      // Clear canvas in lyrics mode to provide a clean, modern readable view without background wave interference
+      ctx.clearRect(0, 0, w, h);
       this.autoScrollVisualizerLyrics();
     }
   }

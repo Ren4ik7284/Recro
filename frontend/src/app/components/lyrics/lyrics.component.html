@@ -1,5 +1,5 @@
 <div class="lyrics-overlay" [class.open]="lyricsService.isLyricsOpen()">
-  <!-- Dynamic blurred background from album art -->
+  <!-- Dynamic blurred ambient backdrop from album art (No cheesy wave!) -->
   <div class="lyrics-backdrop">
     @if (audioService.currentTrack()?.coverUrl) {
       <div 
@@ -18,20 +18,20 @@
       <span class="lyrics-badge font-mono">ТЕКСТ ПЕСНИ</span>
       @if (lyricsService.currentLyrics()?.isSynced) {
         <span class="lyrics-synced-pill font-mono">СИНХРОНИЗИРОВАНО</span>
-      }
-      @if (lyricsService.syncOffsetMs() !== 0) {
-        <span class="lyrics-offset-pill font-mono">
-          СДВИГ: {{ lyricsService.syncOffsetMs() > 0 ? '+' : '' }}{{ lyricsService.syncOffsetMs() }}мс
-        </span>
+      } @else if (lyricsService.currentLyrics()) {
+        <span class="lyrics-plain-pill font-mono">БЕЗ СИНХРОНИЗАЦИИ</span>
       }
     </div>
 
     <div class="lyrics-actions-group">
-      @if (lyricsService.syncOffsetMs() !== 0) {
-        <button type="button" class="btn-auto-offset-indicator font-mono" (click)="lyricsService.resetOffset()" title="Авто-выравнивание синхронизации активно. Нажмите для сброса.">
-          АВТО-СИНХРОНИЗАЦИЯ: {{ lyricsService.syncOffsetMs() > 0 ? '+' : '' }}{{ lyricsService.syncOffsetMs() }}мс
-        </button>
-      }
+      <!-- Search alternative lyrics button -->
+      <button type="button" class="btn-lyrics-tool" (click)="openSearchDialog()" title="Найти другой вариант текста в базе">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <span>Найти слова</span>
+      </button>
 
       <!-- Import Custom LRC Button -->
       <button type="button" class="btn-lyrics-tool" (click)="openImportDialog()" title="Импортировать свой файл .lrc или вставить текст">
@@ -44,7 +44,7 @@
       </button>
 
       <!-- Reload from web -->
-      <button type="button" class="btn-lyrics-tool" (click)="reloadFromWeb()" title="Найти заново в базе текстов">
+      <button type="button" class="btn-lyrics-tool" (click)="reloadFromWeb()" title="Сбросить и найти заново">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
           <path d="M3 3v5h5"/>
@@ -63,11 +63,12 @@
     </div>
   </header>
 
-  <!-- Main Body: Two Columns on PC, Single Scrollable on Mobile -->
+  <!-- Main Body: Modern Two Columns (Left: Player / Cover, Right: Lyrics) -->
   <main class="lyrics-main-content">
-    <!-- Left Column: Album Art & Mini Player (Desktop) -->
-    <aside class="lyrics-player-panel desktop-only">
-      <div class="lyrics-art-box">
+    
+    <!-- Left Column: Modern Player Sidebar -->
+    <aside class="lyrics-player-sidebar">
+      <div class="lyrics-art-wrapper">
         @if (audioService.currentTrack()?.coverUrl) {
           <img [src]="audioService.currentTrack()!.coverUrl" alt="Cover" class="lyrics-album-art" />
         } @else {
@@ -81,23 +82,49 @@
       </div>
 
       <div class="lyrics-track-info">
-        <h1 class="lyrics-song-title">{{ audioService.currentTrack()?.title || 'Без названия' }}</h1>
-        <p class="lyrics-song-artist">{{ audioService.currentTrack()?.artist || 'Неизвестный исполнитель' }}</p>
+        <h2 class="lyrics-song-title" [title]="audioService.currentTrack()?.title || ''">
+          {{ audioService.currentTrack()?.title || 'Без названия' }}
+        </h2>
+        <p class="lyrics-song-artist" [title]="audioService.currentTrack()?.artist || ''">
+          {{ audioService.currentTrack()?.artist || 'Неизвестный исполнитель' }}
+        </p>
       </div>
 
-      <!-- Scrubber in lyrics panel -->
+      <!-- Scrubber Timeline with range slider -->
       <div class="lyrics-scrubber-box">
         <div class="lyrics-time-display font-mono">
           <span>{{ formatTime(audioService.currentTime()) }}</span>
           <span>{{ formatTime(audioService.duration()) }}</span>
         </div>
-        <div class="lyrics-progress-track">
-          <div class="lyrics-progress-bar" [style.width.%]="audioService.progressPercent()"></div>
-        </div>
+        <input 
+          type="range"
+          min="0"
+          [max]="audioService.duration() || 100"
+          step="1"
+          [value]="audioService.currentTime()"
+          (input)="audioService.seek(+($any($event.target).value))"
+          class="lyrics-timeline-slider"
+        />
       </div>
 
-      <!-- Transport controls in lyrics panel -->
+      <!-- Main Transport Controls: Shuffle, Prev, Play, Next, Repeat -->
       <div class="lyrics-controls-row">
+        <button 
+          type="button" 
+          class="lyrics-ctrl-btn" 
+          [class.active]="audioService.isShuffle()"
+          (click)="audioService.toggleShuffle()" 
+          title="Случайный порядок"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 3 21 3 21 8"/>
+            <line x1="4" y1="20" x2="21" y2="3"/>
+            <polyline points="21 16 21 21 16 21"/>
+            <line x1="15" y1="15" x2="21" y2="21"/>
+            <line x1="4" y1="4" x2="9" y2="9"/>
+          </svg>
+        </button>
+
         <button type="button" class="lyrics-ctrl-btn" (click)="audioService.prev()" title="Предыдущий трек">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="19 20 9 12 19 4 19 20"/>
@@ -105,7 +132,7 @@
           </svg>
         </button>
 
-        <button type="button" class="lyrics-play-btn" (click)="audioService.togglePlay()" title="Пуск / Пауза">
+        <button type="button" class="lyrics-play-btn" (click)="audioService.togglePlay()" title="Воспроизведение / Пауза">
           @if (audioService.isPlaying()) {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
               <rect width="4" height="16" x="6" y="4" rx="1"/>
@@ -124,10 +151,74 @@
             <line x1="19" y1="5" x2="19" y2="19"/>
           </svg>
         </button>
+
+        <button 
+          type="button" 
+          class="lyrics-ctrl-btn" 
+          [class.active]="audioService.repeatMode() !== 'off'"
+          (click)="audioService.cycleRepeat()" 
+          title="Режим повтора"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="17 1 21 5 17 9"/>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+            <polyline points="7 23 3 19 7 15"/>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Secondary Row: Favorite + Volume + Search lyrics -->
+      <div class="lyrics-subcontrols-row">
+        <button 
+          type="button" 
+          class="lyrics-fav-btn" 
+          [class.active]="isCurrentFavorite()"
+          (click)="toggleFavorite()"
+          title="В избранное"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" [attr.fill]="isCurrentFavorite() ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+        </button>
+
+        <div class="lyrics-volume-box">
+          <button type="button" class="lyrics-vol-icon-btn" (click)="audioService.toggleMute()">
+            @if (audioService.isMuted() || audioService.volume() === 0) {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="1" y1="1" x2="23" y2="23"/>
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/>
+              </svg>
+            } @else {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            }
+          </button>
+          <input 
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            [value]="audioService.volume()"
+            (input)="audioService.setVolume(+($any($event.target).value))"
+            class="lyrics-vol-slider"
+          />
+        </div>
+
+        <button type="button" class="btn-alt-lyrics" (click)="openSearchDialog()" title="Выбрать другой вариант текста">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          <span class="desktop-only">Сменить</span>
+        </button>
       </div>
     </aside>
 
-    <!-- Right Column: Karaoke Live Scrolling Lyrics -->
+    <!-- Right Column: Karaoke Live Scrolling Lyrics (Takes all remaining space) -->
     <section 
       #lyricsScrollContainer 
       class="lyrics-scroll-viewport"
@@ -137,12 +228,12 @@
       @if (lyricsService.isLoading()) {
         <div class="lyrics-status-box">
           <div class="lyrics-spinner"></div>
-          <p class="lyrics-status-text">Поиск синхронизированного текста...</p>
+          <p class="lyrics-status-text">Ищем текст песни в мировой базе...</p>
         </div>
       } @else if (lyricsService.currentLyrics(); as lyrics) {
-        @if (lyrics.lines.length > 0) {
+        @if (lyrics.lines.length > 0 && lyrics.isSynced) {
+          <!-- Synced Karaoke Mode -->
           <div class="lyrics-lines-wrapper">
-            <!-- Top padding space so first line can center -->
             <div class="lyrics-spacer"></div>
 
             @for (line of lyrics.lines; track $index; let i = $index) {
@@ -156,7 +247,6 @@
                 title="Нажмите для перемотки на эту строку"
               >
                 @if (line.words && line.words.length > 0) {
-                  <!-- Word by word display -->
                   <span class="lyric-words-row">
                     @for (w of line.words; track $index) {
                       <span class="lyric-word">{{ w.text }} </span>
@@ -168,34 +258,52 @@
               </div>
             }
 
-            <!-- Bottom padding space -->
             <div class="lyrics-spacer"></div>
           </div>
+        } @else if (lyrics.plainText) {
+          <!-- Plain Text Mode (No Sync Timestamps) -->
+          <div class="lyrics-plain-wrapper">
+            <div class="plain-notice-banner font-mono">
+              ТЕКСТ ПЕСНИ (БЕЗ СИНХРОНИЗАЦИИ)
+            </div>
+            <pre class="lyrics-plain-text">{{ lyrics.plainText }}</pre>
+          </div>
         } @else {
+          <!-- Empty text -->
           <div class="lyrics-status-box">
             <p class="lyrics-status-text">Текст пуст</p>
-            <button type="button" class="btn-import-prompt" (click)="openImportDialog()">
-              Добавить свой текст (.LRC)
+            <button type="button" class="btn-spotify-accent" (click)="openSearchDialog()">
+              Найти текст в базе
             </button>
           </div>
         }
       } @else {
-        <div class="lyrics-status-box">
+        <!-- Spotify-style Ambient Empty Card -->
+        <div class="lyrics-empty-card">
           <div class="lyrics-empty-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M9 18V5l12-2v13"/>
               <circle cx="6" cy="18" r="3"/>
               <circle cx="18" cy="16" r="3"/>
             </svg>
           </div>
-          <h3 class="lyrics-empty-title">Текст для этого трека не найден</h3>
-          <p class="lyrics-empty-sub">Вы можете легко добавить файл синхронизированного текста (.lrc) с таймингами.</p>
+          <h2 class="lyrics-empty-title">Для этого трека пока нет текста</h2>
+          <p class="lyrics-empty-sub">Вы можете найти другой вариант слов песни вручную или загрузить файл .LRC</p>
           <div class="lyrics-empty-actions">
-            <button type="button" class="btn-import-prompt" (click)="openImportDialog()">
-              Импортировать .LRC файл
+            <button type="button" class="btn-spotify-accent" (click)="openSearchDialog()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <span>Найти слова в базе</span>
             </button>
-            <button type="button" class="btn-reload-prompt" (click)="reloadFromWeb()">
-              Попробовать найти снова
+            <button type="button" class="btn-spotify-outline" (click)="openImportDialog()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span>Импортировать .LRC</span>
             </button>
           </div>
         </div>
@@ -211,6 +319,74 @@
       }
     </section>
   </main>
+
+  <!-- Search Alternative Lyrics Modal -->
+  @if (isSearchModalOpen()) {
+    <div class="search-lyrics-modal-backdrop" (click)="closeSearchDialog()">
+      <div class="search-lyrics-modal-card" (click)="$event.stopPropagation()">
+        <div class="search-modal-header">
+          <div class="search-input-wrapper">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input 
+              type="text" 
+              class="search-lyrics-input"
+              placeholder="Поиск по артисту или названию песни..."
+              [ngModel]="searchQuery()"
+              (ngModelChange)="searchQuery.set($event)"
+              (keydown.enter)="performSearch()"
+              autofocus
+            />
+            <button type="button" class="btn-execute-search" (click)="performSearch()">
+              Найти
+            </button>
+          </div>
+          <button type="button" class="btn-close-modal" (click)="closeSearchDialog()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="search-modal-body">
+          @if (isSearching()) {
+            <div class="search-loading">
+              <div class="lyrics-spinner"></div>
+              <span>Поиск совпадений...</span>
+            </div>
+          } @else if (searchResults().length > 0) {
+            <div class="search-results-list">
+              @for (item of searchResults(); track item.id) {
+                <div class="search-result-card" (click)="selectSearchResult(item)">
+                  <div class="result-info">
+                    <span class="result-title">{{ item.trackName }}</span>
+                    <span class="result-artist">{{ item.artistName }} • {{ item.albumName || 'Сингл' }}</span>
+                  </div>
+                  <div class="result-actions">
+                    @if (item.syncedLyrics) {
+                      <span class="result-synced-pill font-mono">КАРАОКЕ</span>
+                    } @else {
+                      <span class="result-plain-pill font-mono">ТЕКСТ</span>
+                    }
+                    <button type="button" class="btn-select-result font-mono">
+                      ВЫБРАТЬ
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="search-empty-state">
+              <p>Введите запрос и нажмите «Найти» для поиска в мировой базе текстов</p>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
 
   <!-- Import / Edit Modal -->
   @if (isImportModalOpen()) {
@@ -230,7 +406,6 @@
         </div>
 
         <div class="import-modal-body">
-          <!-- File Drop Zone -->
           <div 
             class="import-dropzone" 
             [class.dragging]="isDraggingFile()"
@@ -250,7 +425,6 @@
             </label>
           </div>
 
-          <!-- Textarea for direct editing / pasting -->
           <div class="import-textarea-box">
             <label class="field-label">Текст песни или LRC разметка:</label>
             <textarea 
