@@ -24,35 +24,6 @@
     </div>
 
     <div class="lyrics-actions-group">
-      <!-- Search alternative lyrics button -->
-      <button type="button" class="btn-lyrics-tool" (click)="openSearchDialog()" title="Найти другой вариант текста в базе">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <span>Найти слова</span>
-      </button>
-
-      <!-- Import Custom LRC Button -->
-      <button type="button" class="btn-lyrics-tool" (click)="openImportDialog()" title="Импортировать свой файл .lrc или вставить текст">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        <span class="desktop-only">Импорт LRC</span>
-      </button>
-
-      <!-- Reload from web -->
-      <button type="button" class="btn-lyrics-tool" (click)="reloadFromWeb()" title="Сбросить и найти заново">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-          <path d="M3 3v5h5"/>
-          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-          <path d="M16 21h5v-5"/>
-        </svg>
-      </button>
-
       <!-- Close Fullscreen Lyrics -->
       <button type="button" class="btn-lyrics-close" (click)="lyricsService.closeLyrics()" title="Закрыть текст (Esc)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -207,14 +178,6 @@
             class="lyrics-vol-slider"
           />
         </div>
-
-        <button type="button" class="btn-alt-lyrics" (click)="openSearchDialog()" title="Выбрать другой вариант текста">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-          <span class="desktop-only">Сменить</span>
-        </button>
       </div>
     </aside>
 
@@ -228,7 +191,7 @@
       @if (lyricsService.isLoading()) {
         <div class="lyrics-status-box">
           <div class="lyrics-spinner"></div>
-          <p class="lyrics-status-text">Ищем текст песни в мировой базе...</p>
+          <p class="lyrics-status-text">Поиск текста песни...</p>
         </div>
       } @else if (lyricsService.currentLyrics(); as lyrics) {
         @if (lyrics.lines.length > 0 && lyrics.isSynced) {
@@ -269,43 +232,31 @@
             <pre class="lyrics-plain-text">{{ lyrics.plainText }}</pre>
           </div>
         } @else {
-          <!-- Empty text -->
-          <div class="lyrics-status-box">
-            <p class="lyrics-status-text">Текст пуст</p>
-            <button type="button" class="btn-spotify-accent" (click)="openSearchDialog()">
-              Найти текст в базе
-            </button>
+          <!-- Empty text / Instrumental -->
+          <div class="lyrics-empty-card">
+            <div class="lyrics-empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M9 18V5l12-2v13"/>
+                <circle cx="6" cy="18" r="3"/>
+                <circle cx="18" cy="16" r="3"/>
+              </svg>
+            </div>
+            <h2 class="lyrics-empty-title">Слова для этого трека не найдены</h2>
+            <p class="lyrics-empty-sub">Инструментальная композиция или текст пока отсутствует в базе</p>
           </div>
         }
       } @else {
-        <!-- Spotify-style Ambient Empty Card -->
+        <!-- Modern Aesthetic Empty Card -->
         <div class="lyrics-empty-card">
           <div class="lyrics-empty-icon">
-            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
               <path d="M9 18V5l12-2v13"/>
               <circle cx="6" cy="18" r="3"/>
               <circle cx="18" cy="16" r="3"/>
             </svg>
           </div>
-          <h2 class="lyrics-empty-title">Для этого трека пока нет текста</h2>
-          <p class="lyrics-empty-sub">Вы можете найти другой вариант слов песни вручную или загрузить файл .LRC</p>
-          <div class="lyrics-empty-actions">
-            <button type="button" class="btn-spotify-accent" (click)="openSearchDialog()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <span>Найти слова в базе</span>
-            </button>
-            <button type="button" class="btn-spotify-outline" (click)="openImportDialog()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <span>Импортировать .LRC</span>
-            </button>
-          </div>
+          <h2 class="lyrics-empty-title">Слова для этого трека не найдены</h2>
+          <p class="lyrics-empty-sub">Инструментальная композиция или текст пока отсутствует в базе</p>
         </div>
       }
 
@@ -319,133 +270,4 @@
       }
     </section>
   </main>
-
-  <!-- Search Alternative Lyrics Modal -->
-  @if (isSearchModalOpen()) {
-    <div class="search-lyrics-modal-backdrop" (click)="closeSearchDialog()">
-      <div class="search-lyrics-modal-card" (click)="$event.stopPropagation()">
-        <div class="search-modal-header">
-          <div class="search-input-wrapper">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input 
-              type="text" 
-              class="search-lyrics-input"
-              placeholder="Поиск по артисту или названию песни..."
-              [ngModel]="searchQuery()"
-              (ngModelChange)="searchQuery.set($event)"
-              (keydown.enter)="performSearch()"
-              autofocus
-            />
-            <button type="button" class="btn-execute-search" (click)="performSearch()">
-              Найти
-            </button>
-          </div>
-          <button type="button" class="btn-close-modal" (click)="closeSearchDialog()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="search-modal-body">
-          @if (isSearching()) {
-            <div class="search-loading">
-              <div class="lyrics-spinner"></div>
-              <span>Поиск совпадений...</span>
-            </div>
-          } @else if (searchResults().length > 0) {
-            <div class="search-results-list">
-              @for (item of searchResults(); track item.id) {
-                <div class="search-result-card" (click)="selectSearchResult(item)">
-                  <div class="result-info">
-                    <span class="result-title">{{ item.trackName }}</span>
-                    <span class="result-artist">{{ item.artistName }} • {{ item.albumName || 'Сингл' }}</span>
-                  </div>
-                  <div class="result-actions">
-                    @if (item.syncedLyrics) {
-                      <span class="result-synced-pill font-mono">КАРАОКЕ</span>
-                    } @else {
-                      <span class="result-plain-pill font-mono">ТЕКСТ</span>
-                    }
-                    <button type="button" class="btn-select-result font-mono">
-                      ВЫБРАТЬ
-                    </button>
-                  </div>
-                </div>
-              }
-            </div>
-          } @else {
-            <div class="search-empty-state">
-              <p>Введите запрос и нажмите «Найти» для поиска в мировой базе текстов</p>
-            </div>
-          }
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- Import / Edit Modal -->
-  @if (isImportModalOpen()) {
-    <div class="import-modal-backdrop" (click)="closeImportDialog()">
-      <div class="import-modal-card" (click)="$event.stopPropagation()">
-        <div class="import-modal-header">
-          <div>
-            <h3 class="import-modal-title">Импорт текста песни (.LRC)</h3>
-            <p class="import-modal-subtitle">Поддерживается синхронизированный формат с таймингами [мм:сс.хх]</p>
-          </div>
-          <button type="button" class="btn-close-import" (click)="closeImportDialog()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="import-modal-body">
-          <div 
-            class="import-dropzone" 
-            [class.dragging]="isDraggingFile()"
-            (dragover)="onDragOver($event)"
-            (dragleave)="onDragLeave($event)"
-            (drop)="onDrop($event)"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            <span>Перетащите сюда .lrc или .txt файл или</span>
-            <label class="btn-select-file">
-              Выбрать файл
-              <input type="file" accept=".lrc,.txt" (change)="onFileSelected($event)" style="display: none;" />
-            </label>
-          </div>
-
-          <div class="import-textarea-box">
-            <label class="field-label">Текст песни или LRC разметка:</label>
-            <textarea 
-              rows="10"
-              class="import-textarea font-mono"
-              placeholder="[00:12.34]Первая строка песни&#10;[00:16.80]Вторая строка песни&#10;[00:21.05]Третья строка песни..."
-              [ngModel]="importTextInput()"
-              (ngModelChange)="importTextInput.set($event)"
-            ></textarea>
-          </div>
-        </div>
-
-        <div class="import-modal-footer">
-          <button type="button" class="btn-import-cancel" (click)="closeImportDialog()">
-            Отмена
-          </button>
-          <button type="button" class="btn-import-save" (click)="applyImportedText()">
-            Применить текст
-          </button>
-        </div>
-      </div>
-    </div>
-  }
 </div>

@@ -407,25 +407,6 @@
         }
       }
     }
-
-    .btn-alt-lyrics {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 6px;
-      color: rgba(255, 255, 255, 0.8);
-      padding: 4px 9px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.16);
-        color: #fff;
-      }
-    }
   }
 }
 
@@ -554,7 +535,7 @@
     }
   }
 
-  /* Spotify-style Empty Ambient Card */
+  /* Spotify-style Aesthetic Empty Card */
   .lyrics-empty-card {
     display: flex;
     flex-direction: column;
@@ -563,19 +544,20 @@
     min-height: 55vh;
     text-align: center;
     padding: 40px;
+    animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 
     .lyrics-empty-icon {
-      width: 80px;
-      height: 80px;
+      width: 84px;
+      height: 84px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: rgba(255, 255, 255, 0.6);
+      color: rgba(255, 255, 255, 0.7);
       margin-bottom: 24px;
-      box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
 
     .lyrics-empty-title {
@@ -583,61 +565,15 @@
       font-weight: 700;
       color: #fff;
       margin: 0;
+      letter-spacing: -0.3px;
     }
 
     .lyrics-empty-sub {
-      font-size: 14px;
-      color: rgba(255, 255, 255, 0.6);
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.55);
       max-width: 440px;
-      margin: 10px 0 28px;
-      line-height: 1.5;
-    }
-
-    .lyrics-empty-actions {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-
-      .btn-spotify-accent {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: #22c55e;
-        color: #000;
-        font-weight: 700;
-        font-size: 14px;
-        padding: 12px 24px;
-        border-radius: 24px;
-        border: none;
-        cursor: pointer;
-        box-shadow: 0 8px 20px rgba(34, 197, 94, 0.35);
-        transition: all 0.2s ease;
-
-        &:hover {
-          transform: scale(1.05);
-          box-shadow: 0 10px 25px rgba(34, 197, 94, 0.5);
-        }
-      }
-
-      .btn-spotify-outline {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: rgba(255, 255, 255, 0.08);
-        color: #fff;
-        font-weight: 600;
-        font-size: 14px;
-        padding: 12px 22px;
-        border-radius: 24px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        cursor: pointer;
-        transition: all 0.2s ease;
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.16);
-          border-color: rgba(255, 255, 255, 0.4);
-        }
-      }
+      margin: 12px 0 0;
+      line-height: 1.6;
     }
   }
 

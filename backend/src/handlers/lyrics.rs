@@ -60,7 +60,8 @@ pub fn clean_title(title: &str) -> String {
         "official music video", "official video", "official audio", "official",
         "lyric video", "lyrics", "visualizer", "audio", "clip officiel",
         "remastered", "4k", "hd", "hq", "live", "full album", "премьера клипа",
-        "премьера песни", "клип", "новинка", "хит", "slowed", "reverb", "speed up",
+        "премьера песни", "клип", "новинка", "хит", "slowed + reverb", "slowed & reverb",
+        "slowed reverb", "slowed", "reverb", "speed up", "sped up", "bass boosted",
     ];
     let mut lower = s.to_lowercase();
     for word in noise {
@@ -124,72 +125,7 @@ fn calc_match_score(
         return 0.0;
     }
 
-    // 1. Artist matching
-    let is_swapped = (!exp_a.is_empty() && (cand_t.contains(&exp_a) || exp_a.contains(&cand_t)))
-        && (cand_a.contains(&exp_t) || exp_t.contains(&cand_a));
-
-    let artist_score = if is_swapped {
-        30.0
-    } else if !exp_a.is_empty() && !cand_a.is_empty() {
-        if exp_a == cand_a || cand_a.contains(&exp_a) || exp_a.contains(&cand_a) {
-            30.0
-        } else {
-            let exp_words: Vec<&str> = exp_a.split_whitespace().filter(|w| w.len() >= 2).collect();
-            let cand_words: Vec<&str> = cand_a.split_whitespace().filter(|w| w.len() >= 2).collect();
-            let mut matched_words = 0;
-            for ew in &exp_words {
-                if cand_words.iter().any(|cw| cw.contains(ew) || ew.contains(cw)) {
-                    matched_words += 1;
-                }
-            }
-            if matched_words > 0 {
-                25.0 * (matched_words as f64 / exp_words.len().max(1) as f64)
-            } else {
-                // If candidate artist does not match expected artist at all, REJECT!
-                return 0.0;
-            }
-        }
-    } else if exp_a.is_empty() {
-        15.0
-    } else {
-        5.0
-    };
-
-    // 2. Title matching
-    let title_score = if exp_t == cand_t || is_swapped {
-        50.0
-    } else {
-        let exp_words: Vec<&str> = exp_t.split_whitespace().filter(|w| w.len() >= 2).collect();
-        let cand_words: Vec<&str> = cand_t.split_whitespace().filter(|w| w.len() >= 2).collect();
-
-        if exp_words.len() == 1 {
-            let target_word = exp_words[0];
-            if cand_words.contains(&target_word) {
-                let extra_non_noise = cand_words.iter().filter(|w| **w != target_word && !is_noise_word(w)).count();
-                if extra_non_noise == 0 {
-                    45.0
-                } else {
-                    return 0.0;
-                }
-            } else {
-                return 0.0;
-            }
-        } else {
-            let mut matched_words = 0;
-            for ew in &exp_words {
-                if cand_words.iter().any(|cw| cw == ew || cw.contains(ew) || ew.contains(cw)) {
-                    matched_words += 1;
-                }
-            }
-            let ratio = matched_words as f64 / exp_words.len().max(1) as f64;
-            if ratio < 0.45 {
-                return 0.0;
-            }
-            ratio * 45.0
-        }
-    };
-
-    // 3. Duration check
+    // 1. Duration check first: if > 45s diff, strictly reject
     let mut dur_penalty = 0.0;
     if let (Some(ed), Some(cd)) = (exp_dur, cand_dur) {
         if ed > 20.0 && cd > 20.0 {
@@ -200,6 +136,88 @@ fn calc_match_score(
             if diff > 15.0 {
                 dur_penalty = (diff - 15.0) * 0.8;
             }
+        }
+    }
+
+    // 2. Title matching
+    let is_swapped = (!exp_a.is_empty() && (cand_t.contains(&exp_a) || exp_a.contains(&cand_t)))
+        && (cand_a.contains(&exp_t) || exp_t.contains(&cand_a));
+
+    let exp_words: Vec<&str> = exp_t.split_whitespace().filter(|w| w.len() >= 2).collect();
+    let cand_words: Vec<&str> = cand_t.split_whitespace().filter(|w| w.len() >= 2).collect();
+
+    let title_ratio: f64;
+    let title_score = if exp_t == cand_t || is_swapped {
+        title_ratio = 1.0;
+        50.0
+    } else if exp_words.len() == 1 {
+        let target_word = exp_words[0];
+        if cand_words.contains(&target_word) {
+            let extra_non_noise = cand_words.iter().filter(|w| **w != target_word && !is_noise_word(w)).count();
+            if extra_non_noise == 0 {
+                title_ratio = 1.0;
+                45.0
+            } else {
+                return 0.0;
+            }
+        } else {
+            return 0.0;
+        }
+    } else {
+        let mut matched_words = 0;
+        for ew in &exp_words {
+            if cand_words.iter().any(|cw| cw == ew || cw.contains(ew) || ew.contains(cw)) {
+                matched_words += 1;
+            }
+        }
+        title_ratio = matched_words as f64 / exp_words.len().max(1) as f64;
+        if title_ratio < 0.45 {
+            return 0.0;
+        }
+        title_ratio * 45.0
+    };
+
+    // 3. Artist matching
+    let mut artist_matched = false;
+    let mut artist_score = 0.0;
+
+    if is_swapped {
+        artist_matched = true;
+        artist_score = 30.0;
+    } else if !exp_a.is_empty() && !cand_a.is_empty() {
+        if exp_a == cand_a || cand_a.contains(&exp_a) || exp_a.contains(&cand_a) {
+            artist_matched = true;
+            artist_score = 30.0;
+        } else {
+            let exp_a_words: Vec<&str> = exp_a.split_whitespace().filter(|w| w.len() >= 2).collect();
+            let cand_a_words: Vec<&str> = cand_a.split_whitespace().filter(|w| w.len() >= 2).collect();
+            let mut matched_a = 0;
+            for ew in &exp_a_words {
+                if cand_a_words.iter().any(|cw| cw.contains(ew) || ew.contains(cw)) {
+                    matched_a += 1;
+                }
+            }
+            if matched_a > 0 {
+                artist_matched = true;
+                artist_score = 25.0 * (matched_a as f64 / exp_a_words.len().max(1) as f64);
+            }
+        }
+    } else if exp_a.is_empty() {
+        artist_matched = true;
+        artist_score = 15.0;
+    }
+
+    if !artist_matched {
+        // If 1-word title, artist match is required to avoid mixing up distinct songs
+        if exp_words.len() <= 1 {
+            return 0.0;
+        }
+        // If multi-word title has high match (>= 70% or exact), allow candidate with lower artist score
+        // (YouTube uploader channel name often differs from actual metadata artist)
+        if title_ratio >= 0.70 {
+            artist_score = 10.0;
+        } else {
+            return 0.0;
         }
     }
 
@@ -219,9 +237,9 @@ async fn fetch_lrclib(
         queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(artist)));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", artist, title))));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, artist))));
-    } else {
-        queries.push(format!("q={}", urlencoding::encode(title)));
     }
+    // Always search clean title alone as well
+    queries.push(format!("q={}", urlencoding::encode(title)));
 
     let mut best_candidate: Option<(f64, LyricsResponse)> = None;
 
@@ -300,27 +318,37 @@ async fn fetch_kugou(
     artist: &str,
     duration: Option<f64>,
 ) -> Option<LyricsResponse> {
-    let query = if !artist.is_empty() {
-        format!("{} {}", artist, title)
-    } else {
-        title.to_string()
-    };
+    let mut queries = Vec::new();
+    if !artist.is_empty() {
+        queries.push(format!("{} {}", artist, title));
+    }
+    queries.push(title.to_string());
 
-    let search_url = format!(
-        "http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword={}&page=1&pagesize=5",
-        urlencoding::encode(&query)
-    );
+    for query in queries {
+        let search_url = format!(
+            "http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword={}&page=1&pagesize=5",
+            urlencoding::encode(&query)
+        );
 
-    let res = client
-        .get(&search_url)
-        .header("User-Agent", "Mozilla/5.0")
-        .timeout(std::time::Duration::from_millis(3000))
-        .send()
-        .await
-        .ok()?;
+        let res = match client
+            .get(&search_url)
+            .header("User-Agent", "Mozilla/5.0")
+            .timeout(std::time::Duration::from_millis(3000))
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
 
-    let json: serde_json::Value = res.json().await.ok()?;
-    let songs = json["data"]["info"].as_array()?;
+        let json: serde_json::Value = match res.json().await {
+            Ok(j) => j,
+            Err(_) => continue,
+        };
+        let songs = match json["data"]["info"].as_array() {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
 
     for song in songs {
         let cand_title = song["songname"].as_str().unwrap_or("");
@@ -400,6 +428,7 @@ async fn fetch_kugou(
                 }
             }
         }
+    }
     }
     None
 }
@@ -527,5 +556,22 @@ mod tests {
             true,
         );
         assert_eq!(score, 0.0, "Must reject > 45s duration diff!");
+    }
+
+    #[test]
+    fn test_calc_match_score_accepts_multiword_title_with_uploader_channel() {
+        // Track: "люблю москву но снится london"
+        // Expected artist: "wastedheart" (YouTube channel)
+        // Candidate artist: "vers1zee" (Real artist on LRCLIB)
+        let score = calc_match_score(
+            "люблю москву но снится london",
+            "wastedheart",
+            Some(140.0),
+            "люблю москву но снится london",
+            "vers1zee",
+            Some(140.0),
+            true,
+        );
+        assert!(score >= 60.0, "Multi-word exact title match must be accepted, score: {}", score);
     }
 }

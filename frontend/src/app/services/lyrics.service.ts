@@ -581,7 +581,7 @@ export class LyricsService {
       .replace(/\((?:official|music|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|feat|ft|prod|клип|премьера|with|extended|original|slowed|reverb|speed|sped|live|bonus|deluxe|edit|acoustic|cover|clip|instrumental|dub|mix)[^)]*\)/gi, ' ')
       .replace(/\{(?:official|music|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|feat|ft|prod|клип|премьера|with|extended|original|slowed|reverb|speed|sped|live|bonus|deluxe|edit|acoustic|cover|clip|instrumental|dub|mix)[^}]*\}/gi, ' ')
       .replace(/\b(?:feat\.?|ft\.?|with)\s+[^\s–—\-()[\]]+/gi, ' ')
-      .replace(/\b(official\s+music\s+video|official\s+video|official\s+audio|music\s+video|lyric\s+video|lyrics|official|audio|remastered|hd|hq|4k|visualizer|clip\s+officiel|full\s+album|премьера\s+клипа|премьера\s+песни|премьера\s+трека|официальный\s+клип|текст\s+песни|клип|новинка|хит|slowed\s*\+\s*reverb|slowed|reverb|speed\s*up|sped\s*up)\b/gi, ' ')
+      .replace(/\b(official\s+music\s+video|official\s+video|official\s+audio|music\s+video|lyric\s+video|lyrics|official|audio|remastered|hd|hq|4k|visualizer|clip\s+officiel|full\s+album|премьера\s+клипа|премьера\s+песни|премьера\s+трека|официальный\s+клип|текст\s+песни|клип|новинка|хит|slowed\s*[\+&]\s*reverb|slowed\s*reverb|slowed|reverb|speed\s*up|sped\s*up|bass\s*boosted)\b/gi, ' ')
       .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -692,7 +692,8 @@ export class LyricsService {
 
   /**
    * Строгая валидация соответствия кандидата из LRCLIB текущему треку.
-   * Полностью исключает показ текста чужих песен.
+   * Надежно исключает показ текста чужих песен, поддерживая правильные совпадения
+   * даже если на YouTube артистом указан канал/лейбл перезалива.
    */
   matchScore(item: any, expectedTitle: string, expectedArtist: string, expectedDuration: number): number {
     const itemTitleNorm = this.normalizeForComparison(item.trackName || item.name);
@@ -702,20 +703,63 @@ export class LyricsService {
 
     if (!itemTitleNorm || !expTitleNorm) return -999;
 
-    // 1. Проверка длительности трека: отсекаем только явно чужие миксы (>50с разницы)
+    // 1. Проверка длительности трека: отсекаем только явно чужие миксы (>45с разницы)
     let durationPenalty = 0;
     if (expectedDuration > 20 && item.duration > 20) {
       const diff = Math.abs(item.duration - expectedDuration);
-      if (diff > 50) return -999;
-      if (diff > 25) {
-        durationPenalty = 20; // небольшой штраф за клиповые заставки
+      if (diff > 45) return -999;
+      if (diff > 15) {
+        durationPenalty = Math.round((diff - 15) * 0.8);
       }
     }
 
-    // 2. Проверка артиста с поддержкой перевернутых полей (автор <-> название в базе)
-    let artistMatched = false;
+    // 2. Проверка названия трека
+    const expWords = expTitleNorm.split(' ').filter((w) => w.length >= 2);
+    const itemWords = itemTitleNorm.split(' ').filter((w) => w.length >= 2);
+
     const isSwapped = (expArtistNorm && (itemTitleNorm.includes(expArtistNorm) || expArtistNorm.includes(itemTitleNorm))) &&
                       (itemArtistNorm.includes(expTitleNorm) || expTitleNorm.includes(itemArtistNorm));
+
+    let titleScore = 0;
+    let titleRatio = 0;
+
+    if (itemTitleNorm === expTitleNorm || isSwapped) {
+      titleRatio = 1.0;
+      titleScore = 60;
+    } else if (expWords.length === 1) {
+      const targetWord = expWords[0];
+      if (itemWords.includes(targetWord)) {
+        const noiseWords = new Set([
+          'official', 'video', 'audio', 'remastered', 'remaster', 'hd', '4k',
+          'visualizer', 'clip', 'slowed', 'reverb', 'speed', 'sped', 'up',
+          'live', 'edit', 'version', 'acoustic', 'cover', 'instrumental',
+          'prod', 'feat', 'ft', 'lyrics', 'lyric', 'mix', 'original', 'extended',
+          'клип', 'новинка', 'песня', 'трек', 'хит'
+        ]);
+        const extraNonNoise = itemWords.filter((w) => w !== targetWord && !noiseWords.has(w));
+        if (extraNonNoise.length === 0) {
+          titleRatio = 1.0;
+          titleScore = 55;
+        } else {
+          return -999;
+        }
+      } else {
+        return -999;
+      }
+    } else {
+      let matched = 0;
+      for (const w of expWords) {
+        if (itemWords.includes(w) || itemTitleNorm.includes(w)) matched++;
+      }
+      titleRatio = matched / expWords.length;
+      if (titleRatio < 0.45) {
+        return -999;
+      }
+      titleScore = Math.round(titleRatio * 50);
+    }
+
+    // 3. Проверка артиста
+    let artistMatched = false;
 
     if (isSwapped) {
       artistMatched = true;
@@ -723,10 +767,10 @@ export class LyricsService {
       if (itemArtistNorm === expArtistNorm || itemArtistNorm.includes(expArtistNorm) || expArtistNorm.includes(itemArtistNorm)) {
         artistMatched = true;
       } else {
-        const expWords = expArtistNorm.split(' ').filter((w) => w.length >= 2);
-        const itemWords = itemArtistNorm.split(' ').filter((w) => w.length >= 2);
-        for (const ew of expWords) {
-          if (itemWords.some((iw) => iw.includes(ew) || ew.includes(iw)) || itemTitleNorm.includes(ew)) {
+        const expAWords = expArtistNorm.split(' ').filter((w) => w.length >= 2);
+        const itemAWords = itemArtistNorm.split(' ').filter((w) => w.length >= 2);
+        for (const ew of expAWords) {
+          if (itemAWords.some((iw) => iw.includes(ew) || ew.includes(iw)) || itemTitleNorm.includes(ew)) {
             artistMatched = true;
             break;
           }
@@ -735,57 +779,27 @@ export class LyricsService {
           artistMatched = true;
         }
       }
-
-      if (!artistMatched && !itemTitleNorm.includes(expArtistNorm)) {
-        return -999; // АРТИСТ НЕ СОВПАЛ
-      }
     } else {
       artistMatched = true;
     }
 
-    // 3. Проверка названия
-    let titleScore = 0;
-    if (itemTitleNorm === expTitleNorm || isSwapped) {
-      titleScore = 60;
-    } else {
-      const expWords = expTitleNorm.split(' ').filter((w) => w.length >= 2);
-      const itemWords = itemTitleNorm.split(' ').filter((w) => w.length >= 2);
-
-      if (expWords.length === 1) {
-        const targetWord = expWords[0];
-        if (itemWords.includes(targetWord)) {
-          const noiseWords = new Set([
-            'official', 'video', 'audio', 'remastered', 'remaster', 'hd', '4k',
-            'visualizer', 'clip', 'slowed', 'reverb', 'speed', 'sped', 'up',
-            'live', 'edit', 'version', 'acoustic', 'cover', 'instrumental',
-            'prod', 'feat', 'ft', 'lyrics', 'lyric', 'mix', 'original', 'extended',
-            'клип', 'новинка', 'песня', 'трек', 'хит'
-          ]);
-          const extraNonNoise = itemWords.filter((w) => w !== targetWord && !noiseWords.has(w));
-          if (extraNonNoise.length === 0) {
-            titleScore = 55;
-          } else {
-            return -999;
-          }
-        } else {
-          return -999;
-        }
-      } else {
-        let matched = 0;
-        for (const w of expWords) {
-          if (itemWords.includes(w) || itemTitleNorm.includes(w)) matched++;
-        }
-        const ratio = matched / expWords.length;
-        if (ratio < 0.4) {
-          return -999;
-        }
-        titleScore = Math.round(ratio * 50);
+    if (!artistMatched) {
+      // Для однословных названий ("Cold") совпадение артиста строго обязательно
+      if (expWords.length <= 1) {
+        return -999;
+      }
+      // Для многословных названий при высоком совпадении (>= 70% или exact) пропускаем кандидата,
+      // так как на YouTube артистом часто записан канал перезалива / агрегатор
+      if (titleRatio < 0.70) {
+        return -999;
       }
     }
 
     let score = titleScore - durationPenalty;
     if (artistMatched) {
       score += 25;
+    } else {
+      score += 10;
     }
     if (item.syncedLyrics && item.syncedLyrics.trim().length > 0) {
       score += 20;
