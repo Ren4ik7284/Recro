@@ -52,11 +52,14 @@ export class LyricsService {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    // Упреждение (lookahead 350мс) как в Spotify и Apple Music:
-    // Нивелирует аппаратную буферизацию звука и длительность плавной анимации скролла,
-    // благодаря чему строка подсвечивается и встает по центру точно к моменту звучания слов
-    const leadTimeSec = 0.35;
+    // Spotify-like exact timestamp alignment (20ms frame buffer, no rushing ahead)
+    const leadTimeSec = 0.02;
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
+
+    // Во время инструментального вступления до первой строчки текста — возвращаем -1
+    if (t < lyrics.lines[0].startTime) {
+      return -1;
+    }
 
     let activeIdx = -1;
     for (let i = 0; i < lyrics.lines.length; i++) {
@@ -80,7 +83,7 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
-    const leadTimeSec = 0.35;
+    const leadTimeSec = 0.02;
     const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
@@ -111,10 +114,15 @@ export class LyricsService {
         if (cur) {
           if (cur.id !== this.lastLoadedTrackId) {
             this.lastLoadedTrackId = cur.id;
+            this.precisePlaybackTime.set(0);
+            this.syncOffsetMs.set(0);
+            this.currentLyrics.set(null);
             this.loadLyricsForTrack(cur);
           }
         } else {
           this.lastLoadedTrackId = null;
+          this.precisePlaybackTime.set(0);
+          this.syncOffsetMs.set(0);
           this.currentLyrics.set(null);
           this.isLoading.set(false);
         }
@@ -234,31 +242,6 @@ export class LyricsService {
    * Если на YouTube присутствует клиповое интро (напр. логотип, диалог перед песней),
    * плеер сам высчитывает смещение и точно сопоставляет караоке с аудио.
    */
-  private autoCalibrateTiming(track: Track, lyrics: ParsedLyrics) {
-    if (!lyrics.isSynced || lyrics.lines.length === 0) return;
-    const targetTrackId = track.id;
-
-    // Если пользователь ранее сохранил персональный оффсет — не перезаписываем его
-    try {
-      const saved = localStorage.getItem(`signal_lyrics_offset_${targetTrackId}`);
-      if (saved !== null) return;
-    } catch {}
-
-    const audioDur = track.duration || this.audioService.duration();
-    const lrcDur = lyrics.duration || 0;
-
-    if (audioDur > 20 && lrcDur > 20) {
-      const diffSec = audioDur - lrcDur;
-      // Если аудио отличается от эталонного альбома на 1.2 - 14 секунд:
-      // В 95% клипов это интро/аутро в видео. Если аудио длинее (diffSec > 0),
-      // слова звучат позже, компенсируем сдвигом назад.
-      if (Math.abs(diffSec) >= 1.2 && Math.abs(diffSec) <= 14) {
-        const autoOffsetMs = Math.round(-diffSec * 1000);
-        this.syncOffsetMs.set(autoOffsetMs);
-      }
-    }
-  }
-
   async loadLyricsForTrack(track: Track, forceReload = false) {
     this.errorMessage.set(null);
 
@@ -322,26 +305,42 @@ export class LyricsService {
       if (res.ok) {
         const data = await res.json();
         if (data && data.lyrics && !abortCtrl.signal.aborted && this.audioService.currentTrack()?.id === targetTrackId) {
-          const parsed = this.parseLrc(data.lyrics, (data.source || 'lrclib') as any);
-          if (data.duration && data.duration > 0) {
-            parsed.duration = data.duration;
-          }
-          if (parsed.lines.length > 0) {
-            this.autoCalibrateTiming(track, parsed);
-            this.lyricsCache.set(targetTrackId, parsed);
-            this.currentLyrics.set(parsed);
-            this.isLoading.set(false);
+          // Валидируем соответствие кандидата треку
+          const score = this.matchScore(
+            {
+              trackName: data.track_name || track.title,
+              artistName: data.artist_name || track.artist,
+              duration: data.duration,
+              syncedLyrics: data.lyrics,
+            },
+            track.title,
+            track.artist,
+            track.duration || 0
+          );
 
-            const cur = this.audioService.currentTrack();
-            if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
-              const lastLine = parsed.lines[parsed.lines.length - 1];
-              const estimated = Math.round(lastLine.endTime || (lastLine.startTime + 6));
-              if (estimated > 10) {
-                cur.duration = estimated;
-                this.audioService.duration.set(estimated);
-              }
+          if (score >= 45) {
+            const parsed = this.parseLrc(data.lyrics, (data.source || 'lrclib') as any);
+            if (data.duration && data.duration > 0) {
+              parsed.duration = data.duration;
             }
-            return;
+            if (parsed.lines.length > 0) {
+              this.lyricsCache.set(targetTrackId, parsed);
+              this.currentLyrics.set(parsed);
+              this.isLoading.set(false);
+
+              const cur = this.audioService.currentTrack();
+              if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
+                const lastLine = parsed.lines[parsed.lines.length - 1];
+                const estimated = Math.round(lastLine.endTime || (lastLine.startTime + 6));
+                if (estimated > 10) {
+                  cur.duration = estimated;
+                  this.audioService.duration.set(estimated);
+                }
+              }
+              return;
+            }
+          } else {
+            console.warn('[Lyrics] Backend returned mismatched candidate, falling back:', data.track_name, data.artist_name);
           }
         }
       }
@@ -364,7 +363,6 @@ export class LyricsService {
       }
 
       if (lyricsData) {
-        this.autoCalibrateTiming(track, lyricsData);
         this.lyricsCache.set(targetTrackId, lyricsData);
         this.currentLyrics.set(lyricsData);
         this.isLoading.set(false);
@@ -754,8 +752,21 @@ export class LyricsService {
       const itemWords = itemTitleNorm.split(' ').filter((w) => w.length >= 2);
 
       if (expWords.length === 1) {
-        if (itemTitleNorm.includes(expWords[0]) || itemWords.includes(expWords[0])) {
-          titleScore = 55;
+        const targetWord = expWords[0];
+        if (itemWords.includes(targetWord)) {
+          const noiseWords = new Set([
+            'official', 'video', 'audio', 'remastered', 'remaster', 'hd', '4k',
+            'visualizer', 'clip', 'slowed', 'reverb', 'speed', 'sped', 'up',
+            'live', 'edit', 'version', 'acoustic', 'cover', 'instrumental',
+            'prod', 'feat', 'ft', 'lyrics', 'lyric', 'mix', 'original', 'extended',
+            'клип', 'новинка', 'песня', 'трек', 'хит'
+          ]);
+          const extraNonNoise = itemWords.filter((w) => w !== targetWord && !noiseWords.has(w));
+          if (extraNonNoise.length === 0) {
+            titleScore = 55;
+          } else {
+            return -999;
+          }
         } else {
           return -999;
         }

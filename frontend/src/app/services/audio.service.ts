@@ -67,8 +67,14 @@ export class AudioService {
   });
 
   getPreciseCurrentTime(): number {
-    if (!this.audio) return this.currentTime();
-    return this.streamSeekOffset() + (this.audio.currentTime || 0);
+    if (!this.audio || !this.hasAudioStartedPlaying) {
+      return this.currentTime();
+    }
+    const audioTime = this.audio.currentTime;
+    if (isNaN(audioTime) || !isFinite(audioTime) || audioTime < 0) {
+      return this.currentTime();
+    }
+    return this.streamSeekOffset() + audioTime;
   }
 
   constructor() {
@@ -566,6 +572,7 @@ export class AudioService {
     this.currentTrack.set({ ...track, isFavorite: isFav });
     this.streamSeekOffset.set(0);
     this.currentTime.set(0);
+    this.hasAudioStartedPlaying = false;
     this.hasRecordedCompletion = false;
     this.hasPreloadedNextTrack = false;
 

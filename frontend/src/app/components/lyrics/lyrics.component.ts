@@ -40,7 +40,7 @@ export class LyricsComponent {
       const isLocked = this.lyricsService.isAutoScrollLocked();
       const isOpen = this.lyricsService.isLyricsOpen();
 
-      if (isOpen && activeIdx >= 0 && !isLocked) {
+      if (isOpen && !isLocked) {
         requestAnimationFrame(() => this.scrollToActiveLine(activeIdx));
       }
     });
@@ -87,9 +87,20 @@ export class LyricsComponent {
   private lastScrolledIndex = -1;
 
   scrollToActiveLine(index: number) {
-    if (!this.scrollContainer || index < 0 || index === this.lastScrolledIndex) return;
-
+    if (!this.scrollContainer) return;
     const container = this.scrollContainer.nativeElement;
+
+    // Во время вступительного проигрыша (до первой строчки вокала) держим прокрутку вверху
+    if (index < 0) {
+      if (this.lastScrolledIndex !== -1) {
+        this.lastScrolledIndex = -1;
+        container.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
+    }
+
+    if (index === this.lastScrolledIndex) return;
+
     const lineElement = container.querySelector(`[data-line-index="${index}"]`) as HTMLElement;
 
     if (lineElement) {

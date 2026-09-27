@@ -85,14 +85,145 @@ pub fn clean_artist(artist: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-async fn fetch_lrclib(client: &reqwest::Client, title: &str, artist: &str) -> Option<LyricsResponse> {
+fn normalize_for_comparison(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn is_noise_word(w: &str) -> bool {
+    matches!(
+        w,
+        "official" | "video" | "audio" | "remastered" | "remaster" | "hd" | "4k"
+        | "visualizer" | "clip" | "slowed" | "reverb" | "speed" | "up" | "sped"
+        | "live" | "edit" | "version" | "acoustic" | "cover" | "instrumental"
+        | "prod" | "feat" | "ft" | "lyrics" | "lyric" | "mix" | "original" | "extended"
+        | "клип" | "новинка" | "песня" | "трек" | "хит"
+    )
+}
+
+fn calc_match_score(
+    exp_title: &str,
+    exp_artist: &str,
+    exp_dur: Option<f64>,
+    cand_title: &str,
+    cand_artist: &str,
+    cand_dur: Option<f64>,
+    has_synced: bool,
+) -> f64 {
+    let exp_t = normalize_for_comparison(exp_title);
+    let exp_a = normalize_for_comparison(exp_artist);
+    let cand_t = normalize_for_comparison(cand_title);
+    let cand_a = normalize_for_comparison(cand_artist);
+
+    if exp_t.is_empty() || cand_t.is_empty() {
+        return 0.0;
+    }
+
+    // 1. Artist matching
+    let is_swapped = (!exp_a.is_empty() && (cand_t.contains(&exp_a) || exp_a.contains(&cand_t)))
+        && (cand_a.contains(&exp_t) || exp_t.contains(&cand_a));
+
+    let artist_score = if is_swapped {
+        30.0
+    } else if !exp_a.is_empty() && !cand_a.is_empty() {
+        if exp_a == cand_a || cand_a.contains(&exp_a) || exp_a.contains(&cand_a) {
+            30.0
+        } else {
+            let exp_words: Vec<&str> = exp_a.split_whitespace().filter(|w| w.len() >= 2).collect();
+            let cand_words: Vec<&str> = cand_a.split_whitespace().filter(|w| w.len() >= 2).collect();
+            let mut matched_words = 0;
+            for ew in &exp_words {
+                if cand_words.iter().any(|cw| cw.contains(ew) || ew.contains(cw)) {
+                    matched_words += 1;
+                }
+            }
+            if matched_words > 0 {
+                25.0 * (matched_words as f64 / exp_words.len().max(1) as f64)
+            } else {
+                // If candidate artist does not match expected artist at all, REJECT!
+                return 0.0;
+            }
+        }
+    } else if exp_a.is_empty() {
+        15.0
+    } else {
+        5.0
+    };
+
+    // 2. Title matching
+    let title_score = if exp_t == cand_t || is_swapped {
+        50.0
+    } else {
+        let exp_words: Vec<&str> = exp_t.split_whitespace().filter(|w| w.len() >= 2).collect();
+        let cand_words: Vec<&str> = cand_t.split_whitespace().filter(|w| w.len() >= 2).collect();
+
+        if exp_words.len() == 1 {
+            let target_word = exp_words[0];
+            if cand_words.contains(&target_word) {
+                let extra_non_noise = cand_words.iter().filter(|w| **w != target_word && !is_noise_word(w)).count();
+                if extra_non_noise == 0 {
+                    45.0
+                } else {
+                    return 0.0;
+                }
+            } else {
+                return 0.0;
+            }
+        } else {
+            let mut matched_words = 0;
+            for ew in &exp_words {
+                if cand_words.iter().any(|cw| cw == ew || cw.contains(ew) || ew.contains(cw)) {
+                    matched_words += 1;
+                }
+            }
+            let ratio = matched_words as f64 / exp_words.len().max(1) as f64;
+            if ratio < 0.45 {
+                return 0.0;
+            }
+            ratio * 45.0
+        }
+    };
+
+    // 3. Duration check
+    let mut dur_penalty = 0.0;
+    if let (Some(ed), Some(cd)) = (exp_dur, cand_dur) {
+        if ed > 20.0 && cd > 20.0 {
+            let diff = (ed - cd).abs();
+            if diff > 45.0 {
+                return 0.0;
+            }
+            if diff > 15.0 {
+                dur_penalty = (diff - 15.0) * 0.8;
+            }
+        }
+    }
+
+    let synced_bonus = if has_synced { 20.0 } else { 0.0 };
+
+    (artist_score + title_score + synced_bonus - dur_penalty).max(0.0)
+}
+
+async fn fetch_lrclib(
+    client: &reqwest::Client,
+    title: &str,
+    artist: &str,
+    duration: Option<f64>,
+) -> Option<LyricsResponse> {
     let mut queries = Vec::new();
     if !artist.is_empty() {
         queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(artist)));
+        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", artist, title))));
+        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, artist))));
+    } else {
+        queries.push(format!("q={}", urlencoding::encode(title)));
     }
-    queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", artist, title))));
-    queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, artist))));
-    queries.push(format!("q={}", urlencoding::encode(title)));
+
+    let mut best_candidate: Option<(f64, LyricsResponse)> = None;
 
     for q in queries {
         let is_search = q.starts_with("q=");
@@ -108,41 +239,67 @@ async fn fetch_lrclib(client: &reqwest::Client, title: &str, artist: &str) -> Op
                 if is_search {
                     if let Ok(items) = res.json::<Vec<serde_json::Value>>().await {
                         for it in items {
-                            if let Some(synced) = it["syncedLyrics"].as_str() {
-                                if !synced.trim().is_empty() {
-                                    return Some(LyricsResponse {
-                                        synced: true,
-                                        lyrics: synced.to_string(),
-                                        source: "lrclib".to_string(),
-                                        track_name: it["trackName"].as_str().map(|s| s.to_string()),
-                                        artist_name: it["artistName"].as_str().map(|s| s.to_string()),
-                                        duration: it["duration"].as_f64(),
-                                    });
+                            let cand_title = it["trackName"].as_str().unwrap_or("");
+                            let cand_artist = it["artistName"].as_str().unwrap_or("");
+                            let cand_dur = it["duration"].as_f64();
+                            let synced = it["syncedLyrics"].as_str().unwrap_or("").trim();
+                            let has_synced = !synced.is_empty();
+
+                            let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, has_synced);
+                            if score >= 60.0 && has_synced {
+                                if best_candidate.as_ref().map_or(true, |(best_s, _)| score > *best_s) {
+                                    best_candidate = Some((
+                                        score,
+                                        LyricsResponse {
+                                            synced: true,
+                                            lyrics: synced.to_string(),
+                                            source: "lrclib".to_string(),
+                                            track_name: Some(cand_title.to_string()),
+                                            artist_name: Some(cand_artist.to_string()),
+                                            duration: cand_dur,
+                                        },
+                                    ));
                                 }
                             }
                         }
                     }
                 } else if let Ok(it) = res.json::<serde_json::Value>().await {
-                    if let Some(synced) = it["syncedLyrics"].as_str() {
-                        if !synced.trim().is_empty() {
-                            return Some(LyricsResponse {
-                                synced: true,
-                                lyrics: synced.to_string(),
-                                source: "lrclib".to_string(),
-                                track_name: it["trackName"].as_str().map(|s| s.to_string()),
-                                artist_name: it["artistName"].as_str().map(|s| s.to_string()),
-                                duration: it["duration"].as_f64(),
-                            });
-                        }
+                    let cand_title = it["trackName"].as_str().unwrap_or("");
+                    let cand_artist = it["artistName"].as_str().unwrap_or("");
+                    let cand_dur = it["duration"].as_f64();
+                    let synced = it["syncedLyrics"].as_str().unwrap_or("").trim();
+                    let has_synced = !synced.is_empty();
+
+                    let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, has_synced);
+                    if score >= 60.0 && has_synced {
+                        return Some(LyricsResponse {
+                            synced: true,
+                            lyrics: synced.to_string(),
+                            source: "lrclib".to_string(),
+                            track_name: Some(cand_title.to_string()),
+                            artist_name: Some(cand_artist.to_string()),
+                            duration: cand_dur,
+                        });
                     }
                 }
             }
         }
+        if let Some((score, resp)) = &best_candidate {
+            if *score >= 75.0 {
+                return Some(resp.clone());
+            }
+        }
     }
-    None
+
+    best_candidate.map(|(_, resp)| resp)
 }
 
-async fn fetch_kugou(client: &reqwest::Client, title: &str, artist: &str) -> Option<LyricsResponse> {
+async fn fetch_kugou(
+    client: &reqwest::Client,
+    title: &str,
+    artist: &str,
+    duration: Option<f64>,
+) -> Option<LyricsResponse> {
     let query = if !artist.is_empty() {
         format!("{} {}", artist, title)
     } else {
@@ -166,6 +323,15 @@ async fn fetch_kugou(client: &reqwest::Client, title: &str, artist: &str) -> Opt
     let songs = json["data"]["info"].as_array()?;
 
     for song in songs {
+        let cand_title = song["songname"].as_str().unwrap_or("");
+        let cand_artist = song["singername"].as_str().unwrap_or("");
+        let cand_dur = song["duration"].as_f64();
+
+        let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, true);
+        if score < 55.0 {
+            continue;
+        }
+
         let hash = match song["hash"].as_str() {
             Some(h) if !h.is_empty() => h,
             _ => continue,
@@ -188,39 +354,48 @@ async fn fetch_kugou(client: &reqwest::Client, title: &str, artist: &str) -> Opt
             _ => continue,
         };
 
-        let cand = &candidates[0];
-        let id = match cand["id"].as_str() {
-            Some(i) => i.to_string(),
-            None => cand["id"].as_i64()?.to_string(),
-        };
-        let accesskey = cand["accesskey"].as_str()?;
+        for cand in candidates {
+            let id = match cand["id"].as_str() {
+                Some(i) => i.to_string(),
+                None => match cand["id"].as_i64() {
+                    Some(num) => num.to_string(),
+                    None => continue,
+                },
+            };
+            let accesskey = match cand["accesskey"].as_str() {
+                Some(k) if k.len() >= 20 => k,
+                _ => continue,
+            };
 
-        let dl_url = format!(
-            "http://lyrics.kugou.com/download?ver=1&client=pc&id={}&accesskey={}&fmt=lrc&charset=utf8",
-            id, accesskey
-        );
+            let dl_url = format!(
+                "http://lyrics.kugou.com/download?ver=1&client=pc&id={}&accesskey={}&fmt=lrc&charset=utf8",
+                id, accesskey
+            );
 
-        let dl_res = client
-            .get(&dl_url)
-            .timeout(std::time::Duration::from_millis(2500))
-            .send()
-            .await
-            .ok()?;
+            let dl_res = client
+                .get(&dl_url)
+                .timeout(std::time::Duration::from_millis(2500))
+                .send()
+                .await
+                .ok();
 
-        let dl_json: serde_json::Value = dl_res.json().await.ok()?;
-        if let Some(b64) = dl_json["content"].as_str() {
-            // Base64 decode
-            if let Ok(bytes) = base64_decode(b64) {
-                if let Ok(text) = String::from_utf8(bytes) {
-                    if text.contains('[') && text.contains(']') {
-                        return Some(LyricsResponse {
-                            synced: true,
-                            lyrics: text,
-                            source: "kugou".to_string(),
-                            track_name: song["songname"].as_str().map(|s| s.to_string()),
-                            artist_name: song["singername"].as_str().map(|s| s.to_string()),
-                            duration: song["duration"].as_f64(),
-                        });
+            if let Some(dl) = dl_res {
+                if let Ok(dl_json) = dl.json::<serde_json::Value>().await {
+                    if let Some(b64) = dl_json["content"].as_str() {
+                        if let Ok(bytes) = base64_decode(b64) {
+                            if let Ok(text) = String::from_utf8(bytes) {
+                                if text.contains('[') && text.contains(']') {
+                                    return Some(LyricsResponse {
+                                        synced: true,
+                                        lyrics: text,
+                                        source: "kugou".to_string(),
+                                        track_name: Some(cand_title.to_string()),
+                                        artist_name: Some(cand_artist.to_string()),
+                                        duration: cand_dur,
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -289,7 +464,7 @@ pub async fn get_lyrics(
     let client = reqwest::Client::new();
 
     // 1. Try LRCLIB
-    if let Some(resp) = fetch_lrclib(&client, &clean_t, &clean_a).await {
+    if let Some(resp) = fetch_lrclib(&client, &clean_t, &clean_a, params.duration).await {
         if let Ok(mut cache) = state.lyrics_cache.lock() {
             cache.insert(cache_key, (resp.clone(), Instant::now()));
         }
@@ -297,7 +472,7 @@ pub async fn get_lyrics(
     }
 
     // 2. Try Kugou (covers almost all Russian & Western tracks)
-    if let Some(resp) = fetch_kugou(&client, &clean_t, &clean_a).await {
+    if let Some(resp) = fetch_kugou(&client, &clean_t, &clean_a, params.duration).await {
         if let Ok(mut cache) = state.lyrics_cache.lock() {
             cache.insert(cache_key, (resp.clone(), Instant::now()));
         }
@@ -305,4 +480,52 @@ pub async fn get_lyrics(
     }
 
     Err(StatusCode::NOT_FOUND)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calc_match_score_rejects_wrong_artist() {
+        // "Cold" by "BoyWithUke" vs "Cold Water" by "Major Lazer"
+        let score = calc_match_score(
+            "Cold",
+            "BoyWithUke",
+            Some(180.0),
+            "Cold Water",
+            "Major Lazer",
+            Some(185.0),
+            true,
+        );
+        assert_eq!(score, 0.0, "Must reject different artist!");
+    }
+
+    #[test]
+    fn test_calc_match_score_accepts_correct_track() {
+        let score = calc_match_score(
+            "Without Me",
+            "Eminem",
+            Some(290.0),
+            "Without Me",
+            "Eminem",
+            Some(290.0),
+            true,
+        );
+        assert!(score >= 80.0, "Score should be >= 80, got {}", score);
+    }
+
+    #[test]
+    fn test_calc_match_score_rejects_huge_duration_diff() {
+        let score = calc_match_score(
+            "Without Me",
+            "Eminem",
+            Some(290.0),
+            "Without Me",
+            "Eminem",
+            Some(120.0),
+            true,
+        );
+        assert_eq!(score, 0.0, "Must reject > 45s duration diff!");
+    }
 }
