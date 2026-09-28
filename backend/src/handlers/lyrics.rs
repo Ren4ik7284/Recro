@@ -75,7 +75,7 @@ pub fn clean_title(title: &str) -> String {
 
 pub fn clean_artist(artist: &str) -> String {
     let mut s = artist.to_string();
-    let noise = ["topic", "vevo", "records", "music", "official", "channel"];
+    let noise = ["topic", "vevo", "records", "music", "official", "channel", "label"];
     let mut lower = s.to_lowercase();
     for word in noise {
         while let Some(idx) = lower.find(word) {
@@ -86,6 +86,22 @@ pub fn clean_artist(artist: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+pub fn extract_primary_artist(artist: &str) -> String {
+    let feat_markers = [
+        " feat. ", " feat ", " ft. ", " ft ", " featuring ",
+        " with ", " при уч. ", " при уч ", " с участием ",
+    ];
+    let mut s = artist.to_string();
+    let lower = s.to_lowercase();
+    for marker in feat_markers {
+        if let Some(idx) = lower.find(marker) {
+            s.truncate(idx);
+            break;
+        }
+    }
+    clean_artist(&s)
+}
+
 fn normalize_for_comparison(s: &str) -> String {
     s.to_lowercase()
         .chars()
@@ -94,6 +110,33 @@ fn normalize_for_comparison(s: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn check_translit_artist_match(exp: &str, cand: &str) -> bool {
+    let pairs = [
+        ("эндшпиль", "endspiel"),
+        ("эндшпиль", "andy panda"),
+        ("скриптонит", "scriptonite"),
+        ("баста", "basta"),
+        ("кино", "kino"),
+        ("оксимирон", "oxxxymiron"),
+        ("макс корж", "max korzh"),
+        ("моргенштерн", "morgenshtern"),
+        ("лсп", "lsp"),
+        ("хаски", "husky"),
+        ("би 2", "bi 2"),
+        ("би-2", "bi-2"),
+        ("король и шут", "korol i shut"),
+        ("земфира", "zemfira"),
+        ("миджи", "miyagi"),
+        ("мияги", "miyagi"),
+    ];
+    for (ru, en) in pairs {
+        if (exp.contains(ru) && cand.contains(en)) || (exp.contains(en) && cand.contains(ru)) {
+            return true;
+        }
+    }
+    false
 }
 
 fn is_noise_word(w: &str) -> bool {
@@ -188,6 +231,9 @@ fn calc_match_score(
         if exp_a == cand_a || cand_a.contains(&exp_a) || exp_a.contains(&cand_a) {
             artist_matched = true;
             artist_score = 30.0;
+        } else if check_translit_artist_match(&exp_a, &cand_a) {
+            artist_matched = true;
+            artist_score = 30.0;
         } else {
             let exp_a_words: Vec<&str> = exp_a.split_whitespace().filter(|w| w.len() >= 2).collect();
             let cand_a_words: Vec<&str> = cand_a.split_whitespace().filter(|w| w.len() >= 2).collect();
@@ -213,7 +259,6 @@ fn calc_match_score(
             return 0.0;
         }
         // If multi-word title has high match (>= 70% or exact), allow candidate with lower artist score
-        // (YouTube uploader channel name often differs from actual metadata artist)
         if title_ratio >= 0.70 {
             artist_score = 10.0;
         } else {
@@ -232,8 +277,14 @@ async fn fetch_lrclib(
     artist: &str,
     duration: Option<f64>,
 ) -> Option<LyricsResponse> {
+    let primary_a = extract_primary_artist(artist);
     let mut queries = Vec::new();
-    if !artist.is_empty() {
+    if !primary_a.is_empty() {
+        queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(&primary_a)));
+        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", primary_a, title))));
+        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, primary_a))));
+    }
+    if !artist.is_empty() && artist != primary_a {
         queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(artist)));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", artist, title))));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, artist))));
@@ -241,7 +292,8 @@ async fn fetch_lrclib(
     // Always search clean title alone as well
     queries.push(format!("q={}", urlencoding::encode(title)));
 
-    let mut best_candidate: Option<(f64, LyricsResponse)> = None;
+    let mut best_synced: Option<(f64, LyricsResponse)> = None;
+    let mut best_plain: Option<(f64, LyricsResponse)> = None;
 
     for q in queries {
         let is_search = q.starts_with("q=");
@@ -261,16 +313,31 @@ async fn fetch_lrclib(
                             let cand_artist = it["artistName"].as_str().unwrap_or("");
                             let cand_dur = it["duration"].as_f64();
                             let synced = it["syncedLyrics"].as_str().unwrap_or("").trim();
+                            let plain = it["plainLyrics"].as_str().unwrap_or("").trim();
                             let has_synced = !synced.is_empty();
 
                             let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, has_synced);
-                            if score >= 60.0 && has_synced {
-                                if best_candidate.as_ref().map_or(true, |(best_s, _)| score > *best_s) {
-                                    best_candidate = Some((
+                            if score >= 55.0 && has_synced {
+                                if best_synced.as_ref().map_or(true, |(best_s, _)| score > *best_s) {
+                                    best_synced = Some((
                                         score,
                                         LyricsResponse {
                                             synced: true,
                                             lyrics: synced.to_string(),
+                                            source: "lrclib".to_string(),
+                                            track_name: Some(cand_title.to_string()),
+                                            artist_name: Some(cand_artist.to_string()),
+                                            duration: cand_dur,
+                                        },
+                                    ));
+                                }
+                            } else if score >= 55.0 && !plain.is_empty() && best_synced.is_none() {
+                                if best_plain.as_ref().map_or(true, |(best_s, _)| score > *best_s) {
+                                    best_plain = Some((
+                                        score,
+                                        LyricsResponse {
+                                            synced: false,
+                                            lyrics: plain.to_string(),
                                             source: "lrclib".to_string(),
                                             track_name: Some(cand_title.to_string()),
                                             artist_name: Some(cand_artist.to_string()),
@@ -286,10 +353,11 @@ async fn fetch_lrclib(
                     let cand_artist = it["artistName"].as_str().unwrap_or("");
                     let cand_dur = it["duration"].as_f64();
                     let synced = it["syncedLyrics"].as_str().unwrap_or("").trim();
+                    let plain = it["plainLyrics"].as_str().unwrap_or("").trim();
                     let has_synced = !synced.is_empty();
 
                     let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, has_synced);
-                    if score >= 60.0 && has_synced {
+                    if score >= 55.0 && has_synced {
                         return Some(LyricsResponse {
                             synced: true,
                             lyrics: synced.to_string(),
@@ -298,18 +366,30 @@ async fn fetch_lrclib(
                             artist_name: Some(cand_artist.to_string()),
                             duration: cand_dur,
                         });
+                    } else if score >= 55.0 && !plain.is_empty() && best_plain.is_none() {
+                        best_plain = Some((
+                            score,
+                            LyricsResponse {
+                                synced: false,
+                                lyrics: plain.to_string(),
+                                source: "lrclib".to_string(),
+                                track_name: Some(cand_title.to_string()),
+                                artist_name: Some(cand_artist.to_string()),
+                                duration: cand_dur,
+                            },
+                        ));
                     }
                 }
             }
         }
-        if let Some((score, resp)) = &best_candidate {
-            if *score >= 75.0 {
+        if let Some((score, resp)) = &best_synced {
+            if *score >= 70.0 {
                 return Some(resp.clone());
             }
         }
     }
 
-    best_candidate.map(|(_, resp)| resp)
+    best_synced.map(|(_, resp)| resp).or_else(|| best_plain.map(|(_, resp)| resp))
 }
 
 async fn fetch_kugou(
@@ -318,8 +398,12 @@ async fn fetch_kugou(
     artist: &str,
     duration: Option<f64>,
 ) -> Option<LyricsResponse> {
+    let primary_a = extract_primary_artist(artist);
     let mut queries = Vec::new();
-    if !artist.is_empty() {
+    if !primary_a.is_empty() {
+        queries.push(format!("{} {}", primary_a, title));
+    }
+    if !artist.is_empty() && artist != primary_a {
         queries.push(format!("{} {}", artist, title));
     }
     queries.push(title.to_string());

@@ -102,6 +102,8 @@
     }
   }
 
+
+
   .lyrics-actions-group {
     display: flex;
     align-items: center;
@@ -445,24 +447,34 @@
     }
 
     .lyric-line-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
       font-size: 30px;
       font-weight: 700;
       line-height: 1.45;
-      padding: 14px 20px;
+      padding: 12px 18px;
       border-radius: 12px;
       cursor: pointer;
       color: rgba(255, 255, 255, 0.28);
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: color 0.12s ease-out, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.15s ease-out;
       transform-origin: left center;
       letter-spacing: -0.3px;
 
+      .line-content {
+        flex: 1;
+        min-width: 0;
+      }
+
       &:hover {
-        color: rgba(255, 255, 255, 0.8);
+        color: rgba(255, 255, 255, 0.85);
         background: rgba(255, 255, 255, 0.04);
       }
 
       &.past {
-        color: rgba(255, 255, 255, 0.45);
+        color: rgba(255, 255, 255, 0.42);
+        transform: scale(1);
       }
 
       &.future {
@@ -472,12 +484,24 @@
       &.active {
         color: #ffffff;
         transform: scale(1.035);
-        text-shadow: 0 0 35px rgba(255, 255, 255, 0.45), 0 0 15px rgba(255, 255, 255, 0.2);
+        text-shadow: 0 0 35px rgba(255, 255, 255, 0.5), 0 0 15px rgba(255, 255, 255, 0.25);
         background: rgba(255, 255, 255, 0.05);
+      }
+
+      &.active-interlude {
+        color: rgba(255, 255, 255, 0.5);
+        transform: scale(1.01);
       }
 
       .lyric-word {
         display: inline-block;
+        color: rgba(255, 255, 255, 0.38);
+        transition: color 0.12s ease-out, text-shadow 0.15s ease-out;
+
+        &.sung {
+          color: #ffffff;
+          text-shadow: 0 0 16px rgba(255, 255, 255, 0.75);
+        }
       }
     }
   }

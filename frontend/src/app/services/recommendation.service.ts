@@ -310,7 +310,7 @@ export class RecommendationService {
   }
 
   /**
-   * Scores a track candidate with cosine similarity + favorite boost - fatigue penalty.
+   * Scores a track candidate with cosine similarity + favorite boost - soft fatigue penalty.
    */
   scoreTrack(track: Track, mood: MixMood, targetVec: TasteVector): number {
     if (this.isDisliked(track.id)) return -9999;
@@ -323,7 +323,7 @@ export class RecommendationService {
     const trackVec = this.extractTrackVector(track);
     const similarity = this.cosineSimilarity(targetVec, trackVec);
 
-    let score = similarity * 60; // 0..60 points from vector alignment
+    let score = similarity * 50; // 0..50 points from vector alignment
 
     // Explicit user affinity
     if (track.isFavorite) {
@@ -337,22 +337,22 @@ export class RecommendationService {
     const lang = this.libraryService.mixConfig().language;
     if (lang === 'ru') {
       const isRu = /[а-яё]/i.test(`${track.title} ${track.artist} ${track.genre || ''}`);
-      score += isRu ? 35 : -35;
+      score += isRu ? 30 : -30;
     } else if (lang === 'en') {
       const isRu = /[а-яё]/i.test(`${track.title} ${track.artist} ${track.genre || ''}`);
-      score += !isRu ? 35 : -35;
+      score += !isRu ? 30 : -30;
     }
 
-    // Fatigue penalty (Cooldown)
+    // Soft Fatigue penalty (Cooldown): discourages recent tracks without permanently blocking them
     const lastPlayed = this.recentPlays.get(track.id);
     if (lastPlayed) {
       const minutesAgo = (Date.now() - lastPlayed) / (1000 * 60);
-      if (minutesAgo < 30) {
-        score -= 100; // Do not replay within 30 minutes
-      } else if (minutesAgo < 120) {
+      if (minutesAgo < 15) {
         score -= 40;
-      } else if (minutesAgo < 240) {
-        score -= 15;
+      } else if (minutesAgo < 45) {
+        score -= 20;
+      } else if (minutesAgo < 120) {
+        score -= 10;
       }
     }
 
@@ -361,42 +361,66 @@ export class RecommendationService {
 
   /**
    * Selects N next tracks using Weighted Random Sampling based on scores.
+   * Guaranteed to NEVER return an empty list if any candidates exist!
    */
   pickNextTracks(count: number, excludeIds: Set<string> = new Set()): Track[] {
-    const candidates = this.getAllLocalCandidates().filter((t) => !excludeIds.has(t.id));
-    if (candidates.length === 0) return [];
-
+    const allLocal = this.getAllLocalCandidates();
     const mood = this.currentMood();
+
+    let validCandidates = allLocal.filter((t) => {
+      if (this.isDisliked(t.id)) return false;
+      if (mood === 'favorites' && !t.isFavorite) return false;
+      return true;
+    });
+
+    if (validCandidates.length === 0) return [];
+
+    // First attempt: candidates not currently in excludeIds
+    let available = validCandidates.filter((t) => !excludeIds.has(t.id));
+
+    // If all candidates are in excludeIds (e.g. small library or all tracks already queued),
+    // relax exclusion: allow reusing candidates rather than starving the mix!
+    if (available.length === 0) {
+      available = validCandidates;
+    }
+
     const targetVec = this.getTargetVectorForMood(mood);
 
-    const scored = candidates
+    const scored = available
       .map((track) => ({
         track,
         score: this.scoreTrack(track, mood, targetVec),
       }))
-      .filter((item) => item.score > -50);
+      .filter((item) => item.score > -5000); // Discard only absolute vetos (-9999)
 
     if (scored.length === 0) {
-      // Fallback: pick any candidate not recently played
-      return candidates.slice(0, count);
+      // Emergency fallback: return any available valid candidate
+      return available.slice(0, count);
     }
 
     const selected: Track[] = [];
-    const used = new Set<string>(excludeIds);
+    const used = new Set<string>();
 
     for (let step = 0; step < count; step++) {
       const pool = scored.filter((s) => !used.has(s.track.id));
-      if (pool.length === 0) break;
+      if (pool.length === 0) {
+        // If we need more than available unique tracks, cycle from beginning
+        if (selected.length >= validCandidates.length) break;
+        used.clear();
+      }
 
-      // Shift scores so lowest score is positive
-      const minScore = Math.min(...pool.map((p) => p.score));
-      const baseShift = minScore < 1 ? Math.abs(minScore) + 2 : 0;
-      const totalWeight = pool.reduce((sum, p) => sum + (p.score + baseShift), 0);
+      const activePool = scored.filter((s) => !used.has(s.track.id));
+      if (activePool.length === 0) break;
+
+      // Shift scores so lowest score is strictly positive
+      const minScore = Math.min(...activePool.map((p) => p.score));
+      const baseShift = minScore <= 0 ? Math.abs(minScore) + 5 : 0;
+      const totalWeight = activePool.reduce((sum, p) => sum + (p.score + baseShift), 0);
 
       let rnd = Math.random() * totalWeight;
-      let chosen = pool[0].track;
+      let chosen = activePool[0].track;
 
-      for (const item of pool) {
+      for (const item of activePool) {
         const w = item.score + baseShift;
         if (rnd <= w) {
           chosen = item.track;
@@ -414,7 +438,7 @@ export class RecommendationService {
 
   /**
    * Discovery Engine: Fetches online tracks matching current mood and user taste.
-   * Leverages /api/search via LibraryService without blocking UI.
+   * Leverages /api/search via LibraryService with rich rotating queries.
    */
   async fetchOnlineDiscoveryTracks(count = 3, excludeIds: Set<string> = new Set()): Promise<Track[]> {
     if (this.isFetchingDiscovery()) return [];
@@ -427,54 +451,89 @@ export class RecommendationService {
       const lang = this.libraryService.mixConfig().language;
       let query = '';
 
+      const ruEnergetic = [
+        'Big Baby Tape', 'OG Buda', 'Kizaru', 'PHARAOH', 'русский дрилл',
+        'русский фонк', 'MACAN', 'Shadowraze', 'FRIENDLY THUG 52', 'Kai Angel',
+        '9mice', 'Scally Milano', 'Toxi$', 'Guf', 'Miyagi Эндшпиль'
+      ];
+      const ruChill = [
+        'Miyagi', 'Saluki', 'ANIKV', 'русский лоуфай', 'Zoloto', 'The Limba',
+        'HammAli Navai', 'Jony', 'Скриптонит', 'Баста', 'инди русское', 'Thomas Mraz'
+      ];
+      const ruGeneral = [
+        'Miyagi', 'OG Buda', 'Big Baby Tape', 'Saluki', 'Kizaru', 'Markul',
+        'Scriptonite', 'Instasamka', 'MACAN', 'ЛСП', 'ATL', 'Pharaoh', 'FEDUK', 'Obladaet'
+      ];
+
+      const enEnergetic = [
+        'The Weeknd', 'Travis Scott', 'Metro Boomin', 'phonk drift', 'electronic synthwave',
+        'rock hits', 'Playboi Carti', '21 Savage', 'gym phonk', 'hardstyle remix', 'Skrillex'
+      ];
+      const enChill = [
+        'lofi hip hop beats', 'Billie Eilish', 'Joji', 'chill rnb', 'acoustic chill',
+        'Post Malone', 'Lana Del Rey', 'Frank Ocean', 'cigarettes after sex', 'mac miller'
+      ];
+      const enGeneral = [
+        'The Weeknd', 'Dua Lipa', 'Post Malone', 'Drake', 'Kendrick Lamar',
+        'Metro Boomin', 'Arctic Monkeys', 'Daft Punk', 'Imagine Dragons', 'Coldplay'
+      ];
+
+      const modifiers = ['', ' mix', ' hits', ' tracks', ' remix', ' radio'];
+      const randomMod = modifiers[Math.floor(Math.random() * modifiers.length)];
+
       if (lang === 'ru') {
         if (mood === 'energetic') {
-          const ruEnergetic = ['Big Baby Tape', 'OG Buda', 'Kizaru', 'PHARAOH', 'русский дрилл', 'русский фонк'];
-          query = ruEnergetic[Math.floor(Math.random() * ruEnergetic.length)];
+          query = ruEnergetic[Math.floor(Math.random() * ruEnergetic.length)] + randomMod;
         } else if (mood === 'chill') {
-          const ruChill = ['Miyagi', 'Saluki', 'ANIKV', 'русский лоуфай', 'Zoloto', 'The Limba'];
-          query = ruChill[Math.floor(Math.random() * ruChill.length)];
+          query = ruChill[Math.floor(Math.random() * ruChill.length)] + randomMod;
         } else {
-          const ruGeneral = ['Miyagi', 'OG Buda', 'Big Baby Tape', 'Saluki', 'Kizaru', 'Markul', 'Scriptonite', 'Instasamka'];
-          query = ruGeneral[Math.floor(Math.random() * ruGeneral.length)];
+          query = ruGeneral[Math.floor(Math.random() * ruGeneral.length)] + randomMod;
         }
       } else if (lang === 'en') {
         if (mood === 'energetic') {
-          const enEnergetic = ['The Weeknd', 'Travis Scott', 'Metro Boomin', 'phonk', 'electronic synthwave', 'rock hits'];
-          query = enEnergetic[Math.floor(Math.random() * enEnergetic.length)];
+          query = enEnergetic[Math.floor(Math.random() * enEnergetic.length)] + randomMod;
         } else if (mood === 'chill') {
-          const enChill = ['lofi hip hop beats', 'Billie Eilish', 'Joji', 'chill rnb', 'acoustic chill'];
-          query = enChill[Math.floor(Math.random() * enChill.length)];
+          query = enChill[Math.floor(Math.random() * enChill.length)] + randomMod;
         } else {
-          const enGeneral = ['The Weeknd', 'Dua Lipa', 'Post Malone', 'Drake', 'Kendrick Lamar', 'Metro Boomin'];
-          query = enGeneral[Math.floor(Math.random() * enGeneral.length)];
+          query = enGeneral[Math.floor(Math.random() * enGeneral.length)] + randomMod;
         }
       } else {
         if (mood === 'energetic') {
-          const energeticQueries = ['phonk', 'Big Baby Tape', 'Travis Scott', 'synthwave'];
-          query = energeticQueries[Math.floor(Math.random() * energeticQueries.length)];
+          const pool = [...ruEnergetic, ...enEnergetic];
+          query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
         } else if (mood === 'chill') {
-          const chillQueries = ['lofi chill beats', 'Miyagi', 'acoustic chill', 'Billie Eilish'];
-          query = chillQueries[Math.floor(Math.random() * chillQueries.length)];
+          const pool = [...ruChill, ...enChill];
+          query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
         } else {
-          if (candidates.length > 0) {
+          if (candidates.length > 0 && Math.random() < 0.6) {
             const randomTrack = candidates[Math.floor(Math.random() * candidates.length)];
-            query = `${randomTrack.artist}`;
+            const artist = randomTrack.artist.replace(/feat\..*|ft\..*/i, '').trim();
+            query = artist ? `${artist}${randomMod}` : 'music hits';
           } else {
-            const generalQueries = ['Miyagi', 'The Weeknd', 'OG Buda', 'Post Malone', 'Saluki', 'Dua Lipa'];
-            query = generalQueries[Math.floor(Math.random() * generalQueries.length)];
+            const pool = [...ruGeneral, ...enGeneral];
+            query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
           }
         }
       }
 
-      const results = await this.libraryService.searchOnline(query);
-      const filtered = results.filter((t) => 
+      const results = await this.libraryService.searchOnline(query.trim());
+      let filtered = results.filter((t) => 
         !t.id.startsWith('audius-') &&
         !t.audioUrl.includes('audius.co') &&
         !excludeIds.has(t.id) && 
         !this.isDisliked(t.id) &&
-        (t.duration === 0 || (t.duration >= 45 && t.duration <= 600))
+        (t.duration === 0 || (t.duration >= 30 && t.duration <= 720))
       );
+
+      // If all results matched excludeIds, relax excludeIds check
+      if (filtered.length === 0) {
+        filtered = results.filter((t) =>
+          !t.id.startsWith('audius-') &&
+          !t.audioUrl.includes('audius.co') &&
+          !this.isDisliked(t.id) &&
+          (t.duration === 0 || (t.duration >= 30 && t.duration <= 720))
+        );
+      }
 
       return filtered.slice(0, count);
     } catch {

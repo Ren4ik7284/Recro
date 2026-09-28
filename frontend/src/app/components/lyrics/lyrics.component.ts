@@ -57,22 +57,12 @@ export class LyricsComponent {
   handleKeyDown(event: KeyboardEvent) {
     if (!this.lyricsService.isLyricsOpen()) return;
 
+    // Do not trigger hotkeys if user is focused on an input or textarea
+    const targetTag = (event.target as HTMLElement)?.tagName?.toLowerCase();
+    if (targetTag === 'input' || targetTag === 'textarea') return;
+
     if (event.key === 'Escape') {
       this.lyricsService.closeLyrics();
-    } else if (event.key === '[' || event.key === 'х' || event.key === 'Х') {
-      event.preventDefault();
-      if (event.shiftKey) {
-        this.lyricsService.shiftByLine(-1);
-      } else {
-        this.lyricsService.adjustOffset(-200);
-      }
-    } else if (event.key === ']' || event.key === 'ъ' || event.key === 'Ъ') {
-      event.preventDefault();
-      if (event.shiftKey) {
-        this.lyricsService.shiftByLine(1);
-      } else {
-        this.lyricsService.adjustOffset(200);
-      }
     }
   }
 

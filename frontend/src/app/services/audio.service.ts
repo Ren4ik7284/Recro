@@ -46,8 +46,11 @@ export class AudioService {
   private hasPreloadedNextTrack = false;
   private lastPreloadedTrackId: string | null = null;
   private isReplenishingQueue = false;
+  private replenishingPromise: Promise<void> | null = null;
   private consecutiveErrorCount = 0;
   private errorTimeoutId: any = null;
+  private currentPlayRequestId = 0;
+  private isSwitchingTrack = false;
 
   readonly progressPercent = computed(() => {
     const d = this.duration();
@@ -278,8 +281,8 @@ export class AudioService {
         this.recService.recordTrackCompletion(cur);
       }
 
-      // Proactively ensure smart queue before current track ends
-      if (this.recService.isMixActive() && total > 15 && actual >= total - 12) {
+      // Proactively ensure smart queue buffer before current track ends
+      if (this.recService.isMixActive() && (this.queue().length - 1 - this.queueIndex() < 5 || (total > 15 && actual >= total - 12))) {
         this.ensureSmartQueue();
       }
 
@@ -329,8 +332,8 @@ export class AudioService {
     });
 
     this.audio.addEventListener('pause', () => {
-      // If we are simply rebuffering or handling end, ignore pause event
-      if (!this.isHandlingEnd) {
+      // If we are simply rebuffering, handling end, or switching tracks, ignore pause event
+      if (!this.isHandlingEnd && !this.isSwitchingTrack) {
         this.isPlaying.set(false);
         this.updateMediaSessionPlaybackState('paused');
         this.updateMediaSessionPosition();
@@ -361,9 +364,7 @@ export class AudioService {
 
   private handlePlaybackFailure(source: string) {
     console.warn(`[AudioService] Playback failure from ${source}`);
-    this.isPlaying.set(false);
     this.hasAudioStartedPlaying = false;
-    this.updateMediaSessionPlaybackState('paused');
 
     if (this.errorTimeoutId) {
       clearTimeout(this.errorTimeoutId);
@@ -372,23 +373,36 @@ export class AudioService {
 
     // NEVER auto-skip or touch dislikes when user is playing their own library tracks
     if (!this.recService.isMixActive()) {
+      this.isPlaying.set(false);
+      this.updateMediaSessionPlaybackState('paused');
       this.consecutiveErrorCount = 0;
       return;
     }
 
     this.consecutiveErrorCount++;
-    // В режиме микса делаем максимум одну попытку перейти к следующему треку с мягкой задержкой,
-    // чтобы исключить мгновенное «прощелкивание» треков
-    if (this.consecutiveErrorCount <= 1) {
+
+    // In Mix mode, DO NOT shut off isMixActive! It should play continuously until user stops it.
+    // Seamless recovery: quickly transition to next track in 150ms instead of a multi-second stall
+    if (this.consecutiveErrorCount <= 4) {
       this.errorTimeoutId = setTimeout(() => {
         if (this.recService.isMixActive()) {
           this.next();
         }
-      }, 2000);
+      }, 150);
     } else {
-      console.warn('[AudioService] Playback failure limit reached, pausing Mix to prevent auto-skip storm');
-      this.recService.isMixActive.set(false);
+      console.warn('[AudioService] Multiple playback failures in mix, attempting recovery with reliable local track');
       this.consecutiveErrorCount = 0;
+      const locals = this.recService.getAllLocalCandidates();
+      if (locals.length > 0) {
+        const rescueTrack = locals[Math.floor(Math.random() * locals.length)];
+        this.playTrack(rescueTrack, undefined, true);
+      } else {
+        this.errorTimeoutId = setTimeout(() => {
+          if (this.recService.isMixActive()) {
+            this.next();
+          }
+        }, 500);
+      }
     }
   }
 
@@ -518,12 +532,27 @@ export class AudioService {
   }
 
   async playTrack(track: Track, newQueue?: Track[], fromMix: boolean = false, queueIndex?: number) {
+    if (!track) {
+      console.warn('[AudioService] playTrack called with null/undefined track');
+      if (this.recService.isMixActive()) {
+        const fallbacks = this.recService.pickNextTracks(3);
+        if (fallbacks.length > 0) {
+          this.playTrack(fallbacks[0], undefined, true);
+        }
+      }
+      return;
+    }
+
+    const playRequestId = ++this.currentPlayRequestId;
+
     if (this.errorTimeoutId) {
       clearTimeout(this.errorTimeoutId);
       this.errorTimeoutId = null;
     }
 
-    if (!fromMix) {
+    // Only deactivate mix if user explicitly started playing from a different context (new external queue),
+    // NOT when navigating or clicking within the active mix queue
+    if (!fromMix && newQueue !== undefined) {
       this.recService.isMixActive.set(false);
       this.consecutiveErrorCount = 0;
     }
@@ -590,6 +619,11 @@ export class AudioService {
       }
     }
 
+    // Discard stale request if a newer track was requested while resolving offline blob
+    if (playRequestId !== this.currentPlayRequestId) {
+      return;
+    }
+
     const activeBase = this.libraryService.getBackendUrl();
 
     if (!playUrl.startsWith('blob:')) {
@@ -638,6 +672,7 @@ export class AudioService {
     this.audio
       .play()
       .then(() => {
+        if (playRequestId !== this.currentPlayRequestId) return;
         this.isPlaying.set(true);
         this.updateMediaSessionPlaybackState('playing');
         this.updateMediaSessionMetadata(track);
@@ -645,8 +680,15 @@ export class AudioService {
         this.libraryService.recordHistoryPlay(track);
       })
       .catch((err) => {
-        // Игнорируем прерывание play() при быстром переключении треков или запрете автовоспроизведения браузером
-        if (err && (err.name === 'AbortError' || err.code === 20 || err.name === 'NotAllowedError')) {
+        // If this request was superseded by a newer track, do absolutely nothing
+        if (playRequestId !== this.currentPlayRequestId) {
+          return;
+        }
+        // Interrupted by rapid navigation or browser load: do NOT set isPlaying(false)
+        if (err && (err.name === 'AbortError' || err.code === 20)) {
+          return;
+        }
+        if (err && err.name === 'NotAllowedError') {
           this.isPlaying.set(false);
           this.updateMediaSessionPlaybackState('paused');
           return;
@@ -775,45 +817,82 @@ export class AudioService {
   }
 
   async next() {
-    const q = this.queue();
-    if (q.length === 0) return;
+    if (this.isSwitchingTrack) return;
+    this.isSwitchingTrack = true;
 
-    const cur = this.currentTrack();
-    if (cur && this.currentTime() < 15 && !this.isLiveStream()) {
-      this.recService.recordTrackSkip(cur);
-    }
+    try {
+      const q = this.queue();
+      if (q.length === 0) return;
 
-    let nextIdx = this.queueIndex() + 1;
-    if (this.isShuffle()) {
-      nextIdx = Math.floor(Math.random() * q.length);
-    }
+      const cur = this.currentTrack();
+      if (cur && this.currentTime() < 15 && !this.isLiveStream()) {
+        this.recService.recordTrackSkip(cur);
+      }
 
-    if (nextIdx >= q.length) {
+      let nextIdx = this.queueIndex() + 1;
+      if (this.isShuffle() && !this.recService.isMixActive()) {
+        nextIdx = Math.floor(Math.random() * q.length);
+      }
+
       if (this.recService.isMixActive()) {
-        await this.ensureSmartQueue();
-        const updatedQ = this.queue();
+        // Proactively ensure queue has enough upcoming buffer
+        if (nextIdx >= this.queue().length - 3) {
+          this.ensureSmartQueue();
+        }
+
+        let updatedQ = this.queue();
         if (nextIdx >= updatedQ.length) {
+          // Instant synchronous replenishment so mix never starves or halts
+          const fallbacks = this.recService.pickNextTracks(4);
+          if (fallbacks.length > 0) {
+            this.queue.update((curQ) => [...curQ, ...fallbacks]);
+          } else {
+            const nonDisliked = updatedQ.filter((t) => !this.recService.isDisliked(t.id));
+            if (nonDisliked.length > 0) {
+              this.queue.update((curQ) => [
+                ...curQ,
+                ...nonDisliked.map((t) => ({ ...t, id: `${t.id}_r_${Date.now()}_${Math.random()}` })),
+              ]);
+            }
+          }
+          updatedQ = this.queue();
+        }
+
+        if (nextIdx >= updatedQ.length) {
+          nextIdx = 0;
+        }
+      } else {
+        if (nextIdx >= q.length) {
           if (this.repeatMode() === 'all') {
             nextIdx = 0;
           } else {
             return;
           }
         }
-      } else if (this.repeatMode() === 'all') {
-        nextIdx = 0;
-      } else {
-        return;
       }
-    }
 
-    // Micro-fade before changing track to eliminate clicks
-    await this.applyFadeOut(0.18);
+      // Micro-fade before changing track to eliminate clicks (quick 0.12s)
+      await this.applyFadeOut(0.12);
 
-    this.queueIndex.set(nextIdx);
-    this.playTrack(this.queue()[nextIdx], undefined, this.recService.isMixActive(), nextIdx);
+      // Queue housekeeping: prevent memory bloat during infinite mix sessions (hours of listening)
+      // Keep last 5 played tracks for 'previous' while trimming older history
+      if (this.recService.isMixActive() && nextIdx > 20) {
+        const trimCount = nextIdx - 5;
+        this.queue.update((curQ) => curQ.slice(trimCount));
+        nextIdx = 5;
+      }
 
-    if (this.recService.isMixActive()) {
-      this.ensureSmartQueue();
+      const targetTrack = this.queue()[nextIdx];
+      if (targetTrack) {
+        this.queueIndex.set(nextIdx);
+        this.playTrack(targetTrack, undefined, this.recService.isMixActive(), nextIdx);
+      }
+
+      if (this.recService.isMixActive()) {
+        this.ensureSmartQueue();
+      }
+    } finally {
+      this.isSwitchingTrack = false;
     }
   }
 
@@ -823,19 +902,29 @@ export class AudioService {
       return;
     }
 
-    const q = this.queue();
-    if (q.length === 0) return;
+    if (this.isSwitchingTrack) return;
+    this.isSwitchingTrack = true;
 
-    let prevIdx = this.queueIndex() - 1;
-    if (prevIdx < 0) {
-      prevIdx = q.length - 1;
+    try {
+      const q = this.queue();
+      if (q.length === 0) return;
+
+      let prevIdx = this.queueIndex() - 1;
+      if (prevIdx < 0) {
+        prevIdx = q.length - 1;
+      }
+
+      // Micro-fade before changing track
+      await this.applyFadeOut(0.12);
+
+      const targetTrack = q[prevIdx];
+      if (targetTrack) {
+        this.queueIndex.set(prevIdx);
+        this.playTrack(targetTrack, undefined, this.recService.isMixActive(), prevIdx);
+      }
+    } finally {
+      this.isSwitchingTrack = false;
     }
-
-    // Micro-fade before changing track
-    await this.applyFadeOut(0.18);
-
-    this.queueIndex.set(prevIdx);
-    this.playTrack(q[prevIdx], undefined, this.recService.isMixActive(), prevIdx);
   }
 
   private handleTrackEnded() {
@@ -948,35 +1037,90 @@ export class AudioService {
     }
   }
 
-  async ensureSmartQueue() {
-    if (!this.recService.isMixActive() || this.isReplenishingQueue) return;
+  async ensureSmartQueue(): Promise<void> {
+    if (!this.recService.isMixActive()) return;
+
+    if (this.replenishingPromise) {
+      return this.replenishingPromise;
+    }
+
+    this.replenishingPromise = this.doEnsureSmartQueue();
+    try {
+      await this.replenishingPromise;
+    } finally {
+      this.replenishingPromise = null;
+    }
+  }
+
+  private async doEnsureSmartQueue(): Promise<void> {
     const q = this.queue();
     const idx = this.queueIndex();
-    if (idx < q.length - 2) return;
 
-    this.isReplenishingQueue = true;
-    try {
-      const existingIds = new Set(q.map((t) => t.id));
-      const nextCandidates = this.recService.pickNextTracks(2, existingIds);
+    // Check how many upcoming tracks are queued ahead of current
+    const upcomingCount = Math.max(0, q.length - 1 - idx);
+    // Keep a solid buffer of at least 8 upcoming tracks ahead at all times!
+    if (upcomingCount >= 8) return;
 
-      // Discovery rate according to source configuration
-      const source = this.recService.mixConfig().source;
-      const discoveryChance = source === 'library_only' ? 0 : (source === 'discovery_heavy' ? 0.6 : 0.3);
+    const needed = Math.max(4, 9 - upcomingCount);
 
-      if (discoveryChance > 0 && (nextCandidates.length < 2 || Math.random() < discoveryChance)) {
-        const discovery = await this.recService.fetchOnlineDiscoveryTracks(2, existingIds);
-        for (const d of discovery) {
-          nextCandidates.push(d);
-          existingIds.add(d.id);
-        }
+    // Only exclude tracks that are currently in the upcoming queue or the current track!
+    // Historical tracks played earlier in the session are NOT excluded, so the mix can cycle endlessly.
+    const unplayedUpcoming = q.slice(Math.max(0, idx));
+    const excludeIds = new Set<string>(unplayedUpcoming.map((t) => t.id));
+
+    const source = this.recService.mixConfig().source;
+    const localCandidates = this.recService.getAllLocalCandidates();
+
+    let newTracks: Track[] = [];
+
+    if (source === 'library_only') {
+      newTracks = this.recService.pickNextTracks(needed, excludeIds);
+    } else if (source === 'discovery_heavy') {
+      const onlineCount = Math.min(needed, 3);
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(onlineCount, excludeIds);
+      newTracks.push(...discovery);
+      discovery.forEach((d) => excludeIds.add(d.id));
+
+      if (newTracks.length < needed) {
+        const local = this.recService.pickNextTracks(needed - newTracks.length, excludeIds);
+        newTracks.push(...local);
       }
+    } else {
+      // Balanced mode: 50% discovery / 50% local affinity
+      const shouldDiscover = Math.random() < 0.45 || localCandidates.length === 0;
+      if (shouldDiscover && localCandidates.length > 0) {
+        const localCount = Math.max(1, Math.floor(needed / 2));
+        const local = this.recService.pickNextTracks(localCount, excludeIds);
+        newTracks.push(...local);
+        local.forEach((t) => excludeIds.add(t.id));
 
-      if (nextCandidates.length > 0) {
-        this.queue.update((curQ) => [...curQ, ...nextCandidates]);
-        this.preloadNextTrack();
+        const discoveryNeeded = needed - newTracks.length;
+        const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryNeeded, excludeIds);
+        newTracks.push(...discovery);
+      } else if (localCandidates.length > 0) {
+        newTracks = this.recService.pickNextTracks(needed, excludeIds);
+      } else {
+        newTracks = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds);
       }
-    } finally {
-      this.isReplenishingQueue = false;
+    }
+
+    // Resilience fallbacks if online discovery failed or candidates were exhausted
+    if (newTracks.length === 0 && localCandidates.length > 0) {
+      newTracks = this.recService.pickNextTracks(needed, new Set([q[idx]?.id].filter(Boolean) as string[]));
+    }
+
+    // Emergency fallback if library is empty and online discovery yielded nothing: recycle non-disliked from queue
+    if (newTracks.length === 0 && q.length > 0) {
+      const pool = q.filter((t) => !this.recService.isDisliked(t.id));
+      if (pool.length > 0) {
+        const sample = pool.slice(0, needed);
+        newTracks = sample.map((t) => ({ ...t }));
+      }
+    }
+
+    if (newTracks.length > 0) {
+      this.queue.update((curQ) => [...curQ, ...newTracks]);
+      this.preloadNextTrack();
     }
   }
 
@@ -984,19 +1128,26 @@ export class AudioService {
     this.recService.isMixActive.set(true);
     this.recService.setMixMood(mood);
 
-    const candidates = this.recService.pickNextTracks(5);
+    let candidates = this.recService.pickNextTracks(6);
+    if (candidates.length < 6) {
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(6 - candidates.length, new Set(candidates.map((t) => t.id)));
+      candidates = [...candidates, ...discovery];
+    }
+
     if (candidates.length === 0) {
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(5);
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(6);
       if (discovery.length === 0) {
         this.recService.isMixActive.set(false);
         return false;
       }
-      this.playTrack(discovery[0], discovery, true);
-      return true;
+      candidates = discovery;
     }
 
-    this.playTrack(candidates[0], candidates, true);
-    this.ensureSmartQueue();
+    this.playTrack(candidates[0], candidates, true, 0);
+    // Buffer additional tracks ahead immediately
+    setTimeout(() => {
+      this.ensureSmartQueue();
+    }, 400);
     return true;
   }
 
@@ -1009,9 +1160,10 @@ export class AudioService {
     if (this.recService.isMixActive()) {
       const q = this.queue();
       const idx = this.queueIndex();
+      // Keep played history up to current, discard stale upcoming, and replenish immediately with new mood
       const played = q.slice(0, idx + 1);
-      const newNext = this.recService.pickNextTracks(4, new Set(played.map((t) => t.id)));
-      this.queue.set([...played, ...newNext]);
+      this.queue.set(played);
+      this.ensureSmartQueue();
     }
   }
 

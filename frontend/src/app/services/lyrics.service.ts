@@ -47,13 +47,18 @@ export class LyricsService {
   private currentAbortController: AbortController | null = null;
   readonly precisePlaybackTime = signal<number>(0);
 
+  // Natural vocal attack lead time (240ms): compensates for DAC buffer latency + transcriber motor reaction delay
+  public static readonly VOCAL_LEAD_TIME_SEC = 0.24;
+
+  private rafId: number | null = null;
+
   // Индекс активной строки текста в зависимости от текущего времени трека
   readonly activeLineIndex = computed<number>(() => {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    // Spotify-like exact timestamp alignment (20ms frame buffer, no rushing ahead)
-    const leadTimeSec = 0.02;
+    // Vocal attack lead time for 100% natural sync with the artist's voice
+    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
 
     // Во время инструментального вступления до первой строчки текста — возвращаем -1
@@ -61,7 +66,7 @@ export class LyricsService {
       return -1;
     }
 
-    let activeIdx = -1;
+    let activeIdx = 0;
     for (let i = 0; i < lyrics.lines.length; i++) {
       const line = lyrics.lines[i];
       if (line.startTime >= 0 && t >= line.startTime) {
@@ -74,6 +79,21 @@ export class LyricsService {
     return activeIdx;
   });
 
+  // Показывает, звучит ли прямо сейчас голос исполнителя или идет музыкальная пауза / проигрыш
+  readonly isLineSinging = computed<boolean>(() => {
+    const idx = this.activeLineIndex();
+    const lyrics = this.currentLyrics();
+    if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return false;
+
+    const line = lyrics.lines[idx];
+    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
+
+    if (t < line.startTime) return false;
+    const endTime = line.endTime ?? (idx < lyrics.lines.length - 1 ? lyrics.lines[idx + 1].startTime : line.startTime + 4.5);
+    return t <= endTime + 0.25;
+  });
+
   // Прогресс воспроизведения внутри текущей строки (0..1)
   readonly activeLineProgress = computed<number>(() => {
     const idx = this.activeLineIndex();
@@ -83,7 +103,7 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
-    const leadTimeSec = 0.02;
+    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
     const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
@@ -98,17 +118,18 @@ export class LyricsService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // 1. Плавный таймер времени воспроизведения без задержек (30 раз в секунду)
+      // 1. Регулярный фоновый таймер
       setInterval(() => {
-        if (this.audioService.isPlaying()) {
-          const exact = this.audioService.getPreciseCurrentTime();
-          this.precisePlaybackTime.set(exact);
-        } else {
-          this.precisePlaybackTime.set(this.audioService.currentTime());
+        if (!this.isLyricsOpen()) {
+          if (this.audioService.isPlaying()) {
+            this.precisePlaybackTime.set(this.audioService.getPreciseCurrentTime());
+          } else {
+            this.precisePlaybackTime.set(this.audioService.currentTime());
+          }
         }
-      }, 33);
+      }, 50);
 
-      // 2. Реактивная мгновенная загрузка текста при смене трека (0мс задержки вместо setInterval)
+      // 2. Реактивная мгновенная загрузка текста при смене трека (0мс задержки)
       effect(() => {
         const cur = this.audioService.currentTrack();
         if (cur) {
@@ -130,6 +151,30 @@ export class LyricsService {
     }
   }
 
+  // 60fps высокоточное отслеживание момента звука без рывков таймера
+  private startHighPrecisionTracking() {
+    if (this.rafId !== null || typeof window === 'undefined') return;
+
+    const loop = () => {
+      if (this.isLyricsOpen()) {
+        const exact = this.audioService.getPreciseCurrentTime();
+        this.precisePlaybackTime.set(exact);
+        this.rafId = requestAnimationFrame(loop);
+      } else {
+        this.rafId = null;
+      }
+    };
+
+    this.rafId = requestAnimationFrame(loop);
+  }
+
+  private stopHighPrecisionTracking() {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+  }
+
   toggleLyricsView() {
     if (this.isLyricsOpen()) {
       this.closeLyrics();
@@ -140,6 +185,7 @@ export class LyricsService {
 
   openLyrics(pushHistory = true) {
     this.isLyricsOpen.set(true);
+    this.startHighPrecisionTracking();
     if (pushHistory) {
       this.navService.pushOverlay('lyrics');
     }
@@ -151,6 +197,7 @@ export class LyricsService {
 
   closeLyrics(popHistory = true) {
     this.isLyricsOpen.set(false);
+    this.stopHighPrecisionTracking();
     if (popHistory) {
       this.navService.closeOverlay('lyrics');
     }
@@ -192,9 +239,8 @@ export class LyricsService {
     const targetLine = lyrics.lines[lineIndex];
     if (targetLine.startTime < 0) return;
 
-    const leadTimeSec = 0.35;
+    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
     const current = this.precisePlaybackTime();
-    // targetLine.startTime == current + offsetSec + leadTimeSec
     const newOffsetMs = Math.round((targetLine.startTime - current - leadTimeSec) * 1000);
     this.syncOffsetMs.set(newOffsetMs);
     const cur = this.audioService.currentTrack();
@@ -203,6 +249,36 @@ export class LyricsService {
         localStorage.setItem(`signal_lyrics_offset_${cur.id}`, newOffsetMs.toString());
       } catch {}
     }
+  }
+
+  // Мгновенная калибровка «В такт голосу»: привязывает текущее звучание песни к ближайшей строке
+  syncNowToCurrentVoice() {
+    const lyrics = this.currentLyrics();
+    if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return;
+
+    const curTime = this.precisePlaybackTime();
+    let targetIdx = this.activeLineIndex();
+
+    if (targetIdx < 0 || targetIdx >= lyrics.lines.length) {
+      let minDiff = Infinity;
+      targetIdx = 0;
+      for (let i = 0; i < lyrics.lines.length; i++) {
+        const diff = Math.abs(lyrics.lines[i].startTime - curTime);
+        if (diff < minDiff) {
+          minDiff = diff;
+          targetIdx = i;
+        }
+      }
+    }
+
+    this.syncCurrentPlaybackToLine(targetIdx);
+  }
+
+  // Проверка спето ли слово (для пословного караоке)
+  isWordSung(word: LyricWord): boolean {
+    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
+    return t >= word.startTime;
   }
 
   resetOffset() {
@@ -551,13 +627,27 @@ export class LyricsService {
       finalLines = lines.filter((l) => l.startTime >= 0 && l.text.length > 0);
       finalLines.sort((a, b) => a.startTime - b.startTime);
 
-      // Расчет времени окончания строк с сохранением границ пауз
+      // Расчет времени окончания строк с сохранением реалистичных пауз и проигрышей
       for (let i = 0; i < finalLines.length; i++) {
-        if (!finalLines[i].endTime) {
-          if (i < finalLines.length - 1) {
-            finalLines[i].endTime = finalLines[i + 1].startTime;
+        const cur = finalLines[i];
+        const next = i < finalLines.length - 1 ? finalLines[i + 1] : null;
+
+        // Реалистичная оценка длительности пения фразы (~0.38с на слово + 0.6с затухание)
+        const words = cur.text.trim().split(/\s+/).filter(Boolean);
+        const estimatedPhraseSec = Math.max(1.8, Math.min(8.0, words.length * 0.38 + 0.6));
+
+        if (!cur.endTime || cur.endTime <= cur.startTime) {
+          if (next && next.startTime > cur.startTime) {
+            const gap = next.startTime - cur.startTime;
+            // Если до следующей строки длинная пауза (проигрыш/соло > estimatedPhrase + 1.2с),
+            // завершаем строку вовремя, чтобы текст не зависал активным во время молчания
+            if (gap > estimatedPhraseSec + 1.2) {
+              cur.endTime = cur.startTime + estimatedPhraseSec;
+            } else {
+              cur.endTime = next.startTime;
+            }
           } else {
-            finalLines[i].endTime = finalLines[i].startTime + 5;
+            cur.endTime = cur.startTime + estimatedPhraseSec;
           }
         }
       }
@@ -589,7 +679,8 @@ export class LyricsService {
 
   private cleanArtist(artist: string): string {
     return (artist || '')
-      .replace(/\b(topic|records|vevo|official|channel|music)\b/gi, ' ')
+      .replace(/\b(topic|records|vevo|official|channel|music|label)\b/gi, ' ')
+      .replace(/\b(?:feat\.?|ft\.?|with|при\s+уч\.?|с\s+участием)\s+[^\s–—\-()[\]]+/gi, ' ')
       .replace(/^[-–—\s]+|[-–—\s]+$/g, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -606,6 +697,7 @@ export class LyricsService {
   private checkTranslitArtistMatch(exp: string, cand: string): boolean {
     const pairs: [string, string][] = [
       ['эндшпиль', 'endspiel'],
+      ['эндшпиль', 'andy panda'],
       ['скриптонит', 'scriptonite'],
       ['баста', 'basta'],
       ['кино', 'kino'],

@@ -203,21 +203,24 @@
               <div 
                 class="lyric-line-item"
                 [attr.data-line-index]="i"
-                [class.active]="i === lyricsService.activeLineIndex()"
-                [class.past]="i < lyricsService.activeLineIndex()"
+                [class.active]="i === lyricsService.activeLineIndex() && lyricsService.isLineSinging()"
+                [class.active-interlude]="i === lyricsService.activeLineIndex() && !lyricsService.isLineSinging()"
+                [class.past]="i < lyricsService.activeLineIndex() || (i === lyricsService.activeLineIndex() && !lyricsService.isLineSinging())"
                 [class.future]="i > lyricsService.activeLineIndex()"
                 (click)="onLineClick(line)"
                 title="Нажмите для перемотки на эту строку"
               >
-                @if (line.words && line.words.length > 0) {
-                  <span class="lyric-words-row">
-                    @for (w of line.words; track $index) {
-                      <span class="lyric-word">{{ w.text }} </span>
-                    }
-                  </span>
-                } @else {
-                  <span class="lyric-line-text">{{ line.text }}</span>
-                }
+                <div class="line-content">
+                  @if (line.words && line.words.length > 0) {
+                    <span class="lyric-words-row">
+                      @for (w of line.words; track $index) {
+                        <span class="lyric-word" [class.sung]="lyricsService.isWordSung(w)">{{ w.text }} </span>
+                      }
+                    </span>
+                  } @else {
+                    <span class="lyric-line-text">{{ line.text }}</span>
+                  }
+                </div>
               </div>
             }
 
