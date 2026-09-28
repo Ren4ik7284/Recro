@@ -7,6 +7,7 @@ import {
   effect,
   HostListener,
   ViewEncapsulation,
+  ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -48,6 +49,7 @@ declare global {
   encapsulation: ViewEncapsulation.None,
 })
 export class App implements OnInit {
+  private readonly cdr = inject(ChangeDetectorRef);
   readonly audioService = inject(AudioService);
   readonly libraryService = inject(LibraryService);
   readonly offlineService = inject(OfflineService);
@@ -56,6 +58,21 @@ export class App implements OnInit {
   readonly lyricsService = inject(LyricsService);
   readonly navService = inject(NavigationService);
   readonly ambientService = inject(AmbientService);
+
+  constructor() {
+    // Динамический заголовок вкладки в браузере (Track - Artist | Recro)
+    effect(() => {
+      if (typeof document === 'undefined') return;
+      const track = this.audioService.currentTrack();
+      const isPlaying = this.audioService.isPlaying();
+      if (track) {
+        const icon = isPlaying ? '▶' : '⏸';
+        document.title = `${icon} ${track.title} • ${track.artist} | Recro`;
+      } else {
+        document.title = 'Recro - Аудиоплеер';
+      }
+    });
+  }
 
   readonly draggedQueueIndex = signal<number | null>(null);
   readonly dragOverQueueIndex = signal<number | null>(null);
@@ -233,19 +250,8 @@ export class App implements OnInit {
 
       // PWA
       this.isPwaModalOpen.set(o === 'pwa');
-    });
 
-    // Динамический заголовок вкладки в браузере (Track - Artist | Recro)
-    effect(() => {
-      if (typeof document === 'undefined') return;
-      const track = this.audioService.currentTrack();
-      const isPlaying = this.audioService.isPlaying();
-      if (track) {
-        const icon = isPlaying ? '▶' : '⏸';
-        document.title = `${icon} ${track.title} • ${track.artist} | Recro`;
-      } else {
-        document.title = 'Recro - Аудиоплеер';
-      }
+      this.cdr.markForCheck();
     });
 
     if (typeof window !== 'undefined') {
@@ -825,6 +831,7 @@ export class App implements OnInit {
     if (pushHistory) {
       this.navService.setTab(view, playlistId, true);
     }
+    this.cdr.markForCheck();
   }
 
   expandMobilePlayer() {
