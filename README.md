@@ -72,7 +72,7 @@
 
 ```bash
 # Клонируйте репозиторий
-git clone https://github.com/Ren4ik7284/SIGNAL.git recro
+git clone https://github.com/Ren4ik7284/Recro.git recro
 cd recro
 
 # Запустите сервисы
