@@ -515,7 +515,12 @@ pub async fn stream_audio(
     };
 
     tokio::spawn(async move {
-        let _ = ffmpeg_child.wait().await;
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(1800)) => {
+                let _ = ffmpeg_child.start_kill();
+            }
+            _ = ffmpeg_child.wait() => {}
+        }
     });
 
     let stream = ReaderStream::new(stdout);

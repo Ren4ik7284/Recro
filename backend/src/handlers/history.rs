@@ -79,21 +79,29 @@ pub async fn record_play(
         .execute(&state.pool)
         .await;
 
-    let _ = sqlx::query(
-        r#"
-        DELETE FROM listening_history
-        WHERE user_id = ? AND id NOT IN (
-            SELECT id FROM listening_history
-            WHERE user_id = ?
-            ORDER BY played_at DESC
-            LIMIT 500
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM listening_history WHERE user_id = ?")
+        .bind(&claims.sub)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+
+    if count > 500 {
+        let _ = sqlx::query(
+            r#"
+            DELETE FROM listening_history
+            WHERE user_id = ? AND played_at < (
+                SELECT played_at FROM listening_history
+                WHERE user_id = ?
+                ORDER BY played_at DESC
+                LIMIT 1 OFFSET 499
+            )
+            "#,
         )
-        "#,
-    )
-    .bind(&claims.sub)
-    .bind(&claims.sub)
-    .execute(&state.pool)
-    .await;
+        .bind(&claims.sub)
+        .bind(&claims.sub)
+        .execute(&state.pool)
+        .await;
+    }
 
     Ok(StatusCode::OK)
 }

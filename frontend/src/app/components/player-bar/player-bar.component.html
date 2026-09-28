@@ -277,6 +277,16 @@
       VIS
     </button>
 
+    <button 
+      class="utility-btn desktop-only" 
+      [class.active]="ambientService.isEnabled()"
+      (click)="ambientService.toggle()"
+      [title]="ambientService.isEnabled() ? 'Выключить динамический амбиентный фон обложки' : 'Включить динамический амбиентный фон обложки'"
+      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
+    >
+      GLOW
+    </button>
+
     <!-- Queue Drawer Toggle -->
     <button 
       class="utility-btn queue-btn" 

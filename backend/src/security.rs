@@ -68,9 +68,15 @@ pub fn get_client_ip(
 ) -> String {
     let trust_proxy = std::env::var("TRUST_PROXY")
         .map(|v| v == "true" || v == "1")
-        .unwrap_or(false);
+        .unwrap_or_else(|_| crate::config::is_cloud_env());
 
     if trust_proxy {
+        if let Some(cf_ip) = headers.get("cf-connecting-ip").and_then(|v| v.to_str().ok()) {
+            let trimmed = cf_ip.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
         if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
             if let Some(first_ip) = forwarded.split(',').next() {
                 let trimmed = first_ip.trim();

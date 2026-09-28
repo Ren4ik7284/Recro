@@ -664,6 +664,10 @@ export class AudioService {
       this.audio.removeAttribute('crossorigin');
     }
 
+    if (this.audio.src && this.audio.src.startsWith('blob:') && this.audio.src !== playUrl) {
+      this.offlineService.revokeAllBlobUrls();
+    }
+
     this.audio.src = playUrl;
 
     // Apply smooth fade in
@@ -987,6 +991,27 @@ export class AudioService {
     } else if (index < this.queueIndex()) {
       this.queueIndex.update((idx) => idx - 1);
     }
+  }
+
+  moveQueueItem(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    const q = [...this.queue()];
+    if (fromIndex < 0 || fromIndex >= q.length || toIndex < 0 || toIndex >= q.length) return;
+    const [moved] = q.splice(fromIndex, 1);
+    q.splice(toIndex, 0, moved);
+
+    const curIdx = this.queueIndex();
+    let newCurIdx = curIdx;
+    if (curIdx === fromIndex) {
+      newCurIdx = toIndex;
+    } else if (fromIndex < curIdx && toIndex >= curIdx) {
+      newCurIdx = curIdx - 1;
+    } else if (fromIndex > curIdx && toIndex <= curIdx) {
+      newCurIdx = curIdx + 1;
+    }
+
+    this.queue.set(q);
+    this.queueIndex.set(newCurIdx);
   }
 
   clearQueue() {

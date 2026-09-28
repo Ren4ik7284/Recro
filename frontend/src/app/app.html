@@ -1,4 +1,15 @@
 <div class="app-layout" (click)="activePlaylistPickerTrackId.set(null)">
+  @if (ambientService.isEnabled()) {
+    <div 
+      class="ambient-glow-backdrop" 
+      [style.--glow-p]="ambientService.palette().primary" 
+      [style.--glow-s]="ambientService.palette().secondary"
+    >
+      <div class="ambient-orb orb-1"></div>
+      <div class="ambient-orb orb-2"></div>
+      <div class="ambient-orb orb-3"></div>
+    </div>
+  }
   
   <app-header-bar
     (openAddModal)="openAddModalGuarded()"
@@ -1102,9 +1113,31 @@
           @for (track of audioService.queue(); track track.id; let i = $index) {
             <div 
               class="queue-item" 
+              [attr.data-index]="i"
               [class.active]="i === audioService.queueIndex()"
+              [class.is-dragging]="draggedQueueIndex() === i"
+              [class.is-drag-over]="dragOverQueueIndex() === i"
+              draggable="true"
+              (dragstart)="onQueueDragStart($event, i)"
+              (dragover)="onQueueDragOver($event, i)"
+              (dragleave)="onQueueDragLeave($event, i)"
+              (drop)="onQueueDrop($event, i)"
+              (dragend)="onQueueDragEnd()"
               (click)="audioService.playTrack(track)"
             >
+              <div 
+                class="queue-drag-handle" 
+                (touchstart)="onQueueTouchStart($event, i)"
+                (touchmove)="onQueueTouchMove($event)"
+                (touchend)="onQueueTouchEnd()"
+                (click)="$event.stopPropagation()"
+                title="Перетащите для изменения порядка треков"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="9" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>
+                  <circle cx="15" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="15" cy="18" r="2"/>
+                </svg>
+              </div>
               <span class="queue-idx font-mono">{{ i + 1 }}</span>
               <div class="queue-item-meta">
                 <span class="q-title">{{ track.title }}</span>

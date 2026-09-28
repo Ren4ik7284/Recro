@@ -8,6 +8,7 @@ services:
       - "127.0.0.1:8085:8085"
     environment:
       - RUST_LOG=info
+      - TRUST_PROXY=true
       - JWT_SECRET=${JWT_SECRET:-}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     restart: unless-stopped

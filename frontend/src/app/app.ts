@@ -23,6 +23,7 @@ import { RecommendationService } from './services/recommendation.service';
 import { LyricsService } from './services/lyrics.service';
 import { LyricsComponent } from './components/lyrics/lyrics.component';
 import { NavigationService } from './services/navigation.service';
+import { AmbientService } from './services/ambient.service';
 
 declare global {
   interface Window {
@@ -54,6 +55,11 @@ export class App implements OnInit {
   readonly recService = inject(RecommendationService);
   readonly lyricsService = inject(LyricsService);
   readonly navService = inject(NavigationService);
+  readonly ambientService = inject(AmbientService);
+
+  readonly draggedQueueIndex = signal<number | null>(null);
+  readonly dragOverQueueIndex = signal<number | null>(null);
+  private touchStartIndex: number | null = null;
 
   readonly isQuickStartMixModalOpen = signal<boolean>(false);
   readonly isMixSettingsModalOpen = signal<boolean>(false);
@@ -288,6 +294,107 @@ export class App implements OnInit {
 
   installPwa() {
     this.openPwaInstallModal();
+  }
+
+  @HostListener('wheel', ['$event'])
+  onWindowWheel(event: WheelEvent) {
+    if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+    let el = event.target as HTMLElement | null;
+    while (el && el !== document.body && el !== document.documentElement) {
+      const style = window.getComputedStyle(el);
+      const isHorizScrollable = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
+      const isVertScrollable = (style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+
+      if (isHorizScrollable && !isVertScrollable) {
+        el.scrollLeft += event.deltaY;
+        event.preventDefault();
+        return;
+      }
+
+      if (isHorizScrollable) {
+        const atVertBoundary = !isVertScrollable || 
+          (event.deltaY > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 1) ||
+          (event.deltaY < 0 && el.scrollTop <= 1);
+        
+        if (atVertBoundary) {
+          el.scrollLeft += event.deltaY;
+          event.preventDefault();
+          return;
+        }
+      }
+
+      el = el.parentElement;
+    }
+  }
+
+  onQueueDragStart(event: DragEvent, index: number) {
+    this.draggedQueueIndex.set(index);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', index.toString());
+    }
+  }
+
+  onQueueDragOver(event: DragEvent, index: number) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+    if (this.dragOverQueueIndex() !== index) {
+      this.dragOverQueueIndex.set(index);
+    }
+  }
+
+  onQueueDragLeave(event: DragEvent, index: number) {
+    if (this.dragOverQueueIndex() === index) {
+      this.dragOverQueueIndex.set(null);
+    }
+  }
+
+  onQueueDrop(event: DragEvent, targetIndex: number) {
+    event.preventDefault();
+    const fromIdx = this.draggedQueueIndex();
+    if (fromIdx !== null && fromIdx !== targetIndex) {
+      this.audioService.moveQueueItem(fromIdx, targetIndex);
+    }
+    this.draggedQueueIndex.set(null);
+    this.dragOverQueueIndex.set(null);
+  }
+
+  onQueueDragEnd() {
+    this.draggedQueueIndex.set(null);
+    this.dragOverQueueIndex.set(null);
+  }
+
+  onQueueTouchStart(event: TouchEvent, index: number) {
+    this.touchStartIndex = index;
+    this.draggedQueueIndex.set(index);
+  }
+
+  onQueueTouchMove(event: TouchEvent) {
+    if (this.touchStartIndex === null) return;
+    const touch = event.touches[0];
+    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!targetEl) return;
+    const queueItem = targetEl.closest('.queue-item') as HTMLElement | null;
+    if (queueItem && queueItem.dataset['index'] !== undefined) {
+      const idx = parseInt(queueItem.dataset['index'], 10);
+      if (!isNaN(idx) && this.dragOverQueueIndex() !== idx) {
+        this.dragOverQueueIndex.set(idx);
+      }
+    }
+  }
+
+  onQueueTouchEnd() {
+    const fromIdx = this.touchStartIndex;
+    const toIdx = this.dragOverQueueIndex();
+    if (fromIdx !== null && toIdx !== null && fromIdx !== toIdx) {
+      this.audioService.moveQueueItem(fromIdx, toIdx);
+    }
+    this.touchStartIndex = null;
+    this.draggedQueueIndex.set(null);
+    this.dragOverQueueIndex.set(null);
   }
 
   @HostListener('window:keydown', ['$event'])

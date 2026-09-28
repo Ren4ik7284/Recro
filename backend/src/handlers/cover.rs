@@ -20,18 +20,45 @@ pub async fn proxy_cover(Query(params): Query<CoverParams>) -> Result<Response, 
 
     check_url_ssrf(target).await?;
 
+    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 5 {
+            attempt.error("too many redirects")
+        } else {
+            if let Some(host) = attempt.url().host_str() {
+                let lower = host.to_lowercase();
+                if lower == "localhost"
+                    || lower.ends_with(".local")
+                    || lower.ends_with(".internal")
+                    || lower.ends_with(".lan")
+                {
+                    return attempt.error("redirect to internal host forbidden");
+                }
+                if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+                    if crate::security::is_private_or_restricted_ip(ip) {
+                        return attempt.error("redirect to private IP forbidden");
+                    }
+                }
+            }
+            attempt.follow()
+        }
+    });
+
     let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(6))
+        .redirect(redirect_policy)
+        .timeout(Duration::from_secs(8))
         .build()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let resp = client
         .get(target)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
         .send()
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
+
+    if !resp.status().is_success() {
+        return Err(StatusCode::BAD_GATEWAY);
+    }
 
     if let Some(len) = resp.content_length() {
         if len > 10 * 1024 * 1024 {

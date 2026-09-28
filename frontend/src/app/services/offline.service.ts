@@ -73,7 +73,17 @@ export class OfflineService {
   readonly offlineTrackIds = signal<Set<string>>(new Set());
   readonly downloadingTrackIds = signal<Set<string>>(new Set());
 
-  private activeBlobUrl: string | null = null;
+  private activeBlobUrls = new Set<string>();
+
+  revokeAllBlobUrls() {
+    if (typeof window === 'undefined') return;
+    for (const url of this.activeBlobUrls) {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    }
+    this.activeBlobUrls.clear();
+  }
 
   constructor() {
     this.loadOfflineIndex();
@@ -281,11 +291,10 @@ export class OfflineService {
     try {
       const blob = await idbGetBlob(trackId);
       if (blob) {
-        if (this.activeBlobUrl) {
-          URL.revokeObjectURL(this.activeBlobUrl);
-        }
-        this.activeBlobUrl = URL.createObjectURL(blob);
-        return this.activeBlobUrl;
+        this.revokeAllBlobUrls();
+        const url = URL.createObjectURL(blob);
+        this.activeBlobUrls.add(url);
+        return url;
       }
 
       if ('caches' in window) {
@@ -295,11 +304,10 @@ export class OfflineService {
         if (match) {
           const b = await match.blob();
           idbPutBlob(trackId, b).catch(() => {});
-          if (this.activeBlobUrl) {
-            URL.revokeObjectURL(this.activeBlobUrl);
-          }
-          this.activeBlobUrl = URL.createObjectURL(b);
-          return this.activeBlobUrl;
+          this.revokeAllBlobUrls();
+          const url = URL.createObjectURL(b);
+          this.activeBlobUrls.add(url);
+          return url;
         }
       }
     } catch (e) {

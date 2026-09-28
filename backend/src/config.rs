@@ -6,6 +6,9 @@ pub const CLOUD_FALLBACK_URL: &str = "https://signal-audio-backend-production.up
 
 pub fn is_cloud_env() -> bool {
     std::env::var("RAILWAY_PUBLIC_DOMAIN").is_ok()
+        || std::env::var("RAILWAY_STATIC_URL").is_ok()
+        || std::env::var("RAILWAY_ENVIRONMENT").is_ok()
+        || std::env::var("RAILWAY_SERVICE_ID").is_ok()
 }
 
 pub fn get_yt_dlp_cmd() -> String {
