@@ -4,6 +4,7 @@ import {
   inject,
   signal,
   computed,
+  effect,
   HostListener,
   ViewEncapsulation,
 } from '@angular/core';
@@ -228,6 +229,19 @@ export class App implements OnInit {
       this.isPwaModalOpen.set(o === 'pwa');
     });
 
+    // Динамический заголовок вкладки в браузере (Track - Artist | Recro)
+    effect(() => {
+      if (typeof document === 'undefined') return;
+      const track = this.audioService.currentTrack();
+      const isPlaying = this.audioService.isPlaying();
+      if (track) {
+        const icon = isPlaying ? '▶' : '⏸';
+        document.title = `${icon} ${track.title} • ${track.artist} | Recro`;
+      } else {
+        document.title = 'Recro - Аудиоплеер';
+      }
+    });
+
     if (typeof window !== 'undefined') {
       const isIosDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       this.isIos.set(isIosDevice);
@@ -286,6 +300,14 @@ export class App implements OnInit {
     if (event.code === 'Space') {
       event.preventDefault();
       this.audioService.togglePlay();
+    } else if (event.shiftKey && event.code === 'ArrowRight') {
+      event.preventDefault();
+      this.audioService.next();
+      this.showToast('Следующий трек');
+    } else if (event.shiftKey && event.code === 'ArrowLeft') {
+      event.preventDefault();
+      this.audioService.prev();
+      this.showToast('Предыдущий трек');
     } else if (event.code === 'ArrowRight') {
       event.preventDefault();
       this.audioService.skipBy(5);
@@ -300,11 +322,22 @@ export class App implements OnInit {
     } else if (event.code === 'ArrowDown') {
       event.preventDefault();
       this.audioService.setVolume(this.audioService.volume() - 0.05);
-    } else if (event.key === 'm' || event.key === 'ь') {
+    } else if (event.key === 'n' || event.key === 'N' || event.key === 'т' || event.key === 'Т') {
+      event.preventDefault();
+      this.audioService.next();
+      this.showToast('Следующий трек');
+    } else if (event.key === 'p' || event.key === 'P' || event.key === 'з' || event.key === 'З') {
+      event.preventDefault();
+      this.audioService.prev();
+      this.showToast('Предыдущий трек');
+    } else if (event.key === 't' || event.key === 'T' || event.key === 'е' || event.key === 'Е') {
+      event.preventDefault();
+      this.lyricsService.toggleLyricsView();
+    } else if (event.key === 'm' || event.key === 'ь' || event.key === 'M' || event.key === 'Ь') {
       event.preventDefault();
       this.audioService.toggleMute();
       this.showToast(this.audioService.isMuted() ? 'Звук выключен' : 'Звук включен');
-    } else if (event.key === 'l' || event.key === 'д') {
+    } else if (event.key === 'l' || event.key === 'д' || event.key === 'L' || event.key === 'Д') {
       const current = this.audioService.currentTrack();
       if (current) {
         event.preventDefault();

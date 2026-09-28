@@ -1,11 +1,13 @@
-const CACHE_NAME = 'signal-pwa-v11';
-const OFFLINE_AUDIO_CACHE = 'signal-offline-tracks-v1';
+const CACHE_NAME = 'recro-pwa-v1';
+const OFFLINE_AUDIO_CACHE = 'recro-offline-tracks-v1';
 
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/favicon.svg',
   '/favicon.ico',
+  '/icons/icon-32.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-maskable-512.png',

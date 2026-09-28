@@ -123,7 +123,11 @@ export class LyricsComponent {
   toggleFavorite() {
     const cur = this.audioService.currentTrack();
     if (cur) {
-      this.libraryService.toggleFavorite(cur.id, cur);
+      const isNowFav = this.libraryService.toggleFavorite(cur.id, cur);
+      this.audioService.updateTrackFavoriteStatus(cur.id, isNowFav, cur);
+      if (isNowFav) {
+        this.audioService.recService.recordTrackLike(cur);
+      }
     }
   }
 }
