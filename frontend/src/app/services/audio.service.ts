@@ -535,7 +535,7 @@ export class AudioService {
     if (!track) {
       console.warn('[AudioService] playTrack called with null/undefined track');
       if (this.recService.isMixActive()) {
-        const fallbacks = this.recService.pickNextTracks(3);
+        const fallbacks = this.recService.pickNextTracks(3, new Set(), this.currentTrack() || null);
         if (fallbacks.length > 0) {
           this.playTrack(fallbacks[0], undefined, true);
         }
@@ -847,7 +847,7 @@ export class AudioService {
         let updatedQ = this.queue();
         if (nextIdx >= updatedQ.length) {
           // Instant synchronous replenishment so mix never starves or halts
-          const fallbacks = this.recService.pickNextTracks(4);
+          const fallbacks = this.recService.pickNextTracks(4, new Set(), this.currentTrack() || null);
           if (fallbacks.length > 0) {
             this.queue.update((curQ) => [...curQ, ...fallbacks]);
           } else {
@@ -1095,11 +1095,12 @@ export class AudioService {
 
     const source = this.recService.mixConfig().source;
     const localCandidates = this.recService.getAllLocalCandidates();
+    const curTrack = q[idx] || this.currentTrack() || null;
 
     let newTracks: Track[] = [];
 
     if (source === 'library_only') {
-      newTracks = this.recService.pickNextTracks(needed, excludeIds);
+      newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack);
     } else if (source === 'discovery_heavy') {
       const onlineCount = Math.min(needed, 3);
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(onlineCount, excludeIds);
@@ -1107,7 +1108,7 @@ export class AudioService {
       discovery.forEach((d) => excludeIds.add(d.id));
 
       if (newTracks.length < needed) {
-        const local = this.recService.pickNextTracks(needed - newTracks.length, excludeIds);
+        const local = this.recService.pickNextTracks(needed - newTracks.length, excludeIds, curTrack);
         newTracks.push(...local);
       }
     } else {
@@ -1115,7 +1116,7 @@ export class AudioService {
       const shouldDiscover = Math.random() < 0.45 || localCandidates.length === 0;
       if (shouldDiscover && localCandidates.length > 0) {
         const localCount = Math.max(1, Math.floor(needed / 2));
-        const local = this.recService.pickNextTracks(localCount, excludeIds);
+        const local = this.recService.pickNextTracks(localCount, excludeIds, curTrack);
         newTracks.push(...local);
         local.forEach((t) => excludeIds.add(t.id));
 
@@ -1123,7 +1124,7 @@ export class AudioService {
         const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryNeeded, excludeIds);
         newTracks.push(...discovery);
       } else if (localCandidates.length > 0) {
-        newTracks = this.recService.pickNextTracks(needed, excludeIds);
+        newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack);
       } else {
         newTracks = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds);
       }
@@ -1131,7 +1132,7 @@ export class AudioService {
 
     // Resilience fallbacks if online discovery failed or candidates were exhausted
     if (newTracks.length === 0 && localCandidates.length > 0) {
-      newTracks = this.recService.pickNextTracks(needed, new Set([q[idx]?.id].filter(Boolean) as string[]));
+      newTracks = this.recService.pickNextTracks(needed, new Set([q[idx]?.id].filter(Boolean) as string[]), curTrack);
     }
 
     // Emergency fallback if library is empty and online discovery yielded nothing: recycle non-disliked from queue
@@ -1153,7 +1154,8 @@ export class AudioService {
     this.recService.isMixActive.set(true);
     this.recService.setMixMood(mood);
 
-    let candidates = this.recService.pickNextTracks(6);
+    const curTrack = this.currentTrack() || null;
+    let candidates = this.recService.pickNextTracks(6, new Set(), curTrack);
     if (candidates.length < 6) {
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(6 - candidates.length, new Set(candidates.map((t) => t.id)));
       candidates = [...candidates, ...discovery];

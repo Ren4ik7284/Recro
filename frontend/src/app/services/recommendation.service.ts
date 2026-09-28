@@ -47,6 +47,9 @@ export class RecommendationService {
   // Map of trackId -> epoch timestamp (ms)
   private recentPlays = new Map<string, number>();
 
+  // In-memory cache for track feature vectors to prevent repeated regex and string operations
+  private readonly vectorCache = new Map<string, TasteVector>();
+
   // Disliked tracks (delegated to LibraryService with cloud sync)
   readonly dislikedTrackIds = this.libraryService.dislikedTrackIds;
 
@@ -97,11 +100,20 @@ export class RecommendationService {
   }
 
   /**
-   * Generates a normalized 8-dimensional music feature vector for a track
-   * based on its genre, title, and metadata.
+   * Generates a normalized 8-dimensional music feature vector for a track.
+   * Multi-label additive extraction: supports hybrid genres (e.g. pop-rock, lofi-hiphop)
+   * with high-speed in-memory LRU caching.
    */
   extractTrackVector(track: Track): TasteVector {
-    const text = `${track.genre || ''} ${track.title || ''} ${track.artist || ''} ${track.album || ''}`.toLowerCase();
+    const cached = this.vectorCache.get(track.id);
+    if (cached) return cached;
+
+    const genre = (track.genre || '').toLowerCase();
+    const title = (track.title || '').toLowerCase();
+    const artist = (track.artist || '').toLowerCase();
+    const album = (track.album || '').toLowerCase();
+    // Explicit genre is duplicated to double its weighting over free-form titles
+    const text = `${genre} ${genre} ${title} ${artist} ${album}`;
 
     let energy = 0.5;
     let tempo = 0.5;
@@ -112,75 +124,177 @@ export class RecommendationService {
     let pop = 0.1;
     let chill = 0.1;
 
-    // Phonk / Trap / Bass
-    if (text.includes('phonk') || text.includes('drift') || text.includes('bass') || text.includes('hardstyle')) {
-      energy = 0.95;
-      tempo = 0.75;
-      electronic = 0.9;
-      hiphop = 0.7;
-      acoustic = 0.05;
-    } 
-    // Hip-Hop / Rap
-    else if (text.includes('hip-hop') || text.includes('hip hop') || text.includes('rap') || text.includes('рэп') || text.includes('trap')) {
-      energy = 0.75;
-      tempo = 0.6;
-      hiphop = 0.95;
-      electronic = 0.4;
-      acoustic = 0.2;
-    }
-    // Rock / Metal / Punk
-    else if (text.includes('rock') || text.includes('metal') || text.includes('punk') || text.includes('рок') || text.includes('guitar')) {
-      energy = 0.88;
-      tempo = 0.7;
-      rock = 0.95;
-      acoustic = 0.4;
-      electronic = 0.2;
-    }
-    // Electronic / Synthwave / EDM / House
-    else if (text.includes('synth') || text.includes('synthwave') || text.includes('edm') || text.includes('house') || text.includes('dance') || text.includes('techno') || text.includes('club')) {
-      energy = 0.85;
-      tempo = 0.75;
-      electronic = 0.95;
-      pop = 0.4;
-      acoustic = 0.05;
-    }
-    // Chill / Lo-Fi / Ambient / Relax / Acoustic
-    else if (text.includes('lo-fi') || text.includes('lofi') || text.includes('chill') || text.includes('ambient') || text.includes('relax') || text.includes('sleep') || text.includes('piano') || text.includes('acoustic') || text.includes('лаборатория')) {
-      energy = 0.25;
-      tempo = 0.35;
-      chill = 0.95;
-      acoustic = 0.85;
-      electronic = 0.2;
-    }
-    // Pop / Indie
-    else if (text.includes('pop') || text.includes('поп') || text.includes('indie') || text.includes('инди')) {
-      energy = 0.65;
-      tempo = 0.55;
-      pop = 0.9;
-      acoustic = 0.4;
-      electronic = 0.3;
+    // Phonk / Trap / Hardstyle / Heavy Bass / Hyperpop
+    if (
+      text.includes('phonk') ||
+      text.includes('drift') ||
+      text.includes('bass') ||
+      text.includes('hardstyle') ||
+      text.includes('hyperpop')
+    ) {
+      energy += 0.42;
+      tempo += 0.25;
+      electronic += 0.72;
+      hiphop += 0.45;
+      acoustic -= 0.25;
     }
 
-    return { energy, tempo, acoustic, hiphop, rock, electronic, pop, chill };
+    // Hip-Hop / Rap / Drill / Trap / RnB / Soul
+    if (
+      text.includes('hip-hop') ||
+      text.includes('hip hop') ||
+      text.includes('rap') ||
+      text.includes('рэп') ||
+      text.includes('trap') ||
+      text.includes('drill') ||
+      text.includes('дрил') ||
+      text.includes('r&b') ||
+      text.includes('rnb') ||
+      text.includes('soul')
+    ) {
+      energy += 0.18;
+      tempo += 0.1;
+      hiphop += 0.75;
+      electronic += 0.15;
+    }
+
+    // Rock / Metal / Punk / Alternative / Grunge / Guitar
+    if (
+      text.includes('rock') ||
+      text.includes('metal') ||
+      text.includes('punk') ||
+      text.includes('рок') ||
+      text.includes('guitar') ||
+      text.includes('grunge') ||
+      text.includes('alternative') ||
+      text.includes('core')
+    ) {
+      energy += 0.32;
+      tempo += 0.18;
+      rock += 0.78;
+      acoustic += 0.1;
+    }
+
+    // Electronic / Synthwave / EDM / House / Techno / DnB / Club / Trance
+    if (
+      text.includes('synth') ||
+      text.includes('synthwave') ||
+      text.includes('edm') ||
+      text.includes('house') ||
+      text.includes('dance') ||
+      text.includes('techno') ||
+      text.includes('club') ||
+      text.includes('dnb') ||
+      text.includes('drum and bass') ||
+      text.includes('trance') ||
+      text.includes('dubstep')
+    ) {
+      energy += 0.3;
+      tempo += 0.22;
+      electronic += 0.78;
+      acoustic -= 0.25;
+    }
+
+    // Chill / Lo-Fi / Ambient / Relax / Acoustic / Piano / Soft
+    if (
+      text.includes('lo-fi') ||
+      text.includes('lofi') ||
+      text.includes('chill') ||
+      text.includes('ambient') ||
+      text.includes('relax') ||
+      text.includes('sleep') ||
+      text.includes('piano') ||
+      text.includes('acoustic') ||
+      text.includes('акустика') ||
+      text.includes('лаборатория') ||
+      text.includes('calm') ||
+      text.includes('meditation') ||
+      text.includes('soft')
+    ) {
+      energy -= 0.25;
+      tempo -= 0.2;
+      chill += 0.78;
+      acoustic += 0.5;
+    }
+
+    // Pop / Indie / Vocal / K-pop
+    if (
+      text.includes('pop') ||
+      text.includes('поп') ||
+      text.includes('indie') ||
+      text.includes('инди') ||
+      text.includes('hit') ||
+      text.includes('k-pop') ||
+      text.includes('kpop')
+    ) {
+      pop += 0.68;
+      energy += 0.08;
+      acoustic += 0.05;
+    }
+
+    const vector: TasteVector = {
+      energy: Math.max(0.05, Math.min(0.98, energy)),
+      tempo: Math.max(0.05, Math.min(0.98, tempo)),
+      acoustic: Math.max(0.05, Math.min(0.98, acoustic)),
+      hiphop: Math.max(0.05, Math.min(0.98, hiphop)),
+      rock: Math.max(0.05, Math.min(0.98, rock)),
+      electronic: Math.max(0.05, Math.min(0.98, electronic)),
+      pop: Math.max(0.05, Math.min(0.98, pop)),
+      chill: Math.max(0.05, Math.min(0.98, chill)),
+    };
+
+    if (this.vectorCache.size > 2500) {
+      this.vectorCache.clear();
+    }
+    this.vectorCache.set(track.id, vector);
+
+    return vector;
   }
 
   /**
-   * Calculates cosine similarity between two feature vectors: cos(theta) in range [-1, 1], normalized to [0, 1].
+   * Precomputes Euclidean L2 norm of a feature vector
    */
-  private cosineSimilarity(a: TasteVector, b: TasteVector): number {
-    const keys: (keyof TasteVector)[] = ['energy', 'tempo', 'acoustic', 'hiphop', 'rock', 'electronic', 'pop', 'chill'];
-    let dot = 0;
-    let normA = 0;
-    let normB = 0;
+  computeVectorNorm(vec: TasteVector): number {
+    return Math.sqrt(
+      vec.energy * vec.energy +
+      vec.tempo * vec.tempo +
+      vec.acoustic * vec.acoustic +
+      vec.hiphop * vec.hiphop +
+      vec.rock * vec.rock +
+      vec.electronic * vec.electronic +
+      vec.pop * vec.pop +
+      vec.chill * vec.chill
+    );
+  }
 
-    for (const k of keys) {
-      dot += a[k] * b[k];
-      normA += a[k] * a[k];
-      normB += b[k] * b[k];
-    }
+  /**
+   * High-performance unrolled cosine similarity: cos(theta) in range [-1, 1], normalized to [0, 1].
+   * Takes precomputed normA to avoid recalculating target norm for every track.
+   */
+  cosineSimilarityFast(a: TasteVector, normA: number, b: TasteVector): number {
+    const dot =
+      a.energy * b.energy +
+      a.tempo * b.tempo +
+      a.acoustic * b.acoustic +
+      a.hiphop * b.hiphop +
+      a.rock * b.rock +
+      a.electronic * b.electronic +
+      a.pop * b.pop +
+      a.chill * b.chill;
+
+    const normB = Math.sqrt(
+      b.energy * b.energy +
+      b.tempo * b.tempo +
+      b.acoustic * b.acoustic +
+      b.hiphop * b.hiphop +
+      b.rock * b.rock +
+      b.electronic * b.electronic +
+      b.pop * b.pop +
+      b.chill * b.chill
+    );
 
     if (normA <= 0 || normB <= 0) return 0.5;
-    const cos = dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    const cos = dot / (normA * normB);
     return Math.max(0, Math.min(1, (cos + 1) / 2));
   }
 
@@ -229,7 +343,9 @@ export class RecommendationService {
   }
 
   /**
-   * Record when user skips a track quickly (<15s). Nudges vector away.
+   * Record when user skips a track quickly (<15s).
+   * Fixed drift: only penalizes prominent dimensions of the skipped track
+   * and never erroneously inflates neutral genre dimensions.
    */
   recordTrackSkip(track: Track) {
     if (track.isLiveStream) return;
@@ -237,22 +353,39 @@ export class RecommendationService {
 
     const tVec = this.extractTrackVector(track);
     const cur = this.tasteVector();
+
+    // 1. Continuous parameters: if the skipped track had extreme energy/tempo/acoustic, gently nudge away
+    let newEnergy = cur.energy;
+    if (tVec.energy > 0.65) newEnergy = Math.max(0.1, cur.energy - 0.08);
+    else if (tVec.energy < 0.35) newEnergy = Math.min(0.9, cur.energy + 0.08);
+
+    let newTempo = cur.tempo;
+    if (tVec.tempo > 0.65) newTempo = Math.max(0.1, cur.tempo - 0.08);
+    else if (tVec.tempo < 0.35) newTempo = Math.min(0.9, cur.tempo + 0.08);
+
+    let newAcoustic = cur.acoustic;
+    if (tVec.acoustic > 0.65) newAcoustic = Math.max(0.1, cur.acoustic - 0.08);
+    else if (tVec.acoustic < 0.35) newAcoustic = Math.min(0.9, cur.acoustic + 0.08);
+
+    // 2. Genre dimensions: only reduce genres that the skipped track actually exhibited (> 0.35).
+    // Neutral genres are NOT boosted!
     const updated: TasteVector = {
-      energy: Math.max(0.05, Math.min(0.95, cur.energy - (tVec.energy - 0.5) * 0.1)),
-      tempo: Math.max(0.05, Math.min(0.95, cur.tempo - (tVec.tempo - 0.5) * 0.1)),
-      acoustic: Math.max(0.05, Math.min(0.95, cur.acoustic - (tVec.acoustic - 0.5) * 0.1)),
-      hiphop: Math.max(0.05, Math.min(0.95, cur.hiphop - (tVec.hiphop - 0.5) * 0.1)),
-      rock: Math.max(0.05, Math.min(0.95, cur.rock - (tVec.rock - 0.5) * 0.1)),
-      electronic: Math.max(0.05, Math.min(0.95, cur.electronic - (tVec.electronic - 0.5) * 0.1)),
-      pop: Math.max(0.05, Math.min(0.95, cur.pop - (tVec.pop - 0.5) * 0.1)),
-      chill: Math.max(0.05, Math.min(0.95, cur.chill - (tVec.chill - 0.5) * 0.1)),
+      energy: newEnergy,
+      tempo: newTempo,
+      acoustic: newAcoustic,
+      hiphop: Math.max(0.05, cur.hiphop - (tVec.hiphop > 0.35 ? tVec.hiphop * 0.12 : 0)),
+      rock: Math.max(0.05, cur.rock - (tVec.rock > 0.35 ? tVec.rock * 0.12 : 0)),
+      electronic: Math.max(0.05, cur.electronic - (tVec.electronic > 0.35 ? tVec.electronic * 0.12 : 0)),
+      pop: Math.max(0.05, cur.pop - (tVec.pop > 0.35 ? tVec.pop * 0.12 : 0)),
+      chill: Math.max(0.05, cur.chill - (tVec.chill > 0.35 ? tVec.chill * 0.12 : 0)),
     };
+
     this.tasteVector.set(updated);
     this.saveTasteVector(updated);
   }
 
   /**
-   * Dislike track: adds to blacklist in LibraryService (synced with cloud), nudges vector, and prevents from playing.
+   * Dislike track: adds to blacklist in LibraryService (synced with cloud) and prevents from playing.
    */
   dislikeTrack(trackId: string) {
     this.libraryService.dislikeTrack(trackId);
@@ -293,9 +426,10 @@ export class RecommendationService {
   }
 
   /**
-   * Adjusts target vector based on selected mood filter
+   * Adjusts target vector based on selected mood filter and contextual transition flow
+   * (blends 75% user taste/mood with 25% current track vector for smooth music flow)
    */
-  private getTargetVectorForMood(mood: MixMood): TasteVector {
+  getTargetVectorForMood(mood: MixMood, currentTrack?: Track | null): TasteVector {
     const base = { ...this.tasteVector() };
     if (mood === 'energetic') {
       base.energy = Math.max(base.energy, 0.85);
@@ -306,13 +440,34 @@ export class RecommendationService {
       base.chill = Math.max(base.chill, 0.85);
       base.acoustic = Math.max(base.acoustic, 0.65);
     }
+
+    // Contextual Flow: smoothly steer 25% towards currently playing track's vibe
+    if (currentTrack && !currentTrack.isLiveStream) {
+      const curVec = this.extractTrackVector(currentTrack);
+      base.energy = base.energy * 0.75 + curVec.energy * 0.25;
+      base.tempo = base.tempo * 0.75 + curVec.tempo * 0.25;
+      base.acoustic = base.acoustic * 0.75 + curVec.acoustic * 0.25;
+      base.hiphop = base.hiphop * 0.75 + curVec.hiphop * 0.25;
+      base.rock = base.rock * 0.75 + curVec.rock * 0.25;
+      base.electronic = base.electronic * 0.75 + curVec.electronic * 0.25;
+      base.pop = base.pop * 0.75 + curVec.pop * 0.25;
+      base.chill = base.chill * 0.75 + curVec.chill * 0.25;
+    }
+
     return base;
   }
 
   /**
-   * Scores a track candidate with cosine similarity + favorite boost - soft fatigue penalty.
+   * Scores a track candidate with cosine similarity + favorite boost - soft fatigue penalty - artist diversity penalty.
    */
-  scoreTrack(track: Track, mood: MixMood, targetVec: TasteVector): number {
+  scoreTrack(
+    track: Track,
+    mood: MixMood,
+    targetVec: TasteVector,
+    targetNorm: number,
+    currentTrack?: Track | null,
+    recentArtists?: Set<string>
+  ): number {
     if (this.isDisliked(track.id)) return -9999;
 
     // Mood 'favorites': strictly favorited tracks
@@ -321,26 +476,36 @@ export class RecommendationService {
     }
 
     const trackVec = this.extractTrackVector(track);
-    const similarity = this.cosineSimilarity(targetVec, trackVec);
+    const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
 
-    let score = similarity * 50; // 0..50 points from vector alignment
+    let score = similarity * 55; // 0..55 points from vector alignment
 
     // Explicit user affinity
     if (track.isFavorite) {
-      score += 25;
+      score += 20;
     }
     if (track.plays && track.plays > 0) {
-      score += Math.min(15, track.plays * 1.5);
+      score += Math.min(12, track.plays * 1.2);
     }
 
     // Language preference
     const lang = this.libraryService.mixConfig().language;
     if (lang === 'ru') {
-      const isRu = /[а-яё]/i.test(`${track.title} ${track.artist} ${track.genre || ''}`);
-      score += isRu ? 30 : -30;
+      const isRu = /[а-яё]/i.test(`${track.title} ${track.artist}`);
+      score += isRu ? 30 : -35;
     } else if (lang === 'en') {
-      const isRu = /[а-яё]/i.test(`${track.title} ${track.artist} ${track.genre || ''}`);
-      score += !isRu ? 30 : -30;
+      const isRu = /[а-яё]/i.test(`${track.title} ${track.artist}`);
+      score += !isRu ? 30 : -35;
+    }
+
+    // Artist Diversity Penalty (Anti-clustering): discourage back-to-back duplicate artist
+    if (currentTrack?.artist && track.artist) {
+      if (currentTrack.artist.toLowerCase().trim() === track.artist.toLowerCase().trim()) {
+        score -= 28;
+      }
+    }
+    if (recentArtists && track.artist && recentArtists.has(track.artist.toLowerCase().trim())) {
+      score -= 16;
     }
 
     // Soft Fatigue penalty (Cooldown): discourages recent tracks without permanently blocking them
@@ -348,11 +513,11 @@ export class RecommendationService {
     if (lastPlayed) {
       const minutesAgo = (Date.now() - lastPlayed) / (1000 * 60);
       if (minutesAgo < 15) {
-        score -= 40;
+        score -= 35;
       } else if (minutesAgo < 45) {
-        score -= 20;
+        score -= 18;
       } else if (minutesAgo < 120) {
-        score -= 10;
+        score -= 8;
       }
     }
 
@@ -360,14 +525,15 @@ export class RecommendationService {
   }
 
   /**
-   * Selects N next tracks using Weighted Random Sampling based on scores.
+   * Selects N next tracks using Efraimidis-Spirakis Algorithm (A-Res) for weighted random sampling
+   * without replacement, with artist diversity enforcement and context flow.
    * Guaranteed to NEVER return an empty list if any candidates exist!
    */
-  pickNextTracks(count: number, excludeIds: Set<string> = new Set()): Track[] {
+  pickNextTracks(count: number, excludeIds: Set<string> = new Set(), currentTrack?: Track | null): Track[] {
     const allLocal = this.getAllLocalCandidates();
     const mood = this.currentMood();
 
-    let validCandidates = allLocal.filter((t) => {
+    const validCandidates = allLocal.filter((t) => {
       if (this.isDisliked(t.id)) return false;
       if (mood === 'favorites' && !t.isFavorite) return false;
       return true;
@@ -375,62 +541,74 @@ export class RecommendationService {
 
     if (validCandidates.length === 0) return [];
 
-    // First attempt: candidates not currently in excludeIds
     let available = validCandidates.filter((t) => !excludeIds.has(t.id));
-
-    // If all candidates are in excludeIds (e.g. small library or all tracks already queued),
-    // relax exclusion: allow reusing candidates rather than starving the mix!
     if (available.length === 0) {
       available = validCandidates;
     }
 
-    const targetVec = this.getTargetVectorForMood(mood);
+    const targetVec = this.getTargetVectorForMood(mood, currentTrack);
+    const targetNorm = this.computeVectorNorm(targetVec);
+
+    const recentArtists = new Set<string>();
+    if (currentTrack?.artist) {
+      recentArtists.add(currentTrack.artist.toLowerCase().trim());
+    }
 
     const scored = available
       .map((track) => ({
         track,
-        score: this.scoreTrack(track, mood, targetVec),
+        score: this.scoreTrack(track, mood, targetVec, targetNorm, currentTrack, recentArtists),
       }))
       .filter((item) => item.score > -5000); // Discard only absolute vetos (-9999)
 
     if (scored.length === 0) {
-      // Emergency fallback: return any available valid candidate
       return available.slice(0, count);
     }
 
+    // Shift scores so lowest score is strictly positive (> 0.1)
+    let minScore = scored[0].score;
+    for (let i = 1; i < scored.length; i++) {
+      if (scored[i].score < minScore) minScore = scored[i].score;
+    }
+    const baseShift = minScore <= 0 ? Math.abs(minScore) + 5 : 0;
+
+    // Efraimidis-Spirakis Weighted Reservoir Sampling:
+    // Key = Math.log(R) / weight, where R in (0, 1). Highest key wins!
+    const weightedItems = scored.map((item) => {
+      const weight = Math.max(0.1, item.score + baseShift);
+      const r = Math.max(1e-10, Math.random());
+      const key = Math.log(r) / weight;
+      return { track: item.track, key };
+    });
+
+    weightedItems.sort((a, b) => b.key - a.key);
+
     const selected: Track[] = [];
-    const used = new Set<string>();
+    const usedIds = new Set<string>();
+    const pickedArtists = new Set<string>(recentArtists);
 
-    for (let step = 0; step < count; step++) {
-      const pool = scored.filter((s) => !used.has(s.track.id));
-      if (pool.length === 0) {
-        // If we need more than available unique tracks, cycle from beginning
-        if (selected.length >= validCandidates.length) break;
-        used.clear();
-      }
-
-      const activePool = scored.filter((s) => !used.has(s.track.id));
-      if (activePool.length === 0) break;
-
-      // Shift scores so lowest score is strictly positive
-      const minScore = Math.min(...activePool.map((p) => p.score));
-      const baseShift = minScore <= 0 ? Math.abs(minScore) + 5 : 0;
-      const totalWeight = activePool.reduce((sum, p) => sum + (p.score + baseShift), 0);
-
-      let rnd = Math.random() * totalWeight;
-      let chosen = activePool[0].track;
-
-      for (const item of activePool) {
-        const w = item.score + baseShift;
-        if (rnd <= w) {
-          chosen = item.track;
-          break;
+    // Pass 1: select top weighted candidates while avoiding duplicate artists
+    for (const item of weightedItems) {
+      if (selected.length >= count) break;
+      const art = (item.track.artist || '').toLowerCase().trim();
+      if (!usedIds.has(item.track.id)) {
+        if (!pickedArtists.has(art) || weightedItems.length < count * 2) {
+          selected.push(item.track);
+          usedIds.add(item.track.id);
+          if (art) pickedArtists.add(art);
         }
-        rnd -= w;
       }
+    }
 
-      selected.push(chosen);
-      used.add(chosen.id);
+    // Pass 2: if artist diversity restriction left slots unfilled, fill remaining slots
+    if (selected.length < count) {
+      for (const item of weightedItems) {
+        if (selected.length >= count) break;
+        if (!usedIds.has(item.track.id)) {
+          selected.push(item.track);
+          usedIds.add(item.track.id);
+        }
+      }
     }
 
     return selected;
@@ -438,7 +616,7 @@ export class RecommendationService {
 
   /**
    * Discovery Engine: Fetches online tracks matching current mood and user taste.
-   * Leverages /api/search via LibraryService with rich rotating queries.
+   * Personalizes discovery queries using the user's top artists from the library and history.
    */
   async fetchOnlineDiscoveryTracks(count = 3, excludeIds: Set<string> = new Set()): Promise<Track[]> {
     if (this.isFetchingDiscovery()) return [];
@@ -481,34 +659,52 @@ export class RecommendationService {
       const modifiers = ['', ' mix', ' hits', ' tracks', ' remix', ' radio'];
       const randomMod = modifiers[Math.floor(Math.random() * modifiers.length)];
 
-      if (lang === 'ru') {
-        if (mood === 'energetic') {
-          query = ruEnergetic[Math.floor(Math.random() * ruEnergetic.length)] + randomMod;
-        } else if (mood === 'chill') {
-          query = ruChill[Math.floor(Math.random() * ruChill.length)] + randomMod;
-        } else {
-          query = ruGeneral[Math.floor(Math.random() * ruGeneral.length)] + randomMod;
+      // 1. Build a frequency map of top artists from the user's library
+      const topArtistsMap = new Map<string, number>();
+      for (const t of candidates) {
+        if (t.artist && t.artist.trim()) {
+          const a = t.artist.replace(/feat\..*|ft\..*/i, '').trim();
+          if (a.length > 1) {
+            topArtistsMap.set(a, (topArtistsMap.get(a) || 0) + (t.isFavorite ? 3 : 1) + (t.plays ? 2 : 0));
+          }
         }
-      } else if (lang === 'en') {
-        if (mood === 'energetic') {
-          query = enEnergetic[Math.floor(Math.random() * enEnergetic.length)] + randomMod;
-        } else if (mood === 'chill') {
-          query = enChill[Math.floor(Math.random() * enChill.length)] + randomMod;
-        } else {
-          query = enGeneral[Math.floor(Math.random() * enGeneral.length)] + randomMod;
-        }
+      }
+      const userTopArtists = Array.from(topArtistsMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([name]) => name);
+
+      // 2. Personalize discovery: 65% chance to explore around user's known artists
+      if (userTopArtists.length > 0 && Math.random() < 0.65) {
+        const seedArtist = userTopArtists[Math.floor(Math.random() * userTopArtists.length)];
+        const suffixes = [' radio', ' mix', ' hits', ' похожие'];
+        const suff = suffixes[Math.floor(Math.random() * suffixes.length)];
+        query = `${seedArtist}${suff}`;
       } else {
-        if (mood === 'energetic') {
-          const pool = [...ruEnergetic, ...enEnergetic];
-          query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
-        } else if (mood === 'chill') {
-          const pool = [...ruChill, ...enChill];
-          query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
+        // Fall back to mood and language pools
+        if (lang === 'ru') {
+          if (mood === 'energetic') {
+            query = ruEnergetic[Math.floor(Math.random() * ruEnergetic.length)] + randomMod;
+          } else if (mood === 'chill') {
+            query = ruChill[Math.floor(Math.random() * ruChill.length)] + randomMod;
+          } else {
+            query = ruGeneral[Math.floor(Math.random() * ruGeneral.length)] + randomMod;
+          }
+        } else if (lang === 'en') {
+          if (mood === 'energetic') {
+            query = enEnergetic[Math.floor(Math.random() * enEnergetic.length)] + randomMod;
+          } else if (mood === 'chill') {
+            query = enChill[Math.floor(Math.random() * enChill.length)] + randomMod;
+          } else {
+            query = enGeneral[Math.floor(Math.random() * enGeneral.length)] + randomMod;
+          }
         } else {
-          if (candidates.length > 0 && Math.random() < 0.6) {
-            const randomTrack = candidates[Math.floor(Math.random() * candidates.length)];
-            const artist = randomTrack.artist.replace(/feat\..*|ft\..*/i, '').trim();
-            query = artist ? `${artist}${randomMod}` : 'music hits';
+          if (mood === 'energetic') {
+            const pool = [...ruEnergetic, ...enEnergetic];
+            query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
+          } else if (mood === 'chill') {
+            const pool = [...ruChill, ...enChill];
+            query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
           } else {
             const pool = [...ruGeneral, ...enGeneral];
             query = pool[Math.floor(Math.random() * pool.length)] + randomMod;
