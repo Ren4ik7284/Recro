@@ -291,7 +291,8 @@ export class OfflineService {
     try {
       const blob = await idbGetBlob(trackId);
       if (blob) {
-        this.revokeAllBlobUrls();
+        // НЕ вызываем revokeAllBlobUrls здесь — audio.service.ts сам управляет
+        // жизненным циклом blob URL (вызывает revoke перед установкой нового audio.src)
         const url = URL.createObjectURL(blob);
         this.activeBlobUrls.add(url);
         return url;
@@ -303,8 +304,8 @@ export class OfflineService {
         const match = await cache.match(cacheKey);
         if (match) {
           const b = await match.blob();
+          // Попутно мигрируем в IndexedDB для быстрого доступа в будущем
           idbPutBlob(trackId, b).catch(() => {});
-          this.revokeAllBlobUrls();
           const url = URL.createObjectURL(b);
           this.activeBlobUrls.add(url);
           return url;

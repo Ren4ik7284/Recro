@@ -6,6 +6,7 @@ import {
   effect,
   HostListener,
   ViewEncapsulation,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LyricsService, LyricLine } from '../../services/lyrics.service';
@@ -114,6 +115,21 @@ export class LyricsComponent {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   }
+
+  // --- Scrubber state: preview при drag, seek только при отпускании ---
+  readonly isScrubbing = signal<boolean>(false);
+  readonly scrubTime = signal<number>(0);
+
+  onScrubberInput(val: number) {
+    this.isScrubbing.set(true);
+    this.scrubTime.set(val);
+  }
+
+  onScrubberChange(val: number) {
+    this.isScrubbing.set(false);
+    this.audioService.seek(val);
+  }
+  // ---------------------------------------------------------------------
 
   isCurrentFavorite(): boolean {
     const cur = this.audioService.currentTrack();

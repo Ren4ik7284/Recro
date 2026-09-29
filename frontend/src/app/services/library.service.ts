@@ -213,9 +213,11 @@ export class LibraryService implements OnDestroy {
   startAutoSync() {
     if (this.syncPollInterval || typeof window === 'undefined') return;
 
+    // 60 сек достаточно — visibilitychange и focus handlers ловят возврат к вкладке.
+    // Было 5000ms (720 запросов/час) → 60_000ms (60 запросов/час)
     this.syncPollInterval = setInterval(() => {
       this.syncWithBackendOnStartup();
-    }, 5000);
+    }, 60_000);
 
     this.visibilityHandler = () => {
       if (document.visibilityState === 'visible') {

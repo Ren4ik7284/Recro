@@ -51,6 +51,8 @@ export class AudioService {
   private errorTimeoutId: any = null;
   private currentPlayRequestId = 0;
   private isSwitchingTrack = false;
+  // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
+  private lastQueueEnsureTime = 0;
 
   readonly progressPercent = computed(() => {
     const d = this.duration();
@@ -281,8 +283,16 @@ export class AudioService {
         this.recService.recordTrackCompletion(cur);
       }
 
-      // Proactively ensure smart queue buffer before current track ends
-      if (this.recService.isMixActive() && (this.queue().length - 1 - this.queueIndex() < 5 || (total > 15 && actual >= total - 12))) {
+      // Proactively ensure smart queue buffer before current track ends.
+      // Debounced to 4s to avoid spamming ensureSmartQueue on every timeupdate tick.
+      // Note: explicit calls from next() are NOT debounced — only this background check.
+      const now = Date.now();
+      if (
+        this.recService.isMixActive() &&
+        (this.queue().length - 1 - this.queueIndex() < 5 || (total > 15 && actual >= total - 12)) &&
+        now - this.lastQueueEnsureTime > 4000
+      ) {
+        this.lastQueueEnsureTime = now;
         this.ensureSmartQueue();
       }
 
@@ -382,13 +392,14 @@ export class AudioService {
     this.consecutiveErrorCount++;
 
     // In Mix mode, DO NOT shut off isMixActive! It should play continuously until user stops it.
-    // Seamless recovery: quickly transition to next track in 150ms instead of a multi-second stall
-    if (this.consecutiveErrorCount <= 4) {
+    // Graceful recovery: give the network up to 800ms to respond before skipping.
+    // This prevents false positives on slow connections (was 150ms — too aggressive).
+    if (this.consecutiveErrorCount <= 6) {
       this.errorTimeoutId = setTimeout(() => {
         if (this.recService.isMixActive()) {
           this.next();
         }
-      }, 150);
+      }, 800);
     } else {
       console.warn('[AudioService] Multiple playback failures in mix, attempting recovery with reliable local track');
       this.consecutiveErrorCount = 0;
@@ -1057,7 +1068,9 @@ export class AudioService {
       const glue = targetUrl.includes('?') ? '&' : '?';
       const prefetchUrl = `${targetUrl}${glue}prefetch=true`;
       try {
-        fetch(prefetchUrl, { priority: 'low' as any, cache: 'no-store' }).catch(() => {});
+        // High priority + без cache: 'no-store' — браузер прогревает соединение и кэширует ответ бэкенда.
+        // Это гарантирует что следующий трек стартует мгновенно, а не ждёт yt-dlp при переключении.
+        fetch(prefetchUrl, { priority: 'high' as any }).catch(() => {});
       } catch {}
     }
   }
@@ -1171,10 +1184,10 @@ export class AudioService {
     }
 
     this.playTrack(candidates[0], candidates, true, 0);
-    // Buffer additional tracks ahead immediately
+    // Заполняем буфер почти сразу — 80ms даёт play() время стартовать без блокировки UI
     setTimeout(() => {
       this.ensureSmartQueue();
-    }, 400);
+    }, 80);
     return true;
   }
 

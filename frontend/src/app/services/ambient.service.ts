@@ -11,6 +11,9 @@ const DEFAULT_PALETTE: AmbientPalette = {
   secondary: 'rgba(236, 72, 153, 0.22)',
 };
 
+/** Размер канваса для извлечения цвета из обложки: 64×64 даёт в 7× больше пикселей чем 24×24 */
+const PALETTE_CANVAS_SIZE = 64;
+
 @Injectable({
   providedIn: 'root',
 })
@@ -24,10 +27,14 @@ export class AmbientService {
 
   readonly palette = signal<AmbientPalette>(DEFAULT_PALETTE);
 
+  /** Ссылка на текущий загружаемый Image — отменяем предыдущий при смене трека */
+  private currentImg: HTMLImageElement | null = null;
+
   constructor() {
     effect(() => {
       const track = this.audioService.currentTrack();
       if (!track) {
+        this.cancelCurrentImage();
         this.palette.set(DEFAULT_PALETTE);
         return;
       }
@@ -43,7 +50,18 @@ export class AmbientService {
     }
   }
 
+  private cancelCurrentImage() {
+    if (this.currentImg) {
+      // Обнуляем handlers и src — браузер прекратит загрузку
+      this.currentImg.onload = null;
+      this.currentImg.onerror = null;
+      this.currentImg.src = '';
+      this.currentImg = null;
+    }
+  }
+
   private updateColorsForTrack(title: string, artist: string, coverUrl?: string | null) {
+    // Сначала мгновенно выставляем текстовый фоллбэк — без ожидания картинки
     const textFallback = this.generatePaletteFromText(`${title} ${artist}`);
     this.palette.set(textFallback);
 
@@ -68,20 +86,35 @@ export class AmbientService {
   }
 
   private extractPaletteFromImage(url: string) {
+    // Отменяем предыдущую загрузку — предотвращает накопление Image объектов
+    this.cancelCurrentImage();
+
     const img = new Image();
+    this.currentImg = img;
     img.crossOrigin = 'anonymous';
     img.referrerPolicy = 'no-referrer';
-    img.src = url;
+
+    img.onerror = () => {
+      // Ошибка CORS или 404 — просто очищаем, текстовый фоллбэк уже выставлен
+      if (this.currentImg === img) {
+        this.currentImg = null;
+      }
+    };
 
     img.onload = () => {
+      // Проверяем что этот Image всё ещё актуален (трек не сменился пока грузился)
+      if (this.currentImg !== img) return;
+      this.currentImg = null;
+
       try {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        canvas.width = 24;
-        canvas.height = 24;
-        ctx.drawImage(img, 0, 0, 24, 24);
-        const data = ctx.getImageData(0, 0, 24, 24).data;
+
+        canvas.width = PALETTE_CANVAS_SIZE;
+        canvas.height = PALETTE_CANVAS_SIZE;
+        ctx.drawImage(img, 0, 0, PALETTE_CANVAS_SIZE, PALETTE_CANVAS_SIZE);
+        const data = ctx.getImageData(0, 0, PALETTE_CANVAS_SIZE, PALETTE_CANVAS_SIZE).data;
 
         let bestScore = -1;
         let primaryRgb = [99, 102, 241];
@@ -121,5 +154,7 @@ export class AmbientService {
         // Silent fallback to text-generated palette on CORS restrictions
       }
     };
+
+    img.src = url;
   }
 }

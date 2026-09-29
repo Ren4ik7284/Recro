@@ -45,6 +45,7 @@ export class LyricsService {
   private lastLoadedTrackId: string | null = null;
   private autoScrollLockTimeout: any = null;
   private currentAbortController: AbortController | null = null;
+  private updateIntervalId: ReturnType<typeof setInterval> | null = null;
   readonly precisePlaybackTime = signal<number>(0);
 
   // Natural vocal attack lead time (240ms): compensates for DAC buffer latency + transcriber motor reaction delay
@@ -115,11 +116,23 @@ export class LyricsService {
   });
 
   private lyricsCache = new Map<string, ParsedLyrics>();
+  private static readonly CACHE_MAX_SIZE = 60;
+
+  /** FIFO-кэш с лимитом: удаляет самый старый трек при переполнении */
+  private setCachedLyrics(trackId: string, lyrics: ParsedLyrics): void {
+    if (this.lyricsCache.size >= LyricsService.CACHE_MAX_SIZE) {
+      const firstKey = this.lyricsCache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.lyricsCache.delete(firstKey);
+      }
+    }
+    this.lyricsCache.set(trackId, lyrics);
+  }
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // 1. Регулярный фоновый таймер
-      setInterval(() => {
+      // 1. Регулярный фоновый таймер — обновляет время пока текст закрыт (RAF берёт управление когда открыт)
+      this.updateIntervalId = setInterval(() => {
         if (!this.isLyricsOpen()) {
           if (this.audioService.isPlaying()) {
             this.precisePlaybackTime.set(this.audioService.getPreciseCurrentTime());
@@ -189,8 +202,11 @@ export class LyricsService {
     if (pushHistory) {
       this.navService.pushOverlay('lyrics');
     }
+    // Загружаем текст только если он ещё не загружен и не грузится.
+    // Это устраняет дублирующий запрос: при смене трека effect уже запустил загрузку.
+    // Если текст не нашёлся (null) и loading = false — попробуем ещё раз при повторном открытии.
     const cur = this.audioService.currentTrack();
-    if (cur) {
+    if (cur && !this.currentLyrics() && !this.isLoading()) {
       this.loadLyricsForTrack(cur);
     }
   }
@@ -400,7 +416,7 @@ export class LyricsService {
               parsed.duration = data.duration;
             }
             if (parsed.lines.length > 0) {
-              this.lyricsCache.set(targetTrackId, parsed);
+              this.setCachedLyrics(targetTrackId, parsed);
               this.currentLyrics.set(parsed);
               this.isLoading.set(false);
 
@@ -439,7 +455,7 @@ export class LyricsService {
       }
 
       if (lyricsData) {
-        this.lyricsCache.set(targetTrackId, lyricsData);
+        this.setCachedLyrics(targetTrackId, lyricsData);
         this.currentLyrics.set(lyricsData);
         this.isLoading.set(false);
 

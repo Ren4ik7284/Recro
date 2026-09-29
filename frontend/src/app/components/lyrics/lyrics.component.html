@@ -72,8 +72,9 @@
           min="0"
           [max]="audioService.duration() || 100"
           step="1"
-          [value]="audioService.currentTime()"
-          (input)="audioService.seek(+($any($event.target).value))"
+          [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
+          (input)="onScrubberInput(+($any($event.target).value))"
+          (change)="onScrubberChange(+($any($event.target).value))"
           class="lyrics-timeline-slider"
         />
       </div>

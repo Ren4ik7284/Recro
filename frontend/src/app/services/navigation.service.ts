@@ -22,6 +22,13 @@ export interface RouteState {
   overlay?: AppOverlay | null;
 }
 
+/** Статические наборы вынесены на уровень модуля — не пересоздаются при каждом parseHash */
+const KNOWN_OVERLAYS = new Set<string>([
+  'lyrics', 'visualizer', 'player', 'queue', 'add', 'playlists',
+  'playlist-new', 'playlist-add', 'history', 'mix-settings', 'auth', 'wrapped', 'pwa',
+]);
+const KNOWN_TABS = new Set<string>(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline']);
+
 @Injectable({
   providedIn: 'root',
 })
@@ -66,39 +73,22 @@ export class NavigationService {
     if (!clean) return { tab: 'all', overlay: null };
 
     const parts = clean.split('/').filter(Boolean);
-    const OVERLAYS: Set<string> = new Set([
-      'lyrics',
-      'visualizer',
-      'player',
-      'queue',
-      'add',
-      'playlists',
-      'playlist-new',
-      'playlist-add',
-      'history',
-      'mix-settings',
-      'auth',
-      'wrapped',
-      'pwa',
-    ]);
-
-    const TABS: Set<string> = new Set(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline']);
 
     // Прямой оверлей без префикса вкладки (например #/lyrics)
-    if (OVERLAYS.has(parts[0])) {
+    if (KNOWN_OVERLAYS.has(parts[0])) {
       return { tab: this.currentTab() || 'all', overlay: parts[0] as AppOverlay };
     }
 
     // Вкладка плейлиста: #/playlist/:id или #/playlist/:id/lyrics
     if (parts[0] === 'playlist') {
       const plId = parts[1] || null;
-      const overlay = parts[2] && OVERLAYS.has(parts[2]) ? (parts[2] as AppOverlay) : null;
+      const overlay = parts[2] && KNOWN_OVERLAYS.has(parts[2]) ? (parts[2] as AppOverlay) : null;
       return { tab: 'playlist', playlistId: plId, overlay };
     }
 
     // Обычная вкладка: #/favorites или #/favorites/lyrics
-    if (TABS.has(parts[0])) {
-      const overlay = parts[1] && OVERLAYS.has(parts[1]) ? (parts[1] as AppOverlay) : null;
+    if (KNOWN_TABS.has(parts[0])) {
+      const overlay = parts[1] && KNOWN_OVERLAYS.has(parts[1]) ? (parts[1] as AppOverlay) : null;
       return { tab: parts[0] as AppTab, overlay };
     }
 

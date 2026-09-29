@@ -165,6 +165,7 @@ export class App implements OnInit {
 
   readonly isScrubbing = signal<boolean>(false);
   readonly scrubTime = signal<number>(0);
+  private toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   onScrubberInput(val: number) {
     this.isScrubbing.set(true);
@@ -492,14 +493,16 @@ export class App implements OnInit {
   }
 
   showToast(msg: string) {
+    // Отменяем предыдущий таймаут чтобы новый тост не обнулился раньше времени
+    if (this.toastTimeoutId !== null) {
+      clearTimeout(this.toastTimeoutId);
+    }
     this.toastMessage.set(msg);
-    setTimeout(() => {
-      if (this.toastMessage() === msg) {
-        this.toastMessage.set(null);
-      }
+    this.toastTimeoutId = setTimeout(() => {
+      this.toastMessage.set(null);
+      this.toastTimeoutId = null;
     }, 3000);
   }
-
 
   dismissGuestBanner() {
     this.isGuestBannerDismissed.set(true);
@@ -1093,14 +1096,14 @@ export class App implements OnInit {
     this.libraryService.addTrackToLibrary(track);
     this.audioService.playTrack(track, this.libraryService.tracks());
     this.showToast(`Воспроизведение: ${track.title}`);
-    this.offlineService.saveTrackOffline(track);
+    // Не скачиваем автоматически — пользователь должен явно нажать кнопку оффлайн
   }
 
   addOnlineTrackToLib(track: Track) {
     this.libraryService.addTrackToLibrary(track);
     this.audioService.playTrack(track, this.libraryService.tracks());
     this.showToast(`Трек "${track.title}" добавлен и воспроизводится`);
-    this.offlineService.saveTrackOffline(track);
+    // Не скачиваем автоматически — пользователь должен явно нажать кнопку оффлайн
   }
 
   async extractYouTubeUrl() {
@@ -1139,9 +1142,6 @@ export class App implements OnInit {
     this.libraryService.addTrackToLibrary(track);
     this.audioService.playTrack(track, this.libraryService.tracks());
     this.showToast(`Воспроизведение: ${track.title}`);
-
-    // Сохраняем в оффлайн кэш
-    this.offlineService.saveTrackOffline(track);
 
     this.closeAddModal();
     this.youtubeUrlInput.set('');

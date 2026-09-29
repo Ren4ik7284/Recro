@@ -243,8 +243,11 @@ export class RecommendationService {
       chill: Math.max(0.05, Math.min(0.98, chill)),
     };
 
-    if (this.vectorCache.size > 2500) {
-      this.vectorCache.clear();
+    // FIFO-вытеснение: удаляем только самый старый элемент вместо полного сброса.
+    // Map сохраняет insertion order — первый ключ всегда самый старый.
+    if (this.vectorCache.size >= 2500) {
+      const firstKey = this.vectorCache.keys().next().value;
+      if (firstKey !== undefined) this.vectorCache.delete(firstKey);
     }
     this.vectorCache.set(track.id, vector);
 
@@ -402,27 +405,31 @@ export class RecommendationService {
    * 3. Favorites
    */
   getAllLocalCandidates(): Track[] {
-    const map = new Map<string, Track>();
+    // Вызываем сигнал один раз — избегаем повторного чтения reactive state
+    const allTracks = this.libraryService.tracks();
+    const tracksById = new Map<string, Track>(allTracks.map(t => [t.id, t]));
+    const result = new Map<string, Track>();
 
-    // 1. Library tracks
-    for (const t of this.libraryService.tracks()) {
+    // 1. Library tracks — отфильтрованные
+    for (const t of allTracks) {
       if (!t.isLiveStream && !this.isDisliked(t.id)) {
-        map.set(t.id, t);
+        result.set(t.id, t);
       }
     }
 
-    // 2. Playlists
-    const plTracksMap = new Map(this.libraryService.tracks().map((t) => [t.id, t]));
+    // 2. Плейлисты — добавляем треки не вошедшие в основную библиотеку
+    //    (например треки из плейлиста удалённые из общей библиотеки)
     for (const pl of this.libraryService.playlists()) {
       for (const tId of pl.trackIds) {
-        const found = plTracksMap.get(tId);
+        if (result.has(tId)) continue; // уже есть — пропускаем
+        const found = tracksById.get(tId);
         if (found && !found.isLiveStream && !this.isDisliked(found.id)) {
-          map.set(found.id, found);
+          result.set(found.id, found);
         }
       }
     }
 
-    return Array.from(map.values());
+    return Array.from(result.values());
   }
 
   /**
