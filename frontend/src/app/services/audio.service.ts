@@ -239,10 +239,14 @@ export class AudioService {
   }
 
   private applyFadeIn(durationSec = 1.6) {
-    if (!this.gainNode || !this.audioCtx || !this.isCrossfadeEnabled()) return;
+    if (!this.gainNode || !this.audioCtx) return;
     try {
       const now = this.audioCtx.currentTime;
       this.gainNode.gain.cancelScheduledValues(now);
+      if (!this.isCrossfadeEnabled() || this.isLiveStream()) {
+        this.gainNode.gain.setValueAtTime(1.0, now);
+        return;
+      }
       this.gainNode.gain.setValueAtTime(0.02, now);
       this.gainNode.gain.linearRampToValueAtTime(1.0, now + durationSec);
     } catch {}
@@ -724,6 +728,13 @@ export class AudioService {
     const offlineBlobUrl = await this.offlineService.getOfflineBlobUrl(track.id);
     if (offlineBlobUrl) {
       playUrl = offlineBlobUrl;
+    }
+
+    if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3'))) {
+      const lower = (track.title || '').toLowerCase();
+      playUrl = (lower.includes('top 40') || track.id.includes('default-2') || playUrl.includes('top'))
+        ? 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3'
+        : 'https://ep128server.streamr.ru:8030/ep128';
     }
 
     // Discard stale request if a newer track was requested while resolving offline blob

@@ -1066,10 +1066,9 @@
           @if (isMobileDevice()) {
             <button class="btn-pwa-banner font-mono" (click)="installPwa()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
-                <line x1="12" y1="18" x2="12.01" y2="18"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Установить приложение на телефон</span>
+              <span>Скачать приложение (APK)</span>
             </button>
           }
 
@@ -1819,8 +1818,8 @@
       <div class="modal-dialog pwa-install-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
-            <h3 class="modal-title">Установка Recro</h3>
-            <p class="modal-subtitle">Приложение без рамок браузера на вашем телефоне</p>
+            <h3 class="modal-title">Приложение Recro</h3>
+            <p class="modal-subtitle">Слушайте музыку и радио без ограничений браузера</p>
           </div>
           <button class="btn-close-sm" (click)="closePwaModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1829,15 +1828,6 @@
           </button>
         </div>
         <div class="modal-body pwa-instructions-body">
-          @if (pwaService.isInAppBrowser()) {
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">!</div>
-              <div class="pwa-step-text">
-                Вы открыли плеер во встроенном браузере (Telegram / VK). Нажмите <strong>«•••»</strong> вверху и выберите <strong>«Открыть в браузере»</strong> (Chrome или Safari), чтобы установить приложение.
-              </div>
-            </div>
-          }
-
           @if (isIos()) {
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">1</div>
@@ -1858,48 +1848,43 @@
               </div>
             </div>
           } @else {
+            <a href="/recro.apk" download="recro.apk" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 600; padding: 13px 16px; margin-bottom: 14px; background: #22c55e; color: #000; border-radius: 8px;" (click)="showToast('Загрузка Recro APK началась')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Скачать APK на телефон</span>
+            </a>
+
+            <div class="pwa-step-item">
+              <div class="pwa-step-num font-mono">1</div>
+              <div class="pwa-step-text">
+                Нажмите зелёную кнопку <strong>«Скачать APK на телефон»</strong> выше.
+              </div>
+            </div>
+            <div class="pwa-step-item">
+              <div class="pwa-step-num font-mono">2</div>
+              <div class="pwa-step-text">
+                Откройте скачанный файл <strong>recro.apk</strong> в шторке уведомлений или в папке «Загрузки».
+              </div>
+            </div>
+            <div class="pwa-step-item">
+              <div class="pwa-step-num font-mono">3</div>
+              <div class="pwa-step-text">
+                Нажмите <strong>«Установить»</strong> (при необходимости разрешите установку для браузера в настройках Android).
+              </div>
+            </div>
+
             @if (canInstallPwa()) {
-              <div class="pwa-step-item">
-                <div class="pwa-step-num font-mono">✓</div>
-                <div class="pwa-step-text">
-                  Браузер готов к быстрой установке. Нажмите кнопку <strong>«Установить приложение»</strong> ниже.
-                </div>
-              </div>
-            } @else {
-              <div class="pwa-step-item">
-                <div class="pwa-step-num font-mono">1</div>
-                <div class="pwa-step-text">
-                  В правом верхнем углу браузера нажмите меню <strong>(три точки ⋮)</strong>.
-                </div>
-              </div>
-              <div class="pwa-step-item">
-                <div class="pwa-step-num font-mono">2</div>
-                <div class="pwa-step-text">
-                  Выберите пункт <strong>«Установить приложение»</strong> или <strong>«Добавить на главный экран»</strong>.
-                </div>
-              </div>
-              <div class="pwa-step-item">
-                <div class="pwa-step-num font-mono">3</div>
-                <div class="pwa-step-text">
-                  Подтвердите установку. Иконка плеера появится на рабочем столе.
-                </div>
-              </div>
+              <button class="btn-cancel-action font-mono" style="width: 100%; margin-top: 10px; font-size: 11px; padding: 8px 12px;" (click)="pwaService.promptInstall()">
+                ⚡ Или установить через браузер (PWA)
+              </button>
             }
           }
         </div>
         <div class="modal-footer" style="display: flex; gap: 8px;">
-          @if (canInstallPwa()) {
-            <button class="btn-confirm-action" style="flex: 1; text-align: center;" (click)="installPwa()">
-              Установить сейчас
-            </button>
-            <button class="btn-cancel-action" (click)="closePwaModal()">
-              Закрыть
-            </button>
-          } @else {
-            <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="closePwaModal()">
-              Понятно
-            </button>
-          }
+          <button class="btn-cancel-action" style="width: 100%; text-align: center;" (click)="closePwaModal()">
+            Закрыть
+          </button>
         </div>
       </div>
     </div>

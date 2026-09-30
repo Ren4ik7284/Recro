@@ -261,6 +261,17 @@ export class App implements OnInit {
     });
   }
 
+  downloadApk() {
+    if (typeof document === 'undefined') return;
+    const a = document.createElement('a');
+    a.href = '/recro.apk';
+    a.download = 'recro.apk';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    this.showToast('Загрузка Recro APK началась');
+  }
+
   async openPwaInstallModal(pushHistory = true) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
@@ -271,14 +282,9 @@ export class App implements OnInit {
       return;
     }
 
-    const outcome = await this.pwaService.promptInstall();
-    if (outcome === 'accepted') {
-      this.showToast('Приложение успешно установлено');
-    } else {
-      this.pwaService.openInstallModal();
-      if (pushHistory) {
-        this.navService.pushOverlay('pwa');
-      }
+    this.pwaService.openInstallModal();
+    if (pushHistory) {
+      this.navService.pushOverlay('pwa');
     }
     this.cdr.markForCheck();
   }
@@ -289,6 +295,16 @@ export class App implements OnInit {
   }
 
   installPwa() {
+    if (this.isMobilePlaylistsOpen()) {
+      this.closeMobilePlaylists();
+    }
+
+    if (this.pwaService.isStandalone()) {
+      this.showToast('Плеер уже открыт в отдельном приложении');
+      return;
+    }
+
+    this.downloadApk();
     this.openPwaInstallModal();
   }
 

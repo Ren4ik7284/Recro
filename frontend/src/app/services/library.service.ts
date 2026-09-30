@@ -273,6 +273,7 @@ export class LibraryService implements OnDestroy {
 
     // Очищаем любые устаревшие демонстрационные треки
     savedTracks = (savedTracks || []).filter((t) => !t.id.startsWith('default-track-') && !t.id.startsWith('starter-'));
+    savedTracks = this.sanitizeTracks(savedTracks);
     try {
       localStorage.setItem(this.STORAGE_KEY_TRACKS, JSON.stringify(savedTracks));
     } catch {}
@@ -610,7 +611,7 @@ export class LibraryService implements OnDestroy {
 
       if (forceCloud || localTracks.length === 0 || cloudUpdatedAt > localUpdatedAt) {
         const rawTracks: Track[] = Array.isArray(data.tracks) ? data.tracks : [];
-        const cloudTracks: Track[] = rawTracks.filter((t: Track) => !t.id.startsWith('default-track-'));
+        const cloudTracks: Track[] = this.sanitizeTracks(rawTracks.filter((t: Track) => !t.id.startsWith('default-track-')));
         const cloudPlaylists: Playlist[] = Array.isArray(data.playlists) ? data.playlists : [];
         const cloudStations: RadioStation[] = this.sanitizeStations(
           Array.isArray(data.radio_stations) && data.radio_stations.length > 0
@@ -627,7 +628,7 @@ export class LibraryService implements OnDestroy {
         const localNonCloud = localTracks.filter(
           (lt) => !cloudTracks.some((ct) => ct.id === lt.id || (ct.audioUrl && ct.audioUrl === lt.audioUrl))
         );
-        const mergedTracks = [...cloudTracks, ...localNonCloud];
+        const mergedTracks = this.sanitizeTracks([...cloudTracks, ...localNonCloud]);
 
         this.tracks.set(mergedTracks);
         this.playlists.set(cloudPlaylists.length > 0 ? cloudPlaylists : this.playlists());
@@ -656,8 +657,10 @@ export class LibraryService implements OnDestroy {
         const currentTracks = this.tracks();
         const localIds = new Set(currentTracks.map((t) => t.id));
         const localUrls = new Set(currentTracks.map((t) => t.audioUrl));
-        const missingFromLocal = (data.tracks as Track[]).filter(
-          (t) => !localIds.has(t.id) && !localUrls.has(t.audioUrl)
+        const missingFromLocal = this.sanitizeTracks(
+          (data.tracks as Track[]).filter(
+            (t) => !localIds.has(t.id) && !localUrls.has(t.audioUrl)
+          )
         );
         if (missingFromLocal.length > 0) {
           this.tracks.update((cur) => [...missingFromLocal, ...cur]);
@@ -874,6 +877,36 @@ export class LibraryService implements OnDestroy {
     }
 
     return sanitized;
+  }
+
+  sanitizeTracks(tracks: Track[]): Track[] {
+    if (!Array.isArray(tracks)) return [];
+    const isBroken = (url: string) =>
+      !url ||
+      url.includes(':8052') ||
+      url.includes('wostreaming.net') ||
+      url.includes('stream.zeno.fm') ||
+      url.includes('ep256.hostingradio.ru') ||
+      url.includes('europaplus256.mp3');
+
+    return tracks.map((t) => {
+      if (!t.audioUrl) return t;
+      const lowerTitle = (t.title || '').toLowerCase();
+      const isRadio = t.isLiveStream || t.id.startsWith('radio-') || lowerTitle.includes('европа плюс') || lowerTitle.includes('europa plus');
+      if (isRadio && isBroken(t.audioUrl)) {
+        const isTop = lowerTitle.includes('top 40') || t.id.includes('default-2') || t.audioUrl.includes('top');
+        const newUrl = isTop
+          ? 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3'
+          : 'https://ep128server.streamr.ru:8030/ep128';
+        return {
+          ...t,
+          audioUrl: newUrl,
+          bitrate: isTop ? '256k MP3' : '128k MP3',
+          isLiveStream: true,
+        };
+      }
+      return t;
+    });
   }
 
   resetDefaultStations() {

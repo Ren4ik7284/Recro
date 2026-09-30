@@ -216,6 +216,14 @@ pub async fn stream_audio(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    if target.contains(":8052") || target.contains("ep256.hostingradio.ru") || target.contains("europaplus256.mp3") {
+        if target.contains("top") || target.contains("256") {
+            target = "https://europaplus.hostingradio.ru:8014/ep-top256.mp3".to_string();
+        } else {
+            target = "https://ep128server.streamr.ru:8030/ep128".to_string();
+        }
+    }
+
     if target.starts_with("http://") || target.starts_with("https://") {
         let is_trusted_music_domain = target.contains("youtube.com")
             || target.contains("youtu.be")
