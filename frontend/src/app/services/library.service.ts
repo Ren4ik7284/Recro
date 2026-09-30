@@ -277,15 +277,10 @@ export class LibraryService implements OnDestroy {
       localStorage.setItem(this.STORAGE_KEY_TRACKS, JSON.stringify(savedTracks));
     } catch {}
 
-    const hasBrokenStations = savedStations.some(
-      (s) => s.streamUrl.includes(':8052') || s.streamUrl.includes('wostreaming.net') || s.streamUrl.includes('stream.zeno.fm')
-    );
-    if (!savedStations || savedStations.length === 0 || hasBrokenStations) {
-      savedStations = [...this.defaultRadioStations];
-      try {
-        localStorage.setItem(this.STORAGE_KEY_STATIONS, JSON.stringify(savedStations));
-      } catch {}
-    }
+    savedStations = this.sanitizeStations(savedStations);
+    try {
+      localStorage.setItem(this.STORAGE_KEY_STATIONS, JSON.stringify(savedStations));
+    } catch {}
 
     const processedTracks = savedTracks.map((t) => ({
       ...t,
@@ -617,9 +612,11 @@ export class LibraryService implements OnDestroy {
         const rawTracks: Track[] = Array.isArray(data.tracks) ? data.tracks : [];
         const cloudTracks: Track[] = rawTracks.filter((t: Track) => !t.id.startsWith('default-track-'));
         const cloudPlaylists: Playlist[] = Array.isArray(data.playlists) ? data.playlists : [];
-        const cloudStations: RadioStation[] = Array.isArray(data.radio_stations) && data.radio_stations.length > 0
-          ? data.radio_stations
-          : [...this.defaultRadioStations];
+        const cloudStations: RadioStation[] = this.sanitizeStations(
+          Array.isArray(data.radio_stations) && data.radio_stations.length > 0
+            ? data.radio_stations
+            : [...this.defaultRadioStations]
+        );
 
         if (cloudTracks.length === 0 && localTracks.length > 0) {
           await this.pushLibraryToBackend();
@@ -831,6 +828,52 @@ export class LibraryService implements OnDestroy {
   removeRadioStation(stationId: string) {
     this.radioStations.update((cur) => cur.filter((s) => s.id !== stationId));
     this.persistStations();
+  }
+
+  sanitizeStations(stations: RadioStation[]): RadioStation[] {
+    if (!Array.isArray(stations) || stations.length === 0) {
+      return [...this.defaultRadioStations];
+    }
+
+    const isBroken = (url: string) =>
+      !url ||
+      url.includes(':8052') ||
+      url.includes('wostreaming.net') ||
+      url.includes('stream.zeno.fm') ||
+      url.includes('ep256.hostingradio.ru') ||
+      url.includes('europaplus256.mp3');
+
+    const sanitized = stations
+      .map((st) => {
+        const lowerName = (st.name || '').toLowerCase();
+        if (lowerName.includes('europa plus') || st.id === 'default-2' || isBroken(st.streamUrl)) {
+          if (lowerName.includes('top 40') || st.id === 'default-2') {
+            return {
+              ...st,
+              streamUrl: 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3',
+              bitrate: '256k MP3'
+            };
+          }
+          if (lowerName.includes('europa plus')) {
+            return {
+              ...st,
+              streamUrl: 'https://ep128server.streamr.ru:8030/ep128',
+              bitrate: '128k MP3'
+            };
+          }
+        }
+        return st;
+      })
+      .filter((st) => !isBroken(st.streamUrl));
+
+    // Ensure all default radio stations exist
+    for (const def of this.defaultRadioStations) {
+      if (!sanitized.some((s) => s.id === def.id || (s.name && s.name.toLowerCase() === def.name.toLowerCase()))) {
+        sanitized.push(def);
+      }
+    }
+
+    return sanitized;
   }
 
   resetDefaultStations() {

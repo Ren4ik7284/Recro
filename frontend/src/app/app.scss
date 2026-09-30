@@ -3265,7 +3265,8 @@
     flex-shrink: 0;
 
     .m-nav-item {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
       height: 100%;
       background: transparent;
       border: none;
@@ -3274,13 +3275,26 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
-      font-size: 10px;
+      gap: 2px;
+      padding: 4px 1px;
+      font-size: 9.5px;
       font-weight: 500;
       cursor: pointer;
+      overflow: hidden;
 
       svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
         stroke-width: 2;
+      }
+
+      span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        line-height: 1.1;
       }
 
       &.active {
