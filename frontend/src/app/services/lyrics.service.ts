@@ -63,26 +63,56 @@ export class LyricsService {
 
   private rafId: number | null = null;
 
+  private lastReportedAudioTime = 0;
+  private lastAudioTimeTimestamp = 0;
+
+  /** Высокоточное сглаживание времени с субмиллисекундной интерполяцией между тиками браузера */
+  getSmoothedCurrentTime(): number {
+    const raw = this.audioService.getPreciseCurrentTime();
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+    // Если плеер на паузе или был совершен ручной перемот (>0.4с) - мгновенный сброс базы
+    if (!this.audioService.isPlaying() || Math.abs(raw - this.lastReportedAudioTime) > 0.4) {
+      this.lastReportedAudioTime = raw;
+      this.lastAudioTimeTimestamp = now;
+      return raw;
+    }
+
+    // Если аудиотег совершил очередной тик вперед
+    if (raw !== this.lastReportedAudioTime) {
+      this.lastReportedAudioTime = raw;
+      this.lastAudioTimeTimestamp = now;
+      return raw;
+    }
+
+    // Между тиками HTML5 Audio интерполируем время со скоростью 1.0x для идеальной плавности 60 FPS
+    const dt = (now - this.lastAudioTimeTimestamp) / 1000;
+    if (dt > 0 && dt < 0.28) {
+      return this.lastReportedAudioTime + dt;
+    }
+
+    return raw;
+  }
+
   // Индекс активной строки текста в зависимости от текущего времени трека
   readonly activeLineIndex = computed<number>(() => {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    // Vocal attack lead time for 100% natural sync with the artist's voice
     const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
 
-    // Во время инструментального вступления до первой строчки текста — возвращаем -1
-    if (t < lyrics.lines[0].startTime) {
+    // Во время вступительного инструментального проигрыша до первой строчки текста (с защитой от дребезга 0.12с)
+    if (t < lyrics.lines[0].startTime - 0.12) {
       return -1;
     }
 
     let activeIdx = 0;
     for (let i = 0; i < lyrics.lines.length; i++) {
       const line = lyrics.lines[i];
-      if (line.startTime >= 0 && t >= line.startTime) {
+      if (line.startTime >= 0 && t >= line.startTime - 0.04) {
         activeIdx = i;
-      } else if (line.startTime > t) {
+      } else if (line.startTime - 0.04 > t) {
         break;
       }
     }
@@ -90,19 +120,30 @@ export class LyricsService {
     return activeIdx;
   });
 
-  // Показывает, звучит ли прямо сейчас голос исполнителя или идет музыкальная пауза / проигрыш
+  // Показывает, звучит ли прямо сейчас голос исполнителя или идет длинный музыкальный проигрыш
   readonly isLineSinging = computed<boolean>(() => {
     const idx = this.activeLineIndex();
     const lyrics = this.currentLyrics();
     if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return false;
 
     const line = lyrics.lines[idx];
+    const next = idx < lyrics.lines.length - 1 ? lyrics.lines[idx + 1] : null;
     const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
 
     if (t < line.startTime) return false;
-    const endTime = line.endTime ?? (idx < lyrics.lines.length - 1 ? lyrics.lines[idx + 1].startTime : line.startTime + 4.5);
-    return t <= endTime + 0.25;
+
+    // Линия никогда не гаснет преждевременно!
+    // Только если между строками реальный гитарный/электронный проигрыш (>6.5 секунд),
+    // строка мягко переходит в состояние интерлюдии во второй половине паузы
+    if (next && next.startTime - line.startTime > 6.5) {
+      const vocalDuration = line.endTime && line.endTime > line.startTime
+        ? (line.endTime - line.startTime)
+        : Math.min(6.0, (next.startTime - line.startTime) * 0.48);
+      return t <= line.startTime + vocalDuration;
+    }
+
+    return true;
   });
 
   // Прогресс воспроизведения внутри текущей строки (0..1)
@@ -145,7 +186,7 @@ export class LyricsService {
       this.updateIntervalId = setInterval(() => {
         if (!this.isLyricsOpen()) {
           if (this.audioService.isPlaying()) {
-            this.precisePlaybackTime.set(this.audioService.getPreciseCurrentTime());
+            this.precisePlaybackTime.set(this.getSmoothedCurrentTime());
           } else {
             this.precisePlaybackTime.set(this.audioService.currentTime());
           }
@@ -180,7 +221,7 @@ export class LyricsService {
 
     const loop = () => {
       if (this.isLyricsOpen()) {
-        const exact = this.audioService.getPreciseCurrentTime();
+        const exact = this.getSmoothedCurrentTime();
         this.precisePlaybackTime.set(exact);
         this.rafId = requestAnimationFrame(loop);
       } else {
@@ -420,17 +461,25 @@ export class LyricsService {
     this.bpmService.startDetectionForTrack(targetTrackId, serverMeta?.bpm ?? null);
 
     // Восстанавливаем сохраненный оффсет таймингов: приоритет локальному localStorage, затем серверной БД
+    let hasExplicitOffset = false;
     try {
       const savedOffset = localStorage.getItem(`signal_lyrics_offset_${targetTrackId}`);
       if (savedOffset !== null) {
         this.syncOffsetMs.set(parseInt(savedOffset, 10) || 0);
+        hasExplicitOffset = true;
       } else if (serverMeta && serverMeta.lyrics_offset_ms !== undefined && serverMeta.lyrics_offset_ms !== 0) {
         this.syncOffsetMs.set(serverMeta.lyrics_offset_ms);
+        hasExplicitOffset = true;
       } else {
         this.syncOffsetMs.set(0);
       }
     } catch {
-      this.syncOffsetMs.set(serverMeta?.lyrics_offset_ms ?? 0);
+      if (serverMeta?.lyrics_offset_ms) {
+        this.syncOffsetMs.set(serverMeta.lyrics_offset_ms);
+        hasExplicitOffset = true;
+      } else {
+        this.syncOffsetMs.set(0);
+      }
     }
 
     // 2. Проверяем локальный сохраненный пользователем текст
@@ -507,6 +556,19 @@ export class LyricsService {
               this.isLoading.set(false);
               this.persistLyricsToCloud(track, data.lyrics);
 
+              // Автоматическая компенсация клипового интро (YouTube video duration vs studio LRC duration)
+              if (!hasExplicitOffset) {
+                const audioDur = track.duration || this.audioService.duration() || 0;
+                const lrcDur = parsed.duration || data.duration || 0;
+                if (audioDur > 20 && lrcDur > 20) {
+                  const delta = audioDur - lrcDur;
+                  if (Math.abs(delta) >= 1.5 && Math.abs(delta) <= 25.0) {
+                    const autoOffsetMs = -Math.round(delta * 1000);
+                    this.syncOffsetMs.set(autoOffsetMs);
+                  }
+                }
+              }
+
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
                 const lastLine = parsed.lines[parsed.lines.length - 1];
@@ -547,6 +609,19 @@ export class LyricsService {
         this.isLoading.set(false);
         if (lyricsData.raw) {
           this.persistLyricsToCloud(track, lyricsData.raw);
+        }
+
+        // Автоматическая компенсация клипового интро (YouTube video duration vs studio LRC duration)
+        if (!hasExplicitOffset) {
+          const audioDur = track.duration || this.audioService.duration() || 0;
+          const lrcDur = lyricsData.duration || 0;
+          if (audioDur > 20 && lrcDur > 20) {
+            const delta = audioDur - lrcDur;
+            if (Math.abs(delta) >= 1.5 && Math.abs(delta) <= 25.0) {
+              const autoOffsetMs = -Math.round(delta * 1000);
+              this.syncOffsetMs.set(autoOffsetMs);
+            }
+          }
         }
 
         // Восстанавливаем длительность трека, если она отсутствовала или была 0

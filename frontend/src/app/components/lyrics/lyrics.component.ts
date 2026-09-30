@@ -86,14 +86,16 @@ export class LyricsComponent {
 
     if (lineElement) {
       this.lastScrolledIndex = index;
-      const containerHeight = container.clientHeight;
-      const lineTop = lineElement.offsetTop;
-      const lineHeight = lineElement.clientHeight;
+      const containerRect = container.getBoundingClientRect();
+      const lineRect = lineElement.getBoundingClientRect();
 
-      const targetScrollTop = lineTop - containerHeight / 2 + lineHeight / 2;
+      // Абсолютно точный расчет положения в контейнере без сдвигов от CSS transforms
+      const currentScrollTop = container.scrollTop;
+      const relativeTop = lineRect.top - containerRect.top;
+      const targetScrollTop = currentScrollTop + relativeTop - (containerRect.height / 2) + (lineRect.height / 2);
 
       container.scrollTo({
-        top: Math.max(0, targetScrollTop),
+        top: Math.max(0, Math.round(targetScrollTop)),
         behavior: 'smooth',
       });
     }

@@ -29,11 +29,20 @@
     <div class="lyrics-actions-group">
       @if (lyricsService.currentLyrics()?.isSynced) {
         <div class="lyrics-offset-controls font-mono" title="Коррекция смещения текста">
+          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-1000)" title="Задержать текст на 1.0с">-1s</button>
           <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-200)" title="Задержать текст на 0.2с">-0.2s</button>
+          <button type="button" class="btn-snap-vocal" (click)="lyricsService.syncNowToCurrentVoice()" title="Синхронизировать в такт вокалу прямо сейчас">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span>В такт</span>
+          </button>
+          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(200)" title="Ускорить текст на 0.2с">+0.2s</button>
+          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(1000)" title="Ускорить текст на 1.0с">+1s</button>
           <span class="offset-value" [class.shifted]="lyricsService.syncOffsetMs() !== 0" (click)="lyricsService.resetOffset()" title="Текущее смещение (клик для сброса)">
             {{ formatOffset(lyricsService.syncOffsetMs()) }}
           </span>
-          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(200)" title="Ускорить текст на 0.2с">+0.2s</button>
           @if (lyricsService.syncOffsetMs() !== 0) {
             <button type="button" class="btn-offset-reset" (click)="lyricsService.resetOffset()" title="Сбросить смещение">0</button>
           }
@@ -220,9 +229,9 @@
               <div 
                 class="lyric-line-item"
                 [attr.data-line-index]="i"
-                [class.active]="i === lyricsService.activeLineIndex() && lyricsService.isLineSinging()"
+                [class.active]="i === lyricsService.activeLineIndex()"
                 [class.active-interlude]="i === lyricsService.activeLineIndex() && !lyricsService.isLineSinging()"
-                [class.past]="i < lyricsService.activeLineIndex() || (i === lyricsService.activeLineIndex() && !lyricsService.isLineSinging())"
+                [class.past]="i < lyricsService.activeLineIndex()"
                 [class.future]="i > lyricsService.activeLineIndex()"
                 (click)="onLineClick(line)"
                 title="Нажмите для перемотки на эту строку"

@@ -168,13 +168,21 @@ fn calc_match_score(
         return 0.0;
     }
 
-    // 1. Duration check first: if > 45s diff, strictly reject
+    // 1. Duration check: strict rejection if > 45s diff, bonus for close match
     let mut dur_penalty = 0.0;
+    let mut dur_bonus = 0.0;
     if let (Some(ed), Some(cd)) = (exp_dur, cand_dur) {
         if ed > 20.0 && cd > 20.0 {
             let diff = (ed - cd).abs();
             if diff > 45.0 {
                 return 0.0;
+            }
+            if diff <= 2.5 {
+                dur_bonus = 25.0; // Near-identical audio cut / mastering
+            } else if diff <= 6.0 {
+                dur_bonus = 15.0;
+            } else if diff <= 12.0 {
+                dur_bonus = 5.0;
             }
             if diff > 15.0 {
                 dur_penalty = (diff - 15.0) * 0.8;
@@ -268,7 +276,7 @@ fn calc_match_score(
 
     let synced_bonus = if has_synced { 20.0 } else { 0.0 };
 
-    (artist_score + title_score + synced_bonus - dur_penalty).max(0.0)
+    (artist_score + title_score + synced_bonus + dur_bonus - dur_penalty).max(0.0)
 }
 
 async fn fetch_lrclib(
