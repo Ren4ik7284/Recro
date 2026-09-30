@@ -94,25 +94,37 @@ export class LyricsService {
     return raw;
   }
 
+  // Динамическое упреждение под темп песни (BPM):
+  // Быстрый трек (150-180 BPM, рэп/фонк) -> упреждение ~0.18-0.20с (четко, без забегания вперед)
+  // Средний трек (100-130 BPM, поп/рок) -> упреждение ~0.24-0.26с (идеальная синхронизация с дыханием)
+  // Медленный трек (60-80 BPM, медляки/лирика) -> упреждение ~0.30-0.34с (комфортно для глаз)
+  getVocalLeadTimeSec(): number {
+    const bpm = this.currentBpm();
+    if (bpm && bpm >= 50 && bpm <= 220) {
+      return Math.max(0.18, Math.min(0.34, (60 / bpm) * 0.48));
+    }
+    return 0.24;
+  }
+
   // Индекс активной строки текста в зависимости от текущего времени трека
   readonly activeLineIndex = computed<number>(() => {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
+    const leadTimeSec = this.getVocalLeadTimeSec();
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
 
-    // Во время вступительного инструментального проигрыша до первой строчки текста (с защитой от дребезга 0.12с)
-    if (t < lyrics.lines[0].startTime - 0.12) {
+    // Во время вступительного инструментального проигрыша до первой строчки текста
+    if (t < lyrics.lines[0].startTime) {
       return -1;
     }
 
     let activeIdx = 0;
     for (let i = 0; i < lyrics.lines.length; i++) {
       const line = lyrics.lines[i];
-      if (line.startTime >= 0 && t >= line.startTime - 0.04) {
+      if (line.startTime >= 0 && t >= line.startTime) {
         activeIdx = i;
-      } else if (line.startTime - 0.04 > t) {
+      } else if (line.startTime > t) {
         break;
       }
     }
@@ -120,29 +132,11 @@ export class LyricsService {
     return activeIdx;
   });
 
-  // Показывает, звучит ли прямо сейчас голос исполнителя или идет длинный музыкальный проигрыш
+  // Активная строка ВСЕГДА ярко подсвечена и никогда не гаснет раньше времени!
   readonly isLineSinging = computed<boolean>(() => {
     const idx = this.activeLineIndex();
     const lyrics = this.currentLyrics();
     if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return false;
-
-    const line = lyrics.lines[idx];
-    const next = idx < lyrics.lines.length - 1 ? lyrics.lines[idx + 1] : null;
-    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
-
-    if (t < line.startTime) return false;
-
-    // Линия никогда не гаснет преждевременно!
-    // Только если между строками реальный гитарный/электронный проигрыш (>6.5 секунд),
-    // строка мягко переходит в состояние интерлюдии во второй половине паузы
-    if (next && next.startTime - line.startTime > 6.5) {
-      const vocalDuration = line.endTime && line.endTime > line.startTime
-        ? (line.endTime - line.startTime)
-        : Math.min(6.0, (next.startTime - line.startTime) * 0.48);
-      return t <= line.startTime + vocalDuration;
-    }
-
     return true;
   });
 
@@ -353,7 +347,7 @@ export class LyricsService {
 
   // Проверка спето ли слово (для пословного караоке)
   isWordSung(word: LyricWord): boolean {
-    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
+    const leadTimeSec = this.getVocalLeadTimeSec() * 0.75;
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
     return t >= word.startTime;
   }
@@ -841,22 +835,12 @@ export class LyricsService {
         const cur = finalLines[i];
         const next = i < finalLines.length - 1 ? finalLines[i + 1] : null;
 
-        // Реалистичная оценка длительности пения фразы (~0.38с на слово + 0.6с затухание)
-        const words = cur.text.trim().split(/\s+/).filter(Boolean);
-        const estimatedPhraseSec = Math.max(1.8, Math.min(8.0, words.length * 0.38 + 0.6));
-
+        // Строка остаётся активной вплоть до начала следующей фразы (без преждевременного потухания)
         if (!cur.endTime || cur.endTime <= cur.startTime) {
           if (next && next.startTime > cur.startTime) {
-            const gap = next.startTime - cur.startTime;
-            // Если до следующей строки длинная пауза (проигрыш/соло > estimatedPhrase + 1.2с),
-            // завершаем строку вовремя, чтобы текст не зависал активным во время молчания
-            if (gap > estimatedPhraseSec + 1.2) {
-              cur.endTime = cur.startTime + estimatedPhraseSec;
-            } else {
-              cur.endTime = next.startTime;
-            }
+            cur.endTime = next.startTime;
           } else {
-            cur.endTime = cur.startTime + estimatedPhraseSec;
+            cur.endTime = cur.startTime + 5.0;
           }
         }
       }
