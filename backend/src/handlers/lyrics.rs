@@ -602,70 +602,88 @@ async fn fetch_netease(
     artist: &str,
     duration: Option<f64>,
 ) -> Option<LyricsResponse> {
-    let query = if !artist.is_empty() {
-        format!("{} {}", artist, title)
-    } else {
-        title.to_string()
-    };
+    let mut queries = Vec::new();
+    if !artist.is_empty() {
+        queries.push(format!("{} {}", artist, title));
+    }
+    queries.push(title.to_string());
 
-    let search_url = format!(
-        "http://music.163.com/api/search/get?s={}&type=1&limit=5",
-        urlencoding::encode(&query)
-    );
-
-    let res = client
-        .get(&search_url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .timeout(std::time::Duration::from_millis(2500))
-        .send()
-        .await
-        .ok()?;
-
-    let json: serde_json::Value = res.json().await.ok()?;
-    let songs = json["result"]["songs"].as_array()?;
-
-    for song in songs {
-        let cand_id = match song["id"].as_i64() {
-            Some(id) => id,
-            None => continue,
-        };
-        let cand_title = song["name"].as_str().unwrap_or("");
-        let cand_artist = song["artists"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(|a| a["name"].as_str())
-            .unwrap_or("");
-        let cand_dur = song["duration"].as_f64().map(|ms| ms / 1000.0);
-
-        let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, true);
-        if score < 45.0 {
-            continue;
-        }
-
-        let lrc_url = format!(
-            "http://music.163.com/api/song/lyric?os=pc&id={}&lv=-1&kv=-1&tv=-1",
-            cand_id
+    for query in queries {
+        let search_url = format!(
+            "https://music.163.com/api/search/get?s={}&type=1&limit=5",
+            urlencoding::encode(&query)
         );
-        let lrc_res = client
-            .get(&lrc_url)
-            .header("User-Agent", "Mozilla/5.0")
+
+        let res = client
+            .get(&search_url)
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+            .header("Referer", "https://music.163.com")
             .timeout(std::time::Duration::from_millis(2500))
             .send()
             .await
-            .ok()?;
+            .ok();
 
-        let lrc_json: serde_json::Value = lrc_res.json().await.ok()?;
-        let raw_lrc = lrc_json["lrc"]["lyric"].as_str().unwrap_or("").trim();
+        let res = match res {
+            Some(r) => r,
+            None => continue,
+        };
 
-        if raw_lrc.contains('[') && raw_lrc.contains(']') && raw_lrc.len() > 30 {
-            return Some(LyricsResponse {
-                synced: true,
-                lyrics: raw_lrc.to_string(),
-                source: "netease".to_string(),
-                track_name: Some(cand_title.to_string()),
-                artist_name: Some(cand_artist.to_string()),
-                duration: cand_dur,
-            });
+        let json: serde_json::Value = match res.json().await {
+            Ok(j) => j,
+            Err(_) => continue,
+        };
+        let songs = match json["result"]["songs"].as_array() {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
+
+        for song in songs {
+            let cand_id = match song["id"].as_i64() {
+                Some(id) => id,
+                None => continue,
+            };
+            let cand_title = song["name"].as_str().unwrap_or("");
+            let cand_artist = song["artists"]
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|a| a["name"].as_str())
+                .unwrap_or("");
+            let cand_dur = song["duration"].as_f64().map(|ms| ms / 1000.0);
+
+            let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, true);
+            if score < 45.0 {
+                continue;
+            }
+
+            let lrc_url = format!(
+                "https://music.163.com/api/song/lyric?os=pc&id={}&lv=-1&kv=-1&tv=-1",
+                cand_id
+            );
+            let lrc_res = client
+                .get(&lrc_url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+                .header("Referer", "https://music.163.com")
+                .timeout(std::time::Duration::from_millis(2500))
+                .send()
+                .await
+                .ok();
+
+            if let Some(resp) = lrc_res {
+                if let Ok(lrc_json) = resp.json::<serde_json::Value>().await {
+                    let raw_lrc = lrc_json["lrc"]["lyric"].as_str().unwrap_or("").trim();
+
+                    if raw_lrc.contains('[') && raw_lrc.contains(']') && raw_lrc.len() > 30 {
+                        return Some(LyricsResponse {
+                            synced: true,
+                            lyrics: raw_lrc.to_string(),
+                            source: "netease".to_string(),
+                            track_name: Some(cand_title.to_string()),
+                            artist_name: Some(cand_artist.to_string()),
+                            duration: cand_dur,
+                        });
+                    }
+                }
+            }
         }
     }
 

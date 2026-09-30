@@ -473,21 +473,26 @@ export class LyricsService {
     try {
       const savedOffset = localStorage.getItem(`signal_lyrics_offset_${targetTrackId}`);
       if (savedOffset !== null) {
-        this.syncOffsetMs.set(parseInt(savedOffset, 10) || 0);
-        hasExplicitOffset = true;
+        const val = parseInt(savedOffset, 10);
+        if (!isNaN(val) && Math.abs(val) <= 6000) {
+          this.syncOffsetMs.set(val);
+          hasExplicitOffset = true;
+        } else {
+          this.syncOffsetMs.set(0);
+          localStorage.removeItem(`signal_lyrics_offset_${targetTrackId}`);
+        }
       } else if (serverMeta && serverMeta.lyrics_offset_ms !== undefined && serverMeta.lyrics_offset_ms !== 0) {
-        this.syncOffsetMs.set(serverMeta.lyrics_offset_ms);
-        hasExplicitOffset = true;
+        if (Math.abs(serverMeta.lyrics_offset_ms) <= 6000) {
+          this.syncOffsetMs.set(serverMeta.lyrics_offset_ms);
+          hasExplicitOffset = true;
+        } else {
+          this.syncOffsetMs.set(0);
+        }
       } else {
         this.syncOffsetMs.set(0);
       }
     } catch {
-      if (serverMeta?.lyrics_offset_ms) {
-        this.syncOffsetMs.set(serverMeta.lyrics_offset_ms);
-        hasExplicitOffset = true;
-      } else {
-        this.syncOffsetMs.set(0);
-      }
+      this.syncOffsetMs.set(0);
     }
 
     // 2. Проверяем локальный сохраненный пользователем текст
@@ -564,19 +569,6 @@ export class LyricsService {
               this.isLoading.set(false);
               this.persistLyricsToCloud(track, data.lyrics);
 
-              // Автоматическая компенсация клипового интро (YouTube video duration vs studio LRC duration)
-              if (!hasExplicitOffset) {
-                const audioDur = track.duration || this.audioService.duration() || 0;
-                const lrcDur = parsed.duration || data.duration || 0;
-                if (audioDur > 20 && lrcDur > 20) {
-                  const delta = audioDur - lrcDur;
-                  if (Math.abs(delta) >= 1.5 && Math.abs(delta) <= 25.0) {
-                    const autoOffsetMs = -Math.round(delta * 1000);
-                    this.syncOffsetMs.set(autoOffsetMs);
-                  }
-                }
-              }
-
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
                 const lastLine = parsed.lines[parsed.lines.length - 1];
@@ -617,19 +609,6 @@ export class LyricsService {
         this.isLoading.set(false);
         if (lyricsData.raw) {
           this.persistLyricsToCloud(track, lyricsData.raw);
-        }
-
-        // Автоматическая компенсация клипового интро (YouTube video duration vs studio LRC duration)
-        if (!hasExplicitOffset) {
-          const audioDur = track.duration || this.audioService.duration() || 0;
-          const lrcDur = lyricsData.duration || 0;
-          if (audioDur > 20 && lrcDur > 20) {
-            const delta = audioDur - lrcDur;
-            if (Math.abs(delta) >= 1.5 && Math.abs(delta) <= 25.0) {
-              const autoOffsetMs = -Math.round(delta * 1000);
-              this.syncOffsetMs.set(autoOffsetMs);
-            }
-          }
         }
 
         // Восстанавливаем длительность трека, если она отсутствовала или была 0
