@@ -399,6 +399,14 @@ export class AudioService {
 
     this.audio.addEventListener('error', (e) => {
       console.warn('[AudioService] Audio element error:', e);
+      const cur = this.currentTrack();
+      if (cur && this.audio.src.startsWith('blob:')) {
+        console.warn('[AudioService] Audio element failed on blob, falling back to online stream');
+        this.offlineService.removeTrackOffline(cur.id).catch(() => {});
+        this.libraryService.updateTrackOfflineStatus(cur.id, false);
+        this.playTrack({ ...cur, isOffline: false });
+        return;
+      }
       this.handlePlaybackFailure('native_error');
     });
 
@@ -593,7 +601,8 @@ export class AudioService {
   private canUseCrossOrigin(url: string): boolean {
     if (!url || typeof window === 'undefined') return false;
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobile || url.startsWith('blob:')) return false;
+    if (isMobile) return false;
+    if (url.startsWith('blob:')) return true;
 
     if (url.startsWith('/') || url.startsWith(window.location.origin) || url.includes('/api/stream')) {
       return true;
@@ -763,7 +772,7 @@ export class AudioService {
         this.libraryService.recordHistoryPlay(track);
         this.requestWakeLock();
       })
-      .catch((err) => {
+      .catch(async (err) => {
         // If this request was superseded by a newer track, do absolutely nothing
         if (playRequestId !== this.currentPlayRequestId) {
           return;
@@ -777,6 +786,16 @@ export class AudioService {
           this.updateMediaSessionPlaybackState('paused');
           return;
         }
+
+        // Если попытка воспроизведения сорвалась на оффлайн blob URL: моментальный откат на сетевой поток!
+        if (playUrl.startsWith('blob:')) {
+          console.warn('[AudioService] Offline blob playback failed, falling back to online stream:', err);
+          await this.offlineService.removeTrackOffline(track.id);
+          this.libraryService.updateTrackOfflineStatus(track.id, false);
+          this.playTrack({ ...track, isOffline: false }, undefined, fromMix, queueIndex);
+          return;
+        }
+
         console.warn('[AudioService] play() error:', err);
         this.handlePlaybackFailure('play_rejection');
       });

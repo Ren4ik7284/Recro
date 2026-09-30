@@ -303,6 +303,12 @@ export class OfflineService {
 
       const blob = await resp.blob();
 
+      // Защита от пустых или поврежденных ответов (страницы ошибок 404/500/429):
+      // Полноценный аудиотрек не может весить меньше 40 КБ
+      if (!blob || blob.size < 40 * 1024) {
+        throw new Error(`Downloaded audio file is invalid or too small (${blob?.size || 0} bytes)`);
+      }
+
       try {
         await idbPutBlob(track.id, blob);
       } catch (e) {
@@ -391,6 +397,11 @@ export class OfflineService {
     try {
       const blob = await idbGetBlob(trackId);
       if (blob) {
+        if (blob.size < 40 * 1024) {
+          console.warn('[OfflineService] Corrupt offline blob detected (<40KB), purging:', trackId);
+          this.removeTrackOffline(trackId).catch(() => {});
+          return null;
+        }
         const url = URL.createObjectURL(blob);
         this.blobUrlByTrackId.set(trackId, url);
         return url;
@@ -402,11 +413,14 @@ export class OfflineService {
         const match = await cache.match(cacheKey);
         if (match) {
           const b = await match.blob();
-          // Попутно мигрируем в IndexedDB для сверхбыстрого доступа
-          idbPutBlob(trackId, b).catch(() => {});
-          const url = URL.createObjectURL(b);
-          this.blobUrlByTrackId.set(trackId, url);
-          return url;
+          if (b && b.size >= 40 * 1024) {
+            idbPutBlob(trackId, b).catch(() => {});
+            const url = URL.createObjectURL(b);
+            this.blobUrlByTrackId.set(trackId, url);
+            return url;
+          } else {
+            cache.delete(cacheKey).catch(() => {});
+          }
         }
       }
     } catch (e) {
