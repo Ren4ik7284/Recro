@@ -38,6 +38,7 @@ export class AudioService {
   readonly repeatMode = signal<'off' | 'all' | 'one'>('all');
   readonly queue = signal<Track[]>([]);
   readonly queueIndex = signal<number>(-1);
+  readonly preloadedNextTrack = signal<Track | null>(null);
 
   private isHandlingEnd = false;
   private hasAudioStartedPlaying = false;
@@ -1129,6 +1130,7 @@ export class AudioService {
     const nextTrack = q[idx + 1];
     if (!nextTrack || !nextTrack.audioUrl || nextTrack.id === this.lastPreloadedTrackId) return;
     this.lastPreloadedTrackId = nextTrack.id;
+    this.preloadedNextTrack.set(nextTrack);
 
     // Для оффлайн-трека: заранее подготавливаем и кэшируем Blob URL в памяти
     if (this.offlineService.isTrackOffline(nextTrack.id)) {

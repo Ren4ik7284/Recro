@@ -553,6 +553,125 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
     Ok(out)
 }
 
+async fn fetch_deezer_metadata(
+    client: &reqwest::Client,
+    title: &str,
+    artist: &str,
+) -> Option<(String, String, f64)> {
+    let query = if !artist.is_empty() {
+        format!("{} {}", artist, title)
+    } else {
+        title.to_string()
+    };
+
+    let url = format!(
+        "https://api.deezer.com/search?q={}&limit=1",
+        urlencoding::encode(&query)
+    );
+
+    let res = client
+        .get(&url)
+        .header("User-Agent", "Mozilla/5.0")
+        .timeout(std::time::Duration::from_millis(2000))
+        .send()
+        .await
+        .ok()?;
+
+    let json: serde_json::Value = res.json().await.ok()?;
+    let item = json["data"].as_array()?.first()?;
+
+    let d_title = item["title"].as_str().unwrap_or("").trim();
+    let d_artist = item["artist"]["name"].as_str().unwrap_or("").trim();
+    let d_dur = item["duration"].as_f64().unwrap_or(0.0);
+
+    if !d_title.is_empty() && !d_artist.is_empty() {
+        let t_norm = clean_title(title).to_lowercase();
+        let d_norm = d_title.to_lowercase();
+        let words: Vec<&str> = t_norm.split_whitespace().filter(|w| w.len() >= 2).collect();
+        if words.is_empty() || words.iter().any(|w| d_norm.contains(w)) || d_norm.contains(&t_norm) {
+            return Some((d_title.to_string(), d_artist.to_string(), d_dur));
+        }
+    }
+
+    None
+}
+
+async fn fetch_netease(
+    client: &reqwest::Client,
+    title: &str,
+    artist: &str,
+    duration: Option<f64>,
+) -> Option<LyricsResponse> {
+    let query = if !artist.is_empty() {
+        format!("{} {}", artist, title)
+    } else {
+        title.to_string()
+    };
+
+    let search_url = format!(
+        "http://music.163.com/api/search/get?s={}&type=1&limit=5",
+        urlencoding::encode(&query)
+    );
+
+    let res = client
+        .get(&search_url)
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        .timeout(std::time::Duration::from_millis(2500))
+        .send()
+        .await
+        .ok()?;
+
+    let json: serde_json::Value = res.json().await.ok()?;
+    let songs = json["result"]["songs"].as_array()?;
+
+    for song in songs {
+        let cand_id = match song["id"].as_i64() {
+            Some(id) => id,
+            None => continue,
+        };
+        let cand_title = song["name"].as_str().unwrap_or("");
+        let cand_artist = song["artists"]
+            .as_array()
+            .and_then(|a| a.first())
+            .and_then(|a| a["name"].as_str())
+            .unwrap_or("");
+        let cand_dur = song["duration"].as_f64().map(|ms| ms / 1000.0);
+
+        let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, true);
+        if score < 45.0 {
+            continue;
+        }
+
+        let lrc_url = format!(
+            "http://music.163.com/api/song/lyric?os=pc&id={}&lv=-1&kv=-1&tv=-1",
+            cand_id
+        );
+        let lrc_res = client
+            .get(&lrc_url)
+            .header("User-Agent", "Mozilla/5.0")
+            .timeout(std::time::Duration::from_millis(2500))
+            .send()
+            .await
+            .ok()?;
+
+        let lrc_json: serde_json::Value = lrc_res.json().await.ok()?;
+        let raw_lrc = lrc_json["lrc"]["lyric"].as_str().unwrap_or("").trim();
+
+        if raw_lrc.contains('[') && raw_lrc.contains(']') && raw_lrc.len() > 30 {
+            return Some(LyricsResponse {
+                synced: true,
+                lyrics: raw_lrc.to_string(),
+                source: "netease".to_string(),
+                track_name: Some(cand_title.to_string()),
+                artist_name: Some(cand_artist.to_string()),
+                duration: cand_dur,
+            });
+        }
+    }
+
+    None
+}
+
 pub async fn get_lyrics(
     State(state): State<AppState>,
     Query(params): Query<LyricsQuery>,
@@ -572,8 +691,9 @@ pub async fn get_lyrics(
         }
     }
 
-    let clean_t = clean_title(&raw_title);
-    let clean_a = clean_artist(&raw_artist);
+    let mut clean_t = clean_title(&raw_title);
+    let mut clean_a = clean_artist(&raw_artist);
+    let mut target_duration = params.duration;
 
     let cache_key = format!("{}:{}", clean_a.to_lowercase(), clean_t.to_lowercase());
     if let Ok(cache) = state.lyrics_cache.lock() {
@@ -584,16 +704,37 @@ pub async fn get_lyrics(
 
     let client = reqwest::Client::new();
 
-    // 1. Try LRCLIB
-    if let Some(resp) = fetch_lrclib(&client, &clean_t, &clean_a, params.duration).await {
+    // Быстрая студийная нормализация метаданных через Deezer API (чистые названия, студийный хрон)
+    if let Some((d_title, d_artist, d_dur)) = fetch_deezer_metadata(&client, &clean_t, &clean_a).await {
+        if !d_title.is_empty() {
+            clean_t = d_title;
+        }
+        if !d_artist.is_empty() {
+            clean_a = d_artist;
+        }
+        if target_duration.is_none() || target_duration == Some(0.0) {
+            target_duration = Some(d_dur);
+        }
+    }
+
+    // 1. Try LRCLIB (Clean studio metadata)
+    if let Some(resp) = fetch_lrclib(&client, &clean_t, &clean_a, target_duration).await {
         if let Ok(mut cache) = state.lyrics_cache.lock() {
             cache.insert(cache_key, (resp.clone(), Instant::now()));
         }
         return Ok(Json(resp));
     }
 
-    // 2. Try Kugou (covers almost all Russian & Western tracks)
-    if let Some(resp) = fetch_kugou(&client, &clean_t, &clean_a, params.duration).await {
+    // 2. Try NetEase Cloud Music (гигантская база караоке: русский рэп, поп, инди, мировые хиты)
+    if let Some(resp) = fetch_netease(&client, &clean_t, &clean_a, target_duration).await {
+        if let Ok(mut cache) = state.lyrics_cache.lock() {
+            cache.insert(cache_key, (resp.clone(), Instant::now()));
+        }
+        return Ok(Json(resp));
+    }
+
+    // 3. Try Kugou
+    if let Some(resp) = fetch_kugou(&client, &clean_t, &clean_a, target_duration).await {
         if let Ok(mut cache) = state.lyrics_cache.lock() {
             cache.insert(cache_key, (resp.clone(), Instant::now()));
         }

@@ -212,6 +212,14 @@ export class LyricsService {
           this.isLoading.set(false);
         }
       });
+
+      // 3. Умная предзагрузка текста для следующего трека («Моя Волна» / очередь)
+      effect(() => {
+        const next = this.audioService.preloadedNextTrack();
+        if (next && next.id) {
+          this.prefetchNextTrackLyrics(next);
+        }
+      });
     }
   }
 
@@ -649,6 +657,38 @@ export class LyricsService {
     }
   }
 
+  /**
+   * Фоновая предзагрузка текста для следующего трека («Моя Волна» / очередь).
+   * Не грузит процессор, работает тихо в фоне без изменения UI.
+   * Когда трек переключится, текст появится с задержкой 0мс.
+   */
+  async prefetchNextTrackLyrics(track: Track): Promise<void> {
+    if (!track || !track.id || this.lyricsCache.has(track.id)) return;
+
+    try {
+      const backendUrl = this.libraryService.getBackendUrl();
+      const qTitle = encodeURIComponent(track.title || '');
+      const qArtist = encodeURIComponent(track.artist || '');
+      const dur = Math.round(track.duration || 0);
+      const url = `${backendUrl}/api/lyrics?title=${qTitle}&artist=${qArtist}&duration=${dur}`;
+
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.lyrics) {
+          const parsed = this.parseLrc(data.lyrics, (data.source || 'lrclib') as any);
+          if (data.duration && data.duration > 0) {
+            parsed.duration = data.duration;
+          }
+          if (parsed.lines.length > 0) {
+            this.setCachedLyrics(track.id, parsed);
+            this.persistLyricsToCloud(track, data.lyrics);
+          }
+        }
+      }
+    } catch {}
+  }
+
   importLrcText(rawContent: string, trackId?: string) {
     if (!rawContent || !rawContent.trim()) return false;
     const parsed = this.parseLrc(rawContent.trim(), 'imported');
@@ -775,6 +815,11 @@ export class LyricsService {
         }
 
         const cleanText = textPayload.replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, '').trim();
+
+        // Пропуск технических титров в начале песни (作词, 作曲, Written by, Composed by, etc.)
+        if (timestamps[0] <= 4.0 && /^(作词|作曲|written\s*by|composed\s*by|lyrics\s*by|producer)\s*[:：]/i.test(cleanText)) {
+          continue;
+        }
 
         if (cleanText.length === 0) {
           // Если строка с таймингом пустая (конец фразы / пауза перед соло),
