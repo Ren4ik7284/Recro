@@ -460,6 +460,27 @@ pub async fn stream_audio(
                 }
             }
 
+            // Fallback 1: Direct YouTube extraction via yt-dlp (works natively on Railway and outside Russia)
+            if direct_url.is_empty() {
+                let mut cmd_yt = Command::new(&yt_cmd);
+                apply_yt_dlp_common_args(&mut cmd_yt);
+                cmd_yt.args([
+                    "--no-playlist",
+                    "--ignore-errors",
+                    "-g",
+                    "-f", "bestaudio/ba/b",
+                    "--extractor-args", "youtube:player_client=ios,android,web,mweb",
+                    "--",
+                    &target,
+                ]);
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(3500), cmd_yt.output()).await {
+                    if let Some(u) = extract_stream_url_from_output(&out) {
+                        direct_url = u;
+                    }
+                }
+            }
+
+            // Fallback 2: Verified high-health Invidious API
             if direct_url.is_empty() {
                 let vid = if let Some(idx) = target.find("v=") {
                     let rest = &target[idx + 2..];
@@ -475,13 +496,9 @@ pub async fn stream_audio(
 
                 if let Some(v) = vid {
                     let instances = [
-                        "https://inv.nadeko.net",
-                        "https://invidious.nerdvpn.de",
-                        "https://vid.priv.au",
-                        "https://invidious.private.coffee",
-                        "https://yt.drgnz.club"
+                        "https://invidious.f5.si",
                     ];
-                    if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(2)).build() {
+                    if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(3)).build() {
                         for inst in instances {
                             let inv_url = format!("{}/api/v1/videos/{}", inst, v);
                             if let Ok(resp) = client.get(&inv_url).send().await {

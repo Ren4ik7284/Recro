@@ -464,28 +464,40 @@ export class AudioService {
 
     this.consecutiveErrorCount++;
 
-    // In Mix mode, give the network up to 2500ms to buffer/respond before skipping.
-    // This prevents skip cascades on mobile networks (was 800ms — too aggressive).
-    if (this.consecutiveErrorCount <= 4) {
-      this.errorTimeoutId = setTimeout(() => {
-        if (this.recService.isMixActive()) {
-          this.next();
-        }
-      }, 2500);
-    } else {
-      console.warn('[AudioService] Multiple playback failures in mix, attempting recovery with reliable local track');
-      this.consecutiveErrorCount = 0;
-      const locals = this.recService.getAllLocalCandidates();
-      if (locals.length > 0) {
-        const rescueTrack = locals[Math.floor(Math.random() * locals.length)];
-        this.playTrack(rescueTrack, undefined, true);
-      } else {
+    if (this.recService.isMixActive()) {
+      if (this.consecutiveErrorCount === 1) {
+        console.warn('[AudioService] First transient failure in mix, retrying track once before skipping...');
+        this.errorTimeoutId = setTimeout(() => {
+          const cur = this.currentTrack();
+          if (cur && this.recService.isMixActive()) {
+            this.playTrack(cur, undefined, true);
+          }
+        }, 1000);
+        return;
+      }
+
+      if (this.consecutiveErrorCount <= 3) {
         this.errorTimeoutId = setTimeout(() => {
           if (this.recService.isMixActive()) {
             this.next();
           }
         }, 1500);
+      } else {
+        console.warn('[AudioService] Multiple playback failures in mix, attempting recovery with reliable local track');
+        this.consecutiveErrorCount = 0;
+        const locals = this.recService.getAllLocalCandidates();
+        if (locals.length > 0) {
+          const rescueTrack = locals[Math.floor(Math.random() * locals.length)];
+          this.playTrack(rescueTrack, undefined, true);
+        } else {
+          this.errorTimeoutId = setTimeout(() => {
+            if (this.recService.isMixActive()) {
+              this.next();
+            }
+          }, 1500);
+        }
       }
+      return;
     }
   }
 
