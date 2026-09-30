@@ -431,11 +431,20 @@ export class AudioService {
     }
 
     if (this.isLiveStream()) {
+      const cur = this.currentTrack();
+      if (cur && this.audio.src && this.audio.src.includes('/api/stream') && cur.audioUrl.startsWith('https://')) {
+        console.warn('[AudioService] Proxied stream failed, trying direct HTTPS stream URL fallback');
+        this.audio.removeAttribute('crossorigin');
+        this.audio.src = cur.audioUrl;
+        this.audio.play().catch(() => {});
+        return;
+      }
+
       console.warn('[AudioService] Live stream error/interrupted, attempting reconnect in 2s');
       this.errorTimeoutId = setTimeout(() => {
-        const cur = this.currentTrack();
-        if (cur && this.isLiveStream()) {
-          this.playTrack(cur, this.queue(), false, this.queueIndex());
+        const current = this.currentTrack();
+        if (current && this.isLiveStream()) {
+          this.playTrack(current, this.queue(), false, this.queueIndex());
         }
       }, 2000);
       return;
@@ -741,13 +750,13 @@ export class AudioService {
         track.format === 'stream' ||
         (typeof window !== 'undefined' && window.location.protocol === 'https:' && playUrl.startsWith('http://'))
       ) {
-        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}&is_live=1`;
+        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}&is_live=true`;
       }
 
       if (playUrl.includes('/api/stream')) {
         if (track.isLiveStream && !playUrl.includes('is_live=')) {
           const glue = playUrl.includes('?') ? '&' : '?';
-          playUrl = `${playUrl}${glue}is_live=1`;
+          playUrl = `${playUrl}${glue}is_live=true`;
         }
         if (!playUrl.includes('title=') && track.title) {
           const glue = playUrl.includes('?') ? '&' : '?';

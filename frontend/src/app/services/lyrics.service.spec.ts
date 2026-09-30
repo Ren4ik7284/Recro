@@ -182,7 +182,7 @@ Unsynced random header
     expect(parsed.lines[2].startTime).toBeCloseTo(3.125, 2);
   });
 
-  it('should activate the lyrics line with 350ms vocal lookahead so line is centered before singing starts', () => {
+  it('should activate the lyrics line with vocal lookahead so line is centered before singing starts', () => {
     const lrc = `
 [00:05.00]Line starting at five seconds
 [00:10.00]Line starting at ten seconds
@@ -190,16 +190,16 @@ Unsynced random header
     const parsed = service.parseLrc(lrc, 'lrclib');
     service.currentLyrics.set(parsed);
 
-    // At 4.60s (400ms before 5.0s), lookahead (+0.35s = 4.95s) has not reached 5.0s yet -> line 0 not active
+    // At 4.60s (400ms before 5.0s), lookahead (+0.24s = 4.84s) has not reached 5.0s yet -> line 0 not active
     service.precisePlaybackTime.set(4.60);
     expect(service.activeLineIndex()).toBe(-1);
 
-    // At 4.70s (300ms before 5.0s), lookahead (+0.35s = 5.05s) reaches line 0 -> line 0 is activated in advance
-    service.precisePlaybackTime.set(4.70);
+    // At 4.80s (200ms before 5.0s), lookahead (+0.24s = 5.04s) reaches line 0 -> line 0 is activated in advance
+    service.precisePlaybackTime.set(4.80);
     expect(service.activeLineIndex()).toBe(0);
 
-    // At 9.70s (300ms before line 1 at 10.0s), lookahead activates line 1
-    service.precisePlaybackTime.set(9.70);
+    // At 9.80s (200ms before line 1 at 10.0s), lookahead activates line 1
+    service.precisePlaybackTime.set(9.80);
     expect(service.activeLineIndex()).toBe(1);
   });
 });

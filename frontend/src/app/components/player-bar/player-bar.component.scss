@@ -315,20 +315,44 @@
         height: 38px;
         min-width: 38px;
         min-height: 38px;
+        max-width: 38px;
+        max-height: 38px;
         border-radius: 6px;
+        overflow: hidden;
+        flex-shrink: 0;
+
+        .cover-img-thumbnail {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        svg {
+          flex-shrink: 0;
+          max-width: 20px;
+          max-height: 20px;
+        }
       }
 
       .now-playing-meta {
         flex: 1;
         min-width: 0;
+        overflow: hidden;
 
-        .meta-title-line .player-track-title {
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text-primary);
-          white-space: nowrap;
+        .meta-title-line {
+          min-width: 0;
           overflow: hidden;
-          text-overflow: ellipsis;
+
+          .player-track-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+          }
         }
 
         .player-track-artist {
@@ -337,6 +361,7 @@
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          display: block;
         }
       }
 

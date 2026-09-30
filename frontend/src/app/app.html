@@ -623,10 +623,10 @@
                   <div class="card-subtitle">
                     <span class="card-artist">{{ track.artist }}</span>
                     <span class="dot-sep">•</span>
-                    <span class="font-mono">{{ track.isLiveStream ? 'LIVE' : formatTime(track.duration) }}</span>
+                    <span class="card-duration font-mono">{{ track.isLiveStream ? 'LIVE' : formatTime(track.duration) }}</span>
                     @if (offlineService.isTrackOffline(track.id)) {
                       <span class="dot-sep">•</span>
-                      <span class="offline-badge-tag font-mono" style="color: #22c55e; font-weight: 700; font-size: 10px;">ОФФЛАЙН</span>
+                      <span class="offline-badge-tag font-mono">ОФФЛАЙН</span>
                     }
                   </div>
                 </div>
@@ -856,50 +856,57 @@
             <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
           </svg>
         </button>
+      </div>
 
+      <div class="sheet-utility-row">
         <button 
-          class="sheet-fav-btn" 
+          class="sheet-util-btn" 
           (click)="openAddToPlaylistModal(cur)"
           title="Добавить в плейлист"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
             <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
           </svg>
+          <span>В плейлист</span>
         </button>
 
         <button 
-          class="sheet-fav-btn sheet-dislike-btn" 
+          class="sheet-util-btn sheet-dislike-btn" 
           (click)="dislikeCurrentTrack()"
           title="Не моё (пропустить)"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
           </svg>
+          <span>Не моё</span>
         </button>
 
         @if (!cur.isLiveStream) {
           <button 
-            class="sheet-fav-btn" 
+            class="sheet-util-btn" 
             [class.favorited]="offlineService.isTrackOffline(cur.id)"
             (click)="toggleOfflineTrack(cur, $event)"
-            [title]="offlineService.isTrackOffline(cur.id) ? 'Удалить из оффлайн-кэша' : 'Скачать для оффлайн-прослушивания'"
+            [title]="offlineService.isTrackOffline(cur.id) ? 'Удалить из памяти' : 'Скачать для оффлайн'"
           >
             @if (offlineService.isDownloading(cur.id)) {
-              <svg class="spin-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
               </svg>
+              <span>Загрузка...</span>
             } @else if (offlineService.isTrackOffline(cur.id)) {
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5">
                 <path d="M20 6 9 17l-5-5"/>
               </svg>
+              <span style="color: #22c55e;">Оффлайн</span>
             } @else {
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
+              <span>Скачать</span>
             }
           </button>
         }
@@ -1822,6 +1829,15 @@
           </button>
         </div>
         <div class="modal-body pwa-instructions-body">
+          @if (pwaService.isInAppBrowser()) {
+            <div class="pwa-step-item">
+              <div class="pwa-step-num font-mono">!</div>
+              <div class="pwa-step-text">
+                Вы открыли плеер во встроенном браузере (Telegram / VK). Нажмите <strong>«•••»</strong> вверху и выберите <strong>«Открыть в браузере»</strong> (Chrome или Safari), чтобы установить приложение.
+              </div>
+            </div>
+          }
+
           @if (isIos()) {
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">1</div>
@@ -1842,30 +1858,48 @@
               </div>
             </div>
           } @else {
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">1</div>
-              <div class="pwa-step-text">
-                В правом верхнем углу браузера нажмите меню <strong>(три точки ⋮)</strong>.
+            @if (canInstallPwa()) {
+              <div class="pwa-step-item">
+                <div class="pwa-step-num font-mono">✓</div>
+                <div class="pwa-step-text">
+                  Браузер готов к быстрой установке. Нажмите кнопку <strong>«Установить приложение»</strong> ниже.
+                </div>
               </div>
-            </div>
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">2</div>
-              <div class="pwa-step-text">
-                Выберите пункт <strong>«Установить приложение»</strong> или <strong>«Добавить на главный экран»</strong>.
+            } @else {
+              <div class="pwa-step-item">
+                <div class="pwa-step-num font-mono">1</div>
+                <div class="pwa-step-text">
+                  В правом верхнем углу браузера нажмите меню <strong>(три точки ⋮)</strong>.
+                </div>
               </div>
-            </div>
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">3</div>
-              <div class="pwa-step-text">
-                Подтвердите установку. Иконка плеера появится на рабочем столе.
+              <div class="pwa-step-item">
+                <div class="pwa-step-num font-mono">2</div>
+                <div class="pwa-step-text">
+                  Выберите пункт <strong>«Установить приложение»</strong> или <strong>«Добавить на главный экран»</strong>.
+                </div>
               </div>
-            </div>
+              <div class="pwa-step-item">
+                <div class="pwa-step-num font-mono">3</div>
+                <div class="pwa-step-text">
+                  Подтвердите установку. Иконка плеера появится на рабочем столе.
+                </div>
+              </div>
+            }
           }
         </div>
-        <div class="modal-footer">
-          <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="closePwaModal()">
-            Понятно
-          </button>
+        <div class="modal-footer" style="display: flex; gap: 8px;">
+          @if (canInstallPwa()) {
+            <button class="btn-confirm-action" style="flex: 1; text-align: center;" (click)="installPwa()">
+              Установить сейчас
+            </button>
+            <button class="btn-cancel-action" (click)="closePwaModal()">
+              Закрыть
+            </button>
+          } @else {
+            <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="closePwaModal()">
+              Понятно
+            </button>
+          }
         </div>
       </div>
     </div>

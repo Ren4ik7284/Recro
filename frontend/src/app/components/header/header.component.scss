@@ -421,12 +421,49 @@
     }
 
     .header-actions {
+      gap: 6px;
       .backend-status-pill { display: none; }
       .btn-add-track {
         padding: 6px 10px;
         font-size: 12px;
         span { display: none; }
       }
+      .btn-auth-trigger {
+        padding: 6px 10px;
+        font-size: 12px;
+        span { display: none; }
+      }
+      .btn-user-profile {
+        padding: 4px;
+        gap: 0;
+        border-radius: 50%;
+        .user-name-text,
+        .user-chevron {
+          display: none !important;
+        }
+        .user-avatar-img,
+        .user-avatar-badge {
+          margin: 0;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 0 8px;
+    gap: 6px;
+
+    .header-left .brand-badge .brand-title {
+      max-width: 80px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-pwa-install span {
+      display: none !important;
     }
   }
 }

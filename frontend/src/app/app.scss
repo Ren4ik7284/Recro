@@ -1194,6 +1194,7 @@
       justify-content: center;
       color: var(--text-secondary);
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     .station-info {
@@ -1225,6 +1226,7 @@
       display: flex;
       align-items: center;
       gap: 4px;
+      flex-shrink: 0;
 
       button {
         width: 28px;
@@ -2434,6 +2436,7 @@
           display: flex;
           align-items: center;
           justify-content: center;
+          flex-shrink: 0;
 
           .res-img {
             width: 100%;
@@ -2473,13 +2476,16 @@
 
         .res-actions {
           display: flex;
+          align-items: center;
           gap: 6px;
+          flex-shrink: 0;
 
           button {
             padding: 4px 8px;
             border-radius: 4px;
             font-size: 11px;
             cursor: pointer;
+            flex-shrink: 0;
           }
 
           .btn-res-play {
@@ -2501,6 +2507,22 @@
             color: #000;
             border: none;
             font-weight: 500;
+          }
+
+          @media (max-width: 520px) {
+            gap: 4px;
+
+            .btn-res-play {
+              padding: 4px 6px;
+              span {
+                display: none;
+              }
+            }
+
+            .btn-res-add {
+              padding: 4px 6px;
+              font-size: 10px;
+            }
           }
         }
       }
@@ -2881,8 +2903,8 @@
     .mobile-track-card {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 6px 10px;
+      gap: 8px;
+      padding: 6px 8px;
       height: 56px;
       min-height: 56px;
       max-height: 56px;
@@ -2893,6 +2915,8 @@
       position: relative;
       width: 100%;
       min-width: 0;
+      overflow: hidden;
+      box-sizing: border-box;
       transition: background-color 0.1s ease;
 
       &:active {
@@ -2926,10 +2950,22 @@
           width: 100%;
           height: 100%;
           object-fit: cover;
+          display: block;
         }
 
         .card-cover-empty {
           color: var(--text-muted);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 100%;
+
+          svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+          }
         }
 
         .card-playing-indicator {
@@ -2939,11 +2975,12 @@
           display: flex;
           align-items: center;
           justify-content: center;
+          z-index: 2;
         }
       }
 
       .card-content {
-        flex: 1;
+        flex: 1 1 0%;
         overflow: hidden;
         min-width: 0;
 
@@ -2954,20 +2991,23 @@
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          line-height: 1.3;
         }
 
         .card-subtitle {
           font-size: 11px;
           color: var(--text-muted);
-          margin-top: 1px;
+          margin-top: 2px;
           display: flex;
           align-items: center;
           gap: 4px;
           white-space: nowrap;
           overflow: hidden;
-          text-overflow: ellipsis;
+          min-width: 0;
 
           .card-artist {
+            min-width: 0;
+            flex: 0 1 auto;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -2975,6 +3015,19 @@
 
           .dot-sep {
             color: var(--border-muted);
+            flex-shrink: 0;
+          }
+
+          .card-duration {
+            flex-shrink: 0;
+          }
+
+          .offline-badge-tag {
+            flex-shrink: 0;
+            white-space: nowrap;
+            color: #22c55e;
+            font-weight: 700;
+            font-size: 10px;
           }
         }
       }
@@ -2985,10 +3038,12 @@
         gap: 2px;
         flex-shrink: 0;
         position: relative;
+        margin-left: auto;
 
         .m-action-btn {
-          width: 32px;
-          height: 32px;
+          width: 28px;
+          height: 28px;
+          min-width: 28px;
           background: transparent;
           border: none;
           color: var(--text-muted);
@@ -2997,6 +3052,14 @@
           justify-content: center;
           border-radius: 6px;
           cursor: pointer;
+          padding: 0;
+          flex-shrink: 0;
+
+          svg {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+          }
 
           &:active {
             color: var(--text-primary);
@@ -3005,6 +3068,12 @@
 
           &.favorited {
             color: var(--accent-white);
+          }
+
+          &.btn-delete {
+            &:hover, &:active {
+              color: var(--color-danger, #ef4444);
+            }
           }
         }
 
@@ -3341,6 +3410,51 @@
 
         &.favorited {
           color: var(--accent-white);
+        }
+      }
+    }
+
+    .sheet-utility-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+
+      .sheet-util-btn {
+        flex: 1;
+        min-width: 0;
+        height: 34px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 11.5px;
+        cursor: pointer;
+        padding: 0 8px;
+        transition: all 0.15s ease;
+
+        svg {
+          flex-shrink: 0;
+        }
+
+        span {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        &:active {
+          background: var(--bg-elevated);
+          color: var(--text-primary);
+        }
+
+        &.favorited {
+          border-color: rgba(34, 197, 94, 0.4);
         }
       }
     }
@@ -5327,31 +5441,96 @@
 /* Responsiveness for Wave Card */
 @media (max-width: 768px) {
   .smart-wave-card {
-    padding: 14px;
+    padding: 12px;
     margin-top: 10px;
+
+    .wave-card-topbar {
+      gap: 8px;
+      margin-bottom: 10px;
+
+      .wave-badge-group {
+        min-width: 0;
+        flex: 1;
+        gap: 6px;
+        flex-wrap: nowrap;
+        overflow: hidden;
+
+        .wave-tag {
+          flex-shrink: 0;
+          white-space: nowrap;
+          font-size: 9.5px;
+          padding: 2px 6px;
+        }
+
+        .wave-config-chip {
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-size: 9.5px;
+          padding: 2px 6px;
+          max-width: 170px;
+        }
+
+        .wave-discovery-badge {
+          flex-shrink: 0;
+          font-size: 9.5px;
+          padding: 2px 6px;
+        }
+      }
+
+      .btn-wave-burger {
+        padding: 5px 8px;
+        font-size: 11px;
+        flex-shrink: 0;
+
+        span {
+          display: none;
+        }
+      }
+    }
 
     .wave-playing-row {
       flex-direction: column;
       align-items: stretch;
-      gap: 14px;
+      gap: 12px;
 
       .wave-track-meta {
         width: 100%;
+        min-width: 0;
+        overflow: hidden;
+
+        .wave-track-cover {
+          flex-shrink: 0;
+        }
+
+        .wave-track-details {
+          min-width: 0;
+          flex: 1;
+          overflow: hidden;
+        }
       }
 
       .wave-player-controls {
-        justify-content: space-around;
+        justify-content: space-between;
         width: 100%;
         padding-top: 6px;
         border-top: 1px solid var(--border-subtle);
+        gap: 4px;
+        flex-wrap: nowrap;
 
         .wave-ctrl-btn {
-          width: 42px;
-          height: 42px;
+          width: 36px;
+          height: 36px;
+          min-width: 30px;
+          flex: 1 1 0;
+          max-width: 44px;
+          padding: 0;
 
           &.wave-btn-play {
-            width: 48px;
-            height: 48px;
+            width: 42px;
+            height: 42px;
+            flex: 0 0 42px;
           }
         }
       }
@@ -5360,7 +5539,7 @@
     .wave-idle-row {
       flex-direction: column;
       align-items: stretch;
-      gap: 14px;
+      gap: 12px;
 
       .wave-idle-actions {
         width: 100%;

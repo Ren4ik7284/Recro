@@ -25,6 +25,7 @@ import { LyricsService } from './services/lyrics.service';
 import { LyricsComponent } from './components/lyrics/lyrics.component';
 import { NavigationService } from './services/navigation.service';
 import { AmbientService } from './services/ambient.service';
+import { PwaService } from './services/pwa.service';
 
 declare global {
   interface Window {
@@ -111,11 +112,11 @@ export class App implements OnInit {
   readonly isMobilePlayerExpanded = signal<boolean>(false);
   readonly isMobilePlaylistsOpen = signal<boolean>(false);
 
-  readonly isMobileDevice = signal<boolean>(false);
-  readonly canInstallPwa = signal<boolean>(false);
-  readonly isPwaModalOpen = signal<boolean>(false);
-  readonly isIos = signal<boolean>(false);
-  private deferredPrompt: any = null;
+  readonly pwaService = inject(PwaService);
+  readonly isMobileDevice = this.pwaService.isMobile;
+  readonly canInstallPwa = this.pwaService.canPromptInstall;
+  readonly isPwaModalOpen = this.pwaService.isInstallModalOpen;
+  readonly isIos = this.pwaService.isIos;
 
   readonly modalSearchInput = signal<string>('');
 
@@ -250,52 +251,31 @@ export class App implements OnInit {
       }
 
       // PWA
-      this.isPwaModalOpen.set(o === 'pwa');
+      if (o === 'pwa') {
+        this.pwaService.openInstallModal();
+      } else if (this.isPwaModalOpen()) {
+        this.pwaService.closeInstallModal();
+      }
 
       this.cdr.markForCheck();
     });
-
-    if (typeof window !== 'undefined') {
-      const isIosDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      this.isIos.set(isIosDevice);
-
-      const isMobile = isIosDevice || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-      this.isMobileDevice.set(isMobile);
-
-      window.addEventListener('beforeinstallprompt', (e: Event) => {
-        if (isMobile) {
-          e.preventDefault();
-          this.deferredPrompt = e;
-          this.canInstallPwa.set(true);
-        } else {
-          e.preventDefault();
-          this.deferredPrompt = null;
-          this.canInstallPwa.set(false);
-        }
-      });
-    }
   }
 
-  openPwaInstallModal(pushHistory = true) {
-    if (this.deferredPrompt) {
-      this.deferredPrompt.prompt();
-      this.deferredPrompt.userChoice.then((choice: any) => {
-        if (choice && choice.outcome === 'accepted') {
-          this.canInstallPwa.set(false);
-          this.showToast('Приложение установлено');
-        }
-        this.deferredPrompt = null;
-      });
-      return;
-    }
-    this.isPwaModalOpen.set(true);
-    if (pushHistory) {
-      this.navService.pushOverlay('pwa');
+  async openPwaInstallModal(pushHistory = true) {
+    const outcome = await this.pwaService.promptInstall();
+    if (outcome === 'accepted') {
+      this.showToast('Приложение установлено');
+    } else if (outcome === 'already-installed') {
+      this.showToast('Приложение уже установлено');
+    } else if (outcome === 'manual') {
+      if (pushHistory) {
+        this.navService.pushOverlay('pwa');
+      }
     }
   }
 
   closePwaModal() {
-    this.isPwaModalOpen.set(false);
+    this.pwaService.closeInstallModal();
     this.navService.closeOverlay('pwa');
   }
 
