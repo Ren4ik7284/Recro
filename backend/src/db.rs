@@ -156,5 +156,26 @@ pub async fn init_db() -> Result<DbPool, sqlx::Error> {
         "CREATE INDEX IF NOT EXISTS idx_tracks_user ON tracks(user_id)"
     ).execute(&pool).await;
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS track_meta (
+            track_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            duration REAL DEFAULT 0,
+            bpm REAL,
+            lyrics_offset_ms INTEGER DEFAULT 0,
+            synced_lyrics TEXT,
+            updated_at INTEGER NOT NULL
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_track_meta_title_artist ON track_meta(title, artist)"
+    ).execute(&pool).await;
+
     Ok(pool)
 }

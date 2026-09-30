@@ -116,6 +116,12 @@ export class LyricsComponent {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   }
 
+  formatOffset(ms: number): string {
+    if (!ms || ms === 0) return '0.0s';
+    const s = (ms / 1000).toFixed(1);
+    return ms > 0 ? `+${s}s` : `${s}s`;
+  }
+
   // --- Scrubber state: preview при drag, seek только при отпускании ---
   readonly isScrubbing = signal<boolean>(false);
   readonly scrubTime = signal<number>(0);

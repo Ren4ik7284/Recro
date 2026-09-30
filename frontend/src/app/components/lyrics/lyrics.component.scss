@@ -100,14 +100,88 @@
       border-radius: 12px;
       letter-spacing: 0.5px;
     }
+
+    .lyrics-bpm-pill {
+      font-size: 10px;
+      font-weight: 600;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
   }
-
-
 
   .lyrics-actions-group {
     display: flex;
     align-items: center;
     gap: 10px;
+
+    .lyrics-offset-controls {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+
+      .btn-offset-step {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        padding: 4px 7px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 11px;
+        transition: background 0.15s ease, color 0.15s ease;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
+        }
+
+        &:active {
+          background: rgba(255, 255, 255, 0.15);
+        }
+      }
+
+      .offset-value {
+        padding: 4px 6px;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        cursor: pointer;
+        user-select: none;
+        transition: color 0.15s ease;
+
+        &.shifted {
+          color: #ffffff;
+          font-weight: 600;
+        }
+
+        &:hover {
+          color: #ffffff;
+        }
+      }
+
+      .btn-offset-reset {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #94a3b8;
+        padding: 2px 6px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 10px;
+        font-family: inherit;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.16);
+          color: #ffffff;
+        }
+      }
+    }
 
     .btn-lyrics-tool {
       display: inline-flex;

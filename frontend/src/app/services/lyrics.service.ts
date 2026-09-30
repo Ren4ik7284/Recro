@@ -27,6 +27,8 @@ export interface ParsedLyrics {
   duration?: number;
 }
 
+import { BpmService } from './bpm.service';
+
 @Injectable({
   providedIn: 'root',
 })
@@ -34,6 +36,7 @@ export class LyricsService {
   private readonly audioService = inject(AudioService);
   private readonly navService = inject(NavigationService);
   private readonly libraryService = inject(LibraryService);
+  private readonly bpmService = inject(BpmService);
 
   readonly isLyricsOpen = signal<boolean>(false);
   readonly isLoading = signal<boolean>(false);
@@ -42,14 +45,21 @@ export class LyricsService {
   readonly errorMessage = signal<string | null>(null);
   readonly isAutoScrollLocked = signal<boolean>(false);
 
+  // BPM and rhythmic beat duration in ms
+  readonly currentBpm = computed(() => this.bpmService.currentBpm());
+  readonly beatDurationMs = computed(() => {
+    const bpm = this.currentBpm();
+    return bpm && bpm > 0 ? Math.round((60 / bpm) * 1000) : 500;
+  });
+
   private lastLoadedTrackId: string | null = null;
   private autoScrollLockTimeout: any = null;
   private currentAbortController: AbortController | null = null;
   private updateIntervalId: ReturnType<typeof setInterval> | null = null;
   readonly precisePlaybackTime = signal<number>(0);
 
-  // Natural vocal attack lead time (240ms): compensates for DAC buffer latency + transcriber motor reaction delay
-  public static readonly VOCAL_LEAD_TIME_SEC = 0.24;
+  // True 1:1 synchronization (0.0s): eliminates premature line jumps and rushing
+  public static readonly VOCAL_LEAD_TIME_SEC = 0.0;
 
   private rafId: number | null = null;
 
@@ -226,6 +236,7 @@ export class LyricsService {
       try {
         localStorage.setItem(`signal_lyrics_offset_${cur.id}`, this.syncOffsetMs().toString());
       } catch {}
+      this.persistOffsetToCloud(cur, this.syncOffsetMs());
     }
   }
 
@@ -264,6 +275,7 @@ export class LyricsService {
       try {
         localStorage.setItem(`signal_lyrics_offset_${cur.id}`, newOffsetMs.toString());
       } catch {}
+      this.persistOffsetToCloud(cur, newOffsetMs);
     }
   }
 
@@ -304,7 +316,46 @@ export class LyricsService {
       try {
         localStorage.removeItem(`signal_lyrics_offset_${cur.id}`);
       } catch {}
+      this.persistOffsetToCloud(cur, 0);
     }
+  }
+
+  private async persistOffsetToCloud(track: any, offsetMs: number) {
+    if (!track || !track.id) return;
+    try {
+      const backendUrl = this.libraryService.getBackendUrl();
+      await fetch(`${backendUrl}/api/track/meta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          track_id: track.id,
+          title: track.title,
+          artist: track.artist,
+          duration: track.duration,
+          lyrics_offset_ms: offsetMs,
+          bpm: this.currentBpm(),
+        }),
+      });
+    } catch {}
+  }
+
+  private async persistLyricsToCloud(track: any, syncedLyrics: string) {
+    if (!track || !track.id || !syncedLyrics) return;
+    try {
+      const backendUrl = this.libraryService.getBackendUrl();
+      await fetch(`${backendUrl}/api/track/meta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          track_id: track.id,
+          title: track.title,
+          artist: track.artist,
+          duration: track.duration,
+          synced_lyrics: syncedLyrics,
+          bpm: this.currentBpm(),
+        }),
+      });
+    } catch {}
   }
 
   seekToLine(line: LyricLine) {
@@ -346,19 +397,43 @@ export class LyricsService {
     this.currentAbortController = abortCtrl;
     const targetTrackId = track.id;
 
-    // Восстанавливаем сохраненный оффсет таймингов
+    // 1. Запрашиваем метаданные трека из SQLite базы (BPM, смещение, сохраненный текст)
+    let serverMeta: { bpm?: number; lyrics_offset_ms?: number; synced_lyrics?: string } | null = null;
+    try {
+      const backendUrl = this.libraryService.getBackendUrl();
+      const qId = encodeURIComponent(targetTrackId);
+      const qTitle = encodeURIComponent(track.title || '');
+      const qArtist = encodeURIComponent(track.artist || '');
+      const metaRes = await fetch(`${backendUrl}/api/track/meta?id=${qId}&title=${qTitle}&artist=${qArtist}`, {
+        signal: abortCtrl.signal,
+      });
+      if (metaRes.ok) {
+        serverMeta = await metaRes.json();
+      }
+    } catch {}
+
+    if (abortCtrl.signal.aborted || this.audioService.currentTrack()?.id !== targetTrackId) {
+      return;
+    }
+
+    // Запускаем анализ BPM (или применяем сохраненный BPM из БД)
+    this.bpmService.startDetectionForTrack(targetTrackId, serverMeta?.bpm ?? null);
+
+    // Восстанавливаем сохраненный оффсет таймингов: приоритет локальному localStorage, затем серверной БД
     try {
       const savedOffset = localStorage.getItem(`signal_lyrics_offset_${targetTrackId}`);
-      if (savedOffset) {
+      if (savedOffset !== null) {
         this.syncOffsetMs.set(parseInt(savedOffset, 10) || 0);
+      } else if (serverMeta && serverMeta.lyrics_offset_ms !== undefined && serverMeta.lyrics_offset_ms !== 0) {
+        this.syncOffsetMs.set(serverMeta.lyrics_offset_ms);
       } else {
         this.syncOffsetMs.set(0);
       }
     } catch {
-      this.syncOffsetMs.set(0);
+      this.syncOffsetMs.set(serverMeta?.lyrics_offset_ms ?? 0);
     }
 
-    // 1. Проверяем локальный сохраненный пользователем текст
+    // 2. Проверяем локальный сохраненный пользователем текст
     if (!forceReload) {
       try {
         const savedCustom = localStorage.getItem(`signal_custom_lyrics_${targetTrackId}`);
@@ -371,6 +446,17 @@ export class LyricsService {
           }
         }
       } catch {}
+
+      // Проверяем сохраненный текст в серверной БД
+      if (serverMeta && serverMeta.synced_lyrics) {
+        const parsed = this.parseLrc(serverMeta.synced_lyrics, 'indexed' as any);
+        if (parsed.lines.length > 0) {
+          this.setCachedLyrics(targetTrackId, parsed);
+          this.currentLyrics.set(parsed);
+          this.isLoading.set(false);
+          return;
+        }
+      }
 
       // Проверяем кэш сессии
       const inMemory = this.lyricsCache.get(targetTrackId);
@@ -385,7 +471,7 @@ export class LyricsService {
     this.currentLyrics.set(null);
     this.isLoading.set(true);
 
-    // 2. Сначала запрашиваем через наш бэкенд-агрегатор (LRCLIB + Kugou + кэш)
+    // 3. Запрашиваем через наш бэкенд-агрегатор (LRCLIB + Kugou + кэш)
     try {
       const backendUrl = this.libraryService.getBackendUrl();
       const qTitle = encodeURIComponent(track.title || '');
@@ -419,6 +505,7 @@ export class LyricsService {
               this.setCachedLyrics(targetTrackId, parsed);
               this.currentLyrics.set(parsed);
               this.isLoading.set(false);
+              this.persistLyricsToCloud(track, data.lyrics);
 
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
@@ -445,7 +532,7 @@ export class LyricsService {
       return;
     }
 
-    // 3. Fallback: прямой поиск через LRCLIB в браузере
+    // 4. Fallback: прямой поиск через LRCLIB в браузере
     try {
       const lyricsData = await this.fetchFromLrcLib(track, abortCtrl.signal);
 
@@ -458,6 +545,9 @@ export class LyricsService {
         this.setCachedLyrics(targetTrackId, lyricsData);
         this.currentLyrics.set(lyricsData);
         this.isLoading.set(false);
+        if (lyricsData.raw) {
+          this.persistLyricsToCloud(track, lyricsData.raw);
+        }
 
         // Восстанавливаем длительность трека, если она отсутствовала или была 0
         const cur = this.audioService.currentTrack();
@@ -506,6 +596,10 @@ export class LyricsService {
       try {
         localStorage.setItem(`signal_custom_lyrics_${tid}`, rawContent.trim());
       } catch {}
+      const cur = this.audioService.currentTrack();
+      if (cur) {
+        this.persistLyricsToCloud(cur, rawContent.trim());
+      }
     }
     return true;
   }

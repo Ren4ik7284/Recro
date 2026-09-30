@@ -35,6 +35,15 @@ pub async fn search_music(
         return Ok(Json(Vec::new()));
     }
 
+    let query_key = query.to_lowercase();
+    if let Ok(guard) = state.search_cache.lock() {
+        if let Some((cached_tracks, cached_at)) = guard.get(&query_key) {
+            if cached_at.elapsed() < Duration::from_secs(7200) && !cached_tracks.is_empty() {
+                return Ok(Json(cached_tracks.clone()));
+            }
+        }
+    }
+
     let _permit = match tokio::time::timeout(
         Duration::from_millis(2000),
         state.heavy_process_semaphore.acquire(),
@@ -62,6 +71,11 @@ pub async fn search_music(
             let cloud_tracks = execute_cloud_search(query, &base_url).await;
             if !cloud_tracks.is_empty() {
                 tracks = cloud_tracks;
+            }
+        }
+        if !tracks.is_empty() {
+            if let Ok(mut guard) = state.search_cache.lock() {
+                guard.insert(query_key, (tracks.clone(), std::time::Instant::now()));
             }
         }
         return Ok(Json(tracks));
@@ -114,6 +128,12 @@ pub async fn search_music(
             if seen_ids.insert(t.id.clone()) {
                 combined.push(t);
             }
+        }
+    }
+
+    if !combined.is_empty() {
+        if let Ok(mut guard) = state.search_cache.lock() {
+            guard.insert(query_key, (combined.clone(), std::time::Instant::now()));
         }
     }
 

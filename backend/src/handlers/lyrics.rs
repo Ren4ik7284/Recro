@@ -595,6 +595,124 @@ pub async fn get_lyrics(
     Err(StatusCode::NOT_FOUND)
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TrackMetaQuery {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct TrackMetaRecord {
+    pub track_id: String,
+    pub title: String,
+    pub artist: String,
+    pub duration: Option<f64>,
+    pub bpm: Option<f64>,
+    pub lyrics_offset_ms: Option<i64>,
+    pub synced_lyrics: Option<String>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TrackMetaPayload {
+    pub track_id: String,
+    pub title: String,
+    pub artist: String,
+    pub duration: Option<f64>,
+    pub bpm: Option<f64>,
+    pub lyrics_offset_ms: Option<i64>,
+    pub synced_lyrics: Option<String>,
+}
+
+pub async fn get_track_meta(
+    State(state): State<AppState>,
+    Query(query): Query<TrackMetaQuery>,
+) -> Result<Json<Option<TrackMetaRecord>>, StatusCode> {
+    if let Some(id) = query.id.as_deref() {
+        if !id.trim().is_empty() {
+            let res = sqlx::query_as::<_, TrackMetaRecord>(
+                "SELECT track_id, title, artist, duration, bpm, lyrics_offset_ms, synced_lyrics, updated_at FROM track_meta WHERE track_id = ?"
+            )
+            .bind(id.trim())
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                eprintln!("[TrackMeta] Error getting by id: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            if res.is_some() {
+                return Ok(Json(res));
+            }
+        }
+    }
+
+    if let (Some(title), Some(artist)) = (query.title.as_deref(), query.artist.as_deref()) {
+        let clean_t = clean_title(title);
+        let clean_a = clean_artist(artist);
+        if !clean_t.is_empty() {
+            let res = sqlx::query_as::<_, TrackMetaRecord>(
+                "SELECT track_id, title, artist, duration, bpm, lyrics_offset_ms, synced_lyrics, updated_at FROM track_meta WHERE title LIKE ? AND artist LIKE ? LIMIT 1"
+            )
+            .bind(format!("%{}%", clean_t))
+            .bind(format!("%{}%", clean_a))
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                eprintln!("[TrackMeta] Error getting by title/artist: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            return Ok(Json(res));
+        }
+    }
+
+    Ok(Json(None))
+}
+
+pub async fn save_track_meta(
+    State(state): State<AppState>,
+    Json(payload): Json<TrackMetaPayload>,
+) -> Result<StatusCode, StatusCode> {
+    let now = chrono::Utc::now().timestamp();
+    let track_id = payload.track_id.trim();
+    if track_id.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    sqlx::query(
+        r#"
+        INSERT INTO track_meta (track_id, title, artist, duration, bpm, lyrics_offset_ms, synced_lyrics, updated_at)
+        VALUES (?, ?, ?, ?, ?, COALESCE(?, 0), ?, ?)
+        ON CONFLICT(track_id) DO UPDATE SET
+            title = excluded.title,
+            artist = excluded.artist,
+            duration = CASE WHEN excluded.duration > 0.0 THEN excluded.duration ELSE track_meta.duration END,
+            bpm = CASE WHEN excluded.bpm IS NOT NULL THEN excluded.bpm ELSE track_meta.bpm END,
+            lyrics_offset_ms = CASE WHEN excluded.lyrics_offset_ms IS NOT NULL THEN excluded.lyrics_offset_ms ELSE track_meta.lyrics_offset_ms END,
+            synced_lyrics = CASE WHEN excluded.synced_lyrics IS NOT NULL THEN excluded.synced_lyrics ELSE track_meta.synced_lyrics END,
+            updated_at = excluded.updated_at
+        "#
+    )
+    .bind(track_id)
+    .bind(payload.title.trim())
+    .bind(payload.artist.trim())
+    .bind(payload.duration.unwrap_or(0.0))
+    .bind(payload.bpm)
+    .bind(payload.lyrics_offset_ms)
+    .bind(payload.synced_lyrics)
+    .bind(now)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        eprintln!("[TrackMeta] Error saving: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::OK)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

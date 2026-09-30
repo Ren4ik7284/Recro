@@ -108,15 +108,15 @@ export class LibraryService implements OnDestroy {
   readonly defaultTracks: Track[] = [];
 
   readonly defaultRadioStations: RadioStation[] = [
-    { id: 'default-1', name: 'Record Chill-Out', streamUrl: 'https://radiorecord.hostingradio.ru/chil96.aacp', genre: 'Chillout / Lounge', country: 'RU', bitrate: '96k AAC' },
-    { id: 'default-2', name: 'Europa Plus', streamUrl: 'https://ep256.hostingradio.ru:8052/europaplus256.mp3', genre: 'Pop / Top 40', country: 'RU', bitrate: '256k MP3' },
-    { id: 'default-3', name: 'SomaFM: Groove Salad', streamUrl: 'https://ice4.somafm.com/groovesalad-128-mp3', genre: 'Ambient / Downtempo', country: 'US', bitrate: '128k Live' },
-    { id: 'default-4', name: 'SomaFM: Drone Zone', streamUrl: 'https://ice2.somafm.com/dronezone-128-mp3', genre: 'Space / Atmospheric', country: 'US', bitrate: '128k Live' },
-    { id: 'default-5', name: 'SomaFM: DEF CON Radio', streamUrl: 'https://ice6.somafm.com/defcon-128-mp3', genre: 'Electronic / Cyber', country: 'US', bitrate: '128k Live' },
-    { id: 'default-6', name: 'Record Deep', streamUrl: 'https://radiorecord.hostingradio.ru/deep96.aacp', genre: 'Deep House', country: 'RU', bitrate: '96k AAC' },
+    { id: 'default-1', name: 'Radio Record', streamUrl: 'https://radiorecord.hostingradio.ru/rr_main96.aacp', genre: 'Dance / EDM', country: 'RU', bitrate: '96k AAC' },
+    { id: 'default-2', name: 'Europa Plus Top 40', streamUrl: 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3', genre: 'Pop / Top 40', country: 'RU', bitrate: '256k MP3' },
+    { id: 'default-3', name: 'Europa Plus Live', streamUrl: 'https://ep128server.streamr.ru:8030/ep128', genre: 'Pop / Hits', country: 'RU', bitrate: '128k MP3' },
+    { id: 'default-4', name: 'Record Chill-Out', streamUrl: 'https://radiorecord.hostingradio.ru/chil96.aacp', genre: 'Chillout / Lounge', country: 'RU', bitrate: '96k AAC' },
+    { id: 'default-5', name: 'Record Deep', streamUrl: 'https://radiorecord.hostingradio.ru/deep96.aacp', genre: 'Deep House', country: 'RU', bitrate: '96k AAC' },
+    { id: 'default-6', name: 'DFM', streamUrl: 'https://dfm.hostingradio.ru/dfm96.aacp', genre: 'Club / Dance', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-7', name: 'Record Synthwave', streamUrl: 'https://radiorecord.hostingradio.ru/synth96.aacp', genre: 'Synthwave / Retro', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-8', name: 'Record Lo-Fi', streamUrl: 'https://radiorecord.hostingradio.ru/lofi96.aacp', genre: 'Lo-Fi / Beats', country: 'RU', bitrate: '96k AAC' },
-    { id: 'default-9', name: 'SomaFM: Secret Agent', streamUrl: 'https://ice1.somafm.com/secretagent-128-mp3', genre: 'Spy / Lounge', country: 'US', bitrate: '128k Live' },
+    { id: 'default-9', name: 'SomaFM: Groove Salad', streamUrl: 'https://ice4.somafm.com/groovesalad-128-mp3', genre: 'Ambient / Downtempo', country: 'US', bitrate: '128k Live' },
     { id: 'default-10', name: 'Record Russian Hits', streamUrl: 'https://radiorecord.hostingradio.ru/rus96.aacp', genre: 'Pop / Russian', country: 'RU', bitrate: '96k AAC' },
   ];
 
@@ -272,13 +272,13 @@ export class LibraryService implements OnDestroy {
     }
 
     // Очищаем любые устаревшие демонстрационные треки
-    savedTracks = (savedTracks || []).filter((t) => !t.id.startsWith('default-track-'));
+    savedTracks = (savedTracks || []).filter((t) => !t.id.startsWith('default-track-') && !t.id.startsWith('starter-'));
     try {
       localStorage.setItem(this.STORAGE_KEY_TRACKS, JSON.stringify(savedTracks));
     } catch {}
 
     const hasBrokenStations = savedStations.some(
-      (s) => s.streamUrl.includes(':8030') || s.streamUrl.includes('wostreaming.net') || s.streamUrl.includes('stream.zeno.fm')
+      (s) => s.streamUrl.includes(':8052') || s.streamUrl.includes('wostreaming.net') || s.streamUrl.includes('stream.zeno.fm')
     );
     if (!savedStations || savedStations.length === 0 || hasBrokenStations) {
       savedStations = [...this.defaultRadioStations];

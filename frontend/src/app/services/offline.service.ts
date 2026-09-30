@@ -5,8 +5,11 @@ import { LibraryService } from './library.service';
 const IDB_NAME = 'signal_offline_db';
 const IDB_STORE = 'audio_blobs';
 
+let cachedDbPromise: Promise<IDBDatabase> | null = null;
+
 function openOfflineDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (cachedDbPromise) return cachedDbPromise;
+  cachedDbPromise = new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !('indexedDB' in window)) {
       reject(new Error('IndexedDB not supported'));
       return;
@@ -18,33 +21,64 @@ function openOfflineDb(): Promise<IDBDatabase> {
         db.createObjectStore(IDB_STORE);
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onclose = () => {
+        cachedDbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        cachedDbPromise = null;
+      };
+      resolve(db);
+    };
+    req.onerror = () => {
+      cachedDbPromise = null;
+      reject(req.error);
+    };
   });
+  return cachedDbPromise;
 }
 
 async function idbPutBlob(id: string, blob: Blob): Promise<void> {
-  const db = await openOfflineDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite');
-    const store = tx.objectStore(IDB_STORE);
-    const req = store.put(blob, id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  try {
+    const db = await openOfflineDb();
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        const store = tx.objectStore(IDB_STORE);
+        const req = store.put(blob, id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  } catch (err) {
+    cachedDbPromise = null;
+    throw err;
+  }
 }
 
 async function idbGetBlob(id: string): Promise<Blob | null> {
   try {
     const db = await openOfflineDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.get(id);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const store = tx.objectStore(IDB_STORE);
+        const req = store.get(id);
+        req.onsuccess = () => {
+          const res = req.result;
+          resolve(res instanceof Blob ? res : null);
+        };
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
     });
   } catch {
+    cachedDbPromise = null;
     return null;
   }
 }
@@ -52,14 +86,20 @@ async function idbGetBlob(id: string): Promise<Blob | null> {
 async function idbDeleteBlob(id: string): Promise<void> {
   try {
     const db = await openOfflineDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        const store = tx.objectStore(IDB_STORE);
+        const req = store.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => resolve();
+      } catch {
+        resolve();
+      }
     });
-  } catch {}
+  } catch {
+    cachedDbPromise = null;
+  }
 }
 
 @Injectable({
@@ -73,16 +113,28 @@ export class OfflineService {
   readonly offlineTrackIds = signal<Set<string>>(new Set());
   readonly downloadingTrackIds = signal<Set<string>>(new Set());
 
-  private activeBlobUrls = new Set<string>();
+  private blobUrlByTrackId = new Map<string, string>();
+
+  revokePreviousBlobUrls(keepTrackId?: string) {
+    if (typeof window === 'undefined') return;
+    for (const [id, url] of this.blobUrlByTrackId.entries()) {
+      if (id !== keepTrackId) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {}
+        this.blobUrlByTrackId.delete(id);
+      }
+    }
+  }
 
   revokeAllBlobUrls() {
     if (typeof window === 'undefined') return;
-    for (const url of this.activeBlobUrls) {
+    for (const [, url] of this.blobUrlByTrackId.entries()) {
       try {
         URL.revokeObjectURL(url);
       } catch {}
     }
-    this.activeBlobUrls.clear();
+    this.blobUrlByTrackId.clear();
   }
 
   constructor() {
@@ -106,6 +158,40 @@ export class OfflineService {
         const list: Track[] = JSON.parse(raw);
         const ids = new Set(list.map((t) => t.id));
         this.offlineTrackIds.set(ids);
+      }
+    } catch {}
+
+    // Фоновая сверка ключей из IndexedDB на случай очистки localStorage
+    this.syncIndexedDbKeys().catch(() => {});
+  }
+
+  private async syncIndexedDbKeys(): Promise<void> {
+    try {
+      const db = await openOfflineDb();
+      const keys = await new Promise<string[]>((resolve) => {
+        try {
+          const tx = db.transaction(IDB_STORE, 'readonly');
+          const store = tx.objectStore(IDB_STORE);
+          const req = store.getAllKeys();
+          req.onsuccess = () => resolve((req.result as string[]) || []);
+          req.onerror = () => resolve([]);
+        } catch {
+          resolve([]);
+        }
+      });
+
+      if (keys.length > 0) {
+        const current = new Set(this.offlineTrackIds());
+        let changed = false;
+        for (const k of keys) {
+          if (!current.has(k)) {
+            current.add(k);
+            changed = true;
+          }
+        }
+        if (changed) {
+          this.offlineTrackIds.set(current);
+        }
       }
     } catch {}
   }
@@ -270,6 +356,14 @@ export class OfflineService {
         } catch {}
       }
 
+      const existingUrl = this.blobUrlByTrackId.get(trackId);
+      if (existingUrl) {
+        try {
+          URL.revokeObjectURL(existingUrl);
+        } catch {}
+        this.blobUrlByTrackId.delete(trackId);
+      }
+
       const existing = this.getOfflineTracks().filter((t) => t.id !== trackId);
       localStorage.setItem(this.STORAGE_KEY_OFFLINE, JSON.stringify(existing));
 
@@ -288,13 +382,17 @@ export class OfflineService {
       return null;
     }
 
+    // Если blob URL уже сгенерирован и активен — возвращаем моментально без обращений к IDB
+    const existing = this.blobUrlByTrackId.get(trackId);
+    if (existing) {
+      return existing;
+    }
+
     try {
       const blob = await idbGetBlob(trackId);
       if (blob) {
-        // НЕ вызываем revokeAllBlobUrls здесь — audio.service.ts сам управляет
-        // жизненным циклом blob URL (вызывает revoke перед установкой нового audio.src)
         const url = URL.createObjectURL(blob);
-        this.activeBlobUrls.add(url);
+        this.blobUrlByTrackId.set(trackId, url);
         return url;
       }
 
@@ -304,10 +402,10 @@ export class OfflineService {
         const match = await cache.match(cacheKey);
         if (match) {
           const b = await match.blob();
-          // Попутно мигрируем в IndexedDB для быстрого доступа в будущем
+          // Попутно мигрируем в IndexedDB для сверхбыстрого доступа
           idbPutBlob(trackId, b).catch(() => {});
           const url = URL.createObjectURL(b);
-          this.activeBlobUrls.add(url);
+          this.blobUrlByTrackId.set(trackId, url);
           return url;
         }
       }

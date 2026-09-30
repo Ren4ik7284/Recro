@@ -1237,7 +1237,7 @@ export class App implements OnInit {
 
   playRadioStation(station: RadioStation) {
     const track = this.libraryService.createTrackFromStation(station);
-    this.audioService.playTrack(track, this.libraryService.tracks());
+    this.audioService.playTrack(track, [track]);
     this.showToast(`Радио: ${station.name}`);
   }
 

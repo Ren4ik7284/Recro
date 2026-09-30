@@ -93,6 +93,77 @@ fn clean_music_title(title: &str) -> String {
     cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+async fn proxy_direct_stream(target: &str, is_live: bool) -> Result<Response, StatusCode> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(6))
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let upstream = client
+        .get(target)
+        .header(
+            header::USER_AGENT,
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        )
+        .header(header::ACCEPT, "*/*")
+        .send()
+        .await
+        .map_err(|e| {
+            eprintln!("[Stream] Direct proxy connection error: {}: {}", target, e);
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    if !upstream.status().is_success() {
+        eprintln!("[Stream] Upstream returned error status {}: {}", upstream.status(), target);
+        return Err(StatusCode::BAD_GATEWAY);
+    }
+
+    let upstream_ct = upstream
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_else(|| {
+            if target.contains(".aac") || target.contains(".aacp") {
+                "audio/aac"
+            } else {
+                "audio/mpeg"
+            }
+        })
+        .to_string();
+
+    let mut res_headers = HeaderMap::new();
+    res_headers.insert(
+        header::CONTENT_TYPE,
+        upstream_ct.parse().unwrap_or(header::HeaderValue::from_static("audio/mpeg")),
+    );
+    res_headers.insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+    );
+    res_headers.insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        header::HeaderValue::from_static("*"),
+    );
+    res_headers.insert(
+        header::ACCESS_CONTROL_EXPOSE_HEADERS,
+        header::HeaderValue::from_static("*"),
+    );
+
+    if !is_live {
+        if let Some(cl) = upstream.headers().get(header::CONTENT_LENGTH) {
+            res_headers.insert(header::CONTENT_LENGTH, cl.clone());
+        }
+        if let Some(ar) = upstream.headers().get(header::ACCEPT_RANGES) {
+            res_headers.insert(header::ACCEPT_RANGES, ar.clone());
+        }
+    } else {
+        res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("none"));
+    }
+
+    let body = Body::from_stream(upstream.bytes_stream());
+    Ok((StatusCode::OK, res_headers, body).into_response())
+}
+
 pub async fn stream_audio(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -106,16 +177,6 @@ pub async fn stream_audio(
         40,
         60,
     )?;
-
-    let _permit = match tokio::time::timeout(
-        Duration::from_millis(2000),
-        state.heavy_process_semaphore.acquire(),
-    )
-    .await
-    {
-        Ok(Ok(permit)) => permit,
-        _ => return Err(StatusCode::TOO_MANY_REQUESTS),
-    };
 
     let mut target = String::new();
 
@@ -168,6 +229,40 @@ pub async fn stream_audio(
         }
     }
 
+    let is_live = params.is_live.unwrap_or(false);
+    let is_direct_candidate = (target.starts_with("http://") || target.starts_with("https://"))
+        && !target.contains("youtube.com")
+        && !target.contains("youtu.be")
+        && !target.contains("soundcloud.com")
+        && !target.contains("googlevideo.com")
+        && !target.contains("sndcdn.com")
+        && (is_live
+            || target.ends_with(".mp3")
+            || target.ends_with(".aac")
+            || target.ends_with(".aacp")
+            || target.ends_with(".m3u8")
+            || target.ends_with(".ogg")
+            || target.contains("/stream")
+            || target.contains("hostingradio.ru")
+            || target.contains("somafm.com")
+            || target.contains("streamr.ru")
+            || target.contains("101.ru")
+            || target.contains(":80"));
+
+    if is_direct_candidate && params.ss.unwrap_or(0) == 0 {
+        if params.prefetch.unwrap_or(false) {
+            return Ok(StatusCode::NO_CONTENT.into_response());
+        }
+        match proxy_direct_stream(&target, is_live).await {
+            Ok(resp) => return Ok(resp),
+            Err(e) => {
+                if is_live {
+                    return Err(e);
+                }
+            }
+        }
+    }
+
     let cache_key = if let (Some(t), Some(a)) = (&params.title, &params.artist) {
         format!("{}:{}:{}", target, t.trim(), a.trim())
     } else {
@@ -183,6 +278,20 @@ pub async fn stream_audio(
             }
         }
     }
+
+    if params.prefetch.unwrap_or(false) && !direct_url.is_empty() {
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
+
+    let _permit = match tokio::time::timeout(
+        Duration::from_millis(2000),
+        state.heavy_process_semaphore.acquire(),
+    )
+    .await
+    {
+        Ok(Ok(permit)) => permit,
+        _ => return Err(StatusCode::TOO_MANY_REQUESTS),
+    };
 
     let yt_cmd = get_yt_dlp_cmd();
 

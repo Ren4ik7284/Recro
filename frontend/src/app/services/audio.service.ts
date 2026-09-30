@@ -53,6 +53,29 @@ export class AudioService {
   private isSwitchingTrack = false;
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
+  private wakeLockSentinel: any = null;
+
+  private async requestWakeLock() {
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      try {
+        if (!this.wakeLockSentinel) {
+          this.wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
+          this.wakeLockSentinel.addEventListener('release', () => {
+            this.wakeLockSentinel = null;
+          });
+        }
+      } catch {}
+    }
+  }
+
+  private releaseWakeLock() {
+    if (this.wakeLockSentinel) {
+      try {
+        this.wakeLockSentinel.release();
+      } catch {}
+      this.wakeLockSentinel = null;
+    }
+  }
 
   readonly progressPercent = computed(() => {
     const d = this.duration();
@@ -284,13 +307,13 @@ export class AudioService {
       }
 
       // Proactively ensure smart queue buffer before current track ends.
-      // Debounced to 4s to avoid spamming ensureSmartQueue on every timeupdate tick.
-      // Note: explicit calls from next() are NOT debounced — only this background check.
+      // Debounced to 6s to avoid spamming ensureSmartQueue on every timeupdate tick.
       const now = Date.now();
+      const remainingAhead = this.queue().length - 1 - this.queueIndex();
       if (
         this.recService.isMixActive() &&
-        (this.queue().length - 1 - this.queueIndex() < 5 || (total > 15 && actual >= total - 12)) &&
-        now - this.lastQueueEnsureTime > 4000
+        (remainingAhead <= 2 || (total > 15 && actual >= total - 12)) &&
+        now - this.lastQueueEnsureTime > 6000
       ) {
         this.lastQueueEnsureTime = now;
         this.ensureSmartQueue();
@@ -339,6 +362,7 @@ export class AudioService {
       const cur = this.currentTrack();
       if (cur) this.updateMediaSessionMetadata(cur);
       this.updateMediaSessionPosition();
+      this.requestWakeLock();
     });
 
     this.audio.addEventListener('pause', () => {
@@ -347,6 +371,7 @@ export class AudioService {
         this.isPlaying.set(false);
         this.updateMediaSessionPlaybackState('paused');
         this.updateMediaSessionPosition();
+        this.releaseWakeLock();
       }
     });
 
@@ -356,9 +381,15 @@ export class AudioService {
     });
 
     this.audio.addEventListener('ended', () => {
-      // Если трек не успел начать играть или длительность слишком мала, это сбой потока
-      const played = this.currentTime();
-      if (!this.hasAudioStartedPlaying || played < 1.5) {
+      if (this.isLiveStream()) {
+        console.warn('[AudioService] Live stream ended event, attempting reconnect in 2s');
+        this.handlePlaybackFailure('live_stream_ended');
+        return;
+      }
+      // Проверяем реальное время воспроизведения через нативный audio элемент
+      const played = this.audio.currentTime || this.currentTime();
+      const dur = this.audio.duration || this.duration();
+      if ((!this.hasAudioStartedPlaying && played < 1.0) || (dur > 5 && played < 1.5)) {
         console.warn('[AudioService] Premature ended event (<1.5s played), treating as playback failure');
         this.handlePlaybackFailure('premature_ended');
         return;
@@ -370,6 +401,15 @@ export class AudioService {
       console.warn('[AudioService] Audio element error:', e);
       this.handlePlaybackFailure('native_error');
     });
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.isPlaying()) {
+          this.requestWakeLock();
+          this.updateMediaSessionPosition();
+        }
+      });
+    }
   }
 
   private handlePlaybackFailure(source: string) {
@@ -381,25 +421,48 @@ export class AudioService {
       this.errorTimeoutId = null;
     }
 
-    // NEVER auto-skip or touch dislikes when user is playing their own library tracks
+    if (this.isLiveStream()) {
+      console.warn('[AudioService] Live stream error/interrupted, attempting reconnect in 2s');
+      this.errorTimeoutId = setTimeout(() => {
+        const cur = this.currentTrack();
+        if (cur && this.isLiveStream()) {
+          this.playTrack(cur, this.queue(), false, this.queueIndex());
+        }
+      }, 2000);
+      return;
+    }
+
+    // Если воспроизведение идет из обычной очереди (альбом, плейлист, оффлайн)
     if (!this.recService.isMixActive()) {
+      const q = this.queue();
+      const nextIdx = this.queueIndex() + 1;
+      if (nextIdx < q.length || this.repeatMode() === 'all') {
+        this.consecutiveErrorCount++;
+        if (this.consecutiveErrorCount <= 3) {
+          console.warn('[AudioService] Track error in queue, auto-advancing to next track in 1.2s');
+          this.errorTimeoutId = setTimeout(() => {
+            this.next(true);
+          }, 1200);
+          return;
+        }
+      }
       this.isPlaying.set(false);
       this.updateMediaSessionPlaybackState('paused');
       this.consecutiveErrorCount = 0;
+      this.releaseWakeLock();
       return;
     }
 
     this.consecutiveErrorCount++;
 
-    // In Mix mode, DO NOT shut off isMixActive! It should play continuously until user stops it.
-    // Graceful recovery: give the network up to 800ms to respond before skipping.
-    // This prevents false positives on slow connections (was 150ms — too aggressive).
-    if (this.consecutiveErrorCount <= 6) {
+    // In Mix mode, give the network up to 2500ms to buffer/respond before skipping.
+    // This prevents skip cascades on mobile networks (was 800ms — too aggressive).
+    if (this.consecutiveErrorCount <= 4) {
       this.errorTimeoutId = setTimeout(() => {
         if (this.recService.isMixActive()) {
           this.next();
         }
-      }, 800);
+      }, 2500);
     } else {
       console.warn('[AudioService] Multiple playback failures in mix, attempting recovery with reliable local track');
       this.consecutiveErrorCount = 0;
@@ -412,7 +475,7 @@ export class AudioService {
           if (this.recService.isMixActive()) {
             this.next();
           }
-        }, 500);
+        }, 1500);
       }
     }
   }
@@ -577,13 +640,16 @@ export class AudioService {
     }
 
     this.isFadingOut = false;
-    this.isHandlingEnd = false;
     this.hasAudioStartedPlaying = false;
 
-    try {
-      this.audio.pause();
-      this.audio.currentTime = 0;
-    } catch {}
+    // ВАЖНО: Не вызываем audio.pause(), если переключаем треки в фоне,
+    // чтобы мобильная ОС не сбросила медиа-уведомление и не заблокировала следующий трек
+    if (this.audio.src && !this.isHandlingEnd && !this.isSwitchingTrack) {
+      try {
+        this.audio.pause();
+        this.audio.currentTime = 0;
+      } catch {}
+    }
 
     if (newQueue && newQueue.length > 0) {
       this.queue.set([...newQueue]);
@@ -622,12 +688,11 @@ export class AudioService {
     this.updateMediaSessionMetadata(track);
     this.updateMediaSessionPlaybackState('playing');
 
+    // 1. Сначала проверяем оффлайн-кэш (быстрый старт без сети)
     let playUrl = track.audioUrl;
-    if (this.offlineService.isTrackOffline(track.id)) {
-      const offlineBlobUrl = await this.offlineService.getOfflineBlobUrl(track.id);
-      if (offlineBlobUrl) {
-        playUrl = offlineBlobUrl;
-      }
+    const offlineBlobUrl = await this.offlineService.getOfflineBlobUrl(track.id);
+    if (offlineBlobUrl) {
+      playUrl = offlineBlobUrl;
     }
 
     // Discard stale request if a newer track was requested while resolving offline blob
@@ -650,14 +715,18 @@ export class AudioService {
       ) {
         playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}`;
       } else if (
-        typeof window !== 'undefined' &&
-        window.location.protocol === 'https:' &&
-        playUrl.startsWith('http://')
+        track.isLiveStream ||
+        track.format === 'stream' ||
+        (typeof window !== 'undefined' && window.location.protocol === 'https:' && playUrl.startsWith('http://'))
       ) {
-        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}`;
+        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}&is_live=1`;
       }
 
       if (playUrl.includes('/api/stream')) {
+        if (track.isLiveStream && !playUrl.includes('is_live=')) {
+          const glue = playUrl.includes('?') ? '&' : '?';
+          playUrl = `${playUrl}${glue}is_live=1`;
+        }
         if (!playUrl.includes('title=') && track.title) {
           const glue = playUrl.includes('?') ? '&' : '?';
           playUrl = `${playUrl}${glue}title=${encodeURIComponent(track.title)}`;
@@ -675,14 +744,13 @@ export class AudioService {
       this.audio.removeAttribute('crossorigin');
     }
 
-    if (this.audio.src && this.audio.src.startsWith('blob:') && this.audio.src !== playUrl) {
-      this.offlineService.revokeAllBlobUrls();
-    }
+    // Отзываем blob URL только ПРЕДЫДУЩИХ треков, не задевая текущий
+    this.offlineService.revokePreviousBlobUrls(track.id);
 
     this.audio.src = playUrl;
 
     // Apply smooth fade in
-    this.applyFadeIn(1.5);
+    this.applyFadeIn(1.0);
 
     this.audio
       .play()
@@ -693,6 +761,7 @@ export class AudioService {
         this.updateMediaSessionMetadata(track);
         this.updateMediaSessionPosition();
         this.libraryService.recordHistoryPlay(track);
+        this.requestWakeLock();
       })
       .catch((err) => {
         // If this request was superseded by a newer track, do absolutely nothing
@@ -831,7 +900,7 @@ export class AudioService {
     this.seek(this.currentTime() + seconds);
   }
 
-  async next() {
+  async next(immediate: boolean = false) {
     if (this.isSwitchingTrack) return;
     this.isSwitchingTrack = true;
 
@@ -881,13 +950,17 @@ export class AudioService {
           if (this.repeatMode() === 'all') {
             nextIdx = 0;
           } else {
+            this.isPlaying.set(false);
+            this.updateMediaSessionPlaybackState('paused');
             return;
           }
         }
       }
 
-      // Micro-fade before changing track to eliminate clicks (quick 0.12s)
-      await this.applyFadeOut(0.12);
+      // Micro-fade перед сменой трека только при ручном переключении (не при окончании песни)
+      if (!immediate) {
+        await this.applyFadeOut(0.12);
+      }
 
       // Queue housekeeping: prevent memory bloat during infinite mix sessions (hours of listening)
       // Keep last 5 played tracks for 'previous' while trimming older history
@@ -948,13 +1021,13 @@ export class AudioService {
     setTimeout(() => {
       this.isHandlingEnd = false;
       this.isFadingOut = false;
-    }, 1200);
+    }, 1000);
 
     if (this.repeatMode() === 'one') {
       this.seek(0);
       this.audio.play().catch(() => {});
     } else {
-      this.next();
+      this.next(true);
     }
   }
 
@@ -1036,6 +1109,13 @@ export class AudioService {
     if (idx < 0 || idx >= q.length - 1) return;
     const nextTrack = q[idx + 1];
     if (!nextTrack || !nextTrack.audioUrl || nextTrack.id === this.lastPreloadedTrackId) return;
+    this.lastPreloadedTrackId = nextTrack.id;
+
+    // Для оффлайн-трека: заранее подготавливаем и кэшируем Blob URL в памяти
+    if (this.offlineService.isTrackOffline(nextTrack.id)) {
+      this.offlineService.getOfflineBlobUrl(nextTrack.id).catch(() => {});
+      return;
+    }
 
     if (nextTrack.audioUrl.startsWith('blob:') || nextTrack.isLiveStream) return;
 
@@ -1096,10 +1176,10 @@ export class AudioService {
 
     // Check how many upcoming tracks are queued ahead of current
     const upcomingCount = Math.max(0, q.length - 1 - idx);
-    // Keep a solid buffer of at least 8 upcoming tracks ahead at all times!
-    if (upcomingCount >= 8) return;
+    // Keep a buffer of upcoming tracks, don't spam requests when we already have >= 3 upcoming tracks!
+    if (upcomingCount >= 3) return;
 
-    const needed = Math.max(4, 9 - upcomingCount);
+    const needed = Math.max(3, 5 - upcomingCount);
 
     // Only exclude tracks that are currently in the upcoming queue or the current track!
     // Historical tracks played earlier in the session are NOT excluded, so the mix can cycle endlessly.
@@ -1184,10 +1264,6 @@ export class AudioService {
     }
 
     this.playTrack(candidates[0], candidates, true, 0);
-    // Заполняем буфер почти сразу — 80ms даёт play() время стартовать без блокировки UI
-    setTimeout(() => {
-      this.ensureSmartQueue();
-    }, 80);
     return true;
   }
 

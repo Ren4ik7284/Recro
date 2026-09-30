@@ -21,9 +21,25 @@
       } @else if (lyricsService.currentLyrics()) {
         <span class="lyrics-plain-pill font-mono">БЕЗ СИНХРОНИЗАЦИИ</span>
       }
+      @if (lyricsService.currentBpm(); as bpm) {
+        <span class="lyrics-bpm-pill font-mono">{{ bpm }} BPM</span>
+      }
     </div>
 
     <div class="lyrics-actions-group">
+      @if (lyricsService.currentLyrics()?.isSynced) {
+        <div class="lyrics-offset-controls font-mono" title="Коррекция смещения текста">
+          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-200)" title="Задержать текст на 0.2с">-0.2s</button>
+          <span class="offset-value" [class.shifted]="lyricsService.syncOffsetMs() !== 0" (click)="lyricsService.resetOffset()" title="Текущее смещение (клик для сброса)">
+            {{ formatOffset(lyricsService.syncOffsetMs()) }}
+          </span>
+          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(200)" title="Ускорить текст на 0.2с">+0.2s</button>
+          @if (lyricsService.syncOffsetMs() !== 0) {
+            <button type="button" class="btn-offset-reset" (click)="lyricsService.resetOffset()" title="Сбросить смещение">0</button>
+          }
+        </div>
+      }
+
       <!-- Close Fullscreen Lyrics -->
       <button type="button" class="btn-lyrics-close" (click)="lyricsService.closeLyrics()" title="Закрыть текст (Esc)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
