@@ -262,16 +262,25 @@ export class App implements OnInit {
   }
 
   async openPwaInstallModal(pushHistory = true) {
+    if (this.isMobilePlaylistsOpen()) {
+      this.closeMobilePlaylists();
+    }
+
+    if (this.pwaService.isStandalone()) {
+      this.showToast('Плеер уже открыт в отдельном приложении');
+      return;
+    }
+
     const outcome = await this.pwaService.promptInstall();
     if (outcome === 'accepted') {
-      this.showToast('Приложение установлено');
-    } else if (outcome === 'already-installed') {
-      this.showToast('Приложение уже установлено');
-    } else if (outcome === 'manual') {
+      this.showToast('Приложение успешно установлено');
+    } else {
+      this.pwaService.openInstallModal();
       if (pushHistory) {
         this.navService.pushOverlay('pwa');
       }
     }
+    this.cdr.markForCheck();
   }
 
   closePwaModal() {

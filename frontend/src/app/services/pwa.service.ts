@@ -42,8 +42,9 @@ export class PwaService {
 
     const isStandaloneMode =
       window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as any).standalone === true ||
-      document.referrer.includes('android-app://');
+      window.matchMedia('(display-mode: fullscreen)').matches ||
+      window.matchMedia('(display-mode: minimal-ui)').matches ||
+      (navigator as any).standalone === true;
 
     this.isStandalone.set(isStandaloneMode);
     if (isStandaloneMode) {
@@ -110,23 +111,28 @@ export class PwaService {
   }
 
   async promptInstall(): Promise<InstallOutcome> {
-    if (this.isStandalone() || this.isInstalled()) {
+    if (this.isStandalone()) {
       return 'already-installed';
     }
 
     // If native prompt is available (Android Chrome, Edge, Chromium)
     if (this.deferredPrompt) {
       try {
-        await this.deferredPrompt.prompt();
-        const choice = await this.deferredPrompt.userChoice;
+        const promptEvent = this.deferredPrompt;
         this.deferredPrompt = null;
         (window as any).__pwaDeferredPrompt = null;
         this.canPromptInstall.set(false);
 
+        await promptEvent.prompt();
+        const choice = await promptEvent.userChoice;
+
         if (choice && choice.outcome === 'accepted') {
           this.isInstalled.set(true);
+          this.closeInstallModal();
           return 'accepted';
         }
+        // If user dismissed the native prompt, open the manual guide so they know where to find it
+        this.openInstallModal();
         return 'dismissed';
       } catch (err) {
         console.warn('[PWA] Prompt call failed, falling back to manual instructions:', err);
