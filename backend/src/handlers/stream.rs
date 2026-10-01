@@ -191,7 +191,7 @@ pub async fn stream_audio(
             let id = id.trim().to_string();
             if id.starts_with("http") {
                 target = id;
-            } else {
+            } else if !id.starts_with("dz-") && !id.starts_with("sc-") && !id.starts_with("audius-") {
                 target = format!("https://www.youtube.com/watch?v={}", id);
             }
         }

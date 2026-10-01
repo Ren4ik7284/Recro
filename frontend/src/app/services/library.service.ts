@@ -354,7 +354,7 @@ export class LibraryService implements OnDestroy {
       const tracks: Track[] = data
         .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
         .map((item) => ({
-          id: item.id.startsWith('yt-') || item.id.startsWith('sc-') ? item.id : 'yt-' + item.id,
+          id: item.id.startsWith('yt-') || item.id.startsWith('sc-') || item.id.startsWith('dz-') ? item.id : (item.id.length === 11 ? 'yt-' + item.id : item.id),
           title: item.title,
           artist: item.artist,
           duration: Math.round(item.duration),

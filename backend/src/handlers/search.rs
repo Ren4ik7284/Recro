@@ -81,12 +81,12 @@ pub async fn search_music(
         return Ok(Json(tracks));
     }
 
-    let yt_arg = format!("ytsearch10:{}", query);
     let sc_arg = format!("scsearch10:{}", query);
 
-    let (yt_res, sc_res) = tokio::join!(
-        execute_yt_dlp_search(&yt_cmd, &yt_arg, 10, &base_url),
-        execute_yt_dlp_search(&yt_cmd, &sc_arg, 10, &base_url),
+    // Parallel fetch: Deezer API (super-fast official tracks, HD covers) + SoundCloud (remixes & underground)
+    let (dz_res, sc_res) = tokio::join!(
+        execute_deezer_search(query, 12, &base_url),
+        execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url),
     );
 
     let mut combined = Vec::new();
@@ -96,28 +96,40 @@ pub async fn search_music(
         duration == 0.0 || (duration >= 30.0 && duration <= 600.0)
     };
 
+    let dz_filtered: Vec<SearchTrack> = dz_res
+        .into_iter()
+        .filter(|t| is_valid_duration(t.duration))
+        .collect();
+
     let sc_filtered: Vec<SearchTrack> = sc_res
         .into_iter()
         .filter(|t| is_valid_duration(t.duration))
         .collect();
 
-    let yt_filtered: Vec<SearchTrack> = yt_res
-        .into_iter()
-        .filter(|t| is_valid_duration(t.duration))
-        .collect();
-
-    let max_len = sc_filtered.len().max(yt_filtered.len());
+    // Balanced interleave: official studio releases + soundcloud community gems
+    let max_len = dz_filtered.len().max(sc_filtered.len());
     for i in 0..max_len {
+        if i < dz_filtered.len() {
+            let t = &dz_filtered[i];
+            if seen_ids.insert(t.id.clone()) {
+                combined.push(t.clone());
+            }
+        }
         if i < sc_filtered.len() {
             let t = &sc_filtered[i];
             if seen_ids.insert(t.id.clone()) {
                 combined.push(t.clone());
             }
         }
-        if i < yt_filtered.len() {
-            let t = &yt_filtered[i];
-            if seen_ids.insert(t.id.clone()) {
-                combined.push(t.clone());
+    }
+
+    // Fallback: If both Deezer and SoundCloud had no hits, fallback to YouTube search
+    if combined.is_empty() {
+        let yt_arg = format!("ytsearch8:{}", query);
+        let yt_res = execute_yt_dlp_search(&yt_cmd, &yt_arg, 8, &base_url).await;
+        for t in yt_res {
+            if is_valid_duration(t.duration) && seen_ids.insert(t.id.clone()) {
+                combined.push(t);
             }
         }
     }
@@ -467,5 +479,77 @@ pub async fn execute_audius_search(query: &str, limit: usize, base_url: &str) ->
             });
         }
     }
+    tracks
+}
+
+pub async fn execute_deezer_search(query: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
+    let url = format!(
+        "https://api.deezer.com/search?q={}&limit={}",
+        urlencoding::encode(query),
+        limit
+    );
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(3000))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let resp = match client.get(&url).send().await {
+        Ok(r) if r.status().is_success() => r,
+        _ => return Vec::new(),
+    };
+
+    let data: serde_json::Value = match resp.json().await {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut tracks = Vec::new();
+    if let Some(items) = data["data"].as_array() {
+        for item in items {
+            let id_num = match item["id"].as_i64() {
+                Some(n) => n,
+                None => continue,
+            };
+            let id = format!("dz-{}", id_num);
+            let raw_title = item["title_short"].as_str()
+                .or_else(|| item["title"].as_str())
+                .unwrap_or("Без названия")
+                .trim();
+            let raw_artist = item["artist"]["name"].as_str()
+                .unwrap_or("Неизвестный исполнитель")
+                .trim();
+            let duration = item["duration"].as_f64().unwrap_or(0.0);
+
+            if duration > 720.0 || (duration > 0.0 && duration < 30.0) {
+                continue;
+            }
+
+            let cover_url = item["album"]["cover_xl"].as_str()
+                .or_else(|| item["album"]["cover_big"].as_str())
+                .or_else(|| item["album"]["cover_medium"].as_str())
+                .map(|u| u.to_string());
+
+            let encoded_title = urlencoding::encode(raw_title);
+            let encoded_artist = urlencoding::encode(raw_artist);
+            let audio_url = format!(
+                "{}/api/stream?title={}&artist={}&duration={}&id={}",
+                base_url, encoded_title, encoded_artist, duration as u64, id
+            );
+
+            tracks.push(SearchTrack {
+                id,
+                title: raw_title.to_string(),
+                artist: raw_artist.to_string(),
+                duration,
+                audio_url,
+                cover_url,
+            });
+        }
+    }
+
     tracks
 }
