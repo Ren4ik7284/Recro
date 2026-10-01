@@ -767,6 +767,7 @@ export class AudioService {
 
     const isFav = this.libraryService.isTrackFavorite(track);
     this.currentTrack.set({ ...track, isFavorite: isFav });
+    this.recService.recordTrackStarted(track);
     this.streamSeekOffset.set(0);
     this.currentTime.set(0);
     this.hasAudioStartedPlaying = false;
@@ -1047,7 +1048,10 @@ export class AudioService {
         let updatedQ = this.queue();
         if (nextIdx >= updatedQ.length) {
           // Instant synchronous replenishment so mix never starves or halts
-          const fallbacks = this.recService.pickNextTracks(4, new Set(), this.currentTrack() || null);
+          const recentQueue = updatedQ.slice(Math.max(0, updatedQ.length - 15));
+          const excludeIds = new Set<string>(recentQueue.map((t) => t.id));
+          const recentArtists = new Set<string>(recentQueue.slice(-4).map((t) => t.artist).filter(Boolean));
+          const fallbacks = this.recService.pickNextTracks(4, excludeIds, this.currentTrack() || null, recentArtists);
           if (fallbacks.length > 0) {
             this.queue.update((curQ) => [...curQ, ...fallbacks]);
           } else {
@@ -1318,10 +1322,17 @@ export class AudioService {
 
     const needed = Math.max(3, 5 - upcomingCount);
 
-    // Only exclude tracks that are currently in the upcoming queue or the current track!
-    // Historical tracks played earlier in the session are NOT excluded, so the mix can cycle endlessly.
+    // Exclude unplayed upcoming tracks AND recently played tracks from this session queue
     const unplayedUpcoming = q.slice(Math.max(0, idx));
-    const excludeIds = new Set<string>(unplayedUpcoming.map((t) => t.id));
+    const recentPlayedFromQueue = q.slice(Math.max(0, idx - 15), idx);
+    const excludeIds = new Set<string>([
+      ...unplayedUpcoming.map((t) => t.id),
+      ...recentPlayedFromQueue.map((t) => t.id),
+    ]);
+
+    // Build context artists from current surroundings in queue
+    const contextSlice = q.slice(Math.max(0, idx - 4), Math.min(q.length, idx + 4));
+    const recentArtists = new Set<string>(contextSlice.map((t) => t.artist).filter(Boolean));
 
     const source = this.recService.mixConfig().source;
     const localCandidates = this.recService.getAllLocalCandidates();
@@ -1330,15 +1341,18 @@ export class AudioService {
     let newTracks: Track[] = [];
 
     if (source === 'library_only') {
-      newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack);
+      newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
     } else if (source === 'discovery_heavy') {
       const onlineCount = Math.min(needed, 3);
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(onlineCount, excludeIds);
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(onlineCount, excludeIds, recentArtists);
       newTracks.push(...discovery);
-      discovery.forEach((d) => excludeIds.add(d.id));
+      discovery.forEach((d) => {
+        excludeIds.add(d.id);
+        if (d.artist) recentArtists.add(d.artist);
+      });
 
       if (newTracks.length < needed) {
-        const local = this.recService.pickNextTracks(needed - newTracks.length, excludeIds, curTrack);
+        const local = this.recService.pickNextTracks(needed - newTracks.length, excludeIds, curTrack, recentArtists);
         newTracks.push(...local);
       }
     } else {
@@ -1346,23 +1360,28 @@ export class AudioService {
       const shouldDiscover = Math.random() < 0.45 || localCandidates.length === 0;
       if (shouldDiscover && localCandidates.length > 0) {
         const localCount = Math.max(1, Math.floor(needed / 2));
-        const local = this.recService.pickNextTracks(localCount, excludeIds, curTrack);
+        const local = this.recService.pickNextTracks(localCount, excludeIds, curTrack, recentArtists);
         newTracks.push(...local);
-        local.forEach((t) => excludeIds.add(t.id));
+        local.forEach((t) => {
+          excludeIds.add(t.id);
+          if (t.artist) recentArtists.add(t.artist);
+        });
 
         const discoveryNeeded = needed - newTracks.length;
-        const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryNeeded, excludeIds);
-        newTracks.push(...discovery);
+        if (discoveryNeeded > 0) {
+          const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryNeeded, excludeIds, recentArtists);
+          newTracks.push(...discovery);
+        }
       } else if (localCandidates.length > 0) {
-        newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack);
+        newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
       } else {
-        newTracks = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds);
+        newTracks = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists);
       }
     }
 
     // Resilience fallbacks if online discovery failed or candidates were exhausted
     if (newTracks.length === 0 && localCandidates.length > 0) {
-      newTracks = this.recService.pickNextTracks(needed, new Set([q[idx]?.id].filter(Boolean) as string[]), curTrack);
+      newTracks = this.recService.pickNextTracks(needed, new Set([q[idx]?.id].filter(Boolean) as string[]), curTrack, recentArtists);
     }
 
     // Emergency fallback if library is empty and online discovery yielded nothing: recycle non-disliked from queue
@@ -1385,14 +1404,27 @@ export class AudioService {
     this.recService.setMixMood(mood);
 
     const curTrack = this.currentTrack() || null;
-    let candidates = this.recService.pickNextTracks(6, new Set(), curTrack);
+    const recentArtists = new Set<string>();
+    if (curTrack?.artist) {
+      recentArtists.add(curTrack.artist);
+    }
+
+    let candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
+    candidates.forEach((t) => {
+      if (t.artist) recentArtists.add(t.artist);
+    });
+
     if (candidates.length < 6) {
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(6 - candidates.length, new Set(candidates.map((t) => t.id)));
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(
+        6 - candidates.length,
+        new Set(candidates.map((t) => t.id)),
+        recentArtists
+      );
       candidates = [...candidates, ...discovery];
     }
 
     if (candidates.length === 0) {
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(6);
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(6, new Set(), recentArtists);
       if (discovery.length === 0) {
         this.recService.isMixActive.set(false);
         return false;

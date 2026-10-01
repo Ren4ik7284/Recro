@@ -53,6 +53,10 @@ export class LibraryService implements OnDestroy {
     return `signal_dislikes_${this.storageUserId}`;
   }
 
+  getStorageUserId(): string {
+    return this.storageUserId;
+  }
+
   readonly mixConfig = signal<MixConfig>(this.loadInitialMixConfig());
   readonly dislikedTrackIds = signal<Set<string>>(this.loadInitialDislikes());
 
