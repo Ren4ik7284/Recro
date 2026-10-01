@@ -50,6 +50,12 @@ pub struct AuthResponse {
 
 static DYNAMIC_JWT_SECRET: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
 
+pub const DUMMY_BCRYPT_HASH: &str = "$2b$12$e8uq0wGZ8lq4aN1z0vUqIuO5q5wHqOqM9j5Y1vL6u4b1Wk4j1v8i.";
+
+pub fn verify_dummy_password() {
+    let _ = bcrypt::verify("dummy_password_timing_protect", DUMMY_BCRYPT_HASH);
+}
+
 fn get_jwt_secret() -> &'static [u8] {
     DYNAMIC_JWT_SECRET.get_or_init(|| {
         if let Ok(val) = std::env::var("JWT_SECRET") {
@@ -58,12 +64,29 @@ fn get_jwt_secret() -> &'static [u8] {
                 return trimmed.as_bytes().to_vec();
             }
         }
+
+        // Try reading persistent secret from disk so restarts do not invalidate tokens
+        let secret_path = if std::path::Path::new("/data").exists() {
+            std::path::PathBuf::from("/data/.jwt_secret")
+        } else {
+            std::path::PathBuf::from(".jwt_secret")
+        };
+
+        if let Ok(existing) = std::fs::read_to_string(&secret_path) {
+            let trimmed = existing.trim();
+            if trimmed.len() >= 32 {
+                return trimmed.as_bytes().to_vec();
+            }
+        }
+
         let random_secret: String = (0..64)
             .map(|_| {
                 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+";
                 CHARSET[fastrand::usize(..CHARSET.len())] as char
             })
             .collect();
+
+        let _ = std::fs::write(&secret_path, &random_secret);
         random_secret.into_bytes()
     })
 }

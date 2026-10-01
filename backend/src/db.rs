@@ -49,6 +49,7 @@ pub async fn init_db() -> Result<DbPool, sqlx::Error> {
     let _ = sqlx::query("ALTER TABLE users ADD COLUMN avatar_url TEXT").execute(&pool).await;
     let _ = sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL").execute(&pool).await;
     let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)").execute(&pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_username_lower ON users(LOWER(username))").execute(&pool).await;
 
     sqlx::query(
         r#"

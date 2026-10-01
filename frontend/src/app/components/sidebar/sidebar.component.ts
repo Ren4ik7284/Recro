@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { LibraryService } from '../../services/library.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
+import { TimerService } from '../../services/timer.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -16,6 +17,7 @@ export class SidebarComponent {
   readonly libraryService = inject(LibraryService);
   readonly authService = inject(AuthService);
   readonly audioService = inject(AudioService);
+  readonly timerService = inject(TimerService);
 
   @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' = 'all';
 
@@ -24,6 +26,7 @@ export class SidebarComponent {
   @Output() createPlaylist = new EventEmitter<void>();
   @Output() openWrapped = new EventEmitter<void>();
   @Output() openHistory = new EventEmitter<void>();
+  @Output() openTimer = new EventEmitter<void>();
   @Output() openAuth = new EventEmitter<void>();
 
   onMixClick() {

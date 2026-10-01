@@ -88,6 +88,17 @@
         </svg>
         <span>История</span>
       </button>
+
+      <button class="nav-item timer-sidebar-btn" (click)="openTimer.emit()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>Музыкальный таймер</span>
+        @if (timerService.isActive()) {
+          <span class="count-badge font-mono" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 700;">{{ timerService.formattedRemaining() }}</span>
+        }
+      </button>
     </nav>
   </div>
 

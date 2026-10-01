@@ -14,7 +14,9 @@ export type AppOverlay =
   | 'mix-settings'
   | 'auth'
   | 'wrapped'
-  | 'pwa';
+  | 'pwa'
+  | 'timer'
+  | 'timer-finish';
 
 export interface RouteState {
   tab: AppTab;
@@ -26,6 +28,7 @@ export interface RouteState {
 const KNOWN_OVERLAYS = new Set<string>([
   'lyrics', 'visualizer', 'player', 'queue', 'add', 'playlists',
   'playlist-new', 'playlist-add', 'history', 'mix-settings', 'auth', 'wrapped', 'pwa',
+  'timer', 'timer-finish',
 ]);
 const KNOWN_TABS = new Set<string>(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline']);
 

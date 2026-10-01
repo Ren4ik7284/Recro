@@ -50,6 +50,7 @@ export class AudioService {
   private replenishingPromise: Promise<void> | null = null;
   private consecutiveErrorCount = 0;
   private errorTimeoutId: any = null;
+  private fadeIntervalId: any = null;
   private currentPlayRequestId = 0;
   private isSwitchingTrack = false;
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
@@ -239,34 +240,89 @@ export class AudioService {
   }
 
   private applyFadeIn(durationSec = 1.6) {
-    if (!this.gainNode || !this.audioCtx) return;
-    try {
-      const now = this.audioCtx.currentTime;
-      this.gainNode.gain.cancelScheduledValues(now);
-      if (!this.isCrossfadeEnabled() || this.isLiveStream()) {
-        this.gainNode.gain.setValueAtTime(1.0, now);
-        return;
+    if (this.fadeIntervalId) {
+      clearInterval(this.fadeIntervalId);
+      this.fadeIntervalId = null;
+    }
+
+    if (!this.isCrossfadeEnabled() || this.isLiveStream()) {
+      if (this.gainNode && this.audioCtx) {
+        this.gainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
       }
-      this.gainNode.gain.setValueAtTime(0.02, now);
-      this.gainNode.gain.linearRampToValueAtTime(1.0, now + durationSec);
-    } catch {}
+      this.audio.volume = this.volume();
+      return;
+    }
+
+    if (this.gainNode && this.audioCtx) {
+      try {
+        const now = this.audioCtx.currentTime;
+        this.gainNode.gain.cancelScheduledValues(now);
+        this.gainNode.gain.setValueAtTime(0.02, now);
+        this.gainNode.gain.linearRampToValueAtTime(1.0, now + durationSec);
+        return;
+      } catch {}
+    }
+
+    // HTML5 Audio volume fallback for mobile / non-web-audio
+    const targetVol = this.volume();
+    const startVol = Math.max(0.02, targetVol * 0.05);
+    this.audio.volume = startVol;
+    const steps = 16;
+    const stepTime = Math.max(20, (durationSec * 1000) / steps);
+    let currentStep = 0;
+    this.fadeIntervalId = setInterval(() => {
+      currentStep++;
+      if (currentStep >= steps) {
+        this.audio.volume = targetVol;
+        clearInterval(this.fadeIntervalId);
+        this.fadeIntervalId = null;
+      } else {
+        const factor = currentStep / steps;
+        this.audio.volume = startVol + (targetVol - startVol) * factor;
+      }
+    }, stepTime);
   }
 
   private applyFadeOut(durationSec = 2.0): Promise<void> {
     return new Promise((resolve) => {
-      if (!this.gainNode || !this.audioCtx || !this.isCrossfadeEnabled()) {
+      if (this.fadeIntervalId) {
+        clearInterval(this.fadeIntervalId);
+        this.fadeIntervalId = null;
+      }
+
+      if (!this.isCrossfadeEnabled() || this.isLiveStream()) {
         resolve();
         return;
       }
-      try {
-        const now = this.audioCtx.currentTime;
-        this.gainNode.gain.cancelScheduledValues(now);
-        this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now);
-        this.gainNode.gain.linearRampToValueAtTime(0.02, now + durationSec);
-        setTimeout(resolve, durationSec * 1000);
-      } catch {
-        resolve();
+
+      if (this.gainNode && this.audioCtx) {
+        try {
+          const now = this.audioCtx.currentTime;
+          this.gainNode.gain.cancelScheduledValues(now);
+          this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now);
+          this.gainNode.gain.linearRampToValueAtTime(0.02, now + durationSec);
+          setTimeout(resolve, durationSec * 1000);
+          return;
+        } catch {}
       }
+
+      // HTML5 Audio volume fallback for mobile / non-web-audio
+      const initialVol = this.audio.volume;
+      const steps = 16;
+      const stepTime = Math.max(20, (durationSec * 1000) / steps);
+      let currentStep = 0;
+      this.fadeIntervalId = setInterval(() => {
+        currentStep++;
+        if (currentStep >= steps) {
+          this.audio.volume = 0.02;
+          clearInterval(this.fadeIntervalId);
+          this.fadeIntervalId = null;
+          resolve();
+        } else {
+          const factor = (steps - currentStep) / steps;
+          this.audio.volume = Math.max(0.02, initialVol * factor);
+        }
+      }, stepTime);
     });
   }
 
@@ -868,6 +924,18 @@ export class AudioService {
     }
   }
 
+  play() {
+    if (this.audio.paused) {
+      this.togglePlay();
+    }
+  }
+
+  pause() {
+    if (!this.audio.paused) {
+      this.togglePlay();
+    }
+  }
+
   stopPlayback() {
     try {
       this.audio.pause();
@@ -1084,6 +1152,10 @@ export class AudioService {
   }
 
   setVolume(vol: number) {
+    if (this.fadeIntervalId) {
+      clearInterval(this.fadeIntervalId);
+      this.fadeIntervalId = null;
+    }
     const clamped = Math.max(0, Math.min(1, vol));
     this.volume.set(clamped);
     this.audio.volume = clamped;
@@ -1117,6 +1189,18 @@ export class AudioService {
     this.queue.update((q) => [...q, track]);
     if (!this.currentTrack()) {
       this.playTrack(track);
+    }
+  }
+
+  playNext(track: Track) {
+    const curIdx = this.queueIndex();
+    const currentQ = this.queue();
+    if (curIdx >= 0 && curIdx < currentQ.length) {
+      const nextQ = [...currentQ];
+      nextQ.splice(curIdx + 1, 0, track);
+      this.queue.set(nextQ);
+    } else {
+      this.addToQueue(track);
     }
   }
 

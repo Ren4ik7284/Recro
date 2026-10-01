@@ -27,6 +27,7 @@
       (createPlaylist)="openCreatePlaylistModal()"
       (openWrapped)="openWrappedModal()"
       (openHistory)="openHistoryModal()"
+      (openTimer)="timerService.openTimerModal()"
       (openAuth)="openAuthModal()"
     ></app-sidebar>
 
@@ -2808,6 +2809,290 @@
           </button>
           <button type="button" class="btn-primary" (click)="closeMixSettings()">
             Готово
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (timerService.isTimerModalOpen()) {
+    <div class="modal-backdrop timer-backdrop" (click)="timerService.closeTimerModal()">
+      <div class="modal-dialog timer-modal-dialog" (click)="$event.stopPropagation()">
+        <!-- Header -->
+        <div class="modal-header timer-header">
+          <div class="modal-title-group">
+            <span class="modal-tag font-mono">МУЗЫКАЛЬНЫЙ ТАЙМЕР</span>
+            <h3 class="modal-title">Таймер под ваши дела</h3>
+            <p class="modal-subtitle">Подбирает идеальный плейлист ровно под нужное вам время</p>
+          </div>
+          <button class="btn-close-modal" (click)="timerService.closeTimerModal()" title="Закрыть (Esc)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body timer-modal-body">
+          @if (timerService.isActive()) {
+            <div class="timer-active-banner">
+              <div class="active-banner-left">
+                <span class="pulse-indicator"></span>
+                <div class="active-banner-text">
+                  <span class="banner-title">Таймер сейчас запущен!</span>
+                  <span class="banner-time font-mono">Осталось: {{ timerService.formattedRemaining() }}</span>
+                </div>
+              </div>
+              <div class="active-banner-actions">
+                <button type="button" class="btn-banner-action" (click)="timerService.togglePause()">
+                  {{ timerService.isPaused() ? 'Возобновить' : 'Пауза' }}
+                </button>
+                <button type="button" class="btn-banner-action btn-danger" (click)="timerService.cancelTimer(false)">
+                  Остановить
+                </button>
+              </div>
+            </div>
+          }
+
+          <div class="timer-section">
+            <div class="timer-section-header">
+              <span class="timer-section-title">1. Сколько времени вам нужно?</span>
+              <span class="timer-target-display font-mono">{{ timerService.targetMinutes() }} минут</span>
+            </div>
+
+            <div class="timer-presets-grid">
+              <button 
+                type="button" 
+                class="timer-preset-btn font-mono" 
+                [class.active]="timerService.targetMinutes() === 15"
+                (click)="timerService.setTargetMinutes(15)"
+              >
+                15 мин
+              </button>
+              <button 
+                type="button" 
+                class="timer-preset-btn font-mono" 
+                [class.active]="timerService.targetMinutes() === 25"
+                (click)="timerService.setTargetMinutes(25)"
+              >
+                25 мин <span class="pomodoro-pill">🍅</span>
+              </button>
+              <button 
+                type="button" 
+                class="timer-preset-btn font-mono" 
+                [class.active]="timerService.targetMinutes() === 30"
+                (click)="timerService.setTargetMinutes(30)"
+              >
+                30 мин
+              </button>
+              <button 
+                type="button" 
+                class="timer-preset-btn font-mono" 
+                [class.active]="timerService.targetMinutes() === 45"
+                (click)="timerService.setTargetMinutes(45)"
+              >
+                45 мин
+              </button>
+              <button 
+                type="button" 
+                class="timer-preset-btn font-mono" 
+                [class.active]="timerService.targetMinutes() === 60"
+                (click)="timerService.setTargetMinutes(60)"
+              >
+                60 мин
+              </button>
+            </div>
+
+            <div class="timer-slider-row">
+              <input 
+                type="range"
+                min="5"
+                max="120"
+                step="5"
+                [value]="timerService.targetMinutes()"
+                (input)="timerService.setTargetMinutes(+($any($event.target).value))"
+                class="mono-slider timer-range-slider"
+              />
+              <div class="slider-labels font-mono text-muted">
+                <span>5 мин</span>
+                <span>30 мин</span>
+                <span>60 мин</span>
+                <span>90 мин</span>
+                <span>120 мин</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="timer-section">
+            <div class="timer-section-header">
+              <span class="timer-section-title">2. Настроение и музыка</span>
+            </div>
+
+            <div class="timer-moods-grid">
+              @for (m of timerMoods; track m.id) {
+                <button 
+                  type="button" 
+                  class="timer-mood-card" 
+                  [class.active]="timerService.selectedMood() === m.id && !timerService.selectedPlaylistId()"
+                  (click)="timerService.setMood(m.id)"
+                >
+                  <div class="mood-card-top">
+                    <span class="mood-title">{{ m.title }}</span>
+                    <div class="mood-radio-circle" [class.checked]="timerService.selectedMood() === m.id && !timerService.selectedPlaylistId()">
+                      <div class="mood-radio-dot"></div>
+                    </div>
+                  </div>
+                  <span class="mood-desc">{{ m.desc }}</span>
+                </button>
+              }
+            </div>
+
+            @if (libraryService.playlists().length > 0) {
+              <div class="timer-playlist-select-wrap">
+                <span class="sub-label">Или выберите свой плейлист:</span>
+                <select 
+                  class="timer-select-dropdown font-mono"
+                  [value]="timerService.selectedPlaylistId() || ''"
+                  (change)="timerService.setPlaylist($any($event.target).value)"
+                >
+                  <option value="">-- Выбрать плейлист --</option>
+                  @for (pl of libraryService.playlists(); track pl.id) {
+                    <option [value]="pl.id">{{ pl.title }} ({{ pl.trackIds.length }} треков)</option>
+                  }
+                </select>
+              </div>
+            }
+          </div>
+
+          <div class="timer-section">
+            <div class="timer-section-header">
+              <span class="timer-section-title">3. Подобранный сет треков</span>
+              <button 
+                type="button" 
+                class="btn-regen-set font-mono" 
+                (click)="timerService.generatePlaylistForTimer()"
+                [disabled]="timerService.isGenerating()"
+                title="Пересобрать другой вариант"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" [class.spin-icon]="timerService.isGenerating()">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+                <span>Перемешать</span>
+              </button>
+            </div>
+
+            <div class="timer-preview-card">
+              <div class="preview-metrics-row">
+                <div class="metric-box">
+                  <span class="metric-label">ТРЕКОВ</span>
+                  <span class="metric-val font-mono">{{ timerService.previewTracks().length }}</span>
+                </div>
+                <div class="metric-box">
+                  <span class="metric-label">ДЛИТЕЛЬНОСТЬ</span>
+                  <span class="metric-val font-mono">{{ formatTime(timerService.previewTotalDuration()) }}</span>
+                </div>
+                <div class="metric-box">
+                  <span class="metric-label">ТОЧНОСТЬ</span>
+                  <span class="metric-val font-mono" [style.color]="Math.abs(timerService.previewDifferenceSec()) <= 30 ? '#22c55e' : '#eab308'">
+                    {{ timerService.previewDifferenceSec() > 0 ? '+' : '' }}{{ timerService.previewDifferenceSec() }} сек
+                  </span>
+                </div>
+              </div>
+
+              <div class="preview-tracks-scroll">
+                @if (timerService.isGenerating()) {
+                  <div class="timer-loading-state font-mono">
+                    <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                    <span>Подбираем идеальную комбинацию треков...</span>
+                  </div>
+                } @else if (timerService.previewTracks().length === 0) {
+                  <div class="timer-empty-state font-mono text-muted">
+                    Нет доступных треков для подбора.
+                  </div>
+                } @else {
+                  @for (t of timerService.previewTracks(); track t.id; let idx = $index) {
+                    <div class="preview-track-row">
+                      <span class="preview-idx font-mono text-muted">{{ idx + 1 }}</span>
+                      <div class="preview-cover">
+                        @if (t.coverUrl) {
+                          <img [src]="t.coverUrl" alt="cover" />
+                        } @else {
+                          <div class="preview-cover-fallback font-mono">♪</div>
+                        }
+                      </div>
+                      <div class="preview-info">
+                        <span class="preview-title">{{ t.title }}</span>
+                        <span class="preview-artist">{{ t.artist }}</span>
+                      </div>
+                      <span class="preview-dur font-mono text-muted">{{ formatTime(t.duration || 180) }}</span>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer timer-footer">
+          <button type="button" class="btn-cancel" (click)="timerService.closeTimerModal()">
+            Отмена
+          </button>
+          <button 
+            type="button" 
+            class="btn-primary btn-start-timer font-mono" 
+            (click)="timerService.startTimerSession()"
+            [disabled]="timerService.previewTracks().length === 0 || timerService.isGenerating()"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            <span>Запустить таймер ({{ timerService.targetMinutes() }} мин)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (timerService.isFinishModalOpen()) {
+    <div class="modal-backdrop timer-finish-backdrop" (click)="timerService.closeFinishModal()">
+      <div class="modal-dialog timer-finish-dialog" (click)="$event.stopPropagation()">
+        <div class="finish-glow-orb"></div>
+
+        <div class="finish-icon-wrap">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+
+        <h2 class="finish-title">Время вышло! ⏱️</h2>
+        <p class="finish-desc">
+          Ваша сессия на <strong class="font-mono text-primary">{{ timerService.completedSessionStats()?.minutes || timerService.targetMinutes() }} минут</strong> успешно завершена.
+        </p>
+
+        <div class="finish-stats-card font-mono">
+          <div class="finish-stat-col">
+            <span class="stat-label text-muted">ВРЕМЯ</span>
+            <span class="stat-val">{{ timerService.completedSessionStats()?.minutes || timerService.targetMinutes() }} мин</span>
+          </div>
+          <div class="finish-stat-divider"></div>
+          <div class="finish-stat-col">
+            <span class="stat-label text-muted">ТРЕКОВ СЫГРАНО</span>
+            <span class="stat-val">{{ timerService.completedSessionStats()?.tracksCount || timerService.previewTracks().length }}</span>
+          </div>
+        </div>
+
+        <div class="finish-actions-row">
+          <button type="button" class="btn-finish-sec" (click)="timerService.closeFinishModal()">
+            Завершить
+          </button>
+          <button type="button" class="btn-finish-extra font-mono" (click)="timerService.addFiveMinutes()">
+            +5 минут ещё
+          </button>
+          <button type="button" class="btn-finish-prim font-mono" (click)="timerService.closeFinishModal(); audioService.play()">
+            Продолжить музыку
           </button>
         </div>
       </div>

@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::auth::{
     create_jwt, extract_claims_from_headers, hash_password, validate_password,
-    validate_username, verify_password, AuthConfigResponse, AuthResponse, GoogleAuthRequest,
-    LoginRequest, RegisterRequest, UserInfo,
+    validate_username, verify_dummy_password, verify_password, AuthConfigResponse, AuthResponse,
+    GoogleAuthRequest, LoginRequest, RegisterRequest, UserInfo,
 };
 use crate::security::get_client_ip;
 use crate::AppState;
@@ -74,12 +74,21 @@ pub async fn register(
         ));
     }
 
-    let password_hash = hash_password(payload.password.trim()).map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "Не удалось захэшировать пароль" })),
-        )
-    })?;
+    let password_clean = payload.password.trim().to_string();
+    let password_hash = tokio::task::spawn_blocking(move || hash_password(&password_clean))
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Ошибка хэширования" })),
+            )
+        })?
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Не удалось захэшировать пароль" })),
+            )
+        })?;
 
     let user_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
@@ -214,7 +223,10 @@ pub async fn login(
         Some(r) => r,
         None => {
             record_attempt();
-            tokio::time::sleep(Duration::from_millis(250)).await;
+            let _ = tokio::task::spawn_blocking(|| {
+                verify_dummy_password();
+            })
+            .await;
             return Err((
                 StatusCode::UNAUTHORIZED,
                 Json(json!({ "error": "Неверное имя пользователя или пароль" })),
@@ -226,9 +238,15 @@ pub async fn login(
     let db_username: String = user_row.get("username");
     let password_hash: String = user_row.get("password_hash");
 
-    if !verify_password(password, &password_hash) {
+    let password_owned = password.to_string();
+    let is_valid = tokio::task::spawn_blocking(move || {
+        verify_password(&password_owned, &password_hash)
+    })
+    .await
+    .unwrap_or(false);
+
+    if !is_valid {
         record_attempt();
-        tokio::time::sleep(Duration::from_millis(250)).await;
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(json!({ "error": "Неверное имя пользователя или пароль" })),
@@ -592,9 +610,12 @@ pub async fn google_login(
     }
 
     let random_pass = format!("goog_{}_{}", Uuid::new_v4(), fastrand::u64(..));
-    let password_hash = hash_password(&random_pass).map_err(|_| {
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Не удалось сгенерировать хэш" })))
-    })?;
+    let password_hash = tokio::task::spawn_blocking(move || hash_password(&random_pass))
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Ошибка хэширования" }))))?
+        .map_err(|_| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Не удалось сгенерировать хэш" })))
+        })?;
 
     let user_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();

@@ -26,6 +26,7 @@ import { LyricsComponent } from './components/lyrics/lyrics.component';
 import { NavigationService } from './services/navigation.service';
 import { AmbientService } from './services/ambient.service';
 import { PwaService } from './services/pwa.service';
+import { TimerService, TIMER_MOODS, TimerMood } from './services/timer.service';
 
 declare global {
   interface Window {
@@ -59,6 +60,9 @@ export class App implements OnInit {
   readonly lyricsService = inject(LyricsService);
   readonly navService = inject(NavigationService);
   readonly ambientService = inject(AmbientService);
+  readonly timerService = inject(TimerService);
+  readonly timerMoods = TIMER_MOODS;
+  readonly Math = Math;
 
   constructor() {
     // Динамический заголовок вкладки в браузере (Track - Artist | Recro)
@@ -255,6 +259,20 @@ export class App implements OnInit {
         this.pwaService.openInstallModal();
       } else if (this.isPwaModalOpen()) {
         this.pwaService.closeInstallModal();
+      }
+
+      if (o === 'timer') {
+        if (!this.timerService.isTimerModalOpen()) {
+          this.timerService.openTimerModal(false);
+        }
+      } else {
+        this.timerService.isTimerModalOpen.set(false);
+      }
+
+      if (o === 'timer-finish') {
+        this.timerService.isFinishModalOpen.set(true);
+      } else {
+        this.timerService.isFinishModalOpen.set(false);
       }
 
       this.cdr.markForCheck();
@@ -491,6 +509,10 @@ export class App implements OnInit {
         this.closePwaModal();
       } else if (this.isMobilePlaylistsOpen()) {
         this.closeMobilePlaylists();
+      } else if (this.timerService.isTimerModalOpen()) {
+        this.timerService.closeTimerModal();
+      } else if (this.timerService.isFinishModalOpen()) {
+        this.timerService.closeFinishModal();
       } else if (this.isMobilePlayerExpanded()) {
         this.collapseMobilePlayer();
       }

@@ -6,6 +6,7 @@ import { LibraryService } from '../../services/library.service';
 import { OfflineService } from '../../services/offline.service';
 import { LyricsService } from '../../services/lyrics.service';
 import { AmbientService } from '../../services/ambient.service';
+import { TimerService } from '../../services/timer.service';
 import { VisualizerComponent } from '../visualizer/visualizer.component';
 import { Track } from '../../models/track.model';
 
@@ -23,6 +24,7 @@ export class PlayerBarComponent {
   readonly offlineService = inject(OfflineService);
   readonly lyricsService = inject(LyricsService);
   readonly ambientService = inject(AmbientService);
+  readonly timerService = inject(TimerService);
 
   @Output() toggleQueueDrawer = new EventEmitter<void>();
   @Output() expandMobilePlayer = new EventEmitter<void>();

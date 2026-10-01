@@ -17,6 +17,7 @@ export interface Track {
   isLiveStream?: boolean;
   isOffline?: boolean;
   playlistOnly?: boolean;
+  bpm?: number;
 }
 
 export interface Playlist {
@@ -46,6 +47,7 @@ export interface MixConfig {
   mood: MixMood;
   source: MixSource;
   language: MixLanguage;
+  tasteVector?: any;
 }
 
 export const DEFAULT_MIX_CONFIG: MixConfig = {

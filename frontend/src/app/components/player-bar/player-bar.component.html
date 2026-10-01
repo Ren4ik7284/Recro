@@ -138,6 +138,21 @@
         </svg>
       </button>
 
+      @if (timerService.isActive()) {
+        <button 
+          class="ctrl-btn btn-mobile-visible mobile-only timer-mini-pill font-mono"
+          (click)="timerService.openTimerModal(); $event.stopPropagation()"
+          title="Музыкальный таймер"
+          style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 999px; color: #22c55e; font-size: 11px; font-weight: 700; height: 26px;"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>{{ timerService.formattedRemaining() }}</span>
+        </button>
+      }
+
       <!-- Repeat -->
       <button 
         class="ctrl-btn desktop-only" 
@@ -285,6 +300,24 @@
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       GLOW
+    </button>
+
+    <button 
+      class="utility-btn desktop-only" 
+      [class.active]="timerService.isActive()"
+      (click)="timerService.openTimerModal()"
+      [title]="timerService.isActive() ? 'Музыкальный таймер активен: осталось ' + timerService.formattedRemaining() : 'Музыкальный смарт-таймер под ваши дела'"
+      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace; display: inline-flex; align-items: center; gap: 4px;"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+      @if (timerService.isActive()) {
+        <span>{{ timerService.formattedRemaining() }}</span>
+      } @else {
+        <span>ТАЙМЕР</span>
+      }
     </button>
 
     <!-- Queue Drawer Toggle -->

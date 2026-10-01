@@ -141,6 +141,12 @@ export class BpmService {
     const track = this.audioService.currentTrack();
     if (!track || track.id !== this.currentTrackId) return;
 
+    track.bpm = bpm;
+    const libTrack = this.libraryService.tracks().find((t) => t.id === track.id);
+    if (libTrack) {
+      libTrack.bpm = bpm;
+    }
+
     try {
       const backendUrl = this.libraryService.getBackendUrl();
       await fetch(`${backendUrl}/api/track/meta`, {

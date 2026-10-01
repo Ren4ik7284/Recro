@@ -21,3 +21,5 @@ backend/cookies.txt
 .env
 .env.*
 !.env.example
+*.jwt_secret
+.jwt_secret

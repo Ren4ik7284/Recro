@@ -26,6 +26,13 @@ const DEFAULT_TASTE_VECTOR: TasteVector = {
   chill: 0.4,
 };
 
+const PHONK_REGEX = /\b(phonk|drift|hardstyle|hyperpop|фонк|дрифт|hardbass)\b/i;
+const HIPHOP_REGEX = /\b(hip-?hop|rap|рэп|trap|трэп|drill|дрил|дриил|r&b|rnb|soul|соул)\b/i;
+const ROCK_REGEX = /\b(rock|metal|punk|рок|метал|guitar|grunge|alternative|core|hardcore|metalcore|рокеш)\b/i;
+const ELECTRONIC_REGEX = /\b(synth|synthwave|edm|house|dance|techno|club|dnb|drum\s*and\s*bass|trance|dubstep|электро)\b/i;
+const CHILL_REGEX = /\b(lo-?fi|chill|ambient|relax|sleep|piano|acoustic|акустика|лаборатория|calm|meditation|soft|лаунж)\b/i;
+const POP_REGEX = /\b(pop|поп|indie|инди|hit|k-?pop|vocal|вокал)\b/i;
+
 @Injectable({
   providedIn: 'root',
 })
@@ -72,6 +79,10 @@ export class RecommendationService {
   }
 
   private loadSavedTasteVector(): TasteVector {
+    const cloudVec = this.libraryService.mixConfig()?.tasteVector;
+    if (cloudVec && typeof cloudVec === 'object') {
+      return { ...DEFAULT_TASTE_VECTOR, ...cloudVec };
+    }
     if (typeof localStorage === 'undefined') return { ...DEFAULT_TASTE_VECTOR };
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY_TASTE);
@@ -87,6 +98,7 @@ export class RecommendationService {
     try {
       localStorage.setItem(this.STORAGE_KEY_TASTE, JSON.stringify(vec));
     } catch {}
+    this.libraryService.setMixConfig({ tasteVector: vec });
   }
 
   private cleanupOldPlays() {
@@ -125,13 +137,7 @@ export class RecommendationService {
     let chill = 0.1;
 
     // Phonk / Trap / Hardstyle / Heavy Bass / Hyperpop
-    if (
-      text.includes('phonk') ||
-      text.includes('drift') ||
-      text.includes('bass') ||
-      text.includes('hardstyle') ||
-      text.includes('hyperpop')
-    ) {
+    if (PHONK_REGEX.test(text) || (text.includes('bass') && !text.includes('bass guitar'))) {
       energy += 0.42;
       tempo += 0.25;
       electronic += 0.72;
@@ -140,18 +146,7 @@ export class RecommendationService {
     }
 
     // Hip-Hop / Rap / Drill / Trap / RnB / Soul
-    if (
-      text.includes('hip-hop') ||
-      text.includes('hip hop') ||
-      text.includes('rap') ||
-      text.includes('рэп') ||
-      text.includes('trap') ||
-      text.includes('drill') ||
-      text.includes('дрил') ||
-      text.includes('r&b') ||
-      text.includes('rnb') ||
-      text.includes('soul')
-    ) {
+    if (HIPHOP_REGEX.test(text)) {
       energy += 0.18;
       tempo += 0.1;
       hiphop += 0.75;
@@ -159,16 +154,7 @@ export class RecommendationService {
     }
 
     // Rock / Metal / Punk / Alternative / Grunge / Guitar
-    if (
-      text.includes('rock') ||
-      text.includes('metal') ||
-      text.includes('punk') ||
-      text.includes('рок') ||
-      text.includes('guitar') ||
-      text.includes('grunge') ||
-      text.includes('alternative') ||
-      text.includes('core')
-    ) {
+    if (ROCK_REGEX.test(text)) {
       energy += 0.32;
       tempo += 0.18;
       rock += 0.78;
@@ -176,19 +162,7 @@ export class RecommendationService {
     }
 
     // Electronic / Synthwave / EDM / House / Techno / DnB / Club / Trance
-    if (
-      text.includes('synth') ||
-      text.includes('synthwave') ||
-      text.includes('edm') ||
-      text.includes('house') ||
-      text.includes('dance') ||
-      text.includes('techno') ||
-      text.includes('club') ||
-      text.includes('dnb') ||
-      text.includes('drum and bass') ||
-      text.includes('trance') ||
-      text.includes('dubstep')
-    ) {
+    if (ELECTRONIC_REGEX.test(text)) {
       energy += 0.3;
       tempo += 0.22;
       electronic += 0.78;
@@ -196,21 +170,7 @@ export class RecommendationService {
     }
 
     // Chill / Lo-Fi / Ambient / Relax / Acoustic / Piano / Soft
-    if (
-      text.includes('lo-fi') ||
-      text.includes('lofi') ||
-      text.includes('chill') ||
-      text.includes('ambient') ||
-      text.includes('relax') ||
-      text.includes('sleep') ||
-      text.includes('piano') ||
-      text.includes('acoustic') ||
-      text.includes('акустика') ||
-      text.includes('лаборатория') ||
-      text.includes('calm') ||
-      text.includes('meditation') ||
-      text.includes('soft')
-    ) {
+    if (CHILL_REGEX.test(text)) {
       energy -= 0.25;
       tempo -= 0.2;
       chill += 0.78;
@@ -218,15 +178,7 @@ export class RecommendationService {
     }
 
     // Pop / Indie / Vocal / K-pop
-    if (
-      text.includes('pop') ||
-      text.includes('поп') ||
-      text.includes('indie') ||
-      text.includes('инди') ||
-      text.includes('hit') ||
-      text.includes('k-pop') ||
-      text.includes('kpop')
-    ) {
+    if (POP_REGEX.test(text)) {
       pop += 0.68;
       energy += 0.08;
       acoustic += 0.05;
@@ -357,30 +309,29 @@ export class RecommendationService {
     const tVec = this.extractTrackVector(track);
     const cur = this.tasteVector();
 
-    // 1. Continuous parameters: if the skipped track had extreme energy/tempo/acoustic, gently nudge away
+    // 1. Continuous parameters: gentle nudge away if skipped
     let newEnergy = cur.energy;
-    if (tVec.energy > 0.65) newEnergy = Math.max(0.1, cur.energy - 0.08);
-    else if (tVec.energy < 0.35) newEnergy = Math.min(0.9, cur.energy + 0.08);
+    if (tVec.energy > 0.7) newEnergy = Math.max(0.1, cur.energy - 0.04);
+    else if (tVec.energy < 0.3) newEnergy = Math.min(0.9, cur.energy + 0.04);
 
     let newTempo = cur.tempo;
-    if (tVec.tempo > 0.65) newTempo = Math.max(0.1, cur.tempo - 0.08);
-    else if (tVec.tempo < 0.35) newTempo = Math.min(0.9, cur.tempo + 0.08);
+    if (tVec.tempo > 0.7) newTempo = Math.max(0.1, cur.tempo - 0.04);
+    else if (tVec.tempo < 0.3) newTempo = Math.min(0.9, cur.tempo + 0.04);
 
     let newAcoustic = cur.acoustic;
-    if (tVec.acoustic > 0.65) newAcoustic = Math.max(0.1, cur.acoustic - 0.08);
-    else if (tVec.acoustic < 0.35) newAcoustic = Math.min(0.9, cur.acoustic + 0.08);
+    if (tVec.acoustic > 0.7) newAcoustic = Math.max(0.1, cur.acoustic - 0.04);
+    else if (tVec.acoustic < 0.3) newAcoustic = Math.min(0.9, cur.acoustic + 0.04);
 
-    // 2. Genre dimensions: only reduce genres that the skipped track actually exhibited (> 0.35).
-    // Neutral genres are NOT boosted!
+    // 2. Genre dimensions: soft gentle decay rather than harsh wipeout
     const updated: TasteVector = {
       energy: newEnergy,
       tempo: newTempo,
       acoustic: newAcoustic,
-      hiphop: Math.max(0.05, cur.hiphop - (tVec.hiphop > 0.35 ? tVec.hiphop * 0.12 : 0)),
-      rock: Math.max(0.05, cur.rock - (tVec.rock > 0.35 ? tVec.rock * 0.12 : 0)),
-      electronic: Math.max(0.05, cur.electronic - (tVec.electronic > 0.35 ? tVec.electronic * 0.12 : 0)),
-      pop: Math.max(0.05, cur.pop - (tVec.pop > 0.35 ? tVec.pop * 0.12 : 0)),
-      chill: Math.max(0.05, cur.chill - (tVec.chill > 0.35 ? tVec.chill * 0.12 : 0)),
+      hiphop: Math.max(0.05, cur.hiphop - (tVec.hiphop > 0.4 ? tVec.hiphop * 0.05 : 0)),
+      rock: Math.max(0.05, cur.rock - (tVec.rock > 0.4 ? tVec.rock * 0.05 : 0)),
+      electronic: Math.max(0.05, cur.electronic - (tVec.electronic > 0.4 ? tVec.electronic * 0.05 : 0)),
+      pop: Math.max(0.05, cur.pop - (tVec.pop > 0.4 ? tVec.pop * 0.05 : 0)),
+      chill: Math.max(0.05, cur.chill - (tVec.chill > 0.4 ? tVec.chill * 0.05 : 0)),
     };
 
     this.tasteVector.set(updated);
@@ -513,6 +464,18 @@ export class RecommendationService {
     }
     if (recentArtists && track.artist && recentArtists.has(track.artist.toLowerCase().trim())) {
       score -= 16;
+    }
+
+    // BPM / Tempo Continuity: encourage harmonious tempo flow between consecutive tracks
+    if (currentTrack?.bpm && track.bpm && currentTrack.bpm > 40 && track.bpm > 40) {
+      const bpmDiff = Math.abs(currentTrack.bpm - track.bpm);
+      if (bpmDiff <= 6) {
+        score += 15;
+      } else if (bpmDiff <= 14) {
+        score += 6;
+      } else if (bpmDiff > 35) {
+        score -= 16;
+      }
     }
 
     // Soft Fatigue penalty (Cooldown): discourages recent tracks without permanently blocking them
