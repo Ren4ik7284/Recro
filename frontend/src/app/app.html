@@ -2847,7 +2847,7 @@
                 <button type="button" class="btn-banner-action" (click)="timerService.togglePause()">
                   {{ timerService.isPaused() ? 'Возобновить' : 'Пауза' }}
                 </button>
-                <button type="button" class="btn-banner-action btn-danger" (click)="timerService.cancelTimer(false)">
+                <button type="button" class="btn-banner-action btn-stop" (click)="timerService.cancelTimer(false)">
                   Остановить
                 </button>
               </div>
@@ -2875,7 +2875,7 @@
                 [class.active]="timerService.targetMinutes() === 25"
                 (click)="timerService.setTargetMinutes(25)"
               >
-                25 мин <span class="pomodoro-pill">🍅</span>
+                25 мин
               </button>
               <button 
                 type="button" 
@@ -2993,7 +2993,7 @@
                 </div>
                 <div class="metric-box">
                   <span class="metric-label">ТОЧНОСТЬ</span>
-                  <span class="metric-val font-mono" [style.color]="Math.abs(timerService.previewDifferenceSec()) <= 30 ? '#22c55e' : '#eab308'">
+                  <span class="metric-val font-mono">
                     {{ timerService.previewDifferenceSec() > 0 ? '+' : '' }}{{ timerService.previewDifferenceSec() }} сек
                   </span>
                 </div>
@@ -3061,13 +3061,13 @@
         <div class="finish-glow-orb"></div>
 
         <div class="finish-icon-wrap">
-          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <polyline points="12 6 12 12 16 14"/>
           </svg>
         </div>
 
-        <h2 class="finish-title">Время вышло! ⏱️</h2>
+        <h2 class="finish-title">Время вышло</h2>
         <p class="finish-desc">
           Ваша сессия на <strong class="font-mono text-primary">{{ timerService.completedSessionStats()?.minutes || timerService.targetMinutes() }} минут</strong> успешно завершена.
         </p>

@@ -96,7 +96,10 @@
         </svg>
         <span>Музыкальный таймер</span>
         @if (timerService.isActive()) {
-          <span class="count-badge font-mono" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 700;">{{ timerService.formattedRemaining() }}</span>
+          <span class="count-badge font-mono" style="background: rgba(255, 255, 255, 0.08); color: #f4f4f5; border: 1px solid rgba(255, 255, 255, 0.15); font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+            <span style="width: 5px; height: 5px; border-radius: 50%; background: #22c55e;"></span>
+            {{ timerService.formattedRemaining() }}
+          </span>
         }
       </button>
     </nav>

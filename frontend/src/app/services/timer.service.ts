@@ -359,7 +359,7 @@ export class TimerService {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       try {
-        new Notification('Время таймера вышло! ⏱️', {
+        new Notification('Время таймера вышло', {
           body: `Ваша сессия на ${minutes} мин завершена (${tracksCount} треков).`,
           icon: '/favicon.ico',
         });

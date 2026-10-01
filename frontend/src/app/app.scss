@@ -6179,8 +6179,8 @@
       justify-content: space-between;
       gap: 12px;
       padding: 12px 16px;
-      background: rgba(34, 197, 94, 0.08);
-      border: 1px solid rgba(34, 197, 94, 0.35);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
       border-radius: 12px;
 
       .active-banner-left {
@@ -6189,11 +6189,11 @@
         gap: 10px;
 
         .pulse-indicator {
-          width: 9px;
-          height: 9px;
+          width: 7px;
+          height: 7px;
           border-radius: 50%;
           background: #22c55e;
-          box-shadow: 0 0 10px #22c55e;
+          box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
           animation: timerPulse 1.8s infinite;
         }
 
@@ -6210,7 +6210,7 @@
           .banner-time {
             font-size: 13px;
             font-weight: 700;
-            color: #22c55e;
+            color: var(--text-primary);
           }
         }
       }
@@ -6224,7 +6224,7 @@
           font-size: 12px;
           font-weight: 600;
           border-radius: 6px;
-          background: var(--bg-card-hover);
+          background: var(--bg-card);
           border: 1px solid var(--border-subtle);
           color: var(--text-primary);
           cursor: pointer;
@@ -6232,15 +6232,18 @@
 
           &:hover {
             border-color: var(--border-focus);
+            background: var(--bg-card-hover);
           }
 
-          &.btn-danger {
-            background: rgba(239, 68, 68, 0.12);
-            border-color: rgba(239, 68, 68, 0.3);
-            color: #ef4444;
+          &.btn-stop {
+            background: var(--bg-panel);
+            border-color: var(--border-subtle);
+            color: var(--text-muted);
 
             &:hover {
-              background: rgba(239, 68, 68, 0.2);
+              color: var(--text-primary);
+              border-color: var(--border-focus);
+              background: var(--bg-card-hover);
             }
           }
         }
@@ -6267,7 +6270,7 @@
         .timer-target-display {
           font-size: 13.5px;
           font-weight: 700;
-          color: var(--accent-green);
+          color: var(--text-primary);
         }
 
         .btn-regen-set {
@@ -6324,14 +6327,10 @@
           }
 
           &.active {
-            color: var(--text-primary);
-            background: rgba(34, 197, 94, 0.12);
-            border-color: var(--accent-green);
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.4);
             font-weight: 700;
-          }
-
-          .pomodoro-pill {
-            font-size: 11px;
           }
         }
       }
@@ -6379,8 +6378,8 @@
           }
 
           &.active {
-            background: rgba(34, 197, 94, 0.08);
-            border-color: var(--accent-green);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.35);
           }
 
           .mood-card-top {
@@ -6404,13 +6403,13 @@
               justify-content: center;
 
               &.checked {
-                border-color: var(--accent-green);
+                border-color: rgba(255, 255, 255, 0.7);
 
                 .mood-radio-dot {
-                  width: 8px;
-                  height: 8px;
+                  width: 7px;
+                  height: 7px;
                   border-radius: 50%;
-                  background: var(--accent-green);
+                  background: #ffffff;
                 }
               }
             }
@@ -6590,15 +6589,15 @@
       padding: 10px 20px;
       font-size: 13px;
       font-weight: 700;
-      background: var(--accent-green);
-      color: #000;
+      background: #ffffff;
+      color: #09090b;
       border-radius: 8px;
       border: none;
       cursor: pointer;
       transition: all 0.15s ease;
 
       &:hover:not(:disabled) {
-        background: var(--accent-green-hover);
+        background: #e4e4e7;
         transform: translateY(-1px);
       }
 
@@ -6609,10 +6608,6 @@
     }
   }
 }
-
-/* ======================================================== */
-/* ⏱️ FINISH SCREEN MODAL (Celebration / Completion)        */
-/* ======================================================== */
 
 .timer-finish-dialog {
   max-width: 440px;
@@ -6636,7 +6631,7 @@
     transform: translateX(-50%);
     width: 220px;
     height: 140px;
-    background: radial-gradient(circle, rgba(34, 197, 94, 0.22) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
     pointer-events: none;
   }
 
@@ -6644,8 +6639,9 @@
     width: 76px;
     height: 76px;
     border-radius: 50%;
-    background: rgba(34, 197, 94, 0.12);
-    border: 2px solid rgba(34, 197, 94, 0.35);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6692,7 +6688,7 @@
       .stat-val {
         font-size: 16px;
         font-weight: 800;
-        color: var(--accent-green);
+        color: var(--text-primary);
       }
     }
 
@@ -6720,23 +6716,23 @@
     }
 
     .btn-finish-prim {
-      background: var(--accent-green);
-      color: #000;
+      background: #ffffff;
+      color: #09090b;
       border: none;
 
       &:hover {
-        background: var(--accent-green-hover);
+        background: #e4e4e7;
         transform: translateY(-1px);
       }
     }
 
     .btn-finish-extra {
-      background: rgba(34, 197, 94, 0.12);
-      color: #22c55e;
-      border: 1px solid rgba(34, 197, 94, 0.35);
+      background: rgba(255, 255, 255, 0.06);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.14);
 
       &:hover {
-        background: rgba(34, 197, 94, 0.2);
+        background: rgba(255, 255, 255, 0.12);
       }
     }
 

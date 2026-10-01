@@ -143,12 +143,9 @@
           class="ctrl-btn btn-mobile-visible mobile-only timer-mini-pill font-mono"
           (click)="timerService.openTimerModal(); $event.stopPropagation()"
           title="Музыкальный таймер"
-          style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 999px; color: #22c55e; font-size: 11px; font-weight: 700; height: 26px;"
+          style="display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px; color: #f4f4f5; font-size: 11px; font-weight: 600; height: 26px;"
         >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: #22c55e;"></span>
           <span>{{ timerService.formattedRemaining() }}</span>
         </button>
       }
@@ -307,13 +304,14 @@
       [class.active]="timerService.isActive()"
       (click)="timerService.openTimerModal()"
       [title]="timerService.isActive() ? 'Музыкальный таймер активен: осталось ' + timerService.formattedRemaining() : 'Музыкальный смарт-таймер под ваши дела'"
-      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace; display: inline-flex; align-items: center; gap: 4px;"
+      style="padding: 0 8px; font-size: 11px; font-weight: 600; font-family: monospace; display: inline-flex; align-items: center; gap: 5px;"
     >
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
         <circle cx="12" cy="12" r="10"/>
         <polyline points="12 6 12 12 16 14"/>
       </svg>
       @if (timerService.isActive()) {
+        <span style="width: 5px; height: 5px; border-radius: 50%; background: #22c55e;"></span>
         <span>{{ timerService.formattedRemaining() }}</span>
       } @else {
         <span>ТАЙМЕР</span>
