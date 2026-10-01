@@ -3058,8 +3058,6 @@
   @if (timerService.isFinishModalOpen()) {
     <div class="modal-backdrop timer-finish-backdrop" (click)="timerService.closeFinishModal()">
       <div class="modal-dialog timer-finish-dialog" (click)="$event.stopPropagation()">
-        <div class="finish-glow-orb"></div>
-
         <div class="finish-icon-wrap">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>

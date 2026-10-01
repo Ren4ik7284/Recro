@@ -6189,12 +6189,10 @@
         gap: 10px;
 
         .pulse-indicator {
-          width: 7px;
-          height: 7px;
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
           background: #22c55e;
-          box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
-          animation: timerPulse 1.8s infinite;
         }
 
         .active-banner-text {
@@ -6615,53 +6613,40 @@
   padding: 32px 28px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 20px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   position: relative;
-  overflow: hidden;
-
-  .finish-glow-orb {
-    position: absolute;
-    top: -50px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 220px;
-    height: 140px;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
-    pointer-events: none;
-  }
 
   .finish-icon-wrap {
-    width: 76px;
-    height: 76px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 18px;
-    animation: bounceFinish 1.6s ease infinite alternate;
+    margin-bottom: 16px;
   }
 
   .finish-title {
-    font-size: 24px;
-    font-weight: 800;
+    font-size: 22px;
+    font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 8px;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
   }
 
   .finish-desc {
-    font-size: 14px;
+    font-size: 13.5px;
     color: var(--text-secondary);
     line-height: 1.5;
-    margin-bottom: 22px;
+    margin-bottom: 20px;
   }
 
   .finish-stats-card {
@@ -6671,9 +6656,9 @@
     width: 100%;
     background: var(--bg-panel);
     border: 1px solid var(--border-subtle);
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-bottom: 24px;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 22px;
 
     .finish-stat-col {
       display: flex;
@@ -6686,15 +6671,15 @@
       }
 
       .stat-val {
-        font-size: 16px;
-        font-weight: 800;
+        font-size: 15px;
+        font-weight: 700;
         color: var(--text-primary);
       }
     }
 
     .finish-stat-divider {
       width: 1px;
-      height: 28px;
+      height: 24px;
       background: var(--border-subtle);
     }
   }
@@ -6707,32 +6692,33 @@
 
     button {
       width: 100%;
-      padding: 12px 16px;
-      border-radius: 10px;
-      font-size: 13.5px;
-      font-weight: 700;
+      padding: 11px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
     .btn-finish-prim {
       background: #ffffff;
       color: #09090b;
-      border: none;
+      border: 1px solid #ffffff;
 
       &:hover {
         background: #e4e4e7;
-        transform: translateY(-1px);
+        border-color: #e4e4e7;
       }
     }
 
     .btn-finish-extra {
       background: rgba(255, 255, 255, 0.06);
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #f4f4f5;
+      border: 1px solid var(--border-subtle);
 
       &:hover {
         background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
       }
     }
 
@@ -6746,30 +6732,6 @@
         border-color: var(--border-focus);
       }
     }
-  }
-}
-
-@keyframes timerPulse {
-  0% {
-    transform: scale(0.95);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(0.95);
-    opacity: 0.7;
-  }
-}
-
-@keyframes bounceFinish {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-6px);
   }
 }
 
