@@ -148,7 +148,11 @@ export class AudioService {
 
     // Mobile browsers (Chrome Android / iOS Safari) kill WebAudio graphs on screen lock.
     // Keeping native HTML5 audio output on mobile guarantees the Lock Screen & Notification widget stays active.
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isMobile = typeof window !== 'undefined' && (
+      /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
+      window.innerWidth <= 1024
+    );
     if (isMobile) {
       return;
     }
@@ -245,7 +249,12 @@ export class AudioService {
       this.fadeIntervalId = null;
     }
 
-    if (!this.isCrossfadeEnabled() || this.isLiveStream()) {
+    const isMobile = typeof navigator !== 'undefined' && (
+      /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
+    );
+
+    if (!this.isCrossfadeEnabled() || this.isLiveStream() || isMobile) {
       if (this.gainNode && this.audioCtx) {
         this.gainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
       }
@@ -263,7 +272,7 @@ export class AudioService {
       } catch {}
     }
 
-    // HTML5 Audio volume fallback for mobile / non-web-audio
+    // HTML5 Audio volume fallback for non-web-audio desktop
     const targetVol = this.volume();
     const startVol = Math.max(0.02, targetVol * 0.05);
     this.audio.volume = startVol;
@@ -290,7 +299,12 @@ export class AudioService {
         this.fadeIntervalId = null;
       }
 
-      if (!this.isCrossfadeEnabled() || this.isLiveStream()) {
+      const isMobile = typeof navigator !== 'undefined' && (
+        /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
+      );
+
+      if (!this.isCrossfadeEnabled() || this.isLiveStream() || isMobile) {
         resolve();
         return;
       }
@@ -631,29 +645,31 @@ export class AudioService {
 
     try {
       const origin = window.location.origin;
+      const activeBase = this.libraryService.getBackendUrl();
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
       const getFullUrl = (url?: string | null) => {
         if (!url) return `${origin}/icons/icon-512.png`;
-        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        if (isHttps && url.startsWith('http://')) {
+          return `${activeBase}/api/cover?url=${encodeURIComponent(url)}`;
+        }
+        if (url.startsWith('https://')) return url;
+        if (url.startsWith('http://')) return url;
+        if (url.startsWith('/api/')) return `${activeBase}${url}`;
         return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
       };
 
-      const artwork: MediaImage[] = [];
-      if (track.coverUrl) {
-        const cover = getFullUrl(track.coverUrl);
-        // Omit strict MIME type for external covers so Android Chrome inspects Content-Type natively
-        artwork.push(
-          { src: cover, sizes: '96x96' },
-          { src: cover, sizes: '128x128' },
-          { src: cover, sizes: '192x192' },
-          { src: cover, sizes: '256x256' },
-          { src: cover, sizes: '384x384' },
-          { src: cover, sizes: '512x512' }
-        );
-      }
-      artwork.push(
+      const cover = getFullUrl(track.coverUrl);
+      const artwork: MediaImage[] = [
+        { src: cover, sizes: '96x96' },
+        { src: cover, sizes: '128x128' },
+        { src: cover, sizes: '192x192' },
+        { src: cover, sizes: '256x256' },
+        { src: cover, sizes: '384x384' },
+        { src: cover, sizes: '512x512' },
         { src: `${origin}/icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
-        { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' }
-      );
+        { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' },
+      ];
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title || 'Recro Track',

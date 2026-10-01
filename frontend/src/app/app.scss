@@ -3325,11 +3325,13 @@
     z-index: 150;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
     padding: calc(10px + env(safe-area-inset-top, 0px)) 20px calc(14px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     animation: sheetSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
 
     .sheet-top-bar {
       display: flex;
@@ -3357,31 +3359,43 @@
     }
 
     .sheet-art-wrap {
-      flex: 1;
-      min-height: 100px;
+      flex: 1 1 auto;
+      min-height: 120px;
+      max-height: 280px;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 10px 0;
+      padding: 8px 0;
+      overflow: hidden;
+      box-sizing: border-box;
 
       .sheet-art-img {
-        width: min(65vw, 240px, 30vh);
-        height: min(65vw, 240px, 30vh);
-        border-radius: 12px;
+        max-width: 100%;
+        max-height: 100%;
+        width: min(65vw, 240px, 28vh);
+        height: min(65vw, 240px, 28vh);
+        aspect-ratio: 1 / 1;
+        border-radius: 14px;
         object-fit: cover;
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.8);
+        flex-shrink: 0;
+        display: block;
       }
 
       .sheet-art-placeholder {
-        width: min(65vw, 240px, 30vh);
-        height: min(65vw, 240px, 30vh);
-        border-radius: 12px;
+        max-width: 100%;
+        max-height: 100%;
+        width: min(65vw, 240px, 28vh);
+        height: min(65vw, 240px, 28vh);
+        aspect-ratio: 1 / 1;
+        border-radius: 14px;
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
         display: flex;
         align-items: center;
         justify-content: center;
         color: var(--text-muted);
+        flex-shrink: 0;
       }
     }
 
@@ -3390,11 +3404,12 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      margin-top: 4px;
       margin-bottom: 12px;
       flex-shrink: 0;
 
       .sheet-track-info {
-        flex: 1;
+        flex: 1 1 0%;
         overflow: hidden;
         min-width: 0;
 
@@ -3405,15 +3420,17 @@
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          display: block;
         }
 
         .sheet-track-artist {
           font-size: 13px;
           color: var(--text-secondary);
-          margin-top: 1px;
+          margin-top: 2px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          display: block;
         }
       }
 
@@ -3605,6 +3622,55 @@
             color: rgba(255, 255, 255, 0.25);
           }
         }
+      }
+    }
+
+    @media (max-height: 720px) {
+      padding: calc(6px + env(safe-area-inset-top, 0px)) 16px calc(10px + env(safe-area-inset-bottom, 0px));
+
+      .sheet-art-wrap {
+        min-height: 80px;
+        max-height: 180px;
+        padding: 4px 0;
+
+        .sheet-art-img,
+        .sheet-art-placeholder {
+          width: min(50vw, 170px, 22vh);
+          height: min(50vw, 170px, 22vh);
+        }
+      }
+
+      .sheet-meta-wrap {
+        margin-top: 2px;
+        margin-bottom: 8px;
+      }
+
+      .sheet-utility-row {
+        margin-bottom: 8px;
+
+        .sheet-util-btn {
+          height: 30px;
+          font-size: 10.5px;
+        }
+      }
+
+      .sheet-scrubber-wrap {
+        margin-bottom: 8px;
+      }
+
+      .sheet-controls-row {
+        margin-bottom: 10px;
+
+        .sheet-play-btn {
+          width: 50px;
+          height: 50px;
+        }
+      }
+
+      .sheet-lyrics-card {
+        margin-top: 8px;
+        margin-bottom: 10px;
+        padding: 10px 14px;
       }
     }
   }
