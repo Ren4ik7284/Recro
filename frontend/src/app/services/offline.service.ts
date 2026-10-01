@@ -383,6 +383,10 @@ export class OfflineService {
     }
   }
 
+  getCachedBlobUrlSync(trackId: string): string | null {
+    return this.blobUrlByTrackId.get(trackId) || null;
+  }
+
   async getOfflineBlobUrl(trackId: string): Promise<string | null> {
     if (typeof window === 'undefined') {
       return null;

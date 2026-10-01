@@ -595,7 +595,11 @@ export class AudioService {
     };
 
     setAction('play', () => {
-      this.togglePlay();
+      if (this.audio.paused) {
+        this.audio.play().catch(() => {});
+        this.isPlaying.set(true);
+        this.updateMediaSessionPlaybackState('playing');
+      }
     });
 
     setAction('pause', () => {
@@ -695,8 +699,12 @@ export class AudioService {
     const d = this.duration();
     if (!d || d <= 0 || !isFinite(d) || this.isLiveStream()) {
       try {
-        navigator.mediaSession.setPositionState();
-      } catch {}
+        (navigator.mediaSession as any).setPositionState(null);
+      } catch {
+        try {
+          (navigator.mediaSession as any).setPositionState();
+        } catch {}
+      }
       return;
     }
 
@@ -753,12 +761,10 @@ export class AudioService {
       this.consecutiveErrorCount = 0;
     }
 
-    // 1. Initialize Web Audio API on user gesture
+    // 1. Initialize Web Audio API on user gesture (non-blocking)
     this.initAudioContext();
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      try {
-        await this.audioCtx.resume();
-      } catch {}
+      this.audioCtx.resume().catch(() => {});
     }
 
     this.isFadingOut = false;
@@ -803,11 +809,22 @@ export class AudioService {
     this.updateMediaSessionMetadata(track);
     this.updateMediaSessionPlaybackState('playing');
 
-    // 1. Сначала проверяем оффлайн-кэш (быстрый старт без сети)
+    // 1. Быстрый синхронный запуск из памяти (сохраняет жест пользователя для системной шторки Android/iOS)
     let playUrl = track.audioUrl;
-    const offlineBlobUrl = await this.offlineService.getOfflineBlobUrl(track.id);
-    if (offlineBlobUrl) {
-      playUrl = offlineBlobUrl;
+    const cachedBlobUrl = this.offlineService.getCachedBlobUrlSync(track.id);
+    if (cachedBlobUrl) {
+      playUrl = cachedBlobUrl;
+    } else if (this.offlineService.isTrackOffline(track.id)) {
+      this.offlineService.getOfflineBlobUrl(track.id).then((resolvedUrl) => {
+        if (resolvedUrl && this.currentTrack()?.id === track.id && playRequestId === this.currentPlayRequestId) {
+          if (this.audio.src !== resolvedUrl) {
+            const curPos = this.audio.currentTime;
+            this.audio.src = resolvedUrl;
+            this.audio.currentTime = curPos;
+            this.audio.play().catch(() => {});
+          }
+        }
+      }).catch(() => {});
     }
 
     if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3'))) {
@@ -817,7 +834,7 @@ export class AudioService {
         : 'https://ep128server.streamr.ru:8030/ep128';
     }
 
-    // Discard stale request if a newer track was requested while resolving offline blob
+    // Discard stale request if a newer track was requested
     if (playRequestId !== this.currentPlayRequestId) {
       return;
     }
@@ -1107,8 +1124,9 @@ export class AudioService {
         }
       }
 
-      // Micro-fade перед сменой трека только при ручном переключении (не при окончании песни)
-      if (!immediate) {
+      // Micro-fade перед сменой трека только при ручном переключении на десктопе (на мобилках смена мгновенная без потери фокуса шторки)
+      const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (!immediate && !isMobileDevice) {
         await this.applyFadeOut(0.12);
       }
 
@@ -1152,8 +1170,11 @@ export class AudioService {
         prevIdx = q.length - 1;
       }
 
-      // Micro-fade before changing track
-      await this.applyFadeOut(0.12);
+      // Micro-fade before changing track on desktop
+      const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (!isMobileDevice) {
+        await this.applyFadeOut(0.12);
+      }
 
       const targetTrack = q[prevIdx];
       if (targetTrack) {
