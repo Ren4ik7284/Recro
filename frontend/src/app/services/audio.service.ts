@@ -113,14 +113,8 @@ export class AudioService {
       this.audio.setAttribute('playsinline', 'true');
       this.audio.setAttribute('webkit-playsinline', 'true');
       this.audio.setAttribute('x-webkit-airplay', 'allow');
-      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       this.audio.preload = 'auto';
-      this.audio.style.position = 'fixed';
-      this.audio.style.width = '1px';
-      this.audio.style.height = '1px';
-      this.audio.style.opacity = '0.01';
-      this.audio.style.pointerEvents = 'none';
-      this.audio.style.zIndex = '-9999';
+      this.audio.style.display = 'none';
 
       if (document.body) {
         document.body.appendChild(this.audio);
@@ -134,6 +128,25 @@ export class AudioService {
     }
 
     this.audio.volume = this.volume();
+
+    if (typeof window !== 'undefined') {
+      (window as any).recroMediaAction = (action: string) => {
+        if (action === 'play') {
+          if (this.audio.paused) this.togglePlay();
+        } else if (action === 'pause') {
+          if (!this.audio.paused) this.togglePlay();
+        } else if (action === 'play_pause') {
+          this.togglePlay();
+        } else if (action === 'next') {
+          this.next();
+        } else if (action === 'prev') {
+          this.prev();
+        } else if (action.startsWith('seekto:')) {
+          const ms = parseFloat(action.split(':')[1]);
+          if (!isNaN(ms)) this.seek(ms / 1000);
+        }
+      };
+    }
 
     this.setupEventListeners();
     this.setupMediaSession();
@@ -637,14 +650,51 @@ export class AudioService {
     });
   }
 
-  private updateMediaSessionPlaybackState(state: 'playing' | 'paused' | 'none') {
-    if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+  private notifyNativeBridge(track: Track | null, isPlaying: boolean) {
+    if (typeof window === 'undefined') return;
+    const bridge = (window as any).AndroidMediaBridge;
+    if (!bridge) return;
     try {
-      navigator.mediaSession.playbackState = state;
-    } catch {}
+      if (!track) {
+        bridge.clearMediaSession();
+        return;
+      }
+      const title = track.title || 'Recro Track';
+      const artist = track.artist || 'Recro';
+      const origin = window.location.origin;
+      const activeBase = this.libraryService.getBackendUrl();
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+      const getFullUrl = (url?: string | null) => {
+        if (!url) return `${origin}/icons/icon-512.png`;
+        if (isHttps && url.startsWith('http://')) {
+          return `${activeBase}/api/cover?url=${encodeURIComponent(url)}`;
+        }
+        if (url.startsWith('https://') || url.startsWith('http://')) return url;
+        if (url.startsWith('/api/')) return `${activeBase}${url}`;
+        return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+      };
+
+      const coverUrl = getFullUrl(track.coverUrl);
+      const posMs = Math.round((this.currentTime() || 0) * 1000);
+      const durMs = Math.round((this.duration() || 0) * 1000);
+      bridge.updateMediaSession(title, artist, coverUrl, isPlaying, posMs, durMs);
+    } catch (e) {
+      console.warn('[AudioService] AndroidMediaBridge error:', e);
+    }
+  }
+
+  private updateMediaSessionPlaybackState(state: 'playing' | 'paused' | 'none') {
+    if (typeof window !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = state;
+      } catch {}
+    }
+    this.notifyNativeBridge(this.currentTrack(), state === 'playing');
   }
 
   private updateMediaSessionMetadata(track: Track) {
+    this.notifyNativeBridge(track, this.isPlaying());
     if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
 
     try {
@@ -981,6 +1031,7 @@ export class AudioService {
   }
 
   stopPlayback() {
+    this.notifyNativeBridge(null, false);
     try {
       this.audio.pause();
       this.audio.currentTime = 0;

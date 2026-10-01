@@ -91,6 +91,8 @@ cat << 'EOF' > "$BUILD_DIR/AndroidManifest.xml"
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:label="@string/app_name"
@@ -102,6 +104,7 @@ cat << 'EOF' > "$BUILD_DIR/AndroidManifest.xml"
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:windowSoftInputMode="adjustResize"
+            android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -117,26 +120,79 @@ cat << 'EOF' > "$BUILD_DIR/src/app/recro/player/MainActivity.java"
 package app.recro.player;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MainActivity extends Activity {
     private static final String APP_URL = "https://signal-frontend-production-a944.up.railway.app";
+    private static final String CHANNEL_ID = "recro_media_channel";
+    private static final int NOTIFICATION_ID = 101;
+    private static final int FILECHOOSER_RESULTCODE = 1;
+
+    private static final String ACTION_PLAY_PAUSE = "app.recro.player.ACTION_PLAY_PAUSE";
+    private static final String ACTION_NEXT = "app.recro.player.ACTION_NEXT";
+    private static final String ACTION_PREV = "app.recro.player.ACTION_PREV";
+
     private WebView webView;
     private ValueCallback<Uri[]> uploadMessage;
-    private final static int FILECHOOSER_RESULTCODE = 1;
+    private MediaSession mediaSession;
+    private NotificationManager notificationManager;
+
+    private String currentTitle = "Recro Track";
+    private String currentArtist = "Recro";
+    private String currentCoverUrl = "";
+    private Bitmap currentCoverBitmap = null;
+    private boolean isPlaying = false;
+    private long currentPosition = 0;
+    private long currentDuration = 0;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private final BroadcastReceiver mediaReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || intent.getAction() == null) return;
+            String action = intent.getAction();
+            if (ACTION_PLAY_PAUSE.equals(action)) {
+                sendMediaAction("play_pause");
+            } else if (ACTION_NEXT.equals(action)) {
+                sendMediaAction("next");
+            } else if (ACTION_PREV.equals(action)) {
+                sendMediaAction("prev");
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -148,6 +204,22 @@ public class MainActivity extends Activity {
             window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
             window.setStatusBarColor(Color.parseColor("#09090b"));
             window.setNavigationBarColor(Color.parseColor("#09090b"));
+        }
+
+        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        initNotificationChannel();
+        initMediaSession();
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_PLAY_PAUSE);
+        filter.addAction(ACTION_NEXT);
+        filter.addAction(ACTION_PREV);
+        registerReceiver(mediaReceiver, filter);
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 200);
+            }
         }
 
         FrameLayout container = new FrameLayout(this);
@@ -171,6 +243,240 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void initNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= 26 && notificationManager != null) {
+            NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "Recro Playback",
+                NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setDescription("Управление воспроизведением музыки Recro");
+            channel.setShowBadge(false);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            notificationManager.createNotificationChannel(channel);
+        }
+    }
+
+    private void initMediaSession() {
+        mediaSession = new MediaSession(this, "RecroMediaSession");
+        mediaSession.setFlags(MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS | MediaSession.FLAG_HANDLES_MEDIA_BUTTONS);
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        int pFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= 23) {
+            pFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent pIntent = PendingIntent.getActivity(this, 0, intent, pFlags);
+        mediaSession.setSessionActivity(pIntent);
+
+        mediaSession.setCallback(new MediaSession.Callback() {
+            @Override
+            public void onPlay() {
+                sendMediaAction("play");
+            }
+            @Override
+            public void onPause() {
+                sendMediaAction("pause");
+            }
+            @Override
+            public void onSkipToNext() {
+                sendMediaAction("next");
+            }
+            @Override
+            public void onSkipToPrevious() {
+                sendMediaAction("prev");
+            }
+            @Override
+            public void onStop() {
+                sendMediaAction("pause");
+            }
+            @Override
+            public void onSeekTo(long pos) {
+                sendMediaAction("seekto:" + pos);
+            }
+        });
+    }
+
+    public void sendMediaAction(final String action) {
+        mainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (webView != null) {
+                    webView.evaluateJavascript("if(window.recroMediaAction){window.recroMediaAction('" + action + "');}", null);
+                }
+            }
+        });
+    }
+
+    private void updateNotification() {
+        if (notificationManager == null || mediaSession == null) return;
+
+        int pFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= 23) {
+            pFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        Intent openIntent = new Intent(this, MainActivity.class);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pOpen = PendingIntent.getActivity(this, 0, openIntent, pFlags);
+
+        Intent prevIntent = new Intent(ACTION_PREV);
+        PendingIntent pPrev = PendingIntent.getBroadcast(this, 1, prevIntent, pFlags);
+
+        Intent playPauseIntent = new Intent(ACTION_PLAY_PAUSE);
+        PendingIntent pPlayPause = PendingIntent.getBroadcast(this, 2, playPauseIntent, pFlags);
+
+        Intent nextIntent = new Intent(ACTION_NEXT);
+        PendingIntent pNext = PendingIntent.getBroadcast(this, 3, nextIntent, pFlags);
+
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= 26) {
+            builder = new Notification.Builder(this, CHANNEL_ID);
+        } else {
+            builder = new Notification.Builder(this);
+        }
+
+        builder.setContentTitle(currentTitle)
+               .setContentText(currentArtist)
+               .setSmallIcon(R.mipmap.ic_launcher)
+               .setContentIntent(pOpen)
+               .setVisibility(Notification.VISIBILITY_PUBLIC)
+               .setOngoing(isPlaying);
+
+        if (currentCoverBitmap != null) {
+            builder.setLargeIcon(currentCoverBitmap);
+        }
+
+        builder.addAction(new Notification.Action.Builder(
+            android.R.drawable.ic_media_previous, "Previous", pPrev).build());
+
+        int playIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+        String playTitle = isPlaying ? "Pause" : "Play";
+        builder.addAction(new Notification.Action.Builder(
+            playIcon, playTitle, pPlayPause).build());
+
+        builder.addAction(new Notification.Action.Builder(
+            android.R.drawable.ic_media_next, "Next", pNext).build());
+
+        Notification.MediaStyle mediaStyle = new Notification.MediaStyle();
+        mediaStyle.setMediaSession(mediaSession.getSessionToken());
+        mediaStyle.setShowActionsInCompactView(0, 1, 2);
+        builder.setStyle(mediaStyle);
+
+        notificationManager.notify(NOTIFICATION_ID, builder.build());
+    }
+
+    private void updateSessionState() {
+        if (mediaSession == null) return;
+
+        PlaybackState.Builder psBuilder = new PlaybackState.Builder()
+            .setActions(
+                PlaybackState.ACTION_PLAY |
+                PlaybackState.ACTION_PAUSE |
+                PlaybackState.ACTION_PLAY_PAUSE |
+                PlaybackState.ACTION_SKIP_TO_NEXT |
+                PlaybackState.ACTION_SKIP_TO_PREVIOUS |
+                PlaybackState.ACTION_SEEK_TO |
+                PlaybackState.ACTION_STOP
+            )
+            .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, currentPosition, 1.0f);
+        mediaSession.setPlaybackState(psBuilder.build());
+
+        MediaMetadata.Builder mb = new MediaMetadata.Builder()
+            .putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle)
+            .putString(MediaMetadata.METADATA_KEY_ARTIST, currentArtist)
+            .putString(MediaMetadata.METADATA_KEY_ALBUM, "Recro")
+            .putLong(MediaMetadata.METADATA_KEY_DURATION, currentDuration > 0 ? currentDuration : -1);
+
+        if (currentCoverBitmap != null) {
+            mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, currentCoverBitmap);
+            mb.putBitmap(MediaMetadata.METADATA_KEY_ART, currentCoverBitmap);
+        }
+        mediaSession.setMetadata(mb.build());
+        mediaSession.setActive(true);
+    }
+
+    private class NativeMediaBridge {
+        @JavascriptInterface
+        public void updateMediaSession(final String title, final String artist, final String coverUrl,
+                                       final boolean playing, final long position, final long duration) {
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    currentTitle = (title != null && !title.isEmpty()) ? title : "Recro Track";
+                    currentArtist = (artist != null && !artist.isEmpty()) ? artist : "Recro";
+                    isPlaying = playing;
+                    currentPosition = position;
+                    currentDuration = duration;
+
+                    boolean coverChanged = coverUrl != null && !coverUrl.equals(currentCoverUrl);
+                    if (coverChanged) {
+                        currentCoverUrl = coverUrl;
+                        currentCoverBitmap = null;
+                        loadCoverAsync(coverUrl);
+                    } else {
+                        updateSessionState();
+                        updateNotification();
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void clearMediaSession() {
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    isPlaying = false;
+                    currentCoverBitmap = null;
+                    currentCoverUrl = "";
+                    if (notificationManager != null) {
+                        notificationManager.cancel(NOTIFICATION_ID);
+                    }
+                    if (mediaSession != null) {
+                        mediaSession.setActive(false);
+                    }
+                }
+            });
+        }
+    }
+
+    private void loadCoverAsync(final String coverUrl) {
+        updateSessionState();
+        updateNotification();
+
+        if (coverUrl == null || coverUrl.isEmpty()) return;
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    URL url = new URL(coverUrl);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(4000);
+                    conn.setReadTimeout(4000);
+                    conn.setDoInput(true);
+                    conn.connect();
+                    InputStream input = conn.getInputStream();
+                    final Bitmap bitmap = BitmapFactory.decodeStream(input);
+                    if (bitmap != null) {
+                        mainHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (coverUrl.equals(currentCoverUrl)) {
+                                    currentCoverBitmap = bitmap;
+                                    updateSessionState();
+                                    updateNotification();
+                                }
+                            }
+                        });
+                    }
+                } catch (Exception ignored) {}
+            }
+        }).start();
+    }
+
     private void setupWebView() {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -190,7 +496,9 @@ public class MainActivity extends Activity {
         }
 
         String defaultUA = s.getUserAgentString();
-        s.setUserAgentString(defaultUA + " RecroApp/1.1");
+        s.setUserAgentString(defaultUA + " RecroApp/1.2");
+
+        webView.addJavascriptInterface(new NativeMediaBridge(), "AndroidMediaBridge");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -266,7 +574,24 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        webView.onPause();
+        // Do NOT call webView.onPause() so background music and timers stay active!
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            unregisterReceiver(mediaReceiver);
+        } catch (Exception ignored) {}
+        if (mediaSession != null) {
+            mediaSession.release();
+        }
+        if (notificationManager != null) {
+            notificationManager.cancel(NOTIFICATION_ID);
+        }
+        if (webView != null) {
+            webView.destroy();
+        }
     }
 }
 EOF
