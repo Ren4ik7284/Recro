@@ -2324,6 +2324,9 @@
         .ext-thumb {
           width: 26px;
           height: 26px;
+          min-width: 26px;
+          min-height: 26px;
+          flex-shrink: 0;
           border-radius: 4px;
           object-fit: cover;
         }
@@ -4856,6 +4859,10 @@
         width: 52px;
         height: 52px;
         min-width: 52px;
+        min-height: 52px;
+        max-width: 52px;
+        max-height: 52px;
+        flex-shrink: 0;
         border-radius: 8px;
         overflow: hidden;
         background: var(--bg-panel);

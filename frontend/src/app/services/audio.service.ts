@@ -416,6 +416,7 @@ export class AudioService {
     });
 
     this.audio.addEventListener('playing', () => {
+      this.isSwitchingTrack = false;
       this.hasAudioStartedPlaying = true;
       this.consecutiveErrorCount = 0;
       this.isPlaying.set(true);
@@ -636,13 +637,23 @@ export class AudioService {
         return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
       };
 
-      const cover = getFullUrl(track.coverUrl);
-      const artwork: MediaImage[] = [
-        { src: cover, sizes: '512x512', type: 'image/jpeg' },
-        { src: cover, sizes: '256x256', type: 'image/jpeg' },
-        { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' },
+      const artwork: MediaImage[] = [];
+      if (track.coverUrl) {
+        const cover = getFullUrl(track.coverUrl);
+        // Omit strict MIME type for external covers so Android Chrome inspects Content-Type natively
+        artwork.push(
+          { src: cover, sizes: '96x96' },
+          { src: cover, sizes: '128x128' },
+          { src: cover, sizes: '192x192' },
+          { src: cover, sizes: '256x256' },
+          { src: cover, sizes: '384x384' },
+          { src: cover, sizes: '512x512' }
+        );
+      }
+      artwork.push(
         { src: `${origin}/icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
-      ];
+        { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' }
+      );
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title || 'Recro Track',
@@ -667,14 +678,18 @@ export class AudioService {
 
     const d = this.duration();
     if (!d || d <= 0 || !isFinite(d) || this.isLiveStream()) {
+      try {
+        navigator.mediaSession.setPositionState();
+      } catch {}
       return;
     }
 
     try {
-      const pos = Math.max(0, Math.min(this.currentTime(), Math.max(0, d - 0.05)));
+      const safeDuration = Math.max(0.1, d);
+      const pos = Math.max(0, Math.min(this.currentTime(), Math.max(0, safeDuration - 0.05)));
       navigator.mediaSession.setPositionState({
-        duration: d,
-        playbackRate: this.audio.playbackRate || 1,
+        duration: safeDuration,
+        playbackRate: Math.max(0.1, this.audio.playbackRate || 1),
         position: pos,
       });
     } catch {}
@@ -732,15 +747,7 @@ export class AudioService {
 
     this.isFadingOut = false;
     this.hasAudioStartedPlaying = false;
-
-    // ВАЖНО: Не вызываем audio.pause(), если переключаем треки в фоне,
-    // чтобы мобильная ОС не сбросила медиа-уведомление и не заблокировала следующий трек
-    if (this.audio.src && !this.isHandlingEnd && !this.isSwitchingTrack) {
-      try {
-        this.audio.pause();
-        this.audio.currentTime = 0;
-      } catch {}
-    }
+    this.isSwitchingTrack = true;
 
     if (newQueue && newQueue.length > 0) {
       this.queue.set([...newQueue]);
@@ -855,6 +862,8 @@ export class AudioService {
       .play()
       .then(() => {
         if (playRequestId !== this.currentPlayRequestId) return;
+        this.isSwitchingTrack = false;
+        this.hasAudioStartedPlaying = true;
         this.isPlaying.set(true);
         this.updateMediaSessionPlaybackState('playing');
         this.updateMediaSessionMetadata(track);
@@ -867,6 +876,7 @@ export class AudioService {
         if (playRequestId !== this.currentPlayRequestId) {
           return;
         }
+        this.isSwitchingTrack = false;
         // Interrupted by rapid navigation or browser load: do NOT set isPlaying(false)
         if (err && (err.name === 'AbortError' || err.code === 20)) {
           return;
@@ -1097,7 +1107,7 @@ export class AudioService {
       const targetTrack = this.queue()[nextIdx];
       if (targetTrack) {
         this.queueIndex.set(nextIdx);
-        this.playTrack(targetTrack, undefined, this.recService.isMixActive(), nextIdx);
+        await this.playTrack(targetTrack, undefined, this.recService.isMixActive(), nextIdx);
       }
 
       if (this.recService.isMixActive()) {
@@ -1132,7 +1142,7 @@ export class AudioService {
       const targetTrack = q[prevIdx];
       if (targetTrack) {
         this.queueIndex.set(prevIdx);
-        this.playTrack(targetTrack, undefined, this.recService.isMixActive(), prevIdx);
+        await this.playTrack(targetTrack, undefined, this.recService.isMixActive(), prevIdx);
       }
     } finally {
       this.isSwitchingTrack = false;
