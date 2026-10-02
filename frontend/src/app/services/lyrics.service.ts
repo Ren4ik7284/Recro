@@ -65,45 +65,43 @@ export class LyricsService {
 
   private lastReportedAudioTime = 0;
   private lastAudioTimeTimestamp = 0;
+  private lastSmoothedTime = 0;
 
-  /** Высокоточное сглаживание времени с субмиллисекундной интерполяцией между тиками браузера */
+  /** Высокоточное сглаживание времени с плавной монотонной интерполяцией без рывков назад */
   getSmoothedCurrentTime(): number {
     const raw = this.audioService.getPreciseCurrentTime();
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-    // Если плеер на паузе или был совершен ручной перемот (>0.4с) - мгновенный сброс базы
-    if (!this.audioService.isPlaying() || Math.abs(raw - this.lastReportedAudioTime) > 0.4) {
+    // Если аудиоплеер на паузе или был совершен ручной перемот (>0.35с или назад) - сброс
+    if (!this.audioService.isPlaying() || Math.abs(raw - this.lastReportedAudioTime) > 0.35 || raw < this.lastReportedAudioTime) {
       this.lastReportedAudioTime = raw;
       this.lastAudioTimeTimestamp = now;
+      this.lastSmoothedTime = raw;
       return raw;
     }
 
-    // Если аудиотег совершил очередной тик вперед
+    // Если аудиотег совершил очередной шаг вперед
     if (raw !== this.lastReportedAudioTime) {
       this.lastReportedAudioTime = raw;
       this.lastAudioTimeTimestamp = now;
+      // Если интерполяция слегка обогнала реальный тик аудиотега (в пределах 70ms), не прыгаем назад
+      if (this.lastSmoothedTime > raw && this.lastSmoothedTime - raw < 0.07) {
+        return this.lastSmoothedTime;
+      }
+      this.lastSmoothedTime = raw;
       return raw;
     }
 
-    // Между тиками HTML5 Audio интерполируем время со скоростью 1.0x для идеальной плавности 60 FPS
+    // Между тиками HTML5 Audio (каждые 200-250ms) интерполируем время для плавности 60 FPS
     const dt = (now - this.lastAudioTimeTimestamp) / 1000;
-    if (dt > 0 && dt < 0.28) {
-      return this.lastReportedAudioTime + dt;
+    if (dt > 0 && dt <= 0.35) {
+      const interpolated = raw + dt;
+      this.lastSmoothedTime = Math.max(this.lastSmoothedTime, interpolated);
+      return this.lastSmoothedTime;
     }
 
-    return raw;
-  }
-
-  // Динамическое упреждение под темп песни (BPM):
-  // Быстрый трек (150-180 BPM, рэп/фонк) -> упреждение ~0.18-0.20с (четко, без забегания вперед)
-  // Средний трек (100-130 BPM, поп/рок) -> упреждение ~0.24-0.26с (идеальная синхронизация с дыханием)
-  // Медленный трек (60-80 BPM, медляки/лирика) -> упреждение ~0.30-0.34с (комфортно для глаз)
-  getVocalLeadTimeSec(): number {
-    const bpm = this.currentBpm();
-    if (bpm && bpm >= 50 && bpm <= 220) {
-      return Math.max(0.18, Math.min(0.34, (60 / bpm) * 0.48));
-    }
-    return 0.24;
+    // Если прошло больше 350ms без новых тиков, звук мог забуферизироваться - не убегаем вперед
+    return this.lastSmoothedTime;
   }
 
   // Индекс активной строки текста в зависимости от текущего времени трека
@@ -111,8 +109,7 @@ export class LyricsService {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    const leadTimeSec = this.getVocalLeadTimeSec();
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
 
     // Во время вступительного инструментального проигрыша до первой строчки текста
     if (t < lyrics.lines[0].startTime) {
@@ -132,6 +129,25 @@ export class LyricsService {
     return activeIdx;
   });
 
+  // Проверка, звучит ли сейчас инструментальное вступление перед первой фразой
+  readonly isIntroPlaying = computed<boolean>(() => {
+    const lyrics = this.currentLyrics();
+    if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return false;
+    const firstStart = lyrics.lines[0].startTime;
+    if (firstStart <= 2.5) return false;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    return t < firstStart;
+  });
+
+  // Секунды до окончания вступительного проигрыша
+  readonly introRemainingSec = computed<number>(() => {
+    const lyrics = this.currentLyrics();
+    if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return 0;
+    const firstStart = lyrics.lines[0].startTime;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    return Math.max(0, Math.ceil(firstStart - t));
+  });
+
   // Активная строка ВСЕГДА ярко подсвечена и никогда не гаснет раньше времени!
   readonly isLineSinging = computed<boolean>(() => {
     const idx = this.activeLineIndex();
@@ -149,8 +165,7 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
-    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
-    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
+    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
     const end = currentLine.endTime || (nextLine && nextLine.startTime >= 0 ? nextLine.startTime : start + 4);
@@ -194,8 +209,21 @@ export class LyricsService {
           if (cur.id !== this.lastLoadedTrackId) {
             this.lastLoadedTrackId = cur.id;
             this.precisePlaybackTime.set(0);
-            this.syncOffsetMs.set(0);
             this.currentLyrics.set(null);
+
+            // Синхронно восстанавливаем сохраненное смещение из localStorage без нулевой вспышки
+            let initialOffset = 0;
+            try {
+              const saved = localStorage.getItem(`signal_lyrics_offset_${cur.id}`);
+              if (saved !== null) {
+                const parsed = parseInt(saved, 10);
+                if (!isNaN(parsed) && Math.abs(parsed) <= 15000) {
+                  initialOffset = parsed;
+                }
+              }
+            } catch {}
+            this.syncOffsetMs.set(initialOffset);
+
             this.loadLyricsForTrack(cur);
           }
         } else {
@@ -309,9 +337,8 @@ export class LyricsService {
     const targetLine = lyrics.lines[lineIndex];
     if (targetLine.startTime < 0) return;
 
-    const leadTimeSec = LyricsService.VOCAL_LEAD_TIME_SEC;
     const current = this.precisePlaybackTime();
-    const newOffsetMs = Math.round((targetLine.startTime - current - leadTimeSec) * 1000);
+    const newOffsetMs = Math.round((targetLine.startTime - current) * 1000);
     this.syncOffsetMs.set(newOffsetMs);
     const cur = this.audioService.currentTrack();
     if (cur) {
@@ -328,17 +355,13 @@ export class LyricsService {
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return;
 
     const curTime = this.precisePlaybackTime();
-    let targetIdx = this.activeLineIndex();
-
-    if (targetIdx < 0 || targetIdx >= lyrics.lines.length) {
-      let minDiff = Infinity;
-      targetIdx = 0;
-      for (let i = 0; i < lyrics.lines.length; i++) {
-        const diff = Math.abs(lyrics.lines[i].startTime - curTime);
-        if (diff < minDiff) {
-          minDiff = diff;
-          targetIdx = i;
-        }
+    let minDiff = Infinity;
+    let targetIdx = 0;
+    for (let i = 0; i < lyrics.lines.length; i++) {
+      const diff = Math.abs(lyrics.lines[i].startTime - curTime);
+      if (diff < minDiff) {
+        minDiff = diff;
+        targetIdx = i;
       }
     }
 
@@ -347,8 +370,7 @@ export class LyricsService {
 
   // Проверка спето ли слово (для пословного караоке)
   isWordSung(word: LyricWord): boolean {
-    const leadTimeSec = this.getVocalLeadTimeSec() * 0.75;
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + leadTimeSec);
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
     return t >= word.startTime;
   }
 
@@ -439,14 +461,17 @@ export class LyricsService {
     const abortCtrl = new AbortController();
     this.currentAbortController = abortCtrl;
     const targetTrackId = track.id;
+    const searchInfo = this.extractSearchInfo(track);
+    const cleanTitle = searchInfo.title || track.title || '';
+    const cleanArtist = searchInfo.artist || track.artist || '';
 
     // 1. Запрашиваем метаданные трека из SQLite базы (BPM, смещение, сохраненный текст)
     let serverMeta: { bpm?: number; lyrics_offset_ms?: number; synced_lyrics?: string } | null = null;
     try {
       const backendUrl = this.libraryService.getBackendUrl();
       const qId = encodeURIComponent(targetTrackId);
-      const qTitle = encodeURIComponent(track.title || '');
-      const qArtist = encodeURIComponent(track.artist || '');
+      const qTitle = encodeURIComponent(cleanTitle);
+      const qArtist = encodeURIComponent(cleanArtist);
       const metaRes = await fetch(`${backendUrl}/api/track/meta?id=${qId}&title=${qTitle}&artist=${qArtist}`, {
         signal: abortCtrl.signal,
       });
@@ -530,8 +555,8 @@ export class LyricsService {
     // 3. Запрашиваем через наш бэкенд-агрегатор (LRCLIB + Kugou + кэш)
     try {
       const backendUrl = this.libraryService.getBackendUrl();
-      const qTitle = encodeURIComponent(track.title || '');
-      const qArtist = encodeURIComponent(track.artist || '');
+      const qTitle = encodeURIComponent(cleanTitle);
+      const qArtist = encodeURIComponent(cleanArtist);
       const dur = Math.round(track.duration || 0);
       const url = `${backendUrl}/api/lyrics?title=${qTitle}&artist=${qArtist}&duration=${dur}`;
 
@@ -542,13 +567,13 @@ export class LyricsService {
           // Валидируем соответствие кандидата треку
           const score = this.matchScore(
             {
-              trackName: data.track_name || track.title,
-              artistName: data.artist_name || track.artist,
+              trackName: data.track_name || cleanTitle,
+              artistName: data.artist_name || cleanArtist,
               duration: data.duration,
               syncedLyrics: data.lyrics,
             },
-            track.title,
-            track.artist,
+            cleanTitle,
+            cleanArtist,
             track.duration || 0
           );
 
@@ -639,9 +664,10 @@ export class LyricsService {
     if (!track || !track.id || this.lyricsCache.has(track.id)) return;
 
     try {
+      const { artist: cleanA, title: cleanT } = this.extractSearchInfo(track);
       const backendUrl = this.libraryService.getBackendUrl();
-      const qTitle = encodeURIComponent(track.title || '');
-      const qArtist = encodeURIComponent(track.artist || '');
+      const qTitle = encodeURIComponent(cleanT || track.title || '');
+      const qArtist = encodeURIComponent(cleanA || track.artist || '');
       const dur = Math.round(track.duration || 0);
       const url = `${backendUrl}/api/lyrics?title=${qTitle}&artist=${qArtist}&duration=${dur}`;
 

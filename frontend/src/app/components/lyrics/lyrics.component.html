@@ -225,6 +225,13 @@
           <div class="lyrics-lines-wrapper">
             <div class="lyrics-spacer"></div>
 
+            @if (lyricsService.isIntroPlaying()) {
+              <div class="lyrics-intro-indicator font-mono">
+                <span class="intro-pulse-dot"></span>
+                <span>Вступление ({{ lyricsService.introRemainingSec() }}с)</span>
+              </div>
+            }
+
             @for (line of lyrics.lines; track $index; let i = $index) {
               <div 
                 class="lyric-line-item"
