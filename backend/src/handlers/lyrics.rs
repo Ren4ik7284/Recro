@@ -196,6 +196,7 @@ fn calc_match_score(
 
     let exp_words: Vec<&str> = exp_t.split_whitespace().filter(|w| w.len() >= 2).collect();
     let cand_words: Vec<&str> = cand_t.split_whitespace().filter(|w| w.len() >= 2).collect();
+    let exp_a_words: Vec<&str> = exp_a.split_whitespace().filter(|w| w.len() >= 2).collect();
 
     let title_ratio: f64;
     let title_score = if exp_t == cand_t || is_swapped {
@@ -204,7 +205,7 @@ fn calc_match_score(
     } else if exp_words.len() == 1 {
         let target_word = exp_words[0];
         if cand_words.contains(&target_word) {
-            let extra_non_noise = cand_words.iter().filter(|w| **w != target_word && !is_noise_word(w)).count();
+            let extra_non_noise = cand_words.iter().filter(|w| **w != target_word && !is_noise_word(w) && !exp_a_words.contains(w)).count();
             if extra_non_noise == 0 {
                 title_ratio = 1.0;
                 45.0
@@ -243,7 +244,6 @@ fn calc_match_score(
             artist_matched = true;
             artist_score = 30.0;
         } else {
-            let exp_a_words: Vec<&str> = exp_a.split_whitespace().filter(|w| w.len() >= 2).collect();
             let cand_a_words: Vec<&str> = cand_a.split_whitespace().filter(|w| w.len() >= 2).collect();
             let mut matched_a = 0;
             for ew in &exp_a_words {
@@ -262,14 +262,8 @@ fn calc_match_score(
     }
 
     if !artist_matched {
-        // If 1-word title, artist match is required to avoid mixing up distinct songs
-        if exp_words.len() <= 1 {
-            return 0.0;
-        }
-        // If multi-word title has high match (>= 70% or exact), allow candidate with lower artist score
-        if title_ratio >= 0.70 {
-            artist_score = 10.0;
-        } else {
+        // Если артист был задан, но не совпал — строго отвергаем, чтобы не брать чужой текст
+        if !exp_a.is_empty() {
             return 0.0;
         }
     }
@@ -297,8 +291,10 @@ async fn fetch_lrclib(
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", artist, title))));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, artist))));
     }
-    // Always search clean title alone as well
-    queries.push(format!("q={}", urlencoding::encode(title)));
+    // Ищем только по названию ТОЛЬКО если артист не был передан вообще
+    if primary_a.is_empty() && artist.is_empty() {
+        queries.push(format!("q={}", urlencoding::encode(title)));
+    }
 
     let mut best_synced: Option<(f64, LyricsResponse)> = None;
     let mut best_plain: Option<(f64, LyricsResponse)> = None;

@@ -104,12 +104,25 @@ export class LyricsService {
     return this.lastSmoothedTime;
   }
 
+  // Динамическое упреждение перехода строки под музыкальный темп (BPM)
+  // При 150-180 BPM (быстрый рэп/фонк) -> ~65-75мс (четко, без задержки)
+  // При 100-130 BPM (поп/рок) -> ~85-100мс (идеально в такт с дыханием вокалиста)
+  // При 60-80 BPM (медляки) -> ~115-130мс (плавный комфортный переход)
+  getTempoLeadSec(): number {
+    const bpm = this.currentBpm();
+    if (bpm && bpm >= 55 && bpm <= 210) {
+      return Math.max(0.065, Math.min(0.13, (60 / bpm) * 0.16));
+    }
+    return 0.085; // Золотой стандарт Spotify/Apple Music: 85мс зрительно-слухового опережения
+  }
+
   // Индекс активной строки текста в зависимости от текущего времени трека
   readonly activeLineIndex = computed<number>(() => {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const tempoLead = this.getTempoLeadSec();
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + tempoLead);
 
     // Если трек в самом начале до первой фразы, сразу фокусируем первую строку (0),
     // чтобы пользователь сразу видел слова песни, а плеер не зависал в неопределенном состоянии
@@ -152,7 +165,8 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
-    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const tempoLead = this.getTempoLeadSec();
+    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + tempoLead);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
     const end = currentLine.endTime || (nextLine && nextLine.startTime >= 0 ? nextLine.startTime : start + 4);
@@ -383,7 +397,8 @@ export class LyricsService {
 
   // Проверка спето ли слово (для пословного караоке)
   isWordSung(word: LyricWord): boolean {
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const tempoLead = this.getTempoLeadSec() * 0.6;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + tempoLead);
     return t >= word.startTime;
   }
 
@@ -1080,7 +1095,8 @@ export class LyricsService {
           'prod', 'feat', 'ft', 'lyrics', 'lyric', 'mix', 'original', 'extended',
           'клип', 'новинка', 'песня', 'трек', 'хит'
         ]);
-        const extraNonNoise = itemWords.filter((w) => w !== targetWord && !noiseWords.has(w));
+        const expAWordsSet = new Set(expArtistNorm.split(' ').filter((w) => w.length >= 2));
+        const extraNonNoise = itemWords.filter((w) => w !== targetWord && !noiseWords.has(w) && !expAWordsSet.has(w));
         if (extraNonNoise.length === 0) {
           titleRatio = 1.0;
           titleScore = 55;
@@ -1114,7 +1130,7 @@ export class LyricsService {
         const expAWords = expArtistNorm.split(' ').filter((w) => w.length >= 2);
         const itemAWords = itemArtistNorm.split(' ').filter((w) => w.length >= 2);
         for (const ew of expAWords) {
-          if (itemAWords.some((iw) => iw.includes(ew) || ew.includes(iw)) || itemTitleNorm.includes(ew)) {
+          if (itemAWords.some((iw) => iw.includes(ew) || ew.includes(iw))) {
             artistMatched = true;
             break;
           }
@@ -1128,13 +1144,8 @@ export class LyricsService {
     }
 
     if (!artistMatched) {
-      // Для однословных названий ("Cold") совпадение артиста строго обязательно
-      if (expWords.length <= 1) {
-        return -999;
-      }
-      // Для многословных названий при высоком совпадении (>= 70% или exact) пропускаем кандидата,
-      // так как на YouTube артистом часто записан канал перезалива / агрегатор
-      if (titleRatio < 0.70) {
+      // Если артист был задан, но не совпал — строго отвергаем кандидата, чтобы никогда не брать чужой текст
+      if (expArtistNorm && expArtistNorm.length >= 2) {
         return -999;
       }
     }
@@ -1214,7 +1225,10 @@ export class LyricsService {
     if (cleanA) searchQueries.push(`${cleanA} ${cleanT}`);
     if (cleanA) searchQueries.push(`${cleanT} ${cleanA}`);
     if (fallbackArtist && fallbackArtist !== cleanA) searchQueries.push(`${fallbackArtist} ${cleanT}`);
-    searchQueries.push(cleanT);
+    // Ищем только по названию ТОЛЬКО если артист не был известен
+    if (!cleanA && !fallbackArtist) {
+      searchQueries.push(cleanT);
+    }
 
     for (const q of searchQueries) {
       if (allCandidates.length >= 8 || abortSignal.aborted) break;
