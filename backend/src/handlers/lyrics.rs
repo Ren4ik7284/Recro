@@ -262,8 +262,15 @@ fn calc_match_score(
     }
 
     if !artist_matched {
-        // Если артист был задан, но не совпал — строго отвергаем, чтобы не брать чужой текст
-        if !exp_a.is_empty() {
+        // If 1-word title, artist match is strictly required to avoid mixing up distinct songs
+        if exp_words.len() <= 1 {
+            return 0.0;
+        }
+        // If multi-word title has high match (>= 70% or exact), allow candidate with lower artist score
+        // (e.g. YouTube uploader channel name often differs from actual metadata artist)
+        if title_ratio >= 0.70 {
+            artist_score = 10.0;
+        } else {
             return 0.0;
         }
     }

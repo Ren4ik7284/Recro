@@ -822,20 +822,21 @@ export class RecommendationService {
 
     // Explicit user affinity
     if (track.isFavorite) {
-      score += 15;
+      score += 10;
     }
 
     // Freshness & Rediscovery bonus:
-    // Треки, которые ни разу не играли сегодня или вообще новые в каталоге, получают приоритет
+    // Умеренный бонус свежести, не подавляющий разнообразие волны
     if (!lastPlayedTime || playsToday === 0) {
       if (!playRec && (!track.plays || track.plays === 0)) {
-        // Непрослушанный трек в медиатеке — мощный буст разнообразия
-        score += 30;
+        score += 8;
       } else {
-        // Знакомый трек, который еще не играл сегодня
-        score += 15;
+        score += 5;
       }
     }
+
+    // Небольшой случайный джиттер для избежания детерминированного зацикливания одних и тех же треков
+    score += (Math.random() - 0.5) * 6;
 
     // Штраф за повторное воспроизведение сегодня (2-й раз за день)
     if (playsToday === 1) {

@@ -221,7 +221,7 @@ export class LibraryService implements OnDestroy {
     // Было 5000ms (720 запросов/час) → 60_000ms (60 запросов/час)
     this.syncPollInterval = setInterval(() => {
       this.syncWithBackendOnStartup();
-    }, 60_000);
+    }, 30_000);
 
     this.visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
@@ -576,6 +576,10 @@ export class LibraryService implements OnDestroy {
   }
 
   async pushLibraryToBackend() {
+    if (this.syncTimeout) {
+      clearTimeout(this.syncTimeout);
+      this.syncTimeout = null;
+    }
     if (!this.isBackendOnline()) return;
     if (!this.authService.isAuthenticated()) return;
 
@@ -639,15 +643,13 @@ export class LibraryService implements OnDestroy {
       }
 
       const cloudUpdatedAt = typeof data.updated_at === 'number' ? data.updated_at : 0;
-      const localUpdatedAt = this.getLocalUpdatedAt();
       const localTracks = this.tracks();
-      const isOnlyDefaultTracks =
-        localTracks.length === 0 ||
-        localTracks.every((t) => t.id.startsWith('default-track-'));
 
-      if (forceCloud || localTracks.length === 0 || cloudUpdatedAt > localUpdatedAt) {
-        const rawTracks: Track[] = Array.isArray(data.tracks) ? data.tracks : [];
-        const cloudTracks: Track[] = this.sanitizeTracks(rawTracks.filter((t: Track) => !t.id.startsWith('default-track-')));
+      if (Array.isArray(data.tracks)) {
+        const rawTracks: Track[] = data.tracks;
+        const cloudTracks: Track[] = this.sanitizeTracks(
+          rawTracks.filter((t: Track) => !t.id.startsWith('default-track-'))
+        );
         const cloudPlaylists: Playlist[] = Array.isArray(data.playlists) ? data.playlists : [];
         const cloudStations: RadioStation[] = this.sanitizeStations(
           Array.isArray(data.radio_stations) && data.radio_stations.length > 0
@@ -655,19 +657,24 @@ export class LibraryService implements OnDestroy {
             : [...this.defaultRadioStations]
         );
 
-        if (cloudTracks.length === 0 && localTracks.length > 0) {
+        // If cloud library has never been populated (new account) and local device has tracks, upload them
+        if (cloudTracks.length === 0 && localTracks.length > 0 && cloudUpdatedAt === 0) {
           await this.pushLibraryToBackend();
           this.isCloudSynced.set(true);
           return;
         }
 
-        const localNonCloud = localTracks.filter(
-          (lt) => !cloudTracks.some((ct) => ct.id === lt.id || (ct.audioUrl && ct.audioUrl === lt.audioUrl))
+        // Keep local-only files (device uploads/blobs) that have not been uploaded to cloud
+        const localUploads = localTracks.filter(
+          (lt) =>
+            (lt.isLocalUpload || lt.audioUrl.startsWith('blob:')) &&
+            !cloudTracks.some((ct) => ct.id === lt.id)
         );
-        const mergedTracks = this.sanitizeTracks([...cloudTracks, ...localNonCloud]);
+
+        const mergedTracks = this.sanitizeTracks([...cloudTracks, ...localUploads]);
 
         this.tracks.set(mergedTracks);
-        this.playlists.set(cloudPlaylists.length > 0 ? cloudPlaylists : this.playlists());
+        this.playlists.set(cloudPlaylists);
         this.radioStations.set(cloudStations);
         this.saveLocalWithoutCloudSync();
         try {
@@ -686,38 +693,7 @@ export class LibraryService implements OnDestroy {
         } catch {}
 
         this.isCloudSynced.set(true);
-        return;
       }
-
-      if (Array.isArray(data.tracks) && data.tracks.length > 0) {
-        const currentTracks = this.tracks();
-        const localIds = new Set(currentTracks.map((t) => t.id));
-        const localUrls = new Set(currentTracks.map((t) => t.audioUrl));
-        const missingFromLocal = this.sanitizeTracks(
-          (data.tracks as Track[]).filter(
-            (t) => !localIds.has(t.id) && !localUrls.has(t.audioUrl)
-          )
-        );
-        if (missingFromLocal.length > 0) {
-          this.tracks.update((cur) => [...missingFromLocal, ...cur]);
-          this.saveLocalWithoutCloudSync();
-        }
-      }
-
-      if (Array.isArray(data.playlists) && data.playlists.length > 0) {
-        const localPlIds = new Set(this.playlists().map((p) => p.id));
-        const missingPls = (data.playlists as Playlist[]).filter((p) => !localPlIds.has(p.id));
-        if (missingPls.length > 0) {
-          this.playlists.update((cur) => [...cur, ...missingPls]);
-        }
-      }
-
-      if (localTracks.length > 0 && !isOnlyDefaultTracks && localUpdatedAt > cloudUpdatedAt) {
-        await this.pushLibraryToBackend();
-        return;
-      }
-
-      this.isCloudSynced.set(true);
     } catch (e) {
       console.warn('Sync error:', e);
     }
@@ -1137,8 +1113,10 @@ export class LibraryService implements OnDestroy {
         trackIds: p.trackIds.filter((id) => id !== trackId),
       }))
     );
+    this.offlineService.removeTrackOffline(trackId).catch(() => {});
     this.persistTracks();
     this.persistPlaylists();
+    this.pushLibraryToBackend();
   }
 
   removeTrackFromPlaylist(playlistId: string, trackId: string) {
@@ -1152,6 +1130,7 @@ export class LibraryService implements OnDestroy {
       this.tracks.update((tracks) => tracks.filter((t) => !(t.id === trackId && t.playlistOnly)));
       this.persistTracks();
     }
+    this.pushLibraryToBackend();
   }
 
   clearAllTracks() {
@@ -1159,6 +1138,7 @@ export class LibraryService implements OnDestroy {
     this.playlists.update((pls) => pls.map((p) => ({ ...p, trackIds: [] })));
     this.persistTracks();
     this.persistPlaylists();
+    this.pushLibraryToBackend();
   }
 
   createPlaylist(title: string, description?: string): Playlist {
@@ -1173,6 +1153,7 @@ export class LibraryService implements OnDestroy {
     };
     this.playlists.update((pls) => [...pls, newPl]);
     this.persistPlaylists();
+    this.pushLibraryToBackend();
     return newPl;
   }
 
@@ -1192,6 +1173,7 @@ export class LibraryService implements OnDestroy {
       );
       this.persistTracks();
     }
+    this.pushLibraryToBackend();
   }
 
   toggleTrackInPlaylist(playlistId: string, trackId: string): boolean {
@@ -1211,6 +1193,7 @@ export class LibraryService implements OnDestroy {
       })
     );
     this.persistPlaylists();
+    this.pushLibraryToBackend();
     return isAdded;
   }
 

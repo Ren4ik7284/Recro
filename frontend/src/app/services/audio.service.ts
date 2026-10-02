@@ -416,10 +416,13 @@ export class AudioService {
 
     this.audio.addEventListener('loadedmetadata', () => {
       const d = this.audio.duration;
-      if (d && !isNaN(d) && isFinite(d) && d > 0) {
+      const trackDur = this.currentTrack()?.duration;
+      if (trackDur && trackDur > 0) {
+        this.duration.set(trackDur);
+      } else if (this.streamSeekOffset() > 0 && d && !isNaN(d) && isFinite(d) && d > 0) {
+        this.duration.set(this.streamSeekOffset() + d);
+      } else if (d && !isNaN(d) && isFinite(d) && d > 0) {
         this.duration.set(d);
-      } else if (this.currentTrack()?.duration && this.currentTrack()!.duration > 0) {
-        this.duration.set(this.currentTrack()!.duration);
       }
       this.updateMediaSessionPosition();
       this.notifyNativeBridge(this.currentTrack(), this.isPlaying());
@@ -427,10 +430,13 @@ export class AudioService {
 
     this.audio.addEventListener('durationchange', () => {
       const d = this.audio.duration;
-      if (d && !isNaN(d) && isFinite(d) && d > 0) {
+      const trackDur = this.currentTrack()?.duration;
+      if (trackDur && trackDur > 0) {
+        this.duration.set(trackDur);
+      } else if (this.streamSeekOffset() > 0 && d && !isNaN(d) && isFinite(d) && d > 0) {
+        this.duration.set(this.streamSeekOffset() + d);
+      } else if (d && !isNaN(d) && isFinite(d) && d > 0) {
         this.duration.set(d);
-      } else if (this.currentTrack()?.duration && this.currentTrack()!.duration > 0) {
-        this.duration.set(this.currentTrack()!.duration);
       }
       this.updateMediaSessionPosition();
       this.notifyNativeBridge(this.currentTrack(), this.isPlaying());
@@ -478,9 +484,9 @@ export class AudioService {
         return;
       }
       // Проверяем реальное время воспроизведения через нативный audio элемент
-      const played = this.audio.currentTime || this.currentTime();
+      const played = this.audio.currentTime || 0;
       const dur = this.audio.duration || this.duration();
-      if ((!this.hasAudioStartedPlaying && played < 1.0) || (dur > 5 && played < 1.5)) {
+      if (this.streamSeekOffset() === 0 && ((!this.hasAudioStartedPlaying && played < 1.0) || (dur > 5 && played < 1.5))) {
         console.warn('[AudioService] Premature ended event (<1.5s played), treating as playback failure');
         this.handlePlaybackFailure('premature_ended');
         return;
@@ -1061,7 +1067,7 @@ export class AudioService {
     const track = this.currentTrack();
     if (!track) return;
 
-    // If audio is playing from a local blob URL or direct static audio, seek natively without restarting stream
+    // 1. If audio is playing from a local blob URL or direct static audio, seek natively without restarting stream
     if (this.audio.src.startsWith('blob:') || !this.audio.src.includes('/api/stream')) {
       try {
         this.audio.currentTime = clamped;
@@ -1072,6 +1078,30 @@ export class AudioService {
       return;
     }
 
+    // 2. Fast In-Buffer Native Seeking:
+    // If target position is within the buffered ranges of the currently loaded audio, seek instantly without network request!
+    const currentOffset = this.streamSeekOffset();
+    const relTime = clamped - currentOffset;
+    if (relTime >= 0 && this.audio.buffered && this.audio.buffered.length > 0) {
+      let isBuffered = false;
+      for (let i = 0; i < this.audio.buffered.length; i++) {
+        if (relTime >= this.audio.buffered.start(i) && relTime <= this.audio.buffered.end(i)) {
+          isBuffered = true;
+          break;
+        }
+      }
+      if (isBuffered) {
+        try {
+          this.audio.currentTime = relTime;
+          this.currentTime.set(clamped);
+          this.updateMediaSessionPosition();
+          this.notifyNativeBridge(track, this.isPlaying());
+          return;
+        } catch {}
+      }
+    }
+
+    // 3. Fast Stream Range Seek via backend with ss parameter:
     const streamIdx = track.audioUrl.indexOf('/api/stream');
     const streamPath = streamIdx !== -1 ? track.audioUrl.slice(streamIdx) : track.audioUrl;
     let baseStreamUrl = `${this.libraryService.getBackendUrl()}${streamPath}`.split('&ss=')[0];
@@ -1084,6 +1114,9 @@ export class AudioService {
 
     this.streamSeekOffset.set(clamped);
     this.currentTime.set(clamped);
+    if (total > 0) {
+      this.duration.set(total);
+    }
 
     if (this.canUseCrossOrigin(newUrl)) {
       this.audio.crossOrigin = 'anonymous';
@@ -1455,26 +1488,19 @@ export class AudioService {
         newTracks.push(...local);
       }
     } else {
-      // Balanced mode: 50% discovery / 50% local affinity
-      const shouldDiscover = Math.random() < 0.45 || localCandidates.length === 0;
-      if (shouldDiscover && localCandidates.length > 0) {
-        const localCount = Math.max(1, Math.floor(needed / 2));
-        const local = this.recService.pickNextTracks(localCount, excludeIds, curTrack, recentArtists);
-        newTracks.push(...local);
-        local.forEach((t) => {
-          excludeIds.add(t.id);
-          if (t.artist) recentArtists.add(t.artist);
-        });
+      // Balanced mode: reliably blend 50% online discovery recommendations with 50% library affinity
+      const discoveryCount = Math.max(1, Math.ceil(needed / 2));
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists);
+      newTracks.push(...discovery);
+      discovery.forEach((d) => {
+        excludeIds.add(d.id);
+        if (d.artist) recentArtists.add(d.artist);
+      });
 
-        const discoveryNeeded = needed - newTracks.length;
-        if (discoveryNeeded > 0) {
-          const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryNeeded, excludeIds, recentArtists);
-          newTracks.push(...discovery);
-        }
-      } else if (localCandidates.length > 0) {
-        newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-      } else {
-        newTracks = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists);
+      const remainingNeeded = needed - newTracks.length;
+      if (remainingNeeded > 0) {
+        const local = this.recService.pickNextTracks(remainingNeeded, excludeIds, curTrack, recentArtists);
+        newTracks.push(...local);
       }
     }
 
@@ -1508,18 +1534,60 @@ export class AudioService {
       recentArtists.add(curTrack.artist);
     }
 
-    let candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
-    candidates.forEach((t) => {
-      if (t.artist) recentArtists.add(t.artist);
-    });
+    const source = this.recService.mixConfig().source;
+    let candidates: Track[] = [];
 
-    if (candidates.length < 6) {
+    if (mood === 'favorites' || source === 'library_only') {
+      candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
+      if (candidates.length < 6 && source !== 'library_only') {
+        const discovery = await this.recService.fetchOnlineDiscoveryTracks(
+          6 - candidates.length,
+          new Set(candidates.map((t) => t.id)),
+          recentArtists
+        );
+        candidates = [...candidates, ...discovery];
+      }
+    } else {
+      // Balanced / Discovery mode for "Моя волна":
+      // Начинаем с потоковых рекомендаций (Deezer / похожие исполнители / вкусовой профиль),
+      // чередуя их со знакомыми треками из медиатеки, чтобы волна выполняла функцию открытия новой музыки!
+      const onlineCount = source === 'discovery_heavy' ? 4 : 3;
+      const localCount = 6 - onlineCount;
+
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(
-        6 - candidates.length,
-        new Set(candidates.map((t) => t.id)),
+        onlineCount,
+        new Set(curTrack ? [curTrack.id] : []),
         recentArtists
       );
-      candidates = [...candidates, ...discovery];
+      discovery.forEach((d) => {
+        if (d.artist) recentArtists.add(d.artist);
+      });
+
+      const locals = this.recService.pickNextTracks(
+        localCount,
+        new Set([...discovery.map((d) => d.id), ...(curTrack ? [curTrack.id] : [])]),
+        curTrack,
+        recentArtists
+      );
+
+      // Чередуем: рекомендация, любимый/знакомый трек, рекомендация...
+      let dIdx = 0;
+      let lIdx = 0;
+      while (dIdx < discovery.length || lIdx < locals.length) {
+        if (dIdx < discovery.length) candidates.push(discovery[dIdx++]);
+        if (lIdx < locals.length) candidates.push(locals[lIdx++]);
+      }
+
+      if (candidates.length < 6) {
+        const remaining = 6 - candidates.length;
+        const moreLocals = this.recService.pickNextTracks(
+          remaining,
+          new Set(candidates.map((t) => t.id)),
+          curTrack,
+          recentArtists
+        );
+        candidates = [...candidates, ...moreLocals];
+      }
     }
 
     if (candidates.length === 0) {

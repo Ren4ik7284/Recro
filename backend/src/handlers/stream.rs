@@ -603,13 +603,30 @@ pub async fn stream_audio(
         "1".to_string(),
         "-reconnect_delay_max".to_string(),
         "5".to_string(),
-        "-fflags".to_string(),
-        "+nobuffer+fastseek".to_string(),
-        "-probesize".to_string(),
-        "32768".to_string(),
-        "-analyzeduration".to_string(),
-        "100000".to_string(),
     ];
+
+    if params.ss.unwrap_or(0) == 0 {
+        ffmpeg_args.extend([
+            "-fflags".to_string(),
+            "+nobuffer+fastseek".to_string(),
+            "-probesize".to_string(),
+            "65536".to_string(),
+            "-analyzeduration".to_string(),
+            "200000".to_string(),
+        ]);
+    } else {
+        ffmpeg_args.extend([
+            "-probesize".to_string(),
+            "262144".to_string(),
+            "-analyzeduration".to_string(),
+            "500000".to_string(),
+        ]);
+    }
+
+    ffmpeg_args.extend([
+        "-i".to_string(),
+        direct_url,
+    ]);
 
     if let Some(seek_sec) = params.ss {
         if seek_sec > 0 {
@@ -619,8 +636,6 @@ pub async fn stream_audio(
     }
 
     ffmpeg_args.extend([
-        "-i".to_string(),
-        direct_url,
         "-vn".to_string(),
         "-f".to_string(),
         "mp3".to_string(),

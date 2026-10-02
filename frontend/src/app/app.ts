@@ -190,7 +190,9 @@ export class App implements OnInit {
   }
 
   ngOnInit() {
-    this.libraryService.checkBackendHealth();
+    this.libraryService.checkBackendHealth().then(() => {
+      this.libraryService.syncWithBackendOnStartup();
+    });
     this.authService.fetchAuthConfig(this.libraryService.getBackendUrl());
 
     this.navService.init((state) => {
@@ -1120,10 +1122,8 @@ export class App implements OnInit {
   }
 
   playOnlineTrack(track: Track) {
-    this.libraryService.addTrackToLibrary(track);
-    this.audioService.playTrack(track, this.libraryService.tracks());
+    this.audioService.playTrack(track, [track]);
     this.showToast(`Воспроизведение: ${track.title}`);
-    // Не скачиваем автоматически — пользователь должен явно нажать кнопку оффлайн
   }
 
   addOnlineTrackToLib(track: Track) {
