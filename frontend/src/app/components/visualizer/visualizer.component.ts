@@ -616,6 +616,19 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.restore();
   }
 
+  readonly isScrubbing = signal<boolean>(false);
+  readonly scrubTime = signal<number>(0);
+
+  onScrubberInput(val: number) {
+    this.isScrubbing.set(true);
+    this.scrubTime.set(val);
+  }
+
+  onScrubberChange(val: number) {
+    this.isScrubbing.set(false);
+    this.audioService.seek(val);
+  }
+
   formatTime(seconds: number): string {
     if (isNaN(seconds) || seconds < 0 || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);

@@ -110,7 +110,11 @@ export class NavigationService {
   }
 
   setTab(tab: AppTab, playlistId?: string | null, pushState = true) {
-    const currentOverlay = this.currentOverlay();
+    let currentOverlay = this.currentOverlay();
+    if (currentOverlay === 'playlists') {
+      currentOverlay = null;
+      this.currentOverlay.set(null);
+    }
     const newHash = this.buildHash(tab, playlistId, currentOverlay);
 
     this.currentTab.set(tab);

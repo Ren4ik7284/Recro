@@ -26,6 +26,113 @@ export const DEFAULT_TASTE_VECTOR: TasteVector = {
   chill: 0.4,
 };
 
+export const STARTER_MIX_TRACKS: Track[] = [
+  {
+    id: 'starter-1',
+    title: 'Sweater Weather',
+    artist: 'The Neighbourhood',
+    duration: 240,
+    audioUrl: '/api/stream?title=Sweater%20Weather&artist=The%20Neighbourhood',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/b4bbcf7d6e67cfc0a52dfdb98cfa70e6/500x500.jpg',
+    genre: 'Indie Rock',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-2',
+    title: 'Моя голова винтом',
+    artist: 'Kostromin',
+    duration: 135,
+    audioUrl: '/api/stream?title=%D0%9C%D0%BE%D1%8F%20%D0%B3%D0%BE%D0%BB%D0%BE%D0%B2%D0%B0%20%D0%B2%D0%B8%D0%BD%D1%82%D0%BE%D0%BC&artist=Kostromin',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/0c2fb753d0e2c00236a28795dae9ca24/500x500.jpg',
+    genre: 'Pop',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-3',
+    title: 'Starboy',
+    artist: 'The Weeknd',
+    duration: 230,
+    audioUrl: '/api/stream?title=Starboy&artist=The%20Weeknd',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6a7605d311394b3063fec65a19fb0962/500x500.jpg',
+    genre: 'Pop / R&B',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-4',
+    title: 'Группа крови',
+    artist: 'Кино',
+    duration: 285,
+    audioUrl: '/api/stream?title=%D0%93%D1%80%D1%83%D0%BF%D0%BF%D0%B0%20%D0%BA%D1%80%D0%BE%D0%B2%D0%B8&artist=%D0%9A%D0%B8%D0%BD%D0%BE',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/0bfa8c7161b9a1eb4019a5fa1c93a89a/500x500.jpg',
+    genre: 'Rock',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-5',
+    title: 'After Dark',
+    artist: 'Mr.Kitty',
+    duration: 257,
+    audioUrl: '/api/stream?title=After%20Dark&artist=Mr.Kitty',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/5f58c7e6c469b25206eead5d45d65c3b/500x500.jpg',
+    genre: 'Synthwave',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-6',
+    title: 'Беспечный ангел',
+    artist: 'Ария',
+    duration: 239,
+    audioUrl: '/api/stream?title=%D0%91%D0%B5%D1%81%D0%BF%D0%B5%D1%87%D0%BD%D1%8B%D0%B9%20%D0%B0%D0%BD%D0%B3%D0%B5%D0%BB&artist=%D0%90%D1%80%D0%B8%D1%8F',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/da48c9df03d4a04d2e6fc757ebfc9496/500x500.jpg',
+    genre: 'Rock',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-7',
+    title: 'Midnight City',
+    artist: 'M83',
+    duration: 243,
+    audioUrl: '/api/stream?title=Midnight%20City&artist=M83',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/f47e30d4a9ecae349603fc5bdf255d64/500x500.jpg',
+    genre: 'Electronic',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-8',
+    title: 'Седьмой лепесток',
+    artist: 'Hi-Fi',
+    duration: 215,
+    audioUrl: '/api/stream?title=%D0%A1%D0%B5%D0%B4%D1%8C%D0%BC%D0%BE%D0%B9%20%D0%BB%D0%B5%D0%BF%D0%B5%D1%81%D1%82%D0%BE%D0%BA&artist=Hi-Fi',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/f6d7eb59c25f488e0b2a8d1163473133/500x500.jpg',
+    genre: 'Pop',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+];
+
 export interface PlayRecord {
   lastPlayed: number;   // timestamp in ms
   playCount24h: number; // plays within the last 24 hours
@@ -1161,48 +1268,49 @@ export class RecommendationService {
         const queries = this.getDiscoveryQueries(mood, lang, userTopArtists, targetVec);
         queries.sort(() => 0.5 - Math.random());
 
-        for (const q of queries) {
+        // Process top queries in parallel for significantly faster network resolution
+        const queryBatch = queries.slice(0, 2);
+        const searchPromises = queryBatch.map((q) =>
+          this.libraryService.searchOnline(q).catch(() => [] as Track[])
+        );
+        const batchResults = await Promise.all(searchPromises);
+        const allBatchTracks = batchResults.flat();
+
+        const valid = allBatchTracks.filter((t) =>
+          !t.id.startsWith('audius-') &&
+          !t.audioUrl.includes('audius.co') &&
+          !excludeIds.has(t.id) &&
+          !this.isDisliked(t.id) &&
+          (t.duration === 0 || (t.duration >= 55 && t.duration <= 480)) &&
+          !PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`)
+        );
+
+        const minSim = userTopArtists.length > 0 ? 0.45 : 0.20;
+
+        for (const t of valid) {
           if (selectedTracks.length >= count) break;
+          const primaryArt = normalizeArtist(t.artist);
+          const normTitle = normalizeTitle(t.title);
 
-          try {
-            const results = await this.libraryService.searchOnline(q);
-            const valid = results.filter((t) =>
-              !t.id.startsWith('audius-') &&
-              !t.audioUrl.includes('audius.co') &&
-              !excludeIds.has(t.id) &&
-              !this.isDisliked(t.id) &&
-              (t.duration === 0 || (t.duration >= 55 && t.duration <= 480)) &&
-              !PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`)
-            );
-
-            for (const t of valid) {
-              if (selectedTracks.length >= count) break;
-              const primaryArt = normalizeArtist(t.artist);
-              const normTitle = normalizeTitle(t.title);
-
-              if (primaryArt && seenArtists.has(primaryArt)) {
-                fallbackPool.push(t);
-                continue;
-              }
-              if (normTitle && seenTitles.has(normTitle)) continue;
-              if (this.isRecentlyPlayed(t, 60)) continue;
-
-              // Taste Vector Alignment Check:
-              const trackVec = this.extractTrackVector(t);
-              const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-              // Отсекаем треки, которые не подходят по вайбу!
-              if (similarity < 0.48) {
-                continue;
-              }
-
-              selectedTracks.push(t);
-              excludeIds.add(t.id);
-              if (primaryArt) seenArtists.add(primaryArt);
-              if (normTitle) seenTitles.add(normTitle);
-            }
-          } catch (e) {
-            console.warn('[Discovery] Search query failed:', q, e);
+          if (primaryArt && seenArtists.has(primaryArt)) {
+            fallbackPool.push(t);
+            continue;
           }
+          if (normTitle && seenTitles.has(normTitle)) continue;
+          if (this.isRecentlyPlayed(t, 60)) continue;
+
+          // Taste Vector Alignment Check:
+          const trackVec = this.extractTrackVector(t);
+          const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
+          if (similarity < minSim) {
+            fallbackPool.push(t);
+            continue;
+          }
+
+          selectedTracks.push(t);
+          excludeIds.add(t.id);
+          if (primaryArt) seenArtists.add(primaryArt);
+          if (normTitle) seenTitles.add(normTitle);
         }
       }
 
@@ -1221,12 +1329,34 @@ export class RecommendationService {
         }
       }
 
+      if (selectedTracks.length < count && userTopArtists.length === 0) {
+        const starters = this.getStarterCandidates(mood, count - selectedTracks.length);
+        for (const st of starters) {
+          if (selectedTracks.length >= count) break;
+          if (!excludeIds.has(st.id)) {
+            selectedTracks.push(st);
+            excludeIds.add(st.id);
+          }
+        }
+      }
+
       return selectedTracks.slice(0, count);
     } catch {
       return [];
     } finally {
       this.isFetchingDiscovery.set(false);
     }
+  }
+
+  getStarterCandidates(mood: MixMood = 'all', count = 5): Track[] {
+    let pool = [...STARTER_MIX_TRACKS];
+    if (mood === 'energetic') {
+      pool = pool.filter((t) => t.genre.includes('Rock') || t.genre.includes('Electronic') || t.genre.includes('Pop'));
+    } else if (mood === 'chill') {
+      pool = pool.filter((t) => t.genre.includes('Indie') || t.genre.includes('Synthwave') || t.genre.includes('Pop'));
+    }
+    pool.sort(() => 0.5 - Math.random());
+    return pool.slice(0, count).map((t) => ({ ...t }));
   }
 
   /**

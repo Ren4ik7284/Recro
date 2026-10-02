@@ -198,7 +198,7 @@
         <!-- Progress scrubber -->
         <div class="vis-scrub-row font-mono">
           <span class="vis-time">
-            @if (audioService.isLiveStream()) { LIVE } @else { {{ formatTime(audioService.currentTime()) }} }
+            @if (audioService.isLiveStream()) { LIVE } @else { {{ formatTime(isScrubbing() ? scrubTime() : audioService.currentTime()) }} }
           </span>
           <div class="vis-slider-box">
             @if (!audioService.isLiveStream()) {
@@ -207,8 +207,9 @@
                 min="0"
                 [max]="audioService.duration() || 100"
                 step="1"
-                [value]="audioService.currentTime()"
-                (change)="audioService.seek(+($any($event.target).value))"
+                [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
+                (input)="onScrubberInput(+($any($event.target).value))"
+                (change)="onScrubberChange(+($any($event.target).value))"
                 class="mono-slider"
               />
             } @else {

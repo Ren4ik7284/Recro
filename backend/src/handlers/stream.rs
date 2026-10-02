@@ -391,8 +391,10 @@ pub async fn stream_audio(
             let mut resolved_title = params.title.as_deref().unwrap_or("").trim().to_string();
             let mut resolved_uploader = params.artist.as_deref().unwrap_or("").trim().to_string();
 
-            // Direct yt-dlp fast check only if title is not yet available or in local dev
-            if (!is_cloud_env() || resolved_title.is_empty()) && direct_url.is_empty() {
+            let is_youtube_target = target.contains("youtube.com") || target.contains("youtu.be");
+
+            // 1. Direct YouTube extraction first if target is a YouTube URL
+            if is_youtube_target && direct_url.is_empty() {
                 let mut cmd_fast = Command::new(&yt_cmd);
                 apply_yt_dlp_common_args(&mut cmd_fast);
                 cmd_fast.args([
@@ -400,18 +402,18 @@ pub async fn stream_audio(
                     "--ignore-errors",
                     "-g",
                     "-f", "bestaudio/ba/b",
-                    "--extractor-args", "youtube:player_client=ios,web,mweb",
+                    "--extractor-args", "youtube:player_client=ios,android,web,mweb",
                     "--",
                     &target,
                 ]);
-                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(2000), cmd_fast.output()).await {
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(3500), cmd_fast.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&out) {
                         direct_url = u;
                     }
                 }
             }
 
-            if direct_url.is_empty() && resolved_title.is_empty() {
+            if direct_url.is_empty() && resolved_title.is_empty() && is_youtube_target {
                 let oembed_url = format!(
                     "https://www.youtube.com/oembed?url={}&format=json",
                     urlencoding::encode(&target)
@@ -434,7 +436,7 @@ pub async fn stream_audio(
                 }
             }
 
-            // Fast SoundCloud resolution (scsearch1 is 5x faster than scsearch5)
+            // 2. High-speed concurrent SoundCloud & YouTube search when title/artist are known
             if direct_url.is_empty() && !resolved_title.is_empty() {
                 let clean_title = clean_music_title(&resolved_title);
                 let clean_uploader = clean_music_title(&resolved_uploader);
@@ -443,48 +445,47 @@ pub async fn stream_audio(
                 } else {
                     format!("scsearch1:{}", clean_title)
                 };
+                let yt_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
+                    format!("ytsearch1:{} {}", clean_title, clean_uploader)
+                } else {
+                    format!("ytsearch1:{}", clean_title)
+                };
 
-                let mut sc_fallback = Command::new(&yt_cmd);
-                apply_yt_dlp_common_args_no_cookies(&mut sc_fallback);
-                sc_fallback.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_query]);
-
-                if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_secs(5), sc_fallback.output()).await {
-                    if let Some(u) = extract_stream_url_from_output(&sc) {
-                        direct_url = u;
+                let yt_cmd_clone = yt_cmd.clone();
+                let sc_fut = async {
+                    let mut sc_cmd = Command::new(&yt_cmd);
+                    apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
+                    sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_query]);
+                    if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_millis(3200), sc_cmd.output()).await {
+                        extract_stream_url_from_output(&sc)
+                    } else {
+                        None
                     }
-                }
+                };
 
-                if direct_url.is_empty() && !clean_uploader.is_empty() {
-                    let sc_title_query = format!("scsearch1:{}", clean_title);
-                    let mut sc_title_fb = Command::new(&yt_cmd);
-                    apply_yt_dlp_common_args_no_cookies(&mut sc_title_fb);
-                    sc_title_fb.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_title_query]);
-
-                    if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_secs(4), sc_title_fb.output()).await {
-                        if let Some(u) = extract_stream_url_from_output(&sc) {
-                            direct_url = u;
-                        }
+                let yt_fut = async {
+                    let mut yt_search_cmd = Command::new(&yt_cmd_clone);
+                    apply_yt_dlp_common_args(&mut yt_search_cmd);
+                    yt_search_cmd.args([
+                        "--no-playlist",
+                        "--ignore-errors",
+                        "-g",
+                        "-f", "bestaudio/ba/b",
+                        "--extractor-args", "youtube:player_client=ios,android,web,mweb",
+                        "--",
+                        &yt_query,
+                    ]);
+                    if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(3200), yt_search_cmd.output()).await {
+                        extract_stream_url_from_output(&yt_out)
+                    } else {
+                        None
                     }
-                }
-            }
+                };
 
-            // Fallback 1: Direct YouTube extraction via yt-dlp (works natively on Railway and outside Russia)
-            if direct_url.is_empty() {
-                let mut cmd_yt = Command::new(&yt_cmd);
-                apply_yt_dlp_common_args(&mut cmd_yt);
-                cmd_yt.args([
-                    "--no-playlist",
-                    "--ignore-errors",
-                    "-g",
-                    "-f", "bestaudio/ba/b",
-                    "--extractor-args", "youtube:player_client=ios,android,web,mweb",
-                    "--",
-                    &target,
-                ]);
-                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(3500), cmd_yt.output()).await {
-                    if let Some(u) = extract_stream_url_from_output(&out) {
-                        direct_url = u;
-                    }
+                // Run SoundCloud and YouTube searches concurrently; pick the fastest valid result!
+                let (sc_res, yt_res) = tokio::join!(sc_fut, yt_fut);
+                if let Some(u) = sc_res.or(yt_res) {
+                    direct_url = u;
                 }
             }
 

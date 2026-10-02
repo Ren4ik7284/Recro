@@ -40,14 +40,38 @@ export class PwaService {
     const isMobileCheck = isIosDevice || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua) || window.innerWidth <= 768;
     this.isMobile.set(isMobileCheck);
 
+    const isNativeApp =
+      /RecroApp/i.test(ua) ||
+      (typeof window !== 'undefined' && (
+        typeof (window as any).AndroidMediaBridge !== 'undefined' ||
+        typeof (window as any).recroMediaAction !== 'undefined'
+      ));
+
+    const isAndroidWebView =
+      /wv/i.test(ua) ||
+      (/Version\/[0-9.]+\s+Chrome\/[0-9.]+/i.test(ua) && !/Mobile Safari/i.test(ua));
+
+    const isReferrerApp =
+      typeof document !== 'undefined' && !!document.referrer && document.referrer.startsWith('android-app://');
+
+    let isStoredInstalled = false;
+    try {
+      isStoredInstalled =
+        typeof localStorage !== 'undefined' &&
+        (localStorage.getItem('recro_pwa_installed') === 'true' || localStorage.getItem('recro_installed') === 'true');
+    } catch {}
+
     const isStandaloneMode =
       window.matchMedia('(display-mode: standalone)').matches ||
       window.matchMedia('(display-mode: fullscreen)').matches ||
       window.matchMedia('(display-mode: minimal-ui)').matches ||
-      (navigator as any).standalone === true;
+      (navigator as any).standalone === true ||
+      isNativeApp ||
+      isAndroidWebView ||
+      isReferrerApp;
 
     this.isStandalone.set(isStandaloneMode);
-    if (isStandaloneMode) {
+    if (isStandaloneMode || isStoredInstalled) {
       this.isInstalled.set(true);
     }
 
@@ -92,26 +116,25 @@ export class PwaService {
       this.canPromptInstall.set(true);
     });
 
-    // 4. Handle successful installation
-    window.addEventListener('appinstalled', () => {
+    const onInstalled = () => {
       this.deferredPrompt = null;
       (window as any).__pwaDeferredPrompt = null;
       this.canPromptInstall.set(false);
       this.isInstalled.set(true);
       this.isInstallModalOpen.set(false);
-    });
+      try {
+        localStorage.setItem('recro_pwa_installed', 'true');
+        localStorage.setItem('recro_installed', 'true');
+      } catch {}
+    };
 
-    window.addEventListener('pwa-installed', () => {
-      this.deferredPrompt = null;
-      (window as any).__pwaDeferredPrompt = null;
-      this.canPromptInstall.set(false);
-      this.isInstalled.set(true);
-      this.isInstallModalOpen.set(false);
-    });
+    // 4. Handle successful installation
+    window.addEventListener('appinstalled', onInstalled);
+    window.addEventListener('pwa-installed', onInstalled);
   }
 
   async promptInstall(): Promise<InstallOutcome> {
-    if (this.isStandalone()) {
+    if (this.isStandalone() || this.isInstalled()) {
       return 'already-installed';
     }
 

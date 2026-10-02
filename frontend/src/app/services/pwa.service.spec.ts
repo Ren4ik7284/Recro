@@ -6,7 +6,10 @@ describe('PwaService', () => {
   let service: PwaService;
 
   beforeEach(() => {
+    try { localStorage.clear(); } catch {}
     delete (window as any).__pwaDeferredPrompt;
+    delete (window as any).AndroidMediaBridge;
+    delete (window as any).recroMediaAction;
     if (!window.matchMedia) {
       window.matchMedia = () => ({
         matches: false,
@@ -69,5 +72,19 @@ describe('PwaService', () => {
     expect(service.isInstalled()).toBe(true);
     expect(service.canPromptInstall()).toBe(false);
     expect(service.isInstallModalOpen()).toBe(false);
+  });
+
+  it('should detect Recro native app bridge and mark as standalone/installed', () => {
+    (window as any).AndroidMediaBridge = { updateMediaSession: () => {} };
+    const nativeService = new PwaService();
+    expect(nativeService.isStandalone()).toBe(true);
+    expect(nativeService.isInstalled()).toBe(true);
+    expect(nativeService.shouldShowInstallButton()).toBe(false);
+  });
+
+  it('should return already-installed if promptInstall is called when installed', async () => {
+    window.dispatchEvent(new Event('appinstalled'));
+    const outcome = await service.promptInstall();
+    expect(outcome).toBe('already-installed');
   });
 });

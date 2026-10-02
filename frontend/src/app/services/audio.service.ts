@@ -1529,6 +1529,20 @@ export class AudioService {
     this.recService.setMixMood(mood);
 
     const curTrack = this.currentTrack() || null;
+    const localCandidates = this.recService.getAllLocalCandidates();
+
+    // Instant Cold-Start for brand new / clean accounts:
+    // Instantly start playback with curated popular starter tracks in 0ms without waiting for network searches!
+    if (localCandidates.length === 0 && mood !== 'favorites') {
+      const starterTracks = this.recService.getStarterCandidates(mood, 5);
+      if (starterTracks.length > 0) {
+        this.playTrack(starterTracks[0], starterTracks, true, 0);
+        // Asynchronously populate and enrich the queue ahead with discovery tracks in background
+        this.ensureSmartQueue();
+        return true;
+      }
+    }
+
     const recentArtists = new Set<string>();
     if (curTrack?.artist) {
       recentArtists.add(curTrack.artist);

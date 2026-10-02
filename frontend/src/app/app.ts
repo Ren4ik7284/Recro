@@ -118,6 +118,7 @@ export class App implements OnInit {
 
   readonly pwaService = inject(PwaService);
   readonly isMobileDevice = this.pwaService.isMobile;
+  readonly shouldShowInstallBanner = this.pwaService.shouldShowInstallButton;
   readonly canInstallPwa = this.pwaService.canPromptInstall;
   readonly isPwaModalOpen = this.pwaService.isInstallModalOpen;
   readonly isIos = this.pwaService.isIos;
@@ -281,14 +282,42 @@ export class App implements OnInit {
     });
   }
 
+  private sheetTouchStartY = 0;
+  private sheetTouchCurrentY = 0;
+
+  onSheetTouchStart(e: TouchEvent) {
+    this.sheetTouchStartY = e.touches[0].clientY;
+    this.sheetTouchCurrentY = this.sheetTouchStartY;
+  }
+
+  onSheetTouchMove(e: TouchEvent) {
+    this.sheetTouchCurrentY = e.touches[0].clientY;
+  }
+
+  onSheetTouchEnd() {
+    const deltaY = this.sheetTouchCurrentY - this.sheetTouchStartY;
+    if (deltaY > 65) {
+      this.collapseMobilePlayer();
+    }
+    this.sheetTouchStartY = 0;
+    this.sheetTouchCurrentY = 0;
+  }
+
   downloadApk() {
     if (typeof document === 'undefined') return;
+    if (this.pwaService.isStandalone() || this.pwaService.isInstalled()) {
+      this.showToast('Приложение уже установлено на вашем устройстве');
+      return;
+    }
     const a = document.createElement('a');
     a.href = '/recro.apk';
     a.download = 'recro.apk';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    try {
+      localStorage.setItem('recro_installed', 'true');
+    } catch {}
     this.showToast('Загрузка Recro APK началась');
   }
 
@@ -297,8 +326,8 @@ export class App implements OnInit {
       this.closeMobilePlaylists();
     }
 
-    if (this.pwaService.isStandalone()) {
-      this.showToast('Плеер уже открыт в отдельном приложении');
+    if (this.pwaService.isStandalone() || this.pwaService.isInstalled()) {
+      this.showToast('Приложение уже установлено на вашем устройстве');
       return;
     }
 
@@ -319,12 +348,11 @@ export class App implements OnInit {
       this.closeMobilePlaylists();
     }
 
-    if (this.pwaService.isStandalone()) {
-      this.showToast('Плеер уже открыт в отдельном приложении');
+    if (this.pwaService.isStandalone() || this.pwaService.isInstalled()) {
+      this.showToast('Приложение уже установлено на вашем устройстве');
       return;
     }
 
-    this.downloadApk();
     this.openPwaInstallModal();
   }
 
