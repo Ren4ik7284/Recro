@@ -307,7 +307,10 @@ async fn fetch_lrclib(
             format!("https://lrclib.net/api/get?{}", q)
         };
 
-        let req = client.get(&url).header("User-Agent", "RecroPlayer/1.0").timeout(std::time::Duration::from_millis(2500));
+        let req = client
+            .get(&url)
+            .header("User-Agent", "RecroPlayer/1.0 (https://github.com/Ren4ik7284/Recro)")
+            .timeout(std::time::Duration::from_millis(3500));
         if let Ok(res) = req.send().await {
             if res.status().is_success() {
                 if is_search {
@@ -410,7 +413,9 @@ async fn fetch_kugou(
     if !artist.is_empty() && artist != primary_a {
         queries.push(format!("{} {}", artist, title));
     }
-    queries.push(title.to_string());
+    if primary_a.is_empty() && artist.is_empty() {
+        queries.push(title.to_string());
+    }
 
     for query in queries {
         let search_url = format!(
@@ -561,32 +566,62 @@ async fn fetch_deezer_metadata(
     };
 
     let url = format!(
-        "https://api.deezer.com/search?q={}&limit=1",
+        "https://api.deezer.com/search?q={}&limit=5",
         urlencoding::encode(&query)
     );
 
     let res = client
         .get(&url)
         .header("User-Agent", "Mozilla/5.0")
-        .timeout(std::time::Duration::from_millis(2000))
+        .timeout(std::time::Duration::from_millis(2500))
         .send()
         .await
         .ok()?;
 
     let json: serde_json::Value = res.json().await.ok()?;
-    let item = json["data"].as_array()?.first()?;
+    let items = json["data"].as_array()?;
 
-    let d_title = item["title"].as_str().unwrap_or("").trim();
-    let d_artist = item["artist"]["name"].as_str().unwrap_or("").trim();
-    let d_dur = item["duration"].as_f64().unwrap_or(0.0);
+    let norm_exp_a = normalize_for_comparison(artist);
+    let norm_exp_t = normalize_for_comparison(title);
 
-    if !d_title.is_empty() && !d_artist.is_empty() {
-        let t_norm = clean_title(title).to_lowercase();
-        let d_norm = d_title.to_lowercase();
-        let words: Vec<&str> = t_norm.split_whitespace().filter(|w| w.len() >= 2).collect();
-        if words.is_empty() || words.iter().any(|w| d_norm.contains(w)) || d_norm.contains(&t_norm) {
-            return Some((d_title.to_string(), d_artist.to_string(), d_dur));
+    for item in items {
+        let d_title = item["title"].as_str().unwrap_or("").trim();
+        let d_artist = item["artist"]["name"].as_str().unwrap_or("").trim();
+        let d_dur = item["duration"].as_f64().unwrap_or(0.0);
+
+        if d_title.is_empty() || d_artist.is_empty() {
+            continue;
         }
+
+        let norm_d_a = normalize_for_comparison(d_artist);
+        let norm_d_t = normalize_for_comparison(d_title);
+
+        // Строгая проверка артиста, если он был задан
+        if !norm_exp_a.is_empty() {
+            let artist_matches = norm_d_a == norm_exp_a
+                || norm_d_a.contains(&norm_exp_a)
+                || norm_exp_a.contains(&norm_d_a)
+                || check_translit_artist_match(&norm_exp_a, &norm_d_a);
+            if !artist_matches {
+                continue;
+            }
+        }
+
+        // Проверка однословного названия: не брать коллаборации и ремиксы чужих артистов
+        let exp_words: Vec<&str> = norm_exp_t.split_whitespace().collect();
+        let d_words: Vec<&str> = norm_d_t.split_whitespace().collect();
+        if exp_words.len() == 1 {
+            let target_word = exp_words[0];
+            if !d_words.contains(&target_word) {
+                continue;
+            }
+            let extra = d_words.iter().filter(|w| **w != target_word && !is_noise_word(w) && !norm_exp_a.contains(**w)).count();
+            if extra > 0 {
+                continue;
+            }
+        }
+
+        return Some((d_title.to_string(), d_artist.to_string(), d_dur));
     }
 
     None
@@ -601,8 +636,9 @@ async fn fetch_netease(
     let mut queries = Vec::new();
     if !artist.is_empty() {
         queries.push(format!("{} {}", artist, title));
+    } else {
+        queries.push(title.to_string());
     }
-    queries.push(title.to_string());
 
     for query in queries {
         let search_url = format!(
@@ -639,11 +675,20 @@ async fn fetch_netease(
                 None => continue,
             };
             let cand_title = song["name"].as_str().unwrap_or("");
-            let cand_artist = song["artists"]
+            let cand_artists_vec: Vec<&str> = song["artists"]
                 .as_array()
-                .and_then(|a| a.first())
-                .and_then(|a| a["name"].as_str())
-                .unwrap_or("");
+                .map(|arr| arr.iter().filter_map(|a| a["name"].as_str()).collect())
+                .unwrap_or_default();
+            let cand_artists_joined = cand_artists_vec.join(" / ");
+            let cand_artist = if !cand_artists_joined.is_empty() {
+                &cand_artists_joined
+            } else {
+                song["artists"]
+                    .as_array()
+                    .and_then(|a| a.first())
+                    .and_then(|a| a["name"].as_str())
+                    .unwrap_or("")
+            };
             let cand_dur = song["duration"].as_f64().map(|ms| ms / 1000.0);
 
             let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, true);
@@ -720,10 +765,10 @@ pub async fn get_lyrics(
 
     // Быстрая студийная нормализация метаданных через Deezer API (чистые названия, студийный хрон)
     if let Some((d_title, d_artist, d_dur)) = fetch_deezer_metadata(&client, &clean_t, &clean_a).await {
-        if !d_title.is_empty() {
+        if clean_t.is_empty() || clean_t.len() > 60 {
             clean_t = d_title;
         }
-        if !d_artist.is_empty() {
+        if clean_a.is_empty() {
             clean_a = d_artist;
         }
         if target_duration.is_none() || target_duration == Some(0.0) {
