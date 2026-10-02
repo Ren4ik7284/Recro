@@ -422,6 +422,7 @@ export class AudioService {
         this.duration.set(this.currentTrack()!.duration);
       }
       this.updateMediaSessionPosition();
+      this.notifyNativeBridge(this.currentTrack(), this.isPlaying());
     });
 
     this.audio.addEventListener('durationchange', () => {
@@ -432,6 +433,7 @@ export class AudioService {
         this.duration.set(this.currentTrack()!.duration);
       }
       this.updateMediaSessionPosition();
+      this.notifyNativeBridge(this.currentTrack(), this.isPlaying());
     });
 
     this.audio.addEventListener('play', () => {
@@ -609,16 +611,14 @@ export class AudioService {
 
     setAction('play', () => {
       if (this.audio.paused) {
-        this.audio.play().catch(() => {});
-        this.isPlaying.set(true);
-        this.updateMediaSessionPlaybackState('playing');
+        this.togglePlay();
       }
     });
 
     setAction('pause', () => {
-      this.audio.pause();
-      this.isPlaying.set(false);
-      this.updateMediaSessionPlaybackState('paused');
+      if (!this.audio.paused) {
+        this.togglePlay();
+      }
     });
 
     setAction('previoustrack', () => {
@@ -1067,6 +1067,7 @@ export class AudioService {
         this.audio.currentTime = clamped;
         this.currentTime.set(clamped);
         this.updateMediaSessionPosition();
+        this.notifyNativeBridge(track, this.isPlaying());
       } catch {}
       return;
     }
