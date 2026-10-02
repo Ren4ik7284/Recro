@@ -553,3 +553,166 @@ pub async fn execute_deezer_search(query: &str, limit: usize, base_url: &str) ->
 
     tracks
 }
+
+pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(3000))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    // 1. Find artist id on Deezer
+    let search_url = format!(
+        "https://api.deezer.com/search/artist?q={}&limit=1",
+        urlencoding::encode(artist_name)
+    );
+    let artist_id = match client.get(&search_url).send().await {
+        Ok(r) if r.status().is_success() => {
+            if let Ok(data) = r.json::<serde_json::Value>().await {
+                data["data"].as_array().and_then(|arr| arr.first()).and_then(|a| a["id"].as_i64())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
+    let artist_id = match artist_id {
+        Some(id) => id,
+        None => return Vec::new(),
+    };
+
+    // 2. Fetch related artists
+    let rel_url = format!("https://api.deezer.com/artist/{}/related?limit=6", artist_id);
+    let rel_artists = match client.get(&rel_url).send().await {
+        Ok(r) if r.status().is_success() => {
+            if let Ok(data) = r.json::<serde_json::Value>().await {
+                data["data"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|a| a["id"].as_i64())
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    };
+
+    if rel_artists.is_empty() {
+        return Vec::new();
+    }
+
+    // 3. Concurrently fetch top 2 tracks from each related artist
+    let mut set = tokio::task::JoinSet::new();
+    for rel_id in rel_artists.into_iter().take(5) {
+        let cl = client.clone();
+        set.spawn(async move {
+            let top_url = format!("https://api.deezer.com/artist/{}/top?limit=2", rel_id);
+            if let Ok(r) = cl.get(&top_url).send().await {
+                if r.status().is_success() {
+                    if let Ok(v) = r.json::<serde_json::Value>().await {
+                        return v["data"].as_array().cloned().unwrap_or_default();
+                    }
+                }
+            }
+            Vec::new()
+        });
+    }
+
+    let mut tracks = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(items) = res {
+            for item in items {
+                if tracks.len() >= limit {
+                    break;
+                }
+                let id_num = match item["id"].as_i64() {
+                    Some(n) => n,
+                    None => continue,
+                };
+                let id = format!("dz-{}", id_num);
+                let raw_title = item["title_short"]
+                    .as_str()
+                    .or_else(|| item["title"].as_str())
+                    .unwrap_or("Без названия")
+                    .trim();
+                let raw_artist = item["artist"]["name"]
+                    .as_str()
+                    .unwrap_or("Неизвестный исполнитель")
+                    .trim();
+                let duration = item["duration"].as_f64().unwrap_or(0.0);
+
+                if duration > 720.0 || (duration > 0.0 && duration < 30.0) {
+                    continue;
+                }
+
+                let cover_url = item["album"]["cover_xl"]
+                    .as_str()
+                    .or_else(|| item["album"]["cover_big"].as_str())
+                    .or_else(|| item["album"]["cover_medium"].as_str())
+                    .map(|u| u.to_string());
+
+                let encoded_title = urlencoding::encode(raw_title);
+                let encoded_artist = urlencoding::encode(raw_artist);
+                let audio_url = format!(
+                    "{}/api/stream?title={}&artist={}&duration={}&id={}",
+                    base_url, encoded_title, encoded_artist, duration as u64, id
+                );
+
+                tracks.push(SearchTrack {
+                    id,
+                    title: raw_title.to_string(),
+                    artist: raw_artist.to_string(),
+                    duration,
+                    audio_url,
+                    cover_url,
+                });
+            }
+        }
+    }
+
+    tracks
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RecommendParams {
+    pub artist: Option<String>,
+    pub limit: Option<usize>,
+}
+
+pub async fn get_recommendations(
+    State(state): State<AppState>,
+    Query(params): Query<RecommendParams>,
+) -> Result<Json<Vec<SearchTrack>>, StatusCode> {
+    let artist = params.artist.as_deref().unwrap_or("").trim();
+    if artist.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+    let limit = params.limit.unwrap_or(10).min(30);
+    let base_url = get_base_url();
+
+    let cache_key = format!("rec:{}", artist.to_lowercase());
+    if let Ok(guard) = state.search_cache.lock() {
+        if let Some((cached_tracks, cached_at)) = guard.get(&cache_key) {
+            if cached_at.elapsed() < Duration::from_secs(7200) && !cached_tracks.is_empty() {
+                return Ok(Json(cached_tracks.clone()));
+            }
+        }
+    }
+
+    let tracks = execute_deezer_related(artist, limit, &base_url).await;
+    if !tracks.is_empty() {
+        if let Ok(mut guard) = state.search_cache.lock() {
+            guard.insert(cache_key, (tracks.clone(), std::time::Instant::now()));
+        }
+    }
+
+    Ok(Json(tracks))
+}

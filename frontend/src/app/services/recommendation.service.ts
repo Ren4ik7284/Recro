@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { Track, MixConfig, MixMood, MixSource, MixLanguage } from '../models/track.model';
 import { LibraryService } from './library.service';
 
@@ -72,6 +72,10 @@ export class RecommendationService {
     return `signal_recent_plays_${this.libraryService.getStorageUserId()}`;
   }
 
+  private get STORAGE_KEY_RECENT_TITLES(): string {
+    return `signal_recent_titles_${this.libraryService.getStorageUserId()}`;
+  }
+
   readonly isMixActive = signal<boolean>(false);
   readonly mixConfig = this.libraryService.mixConfig;
   readonly currentMood = computed<MixMood>(() => this.libraryService.mixConfig().mood);
@@ -84,8 +88,8 @@ export class RecommendationService {
   // Map of trackId -> PlayRecord
   private readonly recentPlays = new Map<string, PlayRecord>();
 
-  // Rolling cache of normalized artist::title -> timestamp to deduplicate remixes/alternate uploads
-  private readonly recentTitles = new Map<string, number>();
+  // Normalized artist::title -> PlayRecord to prevent hearing alternate uploads or repeated tracks today
+  private readonly recentTitles = new Map<string, PlayRecord>();
 
   // In-memory cache for track feature vectors to prevent repeated regex and string operations
   private readonly vectorCache = new Map<string, TasteVector>();
@@ -97,6 +101,14 @@ export class RecommendationService {
     this.loadSavedRecentPlays();
     this.cleanupOldPlays();
     this.syncWithListeningHistory();
+
+    // Auto-calibrate taste vector from user library whenever tracks load or change
+    effect(() => {
+      const tracks = this.libraryService.tracks();
+      if (tracks.length > 0) {
+        this.calibrateTasteFromLibrary();
+      }
+    });
   }
 
   setMixMood(mood: MixMood) {
@@ -140,28 +152,53 @@ export class RecommendationService {
   private loadSavedRecentPlays() {
     if (typeof localStorage === 'undefined') return;
     try {
-      const raw = localStorage.getItem(this.STORAGE_KEY_RECENT_PLAYS);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
       const now = Date.now();
       const cutoff48h = now - 48 * 60 * 60 * 1000;
       const cutoff24h = now - 24 * 60 * 60 * 1000;
 
-      for (const [id, record] of Object.entries(parsed as Record<string, any>)) {
-        const rawHistory: number[] = Array.isArray(record.history)
-          ? record.history
-          : typeof record.lastPlayed === 'number'
-          ? [record.lastPlayed]
-          : [];
-        const validHistory = rawHistory.filter((ts) => ts > cutoff48h);
-        if (validHistory.length > 0) {
-          const last = Math.max(...validHistory);
-          const count24h = validHistory.filter((ts) => ts > cutoff24h).length;
-          this.recentPlays.set(id, {
-            lastPlayed: last,
-            playCount24h: count24h,
-            history: validHistory,
-          });
+      // 1. Load trackId records
+      const rawPlays = localStorage.getItem(this.STORAGE_KEY_RECENT_PLAYS);
+      if (rawPlays) {
+        const parsed = JSON.parse(rawPlays);
+        for (const [id, record] of Object.entries(parsed as Record<string, any>)) {
+          const rawHistory: number[] = Array.isArray(record.history)
+            ? record.history
+            : typeof record.lastPlayed === 'number'
+            ? [record.lastPlayed]
+            : [];
+          const validHistory = rawHistory.filter((ts) => ts > cutoff48h);
+          if (validHistory.length > 0) {
+            const last = Math.max(...validHistory);
+            const count24h = validHistory.filter((ts) => ts > cutoff24h).length;
+            this.recentPlays.set(id, {
+              lastPlayed: last,
+              playCount24h: count24h,
+              history: validHistory,
+            });
+          }
+        }
+      }
+
+      // 2. Load normalized title::artist records
+      const rawTitles = localStorage.getItem(this.STORAGE_KEY_RECENT_TITLES);
+      if (rawTitles) {
+        const parsed = JSON.parse(rawTitles);
+        for (const [key, record] of Object.entries(parsed as Record<string, any>)) {
+          const rawHistory: number[] = Array.isArray(record.history)
+            ? record.history
+            : typeof record.lastPlayed === 'number'
+            ? [record.lastPlayed]
+            : [];
+          const validHistory = rawHistory.filter((ts) => ts > cutoff48h);
+          if (validHistory.length > 0) {
+            const last = Math.max(...validHistory);
+            const count24h = validHistory.filter((ts) => ts > cutoff24h).length;
+            this.recentTitles.set(key, {
+              lastPlayed: last,
+              playCount24h: count24h,
+              history: validHistory,
+            });
+          }
         }
       }
     } catch {}
@@ -170,11 +207,17 @@ export class RecommendationService {
   private saveRecentPlays() {
     if (typeof localStorage === 'undefined') return;
     try {
-      const obj: Record<string, PlayRecord> = {};
+      const playsObj: Record<string, PlayRecord> = {};
       for (const [id, rec] of this.recentPlays.entries()) {
-        obj[id] = rec;
+        playsObj[id] = rec;
       }
-      localStorage.setItem(this.STORAGE_KEY_RECENT_PLAYS, JSON.stringify(obj));
+      localStorage.setItem(this.STORAGE_KEY_RECENT_PLAYS, JSON.stringify(playsObj));
+
+      const titlesObj: Record<string, PlayRecord> = {};
+      for (const [key, rec] of this.recentTitles.entries()) {
+        titlesObj[key] = rec;
+      }
+      localStorage.setItem(this.STORAGE_KEY_RECENT_TITLES, JSON.stringify(titlesObj));
     } catch {}
   }
 
@@ -200,9 +243,19 @@ export class RecommendationService {
       }
     }
 
-    for (const [key, time] of this.recentTitles.entries()) {
-      if (now - time > cutoff24h) {
+    for (const [key, rec] of this.recentTitles.entries()) {
+      const validHistory = rec.history.filter((t) => t > cutoff48h);
+      if (validHistory.length === 0) {
         this.recentTitles.delete(key);
+        changed = true;
+      } else {
+        const count24h = validHistory.filter((t) => t > cutoff24h).length;
+        if (validHistory.length !== rec.history.length || count24h !== rec.playCount24h) {
+          rec.history = validHistory;
+          rec.playCount24h = count24h;
+          rec.lastPlayed = Math.max(...validHistory);
+          changed = true;
+        }
       }
     }
 
@@ -228,6 +281,7 @@ export class RecommendationService {
         const playedMs = item.played_at * 1000;
         if (now - playedMs > cutoff48h) continue;
 
+        // 1. By ID
         const existing = this.recentPlays.get(item.track_id);
         if (!existing) {
           this.recentPlays.set(item.track_id, {
@@ -244,11 +298,23 @@ export class RecommendationService {
           changed = true;
         }
 
+        // 2. By Normalized Title & Artist
         const titleKey = this.getTitleKeyFromStrings(item.track_artist, item.track_title);
         if (titleKey) {
-          const last = this.recentTitles.get(titleKey);
-          if (!last || last < playedMs) {
-            this.recentTitles.set(titleKey, playedMs);
+          const exTitle = this.recentTitles.get(titleKey);
+          if (!exTitle) {
+            this.recentTitles.set(titleKey, {
+              lastPlayed: playedMs,
+              playCount24h: playedMs > cutoff24h ? 1 : 0,
+              history: [playedMs],
+            });
+            changed = true;
+          } else if (!exTitle.history.includes(playedMs)) {
+            const hist = [...exTitle.history, playedMs].sort((a, b) => a - b);
+            exTitle.history = hist;
+            exTitle.lastPlayed = Math.max(...hist);
+            exTitle.playCount24h = hist.filter((t) => t > cutoff24h).length;
+            changed = true;
           }
         }
       }
@@ -271,6 +337,57 @@ export class RecommendationService {
   }
 
   /**
+   * Auto-calibrates the user's taste vector from their actual collection and favorites,
+   * so the mix naturally respects their true vibe (Rock, Phonk, Rap, Indie, etc.).
+   */
+  calibrateTasteFromLibrary() {
+    const tracks = this.getAllLocalCandidates();
+    if (tracks.length === 0) return;
+
+    let totalWeight = 0;
+    let sumEnergy = 0;
+    let sumTempo = 0;
+    let sumAcoustic = 0;
+    let sumHiphop = 0;
+    let sumRock = 0;
+    let sumElectronic = 0;
+    let sumPop = 0;
+    let sumChill = 0;
+
+    for (const t of tracks) {
+      const vec = this.extractTrackVector(t);
+      let weight = 1.0;
+      if (t.isFavorite) weight += 3.5;
+      if (t.plays && t.plays > 0) weight += Math.min(5, t.plays * 0.6);
+
+      sumEnergy += vec.energy * weight;
+      sumTempo += vec.tempo * weight;
+      sumAcoustic += vec.acoustic * weight;
+      sumHiphop += vec.hiphop * weight;
+      sumRock += vec.rock * weight;
+      sumElectronic += vec.electronic * weight;
+      sumPop += vec.pop * weight;
+      sumChill += vec.chill * weight;
+      totalWeight += weight;
+    }
+
+    if (totalWeight > 0) {
+      const calibrated: TasteVector = {
+        energy: Math.max(0.05, Math.min(0.98, sumEnergy / totalWeight)),
+        tempo: Math.max(0.05, Math.min(0.98, sumTempo / totalWeight)),
+        acoustic: Math.max(0.05, Math.min(0.98, sumAcoustic / totalWeight)),
+        hiphop: Math.max(0.05, Math.min(0.98, sumHiphop / totalWeight)),
+        rock: Math.max(0.05, Math.min(0.98, sumRock / totalWeight)),
+        electronic: Math.max(0.05, Math.min(0.98, sumElectronic / totalWeight)),
+        pop: Math.max(0.05, Math.min(0.98, sumPop / totalWeight)),
+        chill: Math.max(0.05, Math.min(0.98, sumChill / totalWeight)),
+      };
+      this.tasteVector.set(calibrated);
+      this.saveTasteVector(calibrated);
+    }
+  }
+
+  /**
    * Record when a track starts playing.
    * Immediately activates cooldown fatigue to avoid repetition if the user listens for only 30-60s.
    */
@@ -280,6 +397,7 @@ export class RecommendationService {
     const cutoff48h = now - 48 * 60 * 60 * 1000;
     const cutoff24h = now - 24 * 60 * 60 * 1000;
 
+    // 1. By Track ID
     const existing = this.recentPlays.get(track.id);
     const validHistory = existing
       ? existing.history.filter((t) => t > cutoff48h)
@@ -293,10 +411,23 @@ export class RecommendationService {
       history: validHistory,
     });
 
+    // 2. By Normalized Title & Artist
     const titleKey = this.getTitleKey(track);
     if (titleKey) {
-      this.recentTitles.set(titleKey, now);
-      if (this.recentTitles.size > 200) {
+      const existingTitle = this.recentTitles.get(titleKey);
+      const titleHist = existingTitle
+        ? existingTitle.history.filter((t) => t > cutoff48h)
+        : [];
+      titleHist.push(now);
+      const titleCount24h = titleHist.filter((t) => t > cutoff24h).length;
+
+      this.recentTitles.set(titleKey, {
+        lastPlayed: now,
+        playCount24h: titleCount24h,
+        history: titleHist,
+      });
+
+      if (this.recentTitles.size > 300) {
         const firstKey = this.recentTitles.keys().next().value;
         if (firstKey !== undefined) this.recentTitles.delete(firstKey);
       }
@@ -310,20 +441,26 @@ export class RecommendationService {
    */
   isRecentlyPlayed(track: Track | string, minutesThreshold = 45): boolean {
     const now = Date.now();
-    const id = typeof track === 'string' ? track : track.id;
-    const rec = this.recentPlays.get(id);
-    if (rec && now - rec.lastPlayed < minutesThreshold * 60 * 1000) {
+    const msThreshold = minutesThreshold * 60 * 1000;
+
+    if (typeof track === 'string') {
+      const rec = this.recentPlays.get(track);
+      return !!(rec && now - rec.lastPlayed < msThreshold);
+    }
+
+    const recId = this.recentPlays.get(track.id);
+    if (recId && now - recId.lastPlayed < msThreshold) {
       return true;
     }
-    if (typeof track !== 'string') {
-      const titleKey = this.getTitleKey(track);
-      if (titleKey) {
-        const last = this.recentTitles.get(titleKey);
-        if (last && now - last < minutesThreshold * 60 * 1000) {
-          return true;
-        }
+
+    const titleKey = this.getTitleKey(track);
+    if (titleKey) {
+      const recTitle = this.recentTitles.get(titleKey);
+      if (recTitle && now - recTitle.lastPlayed < msThreshold) {
+        return true;
       }
     }
+
     return false;
   }
 
@@ -629,26 +766,75 @@ export class RecommendationService {
       return -9999;
     }
 
+    const availablePool = poolSize ?? 50;
+
+    // Fatigue lookup across BOTH track.id and normalized title::artist
+    const titleKey = this.getTitleKey(track);
+    const titleRec = titleKey ? this.recentTitles.get(titleKey) : undefined;
+    const playRec = this.recentPlays.get(track.id);
+
+    const playsToday = Math.max(playRec?.playCount24h ?? 0, titleRec?.playCount24h ?? 0);
+    const lastPlayedTime = Math.max(playRec?.lastPlayed ?? 0, titleRec?.lastPlayed ?? 0) || undefined;
+    const now = Date.now();
+
+    // 1. HARD DAY CAP:
+    // Если трек уже звучал 2 или более раз сегодня — строго запрещаем ставить его в 3-й раз!
+    if (playsToday >= 2 && availablePool >= 8) {
+      return -9999;
+    }
+
+    // 2. HARD SESSION COOLDOWN:
+    // Если трек играл менее 2.5 часов (150 мин) назад — строгий запрет на повтор при наличии других треков
+    if (lastPlayedTime) {
+      const minutesAgo = (now - lastPlayedTime) / (1000 * 60);
+      if (minutesAgo < 150 && availablePool >= 10) {
+        return -9999;
+      }
+      if (minutesAgo < 45) {
+        return -9999;
+      }
+    }
+
     const trackVec = this.extractTrackVector(track);
     const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
 
-    let score = similarity * 55; // 0..55 points from vector alignment
+    // Если сходство с вайбом пользователя слишком низкое (< 0.40), полностью отвергаем
+    if (similarity < 0.40) {
+      return -9999;
+    }
+
+    let score = similarity * 60; // 0..60 очков за соответствие вкусовому профилю
 
     // Explicit user affinity
     if (track.isFavorite) {
       score += 15;
     }
 
-    // Familiarity vs Rediscovery bonus:
-    // Avoid runaway positive feedback loop where top played tracks monopolize the mix!
-    const playRec = this.recentPlays.get(track.id);
-    const playsToday = playRec ? playRec.playCount24h : 0;
-    if (!playRec && (!track.plays || track.plays === 0)) {
-      // Unheard track in library — give it an exploratory boost
-      score += 10;
-    } else if (track.plays && track.plays > 0 && playsToday === 0) {
-      // Familiar track that hasn't played today
-      score += Math.min(5, track.plays * 0.6);
+    // Freshness & Rediscovery bonus:
+    // Треки, которые ни разу не играли сегодня или вообще новые в каталоге, получают приоритет
+    if (!lastPlayedTime || playsToday === 0) {
+      if (!playRec && (!track.plays || track.plays === 0)) {
+        // Непрослушанный трек в медиатеке — мощный буст разнообразия
+        score += 30;
+      } else {
+        // Знакомый трек, который еще не играл сегодня
+        score += 15;
+      }
+    }
+
+    // Штраф за повторное воспроизведение сегодня (2-й раз за день)
+    if (playsToday === 1) {
+      score -= 90;
+    }
+
+    // Мягкий штраф за недавнее воспроизведение (от 2.5 до 12 часов)
+    if (lastPlayedTime) {
+      const minutesAgo = (now - lastPlayedTime) / (1000 * 60);
+      if (minutesAgo < 360) {
+        score -= 75;
+      } else if (minutesAgo < 720) {
+        score -= 30;
+      }
     }
 
     // Language preference
@@ -666,12 +852,12 @@ export class RecommendationService {
     const curPrimaryArt = normalizeArtist(currentTrack?.artist);
 
     if (primaryArt && curPrimaryArt && primaryArt === curPrimaryArt) {
-      // Strict back-to-back duplicate artist veto
-      score -= 120;
+      // Строгий запрет двух треков подряд от одного артиста
+      score -= 150;
     } else if (recentArtists && primaryArt) {
       for (const recent of recentArtists) {
         if (normalizeArtist(recent) === primaryArt) {
-          score -= 45;
+          score -= 55;
           break;
         }
       }
@@ -687,42 +873,6 @@ export class RecommendationService {
       } else if (bpmDiff > 35) {
         score -= 15;
       }
-    }
-
-    // Cooldown & Fatigue Penalty (Time since last play)
-    const now = Date.now();
-    let lastPlayedTime = playRec?.lastPlayed;
-    if (!lastPlayedTime) {
-      const titleKey = this.getTitleKey(track);
-      if (titleKey) lastPlayedTime = this.recentTitles.get(titleKey);
-    }
-
-    // Dynamically scale cooldown down if candidate pool is very small (< 15 tracks)
-    const availablePool = poolSize ?? 50;
-    const cooldownScale = availablePool < 15 ? Math.max(0.25, availablePool / 15) : 1.0;
-
-    if (lastPlayedTime) {
-      const minutesAgo = (now - lastPlayedTime) / (1000 * 60);
-      if (minutesAgo < 35 * cooldownScale) {
-        score -= 250; // Hard lockout cooldown
-      } else if (minutesAgo < 90 * cooldownScale) {
-        score -= 90;
-      } else if (minutesAgo < 240 * cooldownScale) {
-        score -= 45;
-      } else if (minutesAgo < 480 * cooldownScale) {
-        score -= 20;
-      }
-    }
-
-    // Daily Frequency Cap Penalty (Prevents hearing the same song 5 times a day)
-    if (playsToday >= 1) {
-      score -= 20 * playsToday;
-    }
-    if (playsToday >= 2) {
-      score -= 60; // Extra heavy penalty for 2nd+ play today
-    }
-    if (playsToday >= 3) {
-      score -= 120; // Near-impossible to pick for 4th or 5th play today
     }
 
     return score;
@@ -778,14 +928,22 @@ export class RecommendationService {
       return available.slice(0, count);
     }
 
-    let minScore = scored[0].score;
-    for (let i = 1; i < scored.length; i++) {
-      if (scored[i].score < minScore) minScore = scored[i].score;
+    // Строгий приоритет свежести: если в библиотеке достаточно свежих треков (score > -100),
+    // полностью исключаем треки, уже игравшие сегодня!
+    let eligible = scored;
+    const freshCandidates = scored.filter((item) => item.score > -100);
+    if (freshCandidates.length >= count) {
+      eligible = freshCandidates;
+    }
+
+    let minScore = eligible[0].score;
+    for (let i = 1; i < eligible.length; i++) {
+      if (eligible[i].score < minScore) minScore = eligible[i].score;
     }
     const baseShift = minScore <= 0 ? Math.abs(minScore) + 5 : 0;
 
     // Efraimidis-Spirakis Weighted Reservoir Sampling:
-    const weightedItems = scored.map((item) => {
+    const weightedItems = eligible.map((item) => {
       const weight = Math.max(0.1, item.score + baseShift);
       const r = Math.max(1e-10, Math.random());
       const key = Math.log(r) / weight;
@@ -843,62 +1001,53 @@ export class RecommendationService {
 
   /**
    * Generates diverse discovery queries based on mood, language, and user taste.
-   * Prioritizes multi-artist compilation and chart queries to prevent returning multiple
-   * songs by the same artist!
+   * NEVER queries "плейлист" or "playlist" to avoid returning long mix videos or junk compilations!
    */
-  private getDiscoveryQueries(mood: MixMood, lang: MixLanguage, userTopArtists: string[]): string[] {
-    const ruEnergeticQueries = [
-      'русский рэп хиты новинки', 'русский дрилл хиты', 'русский трэп плейлист',
-      'топ чарт треки', 'популярный русский хип хоп', 'фонк дрифт плейлист',
-      'новинки русского рэпа', 'лучшие треки чарт'
-    ];
-    const ruChillQueries = [
-      'русский инди поп плейлист', 'русский лоуфай чилл', 'кальянный рэп душевные хиты',
-      'русский соул rnb', 'спокойная музыка хиты', 'инди поп новинки', 'русский чилл аут'
-    ];
-    const ruGeneralQueries = [
-      'русские хиты топ чарт', 'главные хиты новинки', 'топ треки недели',
-      'популярная русская музыка', 'чарт новинки хиты'
-    ];
-
-    const enEnergeticQueries = [
-      'hip hop rap workout hits', 'global top hits playlist', 'trap drill hits',
-      'edm workout hits', 'drift phonk playlist', 'top gaming phonk hits'
-    ];
-    const enChillQueries = [
-      'chill hits playlist', 'lofi hip hop chill beats', 'indie bedroom pop playlist',
-      'acoustic chill pop', 'rnb chill evening hits', 'relaxing lofi vibes'
-    ];
-    const enGeneralQueries = [
-      'billboard hot 100 hits', 'today top hits playlist', 'viral hits radio',
-      'global trending pop hits', 'spotify top 50 hits'
-    ];
-
+  private getDiscoveryQueries(mood: MixMood, lang: MixLanguage, userTopArtists: string[], userTaste: TasteVector): string[] {
     const queries: string[] = [];
 
-    // 1. Personalized seed queries based on top artists (with diverse radio/mix suffixes)
+    // 1. Personalized seed queries: artist top tracks (direct artist names, without fake radio/playlist terms)
     if (userTopArtists.length > 0) {
       const shuffledSeeds = [...userTopArtists].sort(() => 0.5 - Math.random());
-      for (const artist of shuffledSeeds.slice(0, 3)) {
-        queries.push(`${artist} radio`);
-        queries.push(`${artist} похожие треки`);
+      for (const artist of shuffledSeeds.slice(0, 4)) {
+        queries.push(artist);
       }
     }
 
-    // 2. Compilation and playlist queries based on mood and language
+    // 2. Vibe-aligned genre queries based on user taste vector
+    const ruQueries: string[] = [];
+    const enQueries: string[] = [];
+
+    if (userTaste.rock > 0.45) {
+      ruQueries.push('русский рок', 'русский альтернативный рок', 'рок хиты');
+      enQueries.push('alternative rock', 'rock hits', 'hard rock');
+    }
+    if (userTaste.hiphop > 0.45) {
+      ruQueries.push('русский рэп', 'русский хип хоп', 'русский трэп');
+      enQueries.push('hip hop rap', 'drill rap', 'trap hits');
+    }
+    if (userTaste.electronic > 0.45) {
+      ruQueries.push('фонк', 'дрифт фонк', 'электронная музыка');
+      enQueries.push('drift phonk', 'edm hits', 'synthwave');
+    }
+    if (userTaste.chill > 0.45) {
+      ruQueries.push('русский инди', 'лоуфай чилл', 'русский соул');
+      enQueries.push('lofi hip hop chill beats', 'indie bedroom pop', 'rnb chill');
+    }
+    if (userTaste.pop > 0.45) {
+      ruQueries.push('популярные русские песни', 'инди поп');
+      enQueries.push('viral pop hits', 'indie pop');
+    }
+
+    if (ruQueries.length === 0) ruQueries.push('русские хиты', 'русский рок', 'русский рэп');
+    if (enQueries.length === 0) enQueries.push('top hits', 'alternative rock', 'hip hop');
+
     if (lang === 'ru') {
-      if (mood === 'energetic') queries.push(...ruEnergeticQueries);
-      else if (mood === 'chill') queries.push(...ruChillQueries);
-      else queries.push(...ruGeneralQueries);
+      queries.push(...ruQueries);
     } else if (lang === 'en') {
-      if (mood === 'energetic') queries.push(...enEnergeticQueries);
-      else if (mood === 'chill') queries.push(...enChillQueries);
-      else queries.push(...enGeneralQueries);
+      queries.push(...enQueries);
     } else {
-      // Mood 'all' / multilingual: mix ru and en
-      if (mood === 'energetic') queries.push(...ruEnergeticQueries, ...enEnergeticQueries);
-      else if (mood === 'chill') queries.push(...ruChillQueries, ...enChillQueries);
-      else queries.push(...ruGeneralQueries, ...enGeneralQueries);
+      queries.push(...ruQueries, ...enQueries);
     }
 
     return queries;
@@ -906,8 +1055,10 @@ export class RecommendationService {
 
   /**
    * Discovery Engine: Fetches online tracks matching current mood and user taste.
-   * GUARANTEES mutually distinct artists across discovery batches to eliminate
-   * the "4+ tracks in a row from the same artist" problem!
+   * GUARANTEES mutually distinct artists across discovery batches,
+   * leverages Deezer Related Artists algorithm,
+   * rejects playlists/compilations,
+   * and enforces strict taste vector cosine similarity!
    */
   async fetchOnlineDiscoveryTracks(
     count = 3,
@@ -922,6 +1073,8 @@ export class RecommendationService {
       const candidates = this.getAllLocalCandidates();
       const mood = this.currentMood();
       const lang = this.libraryService.mixConfig().language;
+      const targetVec = this.getTargetVectorForMood(mood);
+      const targetNorm = this.computeVectorNorm(targetVec);
 
       // Build frequency map of user top artists
       const topArtistsMap = new Map<string, number>();
@@ -929,7 +1082,7 @@ export class RecommendationService {
         if (t.artist && t.artist.trim()) {
           const a = t.artist.replace(/feat\..*|ft\..*/i, '').trim();
           if (a.length > 1) {
-            topArtistsMap.set(a, (topArtistsMap.get(a) || 0) + (t.isFavorite ? 3 : 1) + (t.plays ? 2 : 0));
+            topArtistsMap.set(a, (topArtistsMap.get(a) || 0) + (t.isFavorite ? 4 : 1) + (t.plays ? 2 : 0));
           }
         }
       }
@@ -937,10 +1090,6 @@ export class RecommendationService {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
         .map(([name]) => name);
-
-      const queries = this.getDiscoveryQueries(mood, lang, userTopArtists);
-      // Randomize queries so each mix session starts freshly
-      queries.sort(() => 0.5 - Math.random());
 
       const selectedTracks: Track[] = [];
       const seenArtists = new Set<string>();
@@ -951,53 +1100,97 @@ export class RecommendationService {
       const seenTitles = new Set<string>();
       const fallbackPool: Track[] = [];
 
-      // Query until we fill count with distinct artists
-      for (const q of queries) {
-        if (selectedTracks.length >= count) break;
+      const PLAYLIST_NOISE_REGEX = /\b(playlist|плейлист|full album|альбом целиком|сборник|микс|1 hour|10 hours|hour mix|compilation)\b/i;
 
-        try {
-          const results = await this.libraryService.searchOnline(q);
-          const valid = results.filter((t) =>
-            !t.id.startsWith('audius-') &&
-            !t.audioUrl.includes('audius.co') &&
-            !excludeIds.has(t.id) &&
-            !this.isDisliked(t.id) &&
-            (t.duration === 0 || (t.duration >= 30 && t.duration <= 720))
-          );
+      // PASS 1: High-fidelity related artists discovery via Deezer Related Artists & Top Tracks
+      if (userTopArtists.length > 0) {
+        const shuffledArtists = [...userTopArtists].sort(() => 0.5 - Math.random());
+        for (const seedArtist of shuffledArtists.slice(0, 4)) {
+          if (selectedTracks.length >= count) break;
+          try {
+            const relTracks = await this.libraryService.getRecommendations(seedArtist);
+            for (const t of relTracks) {
+              if (selectedTracks.length >= count) break;
+              if (excludeIds.has(t.id) || this.isDisliked(t.id)) continue;
+              if (t.duration < 55 || t.duration > 480) continue;
+              if (PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`)) continue;
 
-          for (const t of valid) {
-            if (selectedTracks.length >= count) break;
-            const primaryArt = normalizeArtist(t.artist);
-            const normTitle = normalizeTitle(t.title);
+              const primaryArt = normalizeArtist(t.artist);
+              const normTitle = normalizeTitle(t.title);
+              if (primaryArt && seenArtists.has(primaryArt)) continue;
+              if (normTitle && seenTitles.has(normTitle)) continue;
+              if (this.isRecentlyPlayed(t, 90)) continue;
 
-            // 1. Strict artist diversity: at most 1 track per artist in this discovery batch
-            if (primaryArt && seenArtists.has(primaryArt)) {
-              fallbackPool.push(t);
-              continue;
+              // Taste Vector Alignment Check:
+              const trackVec = this.extractTrackVector(t);
+              const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
+              // Обязательное совпадение по вайбу!
+              if (similarity < 0.48) {
+                continue;
+              }
+
+              selectedTracks.push(t);
+              excludeIds.add(t.id);
+              if (primaryArt) seenArtists.add(primaryArt);
+              if (normTitle) seenTitles.add(normTitle);
             }
-
-            // 2. Strict title diversity: no duplicate versions/remixes
-            if (normTitle && seenTitles.has(normTitle)) {
-              continue;
-            }
-
-            // 3. Cooldown check: no tracks played in recent history
-            if (this.isRecentlyPlayed(t, 45)) {
-              continue;
-            }
-
-            selectedTracks.push(t);
-            excludeIds.add(t.id);
-            if (primaryArt) seenArtists.add(primaryArt);
-            if (normTitle) seenTitles.add(normTitle);
+          } catch (e) {
+            console.warn('[Discovery] Failed to get recommendations for', seedArtist, e);
           }
-        } catch (e) {
-          console.warn('[Discovery] Search query failed:', q, e);
         }
       }
 
-      // Fallback pass: if unique artists couldn't satisfy count, fill remaining from fallbackPool
-      // while preventing consecutive duplicate artists
+      // PASS 2: Vibe-aligned keyword queries if related artists did not fill count
+      if (selectedTracks.length < count) {
+        const queries = this.getDiscoveryQueries(mood, lang, userTopArtists, targetVec);
+        queries.sort(() => 0.5 - Math.random());
+
+        for (const q of queries) {
+          if (selectedTracks.length >= count) break;
+
+          try {
+            const results = await this.libraryService.searchOnline(q);
+            const valid = results.filter((t) =>
+              !t.id.startsWith('audius-') &&
+              !t.audioUrl.includes('audius.co') &&
+              !excludeIds.has(t.id) &&
+              !this.isDisliked(t.id) &&
+              (t.duration === 0 || (t.duration >= 55 && t.duration <= 480)) &&
+              !PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`)
+            );
+
+            for (const t of valid) {
+              if (selectedTracks.length >= count) break;
+              const primaryArt = normalizeArtist(t.artist);
+              const normTitle = normalizeTitle(t.title);
+
+              if (primaryArt && seenArtists.has(primaryArt)) {
+                fallbackPool.push(t);
+                continue;
+              }
+              if (normTitle && seenTitles.has(normTitle)) continue;
+              if (this.isRecentlyPlayed(t, 60)) continue;
+
+              // Taste Vector Alignment Check:
+              const trackVec = this.extractTrackVector(t);
+              const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
+              // Отсекаем треки, которые не подходят по вайбу!
+              if (similarity < 0.48) {
+                continue;
+              }
+
+              selectedTracks.push(t);
+              excludeIds.add(t.id);
+              if (primaryArt) seenArtists.add(primaryArt);
+              if (normTitle) seenTitles.add(normTitle);
+            }
+          } catch (e) {
+            console.warn('[Discovery] Search query failed:', q, e);
+          }
+        }
+      }
+
+      // Fallback pass: if unique artists couldn't satisfy count, fill from fallbackPool with vibe alignment
       if (selectedTracks.length < count && fallbackPool.length > 0) {
         for (const t of fallbackPool) {
           if (selectedTracks.length >= count) break;
