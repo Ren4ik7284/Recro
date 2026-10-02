@@ -111,9 +111,10 @@ export class LyricsService {
 
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
 
-    // Во время вступительного инструментального проигрыша до первой строчки текста
+    // Если трек в самом начале до первой фразы, сразу фокусируем первую строку (0),
+    // чтобы пользователь сразу видел слова песни, а плеер не зависал в неопределенном состоянии
     if (t < lyrics.lines[0].startTime) {
-      return -1;
+      return 0;
     }
 
     let activeIdx = 0;
@@ -129,30 +130,16 @@ export class LyricsService {
     return activeIdx;
   });
 
-  // Проверка, звучит ли сейчас инструментальное вступление перед первой фразой
-  readonly isIntroPlaying = computed<boolean>(() => {
-    const lyrics = this.currentLyrics();
-    if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return false;
-    const firstStart = lyrics.lines[0].startTime;
-    if (firstStart <= 2.5) return false;
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
-    return t < firstStart;
-  });
-
-  // Секунды до окончания вступительного проигрыша
-  readonly introRemainingSec = computed<number>(() => {
-    const lyrics = this.currentLyrics();
-    if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return 0;
-    const firstStart = lyrics.lines[0].startTime;
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
-    return Math.max(0, Math.ceil(firstStart - t));
-  });
-
-  // Активная строка ВСЕГДА ярко подсвечена и никогда не гаснет раньше времени!
+  // Активная строка подсвечена как звучащая, когда текущее время достигло её начала
   readonly isLineSinging = computed<boolean>(() => {
     const idx = this.activeLineIndex();
     const lyrics = this.currentLyrics();
     if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return false;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const line = lyrics.lines[idx];
+    if (line.startTime >= 0 && t < line.startTime) {
+      return false;
+    }
     return true;
   });
 
@@ -242,6 +229,32 @@ export class LyricsService {
           this.prefetchNextTrackLyrics(next);
         }
       });
+
+      // 4. Интеллектуальная автоматическая компенсация клиповых интро YouTube/SoundCloud
+      // Сравнивает фактическую длительность потока (audio tag / track) с длительностью студийного трека (LRCLIB/Kugou).
+      // Разница в 1.5–9 секунд автоматически устраняет смещение видео-клипов на всех треках!
+      effect(() => {
+        const cur = this.audioService.currentTrack();
+        const lyrics = this.currentLyrics();
+        const audioDur = this.audioService.duration();
+        if (!cur || !lyrics || !lyrics.duration || !lyrics.isSynced) return;
+
+        // Если пользователь вручную корректировал смещение — сохраняем выбор пользователя
+        let hasManual = false;
+        try {
+          hasManual = localStorage.getItem(`signal_lyrics_offset_${cur.id}`) !== null;
+        } catch {}
+
+        if (!hasManual && audioDur > 20 && lyrics.duration > 20) {
+          const diff = audioDur - lyrics.duration;
+          if (Math.abs(diff) >= 1.5 && Math.abs(diff) <= 9.0) {
+            const autoOffset = -Math.round(diff * 1000);
+            if (this.syncOffsetMs() !== autoOffset) {
+              this.syncOffsetMs.set(autoOffset);
+            }
+          }
+        }
+      });
     }
   }
 
@@ -301,7 +314,7 @@ export class LyricsService {
   }
 
   adjustOffset(deltaMs: number) {
-    this.syncOffsetMs.update((v) => v + deltaMs);
+    this.syncOffsetMs.update((v) => Math.max(-15000, Math.min(15000, v + deltaMs)));
     const cur = this.audioService.currentTrack();
     if (cur) {
       try {
@@ -493,7 +506,7 @@ export class LyricsService {
       const savedOffset = localStorage.getItem(`signal_lyrics_offset_${targetTrackId}`);
       if (savedOffset !== null) {
         const val = parseInt(savedOffset, 10);
-        if (!isNaN(val) && Math.abs(val) <= 6000) {
+        if (!isNaN(val) && Math.abs(val) <= 15000) {
           this.syncOffsetMs.set(val);
           hasExplicitOffset = true;
         } else {
@@ -501,7 +514,7 @@ export class LyricsService {
           localStorage.removeItem(`signal_lyrics_offset_${targetTrackId}`);
         }
       } else if (serverMeta && serverMeta.lyrics_offset_ms !== undefined && serverMeta.lyrics_offset_ms !== 0) {
-        if (Math.abs(serverMeta.lyrics_offset_ms) <= 6000) {
+        if (Math.abs(serverMeta.lyrics_offset_ms) <= 15000) {
           this.syncOffsetMs.set(serverMeta.lyrics_offset_ms);
           hasExplicitOffset = true;
         } else {
@@ -588,6 +601,16 @@ export class LyricsService {
               this.isLoading.set(false);
               this.persistLyricsToCloud(track, data.lyrics);
 
+              if (!hasExplicitOffset && parsed.duration && parsed.duration > 20) {
+                const audioDur = this.audioService.duration() || track.duration || 0;
+                if (audioDur > 20) {
+                  const diff = audioDur - parsed.duration;
+                  if (Math.abs(diff) >= 1.5 && Math.abs(diff) <= 9.0) {
+                    this.syncOffsetMs.set(-Math.round(diff * 1000));
+                  }
+                }
+              }
+
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
                 const lastLine = parsed.lines[parsed.lines.length - 1];
@@ -628,6 +651,16 @@ export class LyricsService {
         this.isLoading.set(false);
         if (lyricsData.raw) {
           this.persistLyricsToCloud(track, lyricsData.raw);
+        }
+
+        if (!hasExplicitOffset && lyricsData.duration && lyricsData.duration > 20) {
+          const audioDur = this.audioService.duration() || track.duration || 0;
+          if (audioDur > 20) {
+            const diff = audioDur - lyricsData.duration;
+            if (Math.abs(diff) >= 1.5 && Math.abs(diff) <= 9.0) {
+              this.syncOffsetMs.set(-Math.round(diff * 1000));
+            }
+          }
         }
 
         // Восстанавливаем длительность трека, если она отсутствовала или была 0

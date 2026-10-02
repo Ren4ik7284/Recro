@@ -550,36 +550,6 @@
       flex-shrink: 0;
     }
 
-    .lyrics-intro-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      margin: 0 auto 28px auto;
-      padding: 8px 20px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.85);
-      letter-spacing: 0.5px;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-
-      .intro-pulse-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #22c55e;
-        box-shadow: 0 0 10px #22c55e;
-        animation: introDotPulse 1.4s ease-in-out infinite;
-      }
-    }
-
-    @keyframes introDotPulse {
-      0%, 100% { opacity: 0.4; transform: scale(0.85); }
-      50% { opacity: 1; transform: scale(1.25); }
-    }
 
     .lyric-line-item {
       display: flex;

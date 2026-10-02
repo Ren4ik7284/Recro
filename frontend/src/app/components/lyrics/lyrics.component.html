@@ -29,6 +29,7 @@
     <div class="lyrics-actions-group">
       @if (lyricsService.currentLyrics()?.isSynced) {
         <div class="lyrics-offset-controls font-mono" title="Коррекция смещения текста">
+          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-5000)" title="Задержать текст на 5.0с">-5s</button>
           <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-1000)" title="Задержать текст на 1.0с">-1s</button>
           <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-200)" title="Задержать текст на 0.2с">-0.2s</button>
           <button type="button" class="btn-snap-vocal" (click)="lyricsService.syncNowToCurrentVoice()" title="Синхронизировать в такт вокалу прямо сейчас">
@@ -40,6 +41,7 @@
           </button>
           <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(200)" title="Ускорить текст на 0.2с">+0.2s</button>
           <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(1000)" title="Ускорить текст на 1.0с">+1s</button>
+          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(5000)" title="Ускорить текст на 5.0с">+5s</button>
           <span class="offset-value" [class.shifted]="lyricsService.syncOffsetMs() !== 0" (click)="lyricsService.resetOffset()" title="Текущее смещение (клик для сброса)">
             {{ formatOffset(lyricsService.syncOffsetMs()) }}
           </span>
@@ -224,13 +226,6 @@
           <!-- Synced Karaoke Mode -->
           <div class="lyrics-lines-wrapper">
             <div class="lyrics-spacer"></div>
-
-            @if (lyricsService.isIntroPlaying()) {
-              <div class="lyrics-intro-indicator font-mono">
-                <span class="intro-pulse-dot"></span>
-                <span>Вступление ({{ lyricsService.introRemainingSec() }}с)</span>
-              </div>
-            }
 
             @for (line of lyrics.lines; track $index; let i = $index) {
               <div 
