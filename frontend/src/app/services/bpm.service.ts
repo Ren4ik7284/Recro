@@ -104,8 +104,11 @@ export class BpmService {
     // Normalize octave divisions into 70..165 range
     const normalized = bpms.map((b) => {
       let val = b;
-      while (val < 68) val *= 2;
-      while (val > 170) val /= 2;
+      if (!val || val <= 0 || !isFinite(val)) return 120;
+      let iters = 0;
+      while (val < 68 && iters++ < 8) val *= 2;
+      iters = 0;
+      while (val > 170 && iters++ < 8) val /= 2;
       return Math.round(val);
     });
 

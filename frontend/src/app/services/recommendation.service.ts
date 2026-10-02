@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject, effect } from '@angular/core';
+import { Injectable, signal, computed, inject, effect, untracked } from '@angular/core';
 import { Track, MixConfig, MixMood, MixSource, MixLanguage } from '../models/track.model';
 import { LibraryService } from './library.service';
 
@@ -105,9 +105,11 @@ export class RecommendationService {
     // Auto-calibrate taste vector from user library whenever tracks load or change
     effect(() => {
       const tracks = this.libraryService.tracks();
-      if (tracks.length > 0) {
-        this.calibrateTasteFromLibrary();
-      }
+      untracked(() => {
+        if (tracks.length > 0) {
+          this.calibrateTasteFromLibrary();
+        }
+      });
     });
   }
 
@@ -146,7 +148,6 @@ export class RecommendationService {
     try {
       localStorage.setItem(this.STORAGE_KEY_TASTE, JSON.stringify(vec));
     } catch {}
-    this.libraryService.setMixConfig({ tasteVector: vec });
   }
 
   private loadSavedRecentPlays() {
@@ -382,8 +383,22 @@ export class RecommendationService {
         pop: Math.max(0.05, Math.min(0.98, sumPop / totalWeight)),
         chill: Math.max(0.05, Math.min(0.98, sumChill / totalWeight)),
       };
-      this.tasteVector.set(calibrated);
-      this.saveTasteVector(calibrated);
+
+      const cur = this.tasteVector();
+      const diff =
+        Math.abs(cur.energy - calibrated.energy) +
+        Math.abs(cur.tempo - calibrated.tempo) +
+        Math.abs(cur.acoustic - calibrated.acoustic) +
+        Math.abs(cur.hiphop - calibrated.hiphop) +
+        Math.abs(cur.rock - calibrated.rock) +
+        Math.abs(cur.electronic - calibrated.electronic) +
+        Math.abs(cur.pop - calibrated.pop) +
+        Math.abs(cur.chill - calibrated.chill);
+
+      if (diff > 0.04) {
+        this.tasteVector.set(calibrated);
+        this.saveTasteVector(calibrated);
+      }
     }
   }
 
