@@ -17,6 +17,7 @@ import { FormsModule } from '@angular/forms';
 import { AudioService } from '../../services/audio.service';
 import { LibraryService } from '../../services/library.service';
 import { LyricsService } from '../../services/lyrics.service';
+import { Track } from '../../models/track.model';
 
 export type VisualizerType = 'bars' | 'wave' | 'circle' | 'lyrics';
 export type VisualizerTheme = 'mono' | 'green' | 'album';
@@ -188,7 +189,18 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
         });
       } catch {}
     };
-    img.src = coverUrl;
+    const cur = this.audioService.currentTrack();
+    img.src = this.libraryService.formatCoverUrl(coverUrl, cur?.title, cur?.artist) || coverUrl;
+  }
+
+  onCoverError(event: Event, track?: Track | null) {
+    const img = event.target as HTMLImageElement;
+    if (img && track) {
+      const fallback = this.libraryService.getFallbackCoverUrl(track.title, track.artist);
+      if (img.src !== fallback) {
+        img.src = fallback;
+      }
+    }
   }
 
   close() {

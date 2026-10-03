@@ -831,15 +831,14 @@
       </div>
 
       <div class="sheet-art-wrap">
-        @if (cur.coverUrl) {
-          <img [src]="cur.coverUrl" alt="" class="sheet-art-img" />
-        } @else {
-          <div class="sheet-art-placeholder">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
-            </svg>
-          </div>
-        }
+        <img 
+          [src]="libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist)" 
+          alt="" 
+          class="sheet-art-img" 
+          loading="eager"
+          decoding="async"
+          (error)="onCoverError($event, cur)"
+        />
       </div>
 
       <div class="sheet-meta-wrap">

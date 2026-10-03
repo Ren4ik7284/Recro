@@ -30,6 +30,7 @@ pub type LoginAttempts = Arc<Mutex<HashMap<String, (u32, Instant)>>>;
 pub type EndpointRateLimits = Arc<Mutex<HashMap<String, (u32, Instant)>>>;
 pub type StreamCache = Arc<Mutex<HashMap<String, (String, Instant)>>>;
 pub type SearchCache = Arc<Mutex<HashMap<String, (Vec<crate::models::SearchTrack>, Instant)>>>;
+pub type CoverCache = Arc<Mutex<HashMap<String, (axum::body::Bytes, axum::http::HeaderValue, Instant)>>>;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -40,6 +41,7 @@ pub struct AppState {
     pub stream_cache: StreamCache,
     pub lyrics_cache: LyricsCache,
     pub search_cache: SearchCache,
+    pub cover_cache: CoverCache,
 }
 
 #[tokio::main]
@@ -63,6 +65,7 @@ async fn main() {
         stream_cache: Arc::new(Mutex::new(HashMap::new())),
         lyrics_cache: Arc::new(Mutex::new(HashMap::new())),
         search_cache: Arc::new(Mutex::new(HashMap::new())),
+        cover_cache: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {

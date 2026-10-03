@@ -76,7 +76,9 @@ pub struct StreamParams {
 
 #[derive(Debug, Deserialize)]
 pub struct CoverParams {
-    pub url: String,
+    pub url: Option<String>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

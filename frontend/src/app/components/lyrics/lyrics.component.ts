@@ -157,4 +157,14 @@ export class LyricsComponent {
       }
     }
   }
+
+  onCoverError(event: Event, track?: any) {
+    const img = event.target as HTMLImageElement;
+    if (img && track) {
+      const fallback = this.libraryService.getFallbackCoverUrl(track.title, track.artist);
+      if (img.src !== fallback) {
+        img.src = fallback;
+      }
+    }
+  }
 }

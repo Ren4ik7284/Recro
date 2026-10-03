@@ -36,6 +36,16 @@ export class PlayerBarComponent {
     }
   }
 
+  onCoverError(event: Event, track?: Track | null) {
+    const img = event.target as HTMLImageElement;
+    if (img && track) {
+      const fallback = this.libraryService.getFallbackCoverUrl(track.title, track.artist);
+      if (img.src !== fallback) {
+        img.src = fallback;
+      }
+    }
+  }
+
   toggleFavorite(track: Track) {
     const isNowFav = this.libraryService.toggleFavorite(track.id, track);
     this.audioService.updateTrackFavoriteStatus(track.id, isNowFav, track);

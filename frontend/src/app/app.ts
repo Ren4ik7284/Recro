@@ -282,6 +282,16 @@ export class App implements OnInit {
     });
   }
 
+  onCoverError(event: Event, track?: Track | null) {
+    const img = event.target as HTMLImageElement;
+    if (img && track) {
+      const fallback = this.libraryService.getFallbackCoverUrl(track.title, track.artist);
+      if (img.src !== fallback) {
+        img.src = fallback;
+      }
+    }
+  }
+
   private sheetTouchStartY = 0;
   private sheetTouchCurrentY = 0;
 

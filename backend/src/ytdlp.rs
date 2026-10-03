@@ -207,11 +207,24 @@ pub fn parse_track_json(item: &serde_json::Value, base_url: &str) -> Option<Sear
     }
 
     let proxied_cover = cover_url.map(|u| {
-        if u.contains("ytimg.com") {
-            format!("{}/api/cover?url={}", base_url, urlencoding::encode(&u))
+        if u.contains("ytimg.com") || u.contains("sndcdn.com") || u.contains("soundcloud.com") {
+            format!(
+                "{}/api/cover?url={}&title={}&artist={}",
+                base_url,
+                urlencoding::encode(&u),
+                urlencoding::encode(&title),
+                urlencoding::encode(&artist)
+            )
         } else {
             u
         }
+    }).or_else(|| {
+        Some(format!(
+            "{}/api/cover?title={}&artist={}",
+            base_url,
+            urlencoding::encode(&title),
+            urlencoding::encode(&artist)
+        ))
     });
 
     let encoded_url = urlencoding::encode(&track_url);

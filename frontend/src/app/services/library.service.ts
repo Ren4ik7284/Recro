@@ -297,15 +297,43 @@ export class LibraryService implements OnDestroy {
     this.radioStations.set(savedStations);
   }
 
-  formatCoverUrl(coverUrl?: string): string | undefined {
-    if (!coverUrl) return undefined;
+  formatCoverUrl(coverUrl?: string, title?: string, artist?: string): string | undefined {
+    const activeBase = this.getBackendUrl();
+    const queryParams: string[] = [];
+    if (title) queryParams.push(`title=${encodeURIComponent(title)}`);
+    if (artist) queryParams.push(`artist=${encodeURIComponent(artist)}`);
+    const glue = queryParams.length > 0 ? `&${queryParams.join('&')}` : '';
+
+    if (!coverUrl) {
+      if (title) {
+        return `${activeBase}/api/cover?title=${encodeURIComponent(title)}${artist ? `&artist=${encodeURIComponent(artist)}` : ''}`;
+      }
+      return undefined;
+    }
+
+    if (coverUrl.startsWith('/api/cover')) {
+      return `${activeBase}${coverUrl}`;
+    }
+
     if (coverUrl.startsWith('/')) {
-      return `${this.getBackendUrl()}${coverUrl}`;
+      return `${activeBase}${coverUrl}`;
     }
-    if (coverUrl.includes('ytimg.com')) {
-      return `${this.getBackendUrl()}/api/cover?url=${encodeURIComponent(coverUrl)}`;
+
+    // Proxy YouTube, SoundCloud, and external CDNs through our backend RAM cache to guarantee CORS and zero-blocks
+    if (
+      coverUrl.includes('ytimg.com') ||
+      coverUrl.includes('sndcdn.com') ||
+      coverUrl.includes('soundcloud.com')
+    ) {
+      return `${activeBase}/api/cover?url=${encodeURIComponent(coverUrl)}${glue}`;
     }
+
     return coverUrl;
+  }
+
+  getFallbackCoverUrl(title?: string, artist?: string): string {
+    const activeBase = this.getBackendUrl();
+    return `${activeBase}/api/cover?title=${encodeURIComponent(title || 'Track')}&artist=${encodeURIComponent(artist || 'Artist')}`;
   }
 
   async checkBackendHealth() {

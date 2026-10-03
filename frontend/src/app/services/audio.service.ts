@@ -1492,6 +1492,16 @@ export class AudioService {
     this.lastPreloadedTrackId = nextTrack.id;
     this.preloadedNextTrack.set(nextTrack);
 
+    // Preload next track's cover image in background memory so when switched, it renders with 0ms delay!
+    if (typeof window !== 'undefined') {
+      const coverUrl = this.libraryService.formatCoverUrl(nextTrack.coverUrl, nextTrack.title, nextTrack.artist);
+      if (coverUrl) {
+        const preImg = new Image();
+        preImg.decoding = 'async';
+        preImg.src = coverUrl;
+      }
+    }
+
     // Для оффлайн-трека: заранее подготавливаем и кэшируем Blob URL в памяти
     if (this.offlineService.isTrackOffline(nextTrack.id)) {
       this.offlineService.getOfflineBlobUrl(nextTrack.id).catch(() => {});
@@ -1638,6 +1648,18 @@ export class AudioService {
     if (strictlyUniqueTracks.length > 0) {
       this.queue.update((curQ) => [...curQ, ...strictlyUniqueTracks]);
       this.preloadNextTrack();
+
+      // Pre-warm the next upcoming track covers in browser cache
+      if (typeof window !== 'undefined') {
+        for (const t of strictlyUniqueTracks.slice(0, 3)) {
+          const u = this.libraryService.formatCoverUrl(t.coverUrl, t.title, t.artist);
+          if (u) {
+            const preImg = new Image();
+            preImg.decoding = 'async';
+            preImg.src = u;
+          }
+        }
+      }
     }
   }
 

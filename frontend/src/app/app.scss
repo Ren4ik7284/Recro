@@ -3378,6 +3378,7 @@
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.8);
         flex-shrink: 0;
         display: block;
+        transition: opacity 0.2s ease-in-out;
       }
 
       .sheet-art-placeholder {

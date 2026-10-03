@@ -5,8 +5,15 @@
   <!-- Left Column: Current Track Info (tapping opens mobile full player) -->
   <div class="player-left" (click)="onLeftClick()">
     <div class="now-playing-cover">
-      @if (audioService.currentTrack()?.coverUrl) {
-        <img [src]="audioService.currentTrack()!.coverUrl" alt="cover" class="cover-img-thumbnail" />
+      @if (audioService.currentTrack(); as cur) {
+        <img 
+          [src]="libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist)" 
+          alt="cover" 
+          class="cover-img-thumbnail"
+          loading="eager"
+          decoding="async"
+          (error)="onCoverError($event, cur)"
+        />
       } @else {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="12" r="10"/>

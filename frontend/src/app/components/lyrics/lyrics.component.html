@@ -1,10 +1,10 @@
 <div class="lyrics-overlay" [class.open]="lyricsService.isLyricsOpen()">
   <!-- Dynamic blurred ambient backdrop from album art (No cheesy wave!) -->
   <div class="lyrics-backdrop">
-    @if (audioService.currentTrack()?.coverUrl) {
+    @if (audioService.currentTrack(); as cur) {
       <div 
         class="lyrics-blur-cover" 
-        [style.background-image]="'url(' + audioService.currentTrack()!.coverUrl + ')'"
+        [style.background-image]="'url(' + (libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist) || cur.coverUrl) + ')'"
       ></div>
     } @else {
       <div class="lyrics-blur-default"></div>
@@ -67,8 +67,15 @@
     <!-- Left Column: Modern Player Sidebar -->
     <aside class="lyrics-player-sidebar">
       <div class="lyrics-art-wrapper">
-        @if (audioService.currentTrack()?.coverUrl) {
-          <img [src]="audioService.currentTrack()!.coverUrl" alt="Cover" class="lyrics-album-art" />
+        @if (audioService.currentTrack(); as cur) {
+          <img 
+            [src]="libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist)" 
+            alt="Cover" 
+            class="lyrics-album-art" 
+            loading="eager"
+            decoding="async"
+            (error)="onCoverError($event, cur)"
+          />
         } @else {
           <div class="lyrics-art-placeholder">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

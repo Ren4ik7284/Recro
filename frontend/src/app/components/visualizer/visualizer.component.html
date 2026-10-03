@@ -12,14 +12,15 @@
     <!-- Top Header Navigation -->
     <header class="vis-header">
       <div class="vis-track-info">
-        @if (audioService.currentTrack()?.coverUrl) {
-          <img [src]="audioService.currentTrack()!.coverUrl" alt="" class="vis-track-cover" />
-        } @else {
-          <div class="vis-track-placeholder">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
-            </svg>
-          </div>
+        @if (audioService.currentTrack(); as cur) {
+          <img 
+            [src]="libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist)" 
+            alt="" 
+            class="vis-track-cover" 
+            loading="eager"
+            decoding="async"
+            (error)="onCoverError($event, cur)"
+          />
         }
         <div class="vis-track-meta">
           <div class="vis-meta-top">
@@ -131,14 +132,15 @@
           [style.height.px]="circleDiameter()"
           [style.transform]="'translate(-50%, -50%) scale(' + circleScale() + ')'"
         >
-          @if (audioService.currentTrack()?.coverUrl) {
-            <img [src]="audioService.currentTrack()!.coverUrl" alt="" class="circle-cover-img" />
-          } @else {
-            <div class="circle-cover-placeholder font-mono">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
-              </svg>
-            </div>
+          @if (audioService.currentTrack(); as cur) {
+            <img 
+              [src]="libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist)" 
+              alt="" 
+              class="circle-cover-img" 
+              loading="eager"
+              decoding="async"
+              (error)="onCoverError($event, cur)"
+            />
           }
           <div class="circle-cover-vignette"></div>
         </div>
