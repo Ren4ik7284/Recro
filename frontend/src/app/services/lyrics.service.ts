@@ -67,13 +67,13 @@ export class LyricsService {
   private lastAudioTimeTimestamp = 0;
   private lastSmoothedTime = 0;
 
-  /** Высокоточное сглаживание времени с плавной монотонной интерполяцией без рывков назад */
+  /** Высокоточное сглаживание времени без накопления ошибки и без убегания вперед */
   getSmoothedCurrentTime(): number {
     const raw = this.audioService.getPreciseCurrentTime();
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-    // Если аудиоплеер на паузе или был совершен ручной перемот (>0.35с или назад) - сброс
-    if (!this.audioService.isPlaying() || Math.abs(raw - this.lastReportedAudioTime) > 0.35 || raw < this.lastReportedAudioTime) {
+    // Если аудиоплеер на паузе или был совершен ручной перемот (>0.4с или назад) - сброс
+    if (!this.audioService.isPlaying() || Math.abs(raw - this.lastReportedAudioTime) > 0.4 || raw < this.lastReportedAudioTime) {
       this.lastReportedAudioTime = raw;
       this.lastAudioTimeTimestamp = now;
       this.lastSmoothedTime = raw;
@@ -84,36 +84,22 @@ export class LyricsService {
     if (raw !== this.lastReportedAudioTime) {
       this.lastReportedAudioTime = raw;
       this.lastAudioTimeTimestamp = now;
-      // Если интерполяция слегка обогнала реальный тик аудиотега (в пределах 70ms), не прыгаем назад
-      if (this.lastSmoothedTime > raw && this.lastSmoothedTime - raw < 0.07) {
-        return this.lastSmoothedTime;
-      }
       this.lastSmoothedTime = raw;
       return raw;
     }
 
-    // Между тиками HTML5 Audio (каждые 200-250ms) интерполируем время для плавности 60 FPS
+    // Между тиками HTML5 Audio интерполируем реальное прошедшее время (до 250мс)
     const dt = (now - this.lastAudioTimeTimestamp) / 1000;
-    if (dt > 0 && dt <= 0.35) {
-      const interpolated = raw + dt;
-      this.lastSmoothedTime = Math.max(this.lastSmoothedTime, interpolated);
-      return this.lastSmoothedTime;
+    if (dt > 0 && dt <= 0.25) {
+      return raw + dt;
     }
 
-    // Если прошло больше 350ms без новых тиков, звук мог забуферизироваться - не убегаем вперед
-    return this.lastSmoothedTime;
+    return raw;
   }
 
-  // Динамическое упреждение перехода строки под музыкальный темп (BPM)
-  // При 150-180 BPM (быстрый рэп/фонк) -> ~65-75мс (четко, без задержки)
-  // При 100-130 BPM (поп/рок) -> ~85-100мс (идеально в такт с дыханием вокалиста)
-  // При 60-80 BPM (медляки) -> ~115-130мс (плавный комфортный переход)
+  // Честное 1:1 воспроизведение без искусственного опережения
   getTempoLeadSec(): number {
-    const bpm = this.currentBpm();
-    if (bpm && bpm >= 55 && bpm <= 210) {
-      return Math.max(0.065, Math.min(0.13, (60 / bpm) * 0.16));
-    }
-    return 0.085; // Золотой стандарт Spotify/Apple Music: 85мс зрительно-слухового опережения
+    return 0.0;
   }
 
   // Индекс активной строки текста в зависимости от текущего времени трека
@@ -121,16 +107,14 @@ export class LyricsService {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    const tempoLead = this.getTempoLeadSec();
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + tempoLead);
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
 
-    // Если трек в самом начале до первой фразы, сразу фокусируем первую строку (0),
-    // чтобы пользователь сразу видел слова песни, а плеер не зависал в неопределенном состоянии
+    // До первой фразы вокала держим -1 (вступление/интро без ложной подсветки)
     if (t < lyrics.lines[0].startTime) {
-      return 0;
+      return -1;
     }
 
-    let activeIdx = 0;
+    let activeIdx = -1;
     for (let i = 0; i < lyrics.lines.length; i++) {
       const line = lyrics.lines[i];
       if (line.startTime >= 0 && t >= line.startTime) {
@@ -150,7 +134,10 @@ export class LyricsService {
     if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return false;
     const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
     const line = lyrics.lines[idx];
-    if (line.startTime >= 0 && t < line.startTime) {
+    if (line.startTime < 0 || t < line.startTime) {
+      return false;
+    }
+    if (line.endTime && t > line.endTime) {
       return false;
     }
     return true;
@@ -165,13 +152,13 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
-    const tempoLead = this.getTempoLeadSec();
-    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + tempoLead);
+    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
     const end = currentLine.endTime || (nextLine && nextLine.startTime >= 0 ? nextLine.startTime : start + 4);
 
     if (end <= start) return 1;
+    if (adjustedTime < start) return 0;
     const progress = (adjustedTime - start) / (end - start);
     return Math.min(1, Math.max(0, progress));
   });
@@ -244,31 +231,6 @@ export class LyricsService {
         }
       });
 
-      // 4. Интеллектуальная автоматическая компенсация клиповых интро YouTube/SoundCloud
-      // Сравнивает фактическую длительность потока (audio tag / track) с длительностью студийного трека (LRCLIB/Kugou).
-      // Разница в 1.5–9 секунд автоматически устраняет смещение видео-клипов на всех треках!
-      effect(() => {
-        const cur = this.audioService.currentTrack();
-        const lyrics = this.currentLyrics();
-        const audioDur = this.audioService.duration();
-        if (!cur || !lyrics || !lyrics.duration || !lyrics.isSynced) return;
-
-        // Если пользователь вручную корректировал смещение — сохраняем выбор пользователя
-        let hasManual = false;
-        try {
-          hasManual = localStorage.getItem(`signal_lyrics_offset_${cur.id}`) !== null;
-        } catch {}
-
-        if (!hasManual && audioDur > 20 && lyrics.duration > 20) {
-          const diff = audioDur - lyrics.duration;
-          if (Math.abs(diff) >= 1.5 && Math.abs(diff) <= 9.0) {
-            const autoOffset = -Math.round(diff * 1000);
-            if (this.syncOffsetMs() !== autoOffset) {
-              this.syncOffsetMs.set(autoOffset);
-            }
-          }
-        }
-      });
     }
   }
 
@@ -397,8 +359,7 @@ export class LyricsService {
 
   // Проверка спето ли слово (для пословного караоке)
   isWordSung(word: LyricWord): boolean {
-    const tempoLead = this.getTempoLeadSec() * 0.6;
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + tempoLead);
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
     return t >= word.startTime;
   }
 
@@ -616,15 +577,6 @@ export class LyricsService {
               this.isLoading.set(false);
               this.persistLyricsToCloud(track, data.lyrics);
 
-              if (!hasExplicitOffset && parsed.duration && parsed.duration > 20) {
-                const audioDur = this.audioService.duration() || track.duration || 0;
-                if (audioDur > 20) {
-                  const diff = audioDur - parsed.duration;
-                  if (Math.abs(diff) >= 1.5 && Math.abs(diff) <= 9.0) {
-                    this.syncOffsetMs.set(-Math.round(diff * 1000));
-                  }
-                }
-              }
 
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
@@ -668,15 +620,6 @@ export class LyricsService {
           this.persistLyricsToCloud(track, lyricsData.raw);
         }
 
-        if (!hasExplicitOffset && lyricsData.duration && lyricsData.duration > 20) {
-          const audioDur = this.audioService.duration() || track.duration || 0;
-          if (audioDur > 20) {
-            const diff = audioDur - lyricsData.duration;
-            if (Math.abs(diff) >= 1.5 && Math.abs(diff) <= 9.0) {
-              this.syncOffsetMs.set(-Math.round(diff * 1000));
-            }
-          }
-        }
 
         // Восстанавливаем длительность трека, если она отсутствовала или была 0
         const cur = this.audioService.currentTrack();
@@ -909,12 +852,17 @@ export class LyricsService {
         const cur = finalLines[i];
         const next = i < finalLines.length - 1 ? finalLines[i + 1] : null;
 
-        // Строка остаётся активной вплоть до начала следующей фразы (без преждевременного потухания)
+        // Строка остаётся активной до следующей фразы, либо завершается при длительном проигрыше
         if (!cur.endTime || cur.endTime <= cur.startTime) {
           if (next && next.startTime > cur.startTime) {
-            cur.endTime = next.startTime;
+            const gap = next.startTime - cur.startTime;
+            if (gap > 7.0) {
+              cur.endTime = cur.startTime + Math.min(gap - 1.5, 4.5);
+            } else {
+              cur.endTime = next.startTime;
+            }
           } else {
-            cur.endTime = cur.startTime + 5.0;
+            cur.endTime = cur.startTime + 4.5;
           }
         }
       }
