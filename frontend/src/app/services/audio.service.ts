@@ -32,7 +32,8 @@ export class AudioService {
   readonly currentTime = signal<number>(0);
   readonly duration = signal<number>(0);
   readonly streamSeekOffset = signal<number>(0);
-  readonly volume = signal<number>(0.85);
+  private readonly STORAGE_KEY_VOLUME = 'signal_player_volume';
+  readonly volume = signal<number>(this.loadSavedVolume());
   readonly isMuted = signal<boolean>(false);
   readonly isShuffle = signal<boolean>(false);
   readonly repeatMode = signal<'off' | 'all' | 'one'>('all');
@@ -107,6 +108,30 @@ export class AudioService {
     return this.streamSeekOffset() + audioTime;
   }
 
+  private loadSavedVolume(): number {
+    if (typeof localStorage === 'undefined') return 0.35;
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY_VOLUME);
+      if (saved !== null) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          // If the user had the previous loud 0.85 default, gently reset to 0.35
+          return parsed > 0.60 ? 0.35 : parsed;
+        }
+      }
+    } catch {}
+    return 0.35;
+  }
+
+  /**
+   * Translates linear UI slider position (0..1) to human ear perceived loudness
+   * using a quadratic curve so the middle position is comfortable, gentle, and doesn't cut ears.
+   */
+  private effectiveVolume(sliderVol: number): number {
+    const clamped = Math.max(0, Math.min(1, sliderVol));
+    return Math.pow(clamped, 2);
+  }
+
   constructor() {
     if (typeof document !== 'undefined') {
       this.audio = document.createElement('audio');
@@ -127,7 +152,7 @@ export class AudioService {
       this.audio = new Audio();
     }
 
-    this.audio.volume = this.volume();
+    this.audio.volume = this.effectiveVolume(this.volume());
 
     if (typeof window !== 'undefined') {
       (window as any).recroMediaAction = (action: string) => {
@@ -271,7 +296,7 @@ export class AudioService {
       if (this.gainNode && this.audioCtx) {
         this.gainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
       }
-      this.audio.volume = this.volume();
+      this.audio.volume = this.effectiveVolume(this.volume());
       return;
     }
 
@@ -286,8 +311,8 @@ export class AudioService {
     }
 
     // HTML5 Audio volume fallback for non-web-audio desktop
-    const targetVol = this.volume();
-    const startVol = Math.max(0.02, targetVol * 0.05);
+    const targetVol = this.effectiveVolume(this.volume());
+    const startVol = Math.max(0.01, targetVol * 0.05);
     this.audio.volume = startVol;
     const steps = 16;
     const stepTime = Math.max(20, (durationSec * 1000) / steps);
@@ -1349,15 +1374,20 @@ export class AudioService {
     }
     const clamped = Math.max(0, Math.min(1, vol));
     this.volume.set(clamped);
-    this.audio.volume = clamped;
+    this.audio.volume = this.isMuted() ? 0 : this.effectiveVolume(clamped);
     if (clamped > 0 && this.isMuted()) {
       this.isMuted.set(false);
     }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(this.STORAGE_KEY_VOLUME, clamped.toFixed(3));
+      }
+    } catch {}
   }
 
   toggleMute() {
     if (this.isMuted()) {
-      this.audio.volume = this.volume();
+      this.audio.volume = this.effectiveVolume(this.volume());
       this.isMuted.set(false);
     } else {
       this.audio.volume = 0;
