@@ -382,12 +382,18 @@ export class LibraryService implements OnDestroy {
     }
   }
 
-  async getRecommendations(artist: string): Promise<Track[]> {
-    const a = artist.trim();
-    if (!a) return [];
+  async getRecommendations(artist?: string, genre?: string, limit = 10): Promise<Track[]> {
+    const a = (artist || '').trim();
+    const g = (genre || '').trim();
+    if (!a && !g) return [];
 
     try {
-      const res = await fetch(`${this.getBackendUrl()}/api/recommendations?artist=${encodeURIComponent(a)}&limit=10`);
+      const queryParams = new URLSearchParams();
+      if (a) queryParams.set('artist', a);
+      if (g) queryParams.set('genre', g);
+      queryParams.set('limit', limit.toString());
+
+      const res = await fetch(`${this.getBackendUrl()}/api/recommendations?${queryParams.toString()}`);
       if (!res.ok) return [];
 
       const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
@@ -401,7 +407,7 @@ export class LibraryService implements OnDestroy {
           duration: Math.round(item.duration),
           audioUrl: item.audio_url,
           coverUrl: this.formatCoverUrl(item.cover_url),
-          genre: 'Discovery',
+          genre: g || 'Discovery',
           format: 'mp3',
           bitrate: '192 kbps',
           plays: 0,
@@ -413,6 +419,41 @@ export class LibraryService implements OnDestroy {
       return [];
     }
   }
+
+  async getSoundCloudCharts(genre?: string, limit = 10): Promise<Track[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.set('chart', 'soundcloud');
+      if (genre) queryParams.set('genre', genre);
+      queryParams.set('limit', limit.toString());
+
+      const res = await fetch(`${this.getBackendUrl()}/api/recommendations?${queryParams.toString()}`);
+      if (!res.ok) return [];
+
+      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
+
+      return data
+        .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
+        .map((item) => ({
+          id: item.id.startsWith('dz-') || item.id.startsWith('sc-') || item.id.startsWith('yt-') ? item.id : 'sc-' + item.id,
+          title: item.title,
+          artist: item.artist,
+          duration: Math.round(item.duration),
+          audioUrl: item.audio_url,
+          coverUrl: this.formatCoverUrl(item.cover_url),
+          genre: genre || 'SoundCloud Chart',
+          format: 'mp3',
+          bitrate: '192 kbps',
+          plays: 0,
+          isFavorite: false,
+          addedAt: new Date().toISOString().split('T')[0],
+        }));
+    } catch (e) {
+      console.warn('Get SoundCloud charts error:', e);
+      return [];
+    }
+  }
+
 
   async extractFromUrl(url: string): Promise<ExtractedResult> {
     const targetUrl = url.trim();

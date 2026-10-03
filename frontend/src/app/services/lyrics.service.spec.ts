@@ -190,16 +190,16 @@ Unsynced random header
     const parsed = service.parseLrc(lrc, 'lrclib');
     service.currentLyrics.set(parsed);
 
-    // At 4.60s (before line 0 starts at 5.0s), line 0 is already focused so user sees the opening line
+    // At 4.60s (before line 0 starts at 5.0s), intro has not reached line 0 yet (-1)
     service.precisePlaybackTime.set(4.60);
+    expect(service.activeLineIndex()).toBe(-1);
+
+    // At 5.00s, line 0 is active
+    service.precisePlaybackTime.set(5.00);
     expect(service.activeLineIndex()).toBe(0);
 
-    // At 4.80s (200ms before 5.0s), lookahead (+0.24s = 5.04s) reaches line 0 -> line 0 is activated in advance
-    service.precisePlaybackTime.set(4.80);
-    expect(service.activeLineIndex()).toBe(0);
-
-    // At 9.93s (70ms before line 1 at 10.0s), lookahead activates line 1
-    service.precisePlaybackTime.set(9.93);
+    // At 10.00s, line 1 is active
+    service.precisePlaybackTime.set(10.00);
     expect(service.activeLineIndex()).toBe(1);
   });
 });

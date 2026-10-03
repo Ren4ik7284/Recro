@@ -681,9 +681,25 @@ pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &
     tracks
 }
 
+fn is_noisy_compilation(title: &str) -> bool {
+    let lower = title.to_lowercase();
+    lower.contains("playlist")
+        || lower.contains("плейлист")
+        || lower.contains("full album")
+        || lower.contains("альбом целиком")
+        || lower.contains("сборник")
+        || lower.contains("1 hour")
+        || lower.contains("10 hours")
+        || lower.contains("hour mix")
+        || lower.contains("compilation")
+        || lower.contains("type beat")
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct RecommendParams {
     pub artist: Option<String>,
+    pub genre: Option<String>,
+    pub chart: Option<String>,
     pub limit: Option<usize>,
 }
 
@@ -692,13 +708,25 @@ pub async fn get_recommendations(
     Query(params): Query<RecommendParams>,
 ) -> Result<Json<Vec<SearchTrack>>, StatusCode> {
     let artist = params.artist.as_deref().unwrap_or("").trim();
-    if artist.is_empty() {
+    let genre = params.genre.as_deref().unwrap_or("").trim().to_lowercase();
+    let chart = params.chart.as_deref().unwrap_or("").trim().to_lowercase();
+
+    if artist.is_empty() && chart.is_empty() && genre.is_empty() {
         return Ok(Json(Vec::new()));
     }
+
     let limit = params.limit.unwrap_or(10).min(30);
     let base_url = get_base_url();
+    let yt_cmd = get_yt_dlp_cmd();
 
-    let cache_key = format!("rec:{}", artist.to_lowercase());
+    let cache_key = if !chart.is_empty() {
+        format!("rec:chart:{}:{}", chart, genre)
+    } else if !artist.is_empty() {
+        format!("rec:art:{}:{}", artist.to_lowercase(), genre)
+    } else {
+        format!("rec:gen:{}", genre)
+    };
+
     if let Ok(guard) = state.search_cache.lock() {
         if let Some((cached_tracks, cached_at)) = guard.get(&cache_key) {
             if cached_at.elapsed() < Duration::from_secs(7200) && !cached_tracks.is_empty() {
@@ -707,7 +735,77 @@ pub async fn get_recommendations(
         }
     }
 
-    let tracks = execute_deezer_related(artist, limit, &base_url).await;
+    let mut tracks = Vec::new();
+    let mut seen_ids = HashSet::new();
+
+    // 1. Chart / trending query for SoundCloud
+    if !chart.is_empty() || (artist.is_empty() && !genre.is_empty()) {
+        let sc_query = if genre.contains("rap") || genre.contains("hip") || genre.contains("trap") || genre.contains("drill") {
+            "russian rap топ"
+        } else if genre.contains("phonk") {
+            "drift phonk hits"
+        } else if genre.contains("rock") || genre.contains("metal") || genre.contains("alternative") {
+            "русский рок хиты"
+        } else if genre.contains("pop") {
+            "популярные русские песни топ"
+        } else {
+            "топ треки soundcloud чарт"
+        };
+
+        let sc_arg = format!("scsearch{}:{}", limit, sc_query);
+        let sc_res = execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url).await;
+        for t in sc_res {
+            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+                && !is_noisy_compilation(&t.title)
+                && seen_ids.insert(t.id.clone())
+            {
+                tracks.push(t);
+                if tracks.len() >= limit {
+                    break;
+                }
+            }
+        }
+    } else if !artist.is_empty() {
+        // 2. Artist-based recommendations:
+        // Try Deezer related artists first
+        let dz_related = execute_deezer_related(artist, limit, &base_url).await;
+        for t in dz_related {
+            if seen_ids.insert(t.id.clone()) {
+                tracks.push(t);
+            }
+        }
+
+        // If Deezer related gave few tracks (< 4), complement with SoundCloud artist hits / trending
+        if tracks.len() < limit {
+            let sc_arg = format!("scsearch{}:{} топ", (limit - tracks.len()).max(4), artist);
+            let sc_res = execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url).await;
+            for t in sc_res {
+                if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+                    && !is_noisy_compilation(&t.title)
+                    && seen_ids.insert(t.id.clone())
+                {
+                    tracks.push(t);
+                    if tracks.len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // If still fewer than 3, search Deezer for artist directly
+        if tracks.len() < 3 {
+            let dz_direct = execute_deezer_search(artist, limit, &base_url).await;
+            for t in dz_direct {
+                if seen_ids.insert(t.id.clone()) {
+                    tracks.push(t);
+                    if tracks.len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     if !tracks.is_empty() {
         if let Ok(mut guard) = state.search_cache.lock() {
             guard.insert(cache_key, (tracks.clone(), std::time::Instant::now()));
