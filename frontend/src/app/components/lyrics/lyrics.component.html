@@ -232,6 +232,8 @@
                 class="lyric-line-item"
                 [attr.data-line-index]="i"
                 [class.active]="i === lyricsService.activeLineIndex()"
+                [class.singing]="i === lyricsService.activeLineIndex() && lyricsService.isLineSinging()"
+                [class.interlude]="i === lyricsService.activeLineIndex() && !lyricsService.isLineSinging()"
                 [class.past]="i < lyricsService.activeLineIndex()"
                 [class.future]="i > lyricsService.activeLineIndex()"
                 (click)="onLineClick(line)"

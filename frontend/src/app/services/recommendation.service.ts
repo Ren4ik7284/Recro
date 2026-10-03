@@ -1281,6 +1281,7 @@ export class RecommendationService {
 
       for (const t of pass1Tracks) {
         if (selectedTracks.length >= count) break;
+        if (!t || !t.audioUrl || !t.audioUrl.trim() || !t.title || !t.title.trim()) continue;
         if (excludeIds.has(t.id) || this.isDisliked(t.id)) continue;
         if (t.duration < 50 || t.duration > 480) continue;
         if (PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`)) continue;
@@ -1318,6 +1319,11 @@ export class RecommendationService {
         const allBatchTracks = batchResults.flat();
 
         const valid = allBatchTracks.filter((t) =>
+          t &&
+          t.audioUrl &&
+          t.audioUrl.trim().length > 0 &&
+          t.title &&
+          t.title.trim().length > 0 &&
           !t.id.startsWith('audius-') &&
           !t.audioUrl.includes('audius.co') &&
           !excludeIds.has(t.id) &&

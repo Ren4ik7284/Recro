@@ -67,39 +67,31 @@ export class LyricsService {
   private lastAudioTimeTimestamp = 0;
   private lastSmoothedTime = 0;
 
-  /** Высокоточное сглаживание времени без накопления ошибки и без убегания вперед */
+  /** Высокоточное время воспроизведения без скачков назад */
   getSmoothedCurrentTime(): number {
     const raw = this.audioService.getPreciseCurrentTime();
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-
-    // Если аудиоплеер на паузе или был совершен ручной перемот (>0.4с или назад) - сброс
-    if (!this.audioService.isPlaying() || Math.abs(raw - this.lastReportedAudioTime) > 0.4 || raw < this.lastReportedAudioTime) {
+    if (!this.audioService.isPlaying()) {
       this.lastReportedAudioTime = raw;
-      this.lastAudioTimeTimestamp = now;
-      this.lastSmoothedTime = raw;
       return raw;
     }
 
-    // Если аудиотег совершил очередной шаг вперед
-    if (raw !== this.lastReportedAudioTime) {
+    // Если был перемот (скачок назад или резкий скачок вперед > 0.5с) — сбрасываем базу
+    if (raw < this.lastReportedAudioTime || Math.abs(raw - this.lastReportedAudioTime) > 0.5) {
       this.lastReportedAudioTime = raw;
-      this.lastAudioTimeTimestamp = now;
-      this.lastSmoothedTime = raw;
       return raw;
     }
 
-    // Между тиками HTML5 Audio интерполируем реальное прошедшее время (до 250мс)
-    const dt = (now - this.lastAudioTimeTimestamp) / 1000;
-    if (dt > 0 && dt <= 0.25) {
-      return raw + dt;
-    }
-
+    this.lastReportedAudioTime = raw;
     return raw;
   }
 
-  // Честное 1:1 воспроизведение без искусственного опережения
+  // Зрительно-слуховое упреждение (85мс) для естественного восприятия текста в такт вокалу
   getTempoLeadSec(): number {
-    return 0.0;
+    const bpm = this.currentBpm();
+    if (bpm && bpm >= 60 && bpm <= 200) {
+      return Math.max(0.065, Math.min(0.11, (60 / bpm) * 0.16));
+    }
+    return 0.085; // 85ms золотой стандарт зрительного восприятия
   }
 
   // Индекс активной строки текста в зависимости от текущего времени трека
@@ -107,7 +99,8 @@ export class LyricsService {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const lead = this.getTempoLeadSec();
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
 
     // До первой фразы вокала держим -1 (вступление/интро без ложной подсветки)
     if (t < lyrics.lines[0].startTime) {
@@ -132,7 +125,8 @@ export class LyricsService {
     const idx = this.activeLineIndex();
     const lyrics = this.currentLyrics();
     if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return false;
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const lead = this.getTempoLeadSec();
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
     const line = lyrics.lines[idx];
     if (line.startTime < 0 || t < line.startTime) {
       return false;
@@ -152,7 +146,8 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
-    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const lead = this.getTempoLeadSec();
+    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
     const end = currentLine.endTime || (nextLine && nextLine.startTime >= 0 ? nextLine.startTime : start + 4);
@@ -359,7 +354,8 @@ export class LyricsService {
 
   // Проверка спето ли слово (для пословного караоке)
   isWordSung(word: LyricWord): boolean {
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000);
+    const lead = this.getTempoLeadSec() * 0.7;
+    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
     return t >= word.startTime;
   }
 
@@ -852,17 +848,23 @@ export class LyricsService {
         const cur = finalLines[i];
         const next = i < finalLines.length - 1 ? finalLines[i + 1] : null;
 
-        // Строка остаётся активной до следующей фразы, либо завершается при длительном проигрыше
+        // Строка остаётся активной до следующей фразы, либо завершается при паузе/проигрыше
         if (!cur.endTime || cur.endTime <= cur.startTime) {
-          if (next && next.startTime > cur.startTime) {
+          if (cur.words && cur.words.length > 0) {
+            const lastWord = cur.words[cur.words.length - 1];
+            cur.endTime = lastWord.endTime || (lastWord.startTime + 0.6);
+          } else if (next && next.startTime > cur.startTime) {
             const gap = next.startTime - cur.startTime;
-            if (gap > 7.0) {
-              cur.endTime = cur.startTime + Math.min(gap - 1.5, 4.5);
+            const wordCount = cur.text.split(/\s+/).filter(Boolean).length;
+            const estimatedDuration = Math.max(1.8, Math.min(gap - 0.4, (wordCount * 0.38) + 1.0));
+            if (gap >= 3.5) {
+              cur.endTime = cur.startTime + estimatedDuration;
             } else {
               cur.endTime = next.startTime;
             }
           } else {
-            cur.endTime = cur.startTime + 4.5;
+            const wordCount = cur.text.split(/\s+/).filter(Boolean).length;
+            cur.endTime = cur.startTime + Math.max(2.5, (wordCount * 0.4) + 1.2);
           }
         }
       }

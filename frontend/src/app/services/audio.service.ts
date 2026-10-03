@@ -510,12 +510,26 @@ export class AudioService {
       }
       // Проверяем реальное время воспроизведения через нативный audio элемент
       const played = this.audio.currentTime || 0;
-      const dur = this.audio.duration || this.duration();
-      if (this.streamSeekOffset() === 0 && ((!this.hasAudioStartedPlaying && played < 1.0) || (dur > 5 && played < 1.5))) {
+      const totalPlayed = this.streamSeekOffset() + played;
+      const expectedDur = this.duration() > 0 ? this.duration() : (this.audio.duration || 0);
+
+      // 1. Если поток завершился едва начавшись (<1.5с)
+      if (totalPlayed < 1.5) {
         console.warn('[AudioService] Premature ended event (<1.5s played), treating as playback failure');
         this.handlePlaybackFailure('premature_ended');
         return;
       }
+
+      // 2. Если у трека известна длительность, но поток оборвался задолго до конца (>5с до финала)
+      if (expectedDur > 10 && totalPlayed < (expectedDur - 5.0)) {
+        console.warn(`[AudioService] Stream dropped prematurely at ${totalPlayed.toFixed(1)}s (expected ~${expectedDur.toFixed(1)}s), resuming playback from position`);
+        const cur = this.currentTrack();
+        if (cur) {
+          this.seek(totalPlayed);
+          return;
+        }
+      }
+
       this.handleTrackEnded();
     });
 
@@ -595,38 +609,24 @@ export class AudioService {
     this.consecutiveErrorCount++;
 
     if (this.recService.isMixActive()) {
-      if (this.consecutiveErrorCount === 1) {
-        console.warn('[AudioService] First transient failure in mix, retrying track once before skipping...');
+      if (this.consecutiveErrorCount <= 2) {
+        console.warn(`[AudioService] Transient failure in mix (attempt ${this.consecutiveErrorCount}), retrying track...`);
         this.errorTimeoutId = setTimeout(() => {
           const cur = this.currentTrack();
           if (cur && this.recService.isMixActive()) {
             this.playTrack(cur, undefined, true);
           }
-        }, 1000);
+        }, 1200);
         return;
       }
 
-      if (this.consecutiveErrorCount <= 3) {
-        this.errorTimeoutId = setTimeout(() => {
-          if (this.recService.isMixActive()) {
-            this.next();
-          }
-        }, 1500);
-      } else {
-        console.warn('[AudioService] Multiple playback failures in mix, attempting recovery with reliable local track');
-        this.consecutiveErrorCount = 0;
-        const locals = this.recService.getAllLocalCandidates();
-        if (locals.length > 0) {
-          const rescueTrack = locals[Math.floor(Math.random() * locals.length)];
-          this.playTrack(rescueTrack, undefined, true);
-        } else {
-          this.errorTimeoutId = setTimeout(() => {
-            if (this.recService.isMixActive()) {
-              this.next();
-            }
-          }, 1500);
+      console.warn('[AudioService] Playback failure in mix after retries, advancing to next candidate');
+      this.consecutiveErrorCount = 0;
+      this.errorTimeoutId = setTimeout(() => {
+        if (this.recService.isMixActive()) {
+          this.next();
         }
-      }
+      }, 1000);
       return;
     }
   }
@@ -876,6 +876,9 @@ export class AudioService {
     }
 
     const isFav = this.libraryService.isTrackFavorite(track);
+    if (this.currentTrack()?.id !== track.id) {
+      this.consecutiveErrorCount = 0;
+    }
     this.currentTrack.set({ ...track, isFavorite: isFav });
     this.recService.recordTrackStarted(track);
     this.streamSeekOffset.set(0);
