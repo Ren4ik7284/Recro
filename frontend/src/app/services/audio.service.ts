@@ -609,24 +609,43 @@ export class AudioService {
     this.consecutiveErrorCount++;
 
     if (this.recService.isMixActive()) {
-      if (this.consecutiveErrorCount <= 2) {
-        console.warn(`[AudioService] Transient failure in mix (attempt ${this.consecutiveErrorCount}), retrying track...`);
+      if (this.consecutiveErrorCount === 1) {
+        console.warn(`[AudioService] Transient failure in mix (attempt 1), retrying track in 800ms...`);
         this.errorTimeoutId = setTimeout(() => {
           const cur = this.currentTrack();
           if (cur && this.recService.isMixActive()) {
             this.playTrack(cur, undefined, true);
           }
-        }, 1200);
+        }, 800);
         return;
       }
 
-      console.warn('[AudioService] Playback failure in mix after retries, advancing to next candidate');
+      if (this.consecutiveErrorCount === 2) {
+        // Attempt 2: If primary audioUrl failed, resolve fresh stream URL via backend search before giving up!
+        const cur = this.currentTrack();
+        if (cur && cur.title) {
+          console.warn('[AudioService] Primary stream failed in mix, attempting fresh stream query resolution...');
+          const activeBase = this.libraryService.getBackendUrl();
+          const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
+          const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
+          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}`;
+          const updatedTrack = { ...cur, audioUrl: altUrl };
+          this.errorTimeoutId = setTimeout(() => {
+            if (this.recService.isMixActive()) {
+              this.playTrack(updatedTrack, undefined, true);
+            }
+          }, 800);
+          return;
+        }
+      }
+
+      console.warn('[AudioService] Playback failure in mix after retries, smoothly advancing to next track');
       this.consecutiveErrorCount = 0;
       this.errorTimeoutId = setTimeout(() => {
         if (this.recService.isMixActive()) {
           this.next();
         }
-      }, 1000);
+      }, 500);
       return;
     }
   }
@@ -881,6 +900,7 @@ export class AudioService {
     }
     this.currentTrack.set({ ...track, isFavorite: isFav });
     this.recService.recordTrackStarted(track);
+    this.recService.registerSessionPlayed(track);
     this.streamSeekOffset.set(0);
     this.currentTime.set(0);
     this.hasAudioStartedPlaying = false;
@@ -1542,12 +1562,13 @@ export class AudioService {
 
     const needed = Math.max(3, 5 - upcomingCount);
 
-    // Exclude unplayed upcoming tracks AND recently played tracks from this session queue
+    // Exclude unplayed upcoming tracks AND all tracks played during this active session
     const unplayedUpcoming = q.slice(Math.max(0, idx));
-    const recentPlayedFromQueue = q.slice(Math.max(0, idx - 15), idx);
+    const recentPlayedFromQueue = q.slice(0, idx);
     const excludeIds = new Set<string>([
       ...unplayedUpcoming.map((t) => t.id),
       ...recentPlayedFromQueue.map((t) => t.id),
+      ...this.recService.getSessionPlayedIds(),
     ]);
 
     // Build context artists from current surroundings in queue
@@ -1594,20 +1615,28 @@ export class AudioService {
 
     // Resilience fallbacks if online discovery failed or candidates were exhausted
     if (newTracks.length === 0 && localCandidates.length > 0) {
-      newTracks = this.recService.pickNextTracks(needed, new Set([q[idx]?.id].filter(Boolean) as string[]), curTrack, recentArtists);
+      newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
     }
 
-    // Emergency fallback if library is empty and online discovery yielded nothing: recycle non-disliked from queue
-    if (newTracks.length === 0 && q.length > 0) {
-      const pool = q.filter((t) => !this.recService.isDisliked(t.id));
-      if (pool.length > 0) {
-        const sample = pool.slice(0, needed);
-        newTracks = sample.map((t) => ({ ...t }));
+    // Secondary fallback: fresh curated starter candidates that haven't been heard in this session
+    if (newTracks.length === 0) {
+      const starters = this.recService.getStarterCandidates(this.recService.currentMood(), needed * 2);
+      const freshStarters = starters.filter(
+        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t)
+      );
+      if (freshStarters.length > 0) {
+        newTracks = freshStarters.slice(0, needed);
       }
     }
 
-    if (newTracks.length > 0) {
-      this.queue.update((curQ) => [...curQ, ...newTracks]);
+    // Strictly ensure no track already in the queue or session history is ever added again
+    const existingQueueIds = new Set(q.map((t) => t.id));
+    const strictlyUniqueTracks = newTracks.filter(
+      (t) => !existingQueueIds.has(t.id) && !this.recService.isSessionDuplicate(t)
+    );
+
+    if (strictlyUniqueTracks.length > 0) {
+      this.queue.update((curQ) => [...curQ, ...strictlyUniqueTracks]);
       this.preloadNextTrack();
     }
   }

@@ -131,6 +131,110 @@ export const STARTER_MIX_TRACKS: Track[] = [
     isFavorite: false,
     addedAt: '2026-01-01T00:00:00.000Z',
   },
+  {
+    id: 'starter-9',
+    title: 'Murder In My Mind',
+    artist: 'Kordhell',
+    duration: 145,
+    audioUrl: '/api/stream?title=Murder%20In%20My%20Mind&artist=Kordhell',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/4488b39c065f3775f0aee7bb059ee20a/500x500.jpg',
+    genre: 'Drift Phonk',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-10',
+    title: 'Положение',
+    artist: 'Скриптонит',
+    duration: 284,
+    audioUrl: '/api/stream?title=%D0%9F%D0%BE%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5&artist=%D0%A1%D0%BA%D1%80%D0%B8%D0%BF%D1%82%D0%BE%D0%BD%D0%B8%D1%82',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/03f0bbfb776269dfb48c0aee7144e54a/500x500.jpg',
+    genre: 'Hip-Hop',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-11',
+    title: 'Отпускай',
+    artist: 'Три дня дождя',
+    duration: 172,
+    audioUrl: '/api/stream?title=%D0%9E%D1%82%D0%BF%D1%83%D1%81%D0%BA%D0%B0%D0%B9&artist=%D0%A2%D1%80%D0%B8%20%D0%B4%D0%BD%D1%8F%20%D0%B4%D0%BE%D0%B6%D0%B4%D1%8F',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/5f58c735d4cb680c10b7ee2e7fb7da58/500x500.jpg',
+    genre: 'Rock / Alternative',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-12',
+    title: 'Стрелы',
+    artist: 'Markul, Тося Чайкина',
+    duration: 168,
+    audioUrl: '/api/stream?title=%D0%A1%D1%82%D1%80%D0%B5%D0%BB%D1%8B&artist=Markul%2C%20%D0%A2%D0%BE%D1%81%D1%8F%20%D0%A7%D0%B0%D0%B9%D0%BA%D0%B8%D0%BD%D0%B0',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/5c35b8026132d039537bc2c0e86b0337/500x500.jpg',
+    genre: 'Pop / Rap',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-13',
+    title: 'In The End',
+    artist: 'Linkin Park',
+    duration: 216,
+    audioUrl: '/api/stream?title=In%20The%20End&artist=Linkin%20Park',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/4ee6246aa577ebaf16b25a388f72aa98/500x500.jpg',
+    genre: 'Rock / Nu Metal',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-14',
+    title: 'Старшие',
+    artist: 'OG Buda',
+    duration: 162,
+    audioUrl: '/api/stream?title=%D0%A1%D1%82%D0%B0%D1%80%D1%88%D0%B8%D0%B5&artist=OG%20Buda',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/d513725c4ef68ee410dfa6c7ecb1e5fe/500x500.jpg',
+    genre: 'Trap / Drill',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-15',
+    title: 'COWBELL WARRIOR!',
+    artist: 'SXMPRA',
+    duration: 110,
+    audioUrl: '/api/stream?title=COWBELL%20WARRIOR!&artist=SXMPRA',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/1aaee19ceba8d88e612cbff0a6f44383/500x500.jpg',
+    genre: 'Drift Phonk',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-16',
+    title: 'Glimpse of Us',
+    artist: 'Joji',
+    duration: 233,
+    audioUrl: '/api/stream?title=Glimpse%20of%20Us&artist=Joji',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/86a9a95782782e441ea636a0d241d7d2/500x500.jpg',
+    genre: 'Lo-Fi / R&B',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
 ];
 
 export interface PlayRecord {
@@ -206,6 +310,45 @@ export class RecommendationService {
   // Disliked tracks (delegated to LibraryService with cloud sync)
   readonly dislikedTrackIds = this.libraryService.dislikedTrackIds;
 
+  // Active mix session history to strictly eliminate any track or alternate version repeat
+  private readonly sessionPlayedIds = new Set<string>();
+  private readonly sessionPlayedKeys = new Set<string>();
+  private artistSeedOffset = 0;
+
+  isSessionDuplicate(track: Track): boolean {
+    if (!track) return false;
+    if (this.sessionPlayedIds.has(track.id)) return true;
+    const key = this.getTitleKey(track);
+    if (key && this.sessionPlayedKeys.has(key)) return true;
+    return false;
+  }
+
+  registerSessionPlayed(track: Track): void {
+    if (!track || track.isLiveStream) return;
+    this.sessionPlayedIds.add(track.id);
+    const key = this.getTitleKey(track);
+    if (key) {
+      this.sessionPlayedKeys.add(key);
+    }
+    if (this.sessionPlayedIds.size > 300) {
+      const firstId = this.sessionPlayedIds.keys().next().value;
+      if (firstId !== undefined) this.sessionPlayedIds.delete(firstId);
+    }
+    if (this.sessionPlayedKeys.size > 300) {
+      const firstKey = this.sessionPlayedKeys.keys().next().value;
+      if (firstKey !== undefined) this.sessionPlayedKeys.delete(firstKey);
+    }
+  }
+
+  getSessionPlayedIds(): Set<string> {
+    return new Set(this.sessionPlayedIds);
+  }
+
+  resetSessionHistory(): void {
+    this.sessionPlayedIds.clear();
+    this.sessionPlayedKeys.clear();
+  }
+
   constructor() {
     this.loadSavedRecentPlays();
     this.cleanupOldPlays();
@@ -229,8 +372,7 @@ export class RecommendationService {
   resetMixSession() {
     this.isMixActive.set(false);
     this.isFetchingDiscovery.set(false);
-    // Note: recentPlays is deliberately NOT cleared here so that pausing or toggling mix
-    // preserves fatigue penalties and prevents immediately replaying the same songs!
+    this.resetSessionHistory();
   }
 
   updateConfig(partial: Partial<MixConfig>) {
@@ -1041,7 +1183,10 @@ export class RecommendationService {
 
     if (validCandidates.length === 0) return [];
 
-    let available = validCandidates.filter((t) => !excludeIds.has(t.id));
+    let available = validCandidates.filter((t) => !excludeIds.has(t.id) && !this.isSessionDuplicate(t));
+    if (available.length === 0) {
+      available = validCandidates.filter((t) => !excludeIds.has(t.id));
+    }
     if (available.length === 0) {
       available = validCandidates;
     }
@@ -1155,37 +1300,37 @@ export class RecommendationService {
       const shuffledSeeds = [...userTopArtists].sort(() => 0.5 - Math.random());
       for (const artist of shuffledSeeds.slice(0, 4)) {
         if (isRu) {
-          queries.push(`${artist} топ`, `${artist} популярные`);
+          queries.push(`${artist} топ`, `${artist} популярные`, `${artist} лучшее`, `${artist} remix`);
         } else {
-          queries.push(`${artist} top hits`, artist);
+          queries.push(`${artist} top hits`, `${artist} remix`, artist);
         }
       }
     }
 
-    // 2. SoundCloud charts and genre-aligned queries based on user taste
+    // 2. SoundCloud charts and genre-aligned queries based on user taste with deep subgenre variety
     const ruQueries: string[] = [];
     const enQueries: string[] = [];
 
     if (userTaste.hiphop > 0.40) {
-      ruQueries.push('russian rap топ', 'русский рэп чарт', 'русский трэп', 'хиты soundcloud рэп');
-      enQueries.push('trap hits soundcloud', 'drill rap top', 'hip hop hits');
+      ruQueries.push('russian rap топ', 'русский рэп чарт', 'русский трэп', 'хиты soundcloud рэп', 'underground rap новинки', 'новинки рэпа');
+      enQueries.push('trap hits soundcloud', 'drill rap top', 'hip hop hits', 'rap trending 2024');
     }
     if (userTaste.electronic > 0.40) {
-      ruQueries.push('drift phonk hits', 'фонк топ soundcloud', 'фонк чарт');
-      enQueries.push('drift phonk hits', 'viral phonk soundcloud', 'edm festival hits');
+      ruQueries.push('drift phonk hits', 'фонк топ soundcloud', 'фонк чарт', 'brazilian phonk', 'aggressive phonk remix');
+      enQueries.push('drift phonk hits', 'viral phonk soundcloud', 'edm festival hits', 'memphis phonk hits');
     }
     if (userTaste.rock > 0.40) {
-      ruQueries.push('русский рок хиты', 'русский рок топ', 'альтернативный рок');
-      enQueries.push('alternative rock hits', 'rock top hits');
+      ruQueries.push('русский рок хиты', 'русский рок топ', 'альтернативный рок', 'русский пост панк', 'indie rock новинки');
+      enQueries.push('alternative rock hits', 'rock top hits', 'modern rock playlist');
     }
     if (userTaste.pop > 0.40) {
-      ruQueries.push('русские хиты топ', 'популярные треки soundcloud');
-      enQueries.push('viral pop hits', 'trending soundcloud hits');
+      ruQueries.push('русские хиты топ', 'популярные треки soundcloud', 'новинки поп музыки', 'хиты радио 2024');
+      enQueries.push('viral pop hits', 'trending soundcloud hits', 'billboard hot 100 hits');
     }
 
     // Default chart fallbacks if no specific vector fired
-    if (ruQueries.length === 0) ruQueries.push('russian rap топ', 'русские хиты топ', 'drift phonk hits');
-    if (enQueries.length === 0) enQueries.push('trending soundcloud hits', 'trap hits soundcloud');
+    if (ruQueries.length === 0) ruQueries.push('russian rap топ', 'русские хиты топ', 'drift phonk hits', 'новинки музыки');
+    if (enQueries.length === 0) enQueries.push('trending soundcloud hits', 'trap hits soundcloud', 'viral hits');
 
     if (isRu) {
       queries.push(...ruQueries);
@@ -1262,16 +1407,21 @@ export class RecommendationService {
       // A) SoundCloud Trending Charts tailored to user genre
       if (this.libraryService.getSoundCloudCharts) {
         pass1Tasks.push(
-          this.libraryService.getSoundCloudCharts(dominantGenre, 10).catch(() => [] as Track[])
+          this.libraryService.getSoundCloudCharts(dominantGenre, 12).catch(() => [] as Track[])
         );
       }
 
-      // B) Related artists recommendations
+      // B) Related artists recommendations with rotation across batches
       if (userTopArtists.length > 0) {
-        const shuffledArtists = [...userTopArtists].sort(() => 0.5 - Math.random());
-        for (const seedArtist of shuffledArtists.slice(0, 3)) {
+        const offset = this.artistSeedOffset % userTopArtists.length;
+        this.artistSeedOffset = (this.artistSeedOffset + 2) % 1000;
+        const rotated = [
+          ...userTopArtists.slice(offset),
+          ...userTopArtists.slice(0, offset),
+        ];
+        for (const seedArtist of rotated.slice(0, 3)) {
           pass1Tasks.push(
-            this.libraryService.getRecommendations(seedArtist, dominantGenre, 8).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(seedArtist, dominantGenre, 10).catch(() => [] as Track[])
           );
         }
       }
@@ -1282,7 +1432,7 @@ export class RecommendationService {
       for (const t of pass1Tracks) {
         if (selectedTracks.length >= count) break;
         if (!t || !t.audioUrl || !t.audioUrl.trim() || !t.title || !t.title.trim()) continue;
-        if (excludeIds.has(t.id) || this.isDisliked(t.id)) continue;
+        if (excludeIds.has(t.id) || this.isDisliked(t.id) || this.isSessionDuplicate(t)) continue;
         if (t.duration < 50 || t.duration > 480) continue;
         if (PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`)) continue;
         if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`)) continue;
@@ -1328,6 +1478,7 @@ export class RecommendationService {
           !t.audioUrl.includes('audius.co') &&
           !excludeIds.has(t.id) &&
           !this.isDisliked(t.id) &&
+          !this.isSessionDuplicate(t) &&
           (t.duration === 0 || (t.duration >= 50 && t.duration <= 480)) &&
           !PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`) &&
           (hasJunkAffinity || !JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`))
@@ -1366,7 +1517,7 @@ export class RecommendationService {
       if (selectedTracks.length < count && fallbackPool.length > 0) {
         for (const t of fallbackPool) {
           if (selectedTracks.length >= count) break;
-          if (excludeIds.has(t.id)) continue;
+          if (excludeIds.has(t.id) || this.isSessionDuplicate(t)) continue;
           if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`)) continue;
 
           const primaryArt = normalizeArtist(t.artist);

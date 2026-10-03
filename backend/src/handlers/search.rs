@@ -585,9 +585,9 @@ pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &
         None => return Vec::new(),
     };
 
-    // 2. Fetch related artists
-    let rel_url = format!("https://api.deezer.com/artist/{}/related?limit=6", artist_id);
-    let rel_artists = match client.get(&rel_url).send().await {
+    // 2. Fetch related artists (request wider pool for deep variety)
+    let rel_url = format!("https://api.deezer.com/artist/{}/related?limit=12", artist_id);
+    let mut rel_artists = match client.get(&rel_url).send().await {
         Ok(r) if r.status().is_success() => {
             if let Ok(data) = r.json::<serde_json::Value>().await {
                 data["data"]
@@ -609,12 +609,15 @@ pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &
         return Vec::new();
     }
 
-    // 3. Concurrently fetch top 2 tracks from each related artist
+    // Shuffle related artists so recommendations don't fixate on the same top-3 artists
+    fastrand::shuffle(&mut rel_artists);
+
+    // 3. Concurrently fetch top tracks from diverse related artists
     let mut set = tokio::task::JoinSet::new();
-    for rel_id in rel_artists.into_iter().take(5) {
+    for rel_id in rel_artists.into_iter().take(7) {
         let cl = client.clone();
         set.spawn(async move {
-            let top_url = format!("https://api.deezer.com/artist/{}/top?limit=2", rel_id);
+            let top_url = format!("https://api.deezer.com/artist/{}/top?limit=4", rel_id);
             if let Ok(r) = cl.get(&top_url).send().await {
                 if r.status().is_success() {
                     if let Ok(v) = r.json::<serde_json::Value>().await {
@@ -627,10 +630,11 @@ pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &
     }
 
     let mut tracks = Vec::new();
+    let max_pool = limit * 3;
     while let Some(res) = set.join_next().await {
         if let Ok(items) = res {
             for item in items {
-                if tracks.len() >= limit {
+                if tracks.len() >= max_pool {
                     break;
                 }
                 let id_num = match item["id"].as_i64() {
@@ -678,6 +682,9 @@ pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &
         }
     }
 
+    // Shuffle gathered pool and select distinct results
+    fastrand::shuffle(&mut tracks);
+    tracks.truncate(limit);
     tracks
 }
 
@@ -727,10 +734,16 @@ pub async fn get_recommendations(
         format!("rec:gen:{}", genre)
     };
 
+    // 5-minute TTL cache with random sampling to avoid repetitive loops
     if let Ok(guard) = state.search_cache.lock() {
         if let Some((cached_tracks, cached_at)) = guard.get(&cache_key) {
-            if cached_at.elapsed() < Duration::from_secs(7200) && !cached_tracks.is_empty() {
-                return Ok(Json(cached_tracks.clone()));
+            if cached_at.elapsed() < Duration::from_secs(300) && !cached_tracks.is_empty() {
+                let mut out = cached_tracks.clone();
+                if out.len() > limit {
+                    fastrand::shuffle(&mut out);
+                    out.truncate(limit);
+                }
+                return Ok(Json(out));
             }
         }
     }
@@ -738,21 +751,23 @@ pub async fn get_recommendations(
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
 
-    // 1. Chart / trending query for SoundCloud
+    // 1. Chart / trending query for SoundCloud with dynamic subgenre variety
     if !chart.is_empty() || (artist.is_empty() && !genre.is_empty()) {
-        let sc_query = if genre.contains("rap") || genre.contains("hip") || genre.contains("trap") || genre.contains("drill") {
-            "russian rap топ"
+        let genre_queries: &[&str] = if genre.contains("rap") || genre.contains("hip") || genre.contains("trap") || genre.contains("drill") {
+            &["russian rap топ", "русский хип хоп тренды", "underground rap новинки", "хип хоп чарт soundcloud", "новинки рэпа"]
         } else if genre.contains("phonk") {
-            "drift phonk hits"
+            &["drift phonk hits", "phonk remix", "brazilian phonk bass", "aggressive phonk", "memphis phonk hits"]
         } else if genre.contains("rock") || genre.contains("metal") || genre.contains("alternative") {
-            "русский рок хиты"
+            &["русский рок хиты", "альтернативный рок новинки", "indie rock hits", "русский панк рок", "post punk russian"]
         } else if genre.contains("pop") {
-            "популярные русские песни топ"
+            &["популярные русские песни топ", "хиты 2024 новинки", "pop music charting hits", "русский поп чарт", "новинки музыки радио"]
         } else {
-            "топ треки soundcloud чарт"
+            &["топ треки soundcloud чарт", "популярная музыка тренды", "trending songs hits", "топ музыка новинки"]
         };
+        let sc_query = genre_queries[fastrand::usize(..genre_queries.len())];
 
-        let sc_arg = format!("scsearch{}:{}", limit, sc_query);
+        let fetch_limit = (limit * 2).clamp(20, 30);
+        let sc_arg = format!("scsearch{}:{}", fetch_limit, sc_query);
         let sc_res = execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url).await;
         for t in sc_res {
             if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
@@ -760,11 +775,9 @@ pub async fn get_recommendations(
                 && seen_ids.insert(t.id.clone())
             {
                 tracks.push(t);
-                if tracks.len() >= limit {
-                    break;
-                }
             }
         }
+        fastrand::shuffle(&mut tracks);
     } else if !artist.is_empty() {
         // 2. Artist-based recommendations:
         // Try Deezer related artists first
@@ -777,7 +790,7 @@ pub async fn get_recommendations(
 
         // If Deezer related gave few tracks (< 4), complement with SoundCloud artist hits / trending
         if tracks.len() < limit {
-            let sc_arg = format!("scsearch{}:{} топ", (limit - tracks.len()).max(4), artist);
+            let sc_arg = format!("scsearch{}:{} топ", (limit - tracks.len()).max(6), artist);
             let sc_res = execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url).await;
             for t in sc_res {
                 if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
@@ -812,5 +825,6 @@ pub async fn get_recommendations(
         }
     }
 
+    tracks.truncate(limit);
     Ok(Json(tracks))
 }

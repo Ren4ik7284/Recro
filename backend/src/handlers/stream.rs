@@ -424,7 +424,7 @@ pub async fn stream_audio(
                     let mut sc_cmd = Command::new(&yt_cmd);
                     apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
                     sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_query]);
-                    if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_secs(6), sc_cmd.output()).await {
+                    if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_millis(8500), sc_cmd.output()).await {
                         extract_stream_url_from_output(&sc)
                     } else {
                         None
@@ -443,7 +443,7 @@ pub async fn stream_audio(
                         "--",
                         &yt_query,
                     ]);
-                    if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_secs(6), yt_search_cmd.output()).await {
+                    if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(8500), yt_search_cmd.output()).await {
                         extract_stream_url_from_output(&yt_out)
                     } else {
                         None
@@ -454,6 +454,24 @@ pub async fn stream_audio(
                 let (sc_res, yt_res) = tokio::join!(sc_fut, yt_fut);
                 if let Some(u) = sc_res.or(yt_res) {
                     direct_url = u;
+                }
+
+                // Cascade Fallback: if exact query yielded no stream, try flipped artist/title query on SoundCloud
+                if direct_url.is_empty() {
+                    let fallback_title = clean_music_title(&resolved_title);
+                    let fallback_uploader = clean_music_title(&resolved_uploader);
+                    let alt_query = format!("{} {}", fallback_uploader, fallback_title).trim().to_string();
+                    if !alt_query.is_empty() {
+                        let sc_arg = format!("scsearch1:{}", alt_query);
+                        let mut sc_cmd = Command::new(&yt_cmd);
+                        apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
+                        sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_arg]);
+                        if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_millis(4500), sc_cmd.output()).await {
+                            if let Some(u) = extract_stream_url_from_output(&sc) {
+                                direct_url = u;
+                            }
+                        }
+                    }
                 }
             }
 
