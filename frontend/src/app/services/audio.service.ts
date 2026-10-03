@@ -942,7 +942,28 @@ export class AudioService {
     // Отзываем blob URL только ПРЕДЫДУЩИХ треков, не задевая текущий
     this.offlineService.revokePreviousBlobUrls(track.id);
 
+    // При повторе или перезапуске того же стрима форсируем обновление, сбрасывая позицию и кэш
+    const isSameSrc = this.audio.src === playUrl || (
+      playUrl.includes('/api/stream') &&
+      this.audio.src.includes('/api/stream') &&
+      this.audio.src.split('&_t=')[0] === playUrl.split('&_t=')[0]
+    );
+
+    if (isSameSrc && playUrl.includes('/api/stream')) {
+      const glue = playUrl.includes('?') ? '&' : '?';
+      playUrl = `${playUrl.split('&_t=')[0]}${glue}_t=${Date.now()}`;
+    }
+
+    try {
+      this.audio.currentTime = 0;
+    } catch {}
+
     this.audio.src = playUrl;
+    if (isSameSrc) {
+      try {
+        this.audio.load();
+      } catch {}
+    }
 
     // Apply smooth fade in
     this.applyFadeIn(1.0);
@@ -950,8 +971,8 @@ export class AudioService {
     this.audio
       .play()
       .then(() => {
-        if (playRequestId !== this.currentPlayRequestId) return;
         this.isSwitchingTrack = false;
+        if (playRequestId !== this.currentPlayRequestId) return;
         this.hasAudioStartedPlaying = true;
         this.isPlaying.set(true);
         this.updateMediaSessionPlaybackState('playing');
@@ -961,11 +982,11 @@ export class AudioService {
         this.requestWakeLock();
       })
       .catch(async (err) => {
+        this.isSwitchingTrack = false;
         // If this request was superseded by a newer track, do absolutely nothing
         if (playRequestId !== this.currentPlayRequestId) {
           return;
         }
-        this.isSwitchingTrack = false;
         // Interrupted by rapid navigation or browser load: do NOT set isPlaying(false)
         if (err && (err.name === 'AbortError' || err.code === 20)) {
           return;
@@ -1002,8 +1023,16 @@ export class AudioService {
     this.ensureAudioContext();
 
     const cur = this.currentTrack();
+    if (!cur) return;
+
     if (this.audio.paused) {
-      if (cur) this.updateMediaSessionMetadata(cur);
+      const isEnded = this.audio.ended || (this.duration() > 2 && this.currentTime() >= this.duration() - 0.5);
+      if (isEnded) {
+        this.playTrack(cur, undefined, this.recService.isMixActive(), this.queueIndex());
+        return;
+      }
+
+      this.updateMediaSessionMetadata(cur);
       this.updateMediaSessionPlaybackState('playing');
       this.applyFadeIn(0.5);
       this.audio
@@ -1102,15 +1131,33 @@ export class AudioService {
     }
 
     // 3. Fast Stream Range Seek via backend with ss parameter:
-    const streamIdx = track.audioUrl.indexOf('/api/stream');
-    const streamPath = streamIdx !== -1 ? track.audioUrl.slice(streamIdx) : track.audioUrl;
-    let baseStreamUrl = `${this.libraryService.getBackendUrl()}${streamPath}`.split('&ss=')[0];
-    if (!baseStreamUrl.includes('title=')) {
-      const glue = baseStreamUrl.includes('?') ? '&' : '?';
-      baseStreamUrl = `${baseStreamUrl}${glue}title=${encodeURIComponent(track.title || '')}&artist=${encodeURIComponent(track.artist || '')}`;
+    const activeBase = this.libraryService.getBackendUrl();
+    let baseStreamUrl: string;
+
+    if (track.audioUrl.includes('/api/stream')) {
+      const streamIdx = track.audioUrl.indexOf('/api/stream');
+      baseStreamUrl = `${activeBase}${track.audioUrl.slice(streamIdx)}`.split('&ss=')[0];
+    } else if (
+      track.audioUrl.includes('youtube.com') ||
+      track.audioUrl.includes('youtu.be') ||
+      track.audioUrl.includes('soundcloud.com')
+    ) {
+      baseStreamUrl = `${activeBase}/api/stream?url=${encodeURIComponent(track.audioUrl)}`;
+    } else if (track.audioUrl.startsWith('/api/')) {
+      baseStreamUrl = `${activeBase}${track.audioUrl}`.split('&ss=')[0];
+    } else {
+      baseStreamUrl = track.audioUrl.split('&ss=')[0];
     }
+
+    if (!baseStreamUrl.includes('title=') && track.title) {
+      const glue = baseStreamUrl.includes('?') ? '&' : '?';
+      baseStreamUrl = `${baseStreamUrl}${glue}title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist || '')}`;
+    }
+
+    baseStreamUrl = baseStreamUrl.split('&_t=')[0];
     const ssParam = clamped > 0 ? `&ss=${Math.round(clamped)}` : '';
-    const newUrl = `${baseStreamUrl}${ssParam}`;
+    const tsParam = `&_t=${Date.now()}`;
+    const newUrl = `${baseStreamUrl}${ssParam}${tsParam}`;
 
     this.streamSeekOffset.set(clamped);
     this.currentTime.set(clamped);
@@ -1125,6 +1172,9 @@ export class AudioService {
     }
 
     this.audio.src = newUrl;
+    try {
+      this.audio.load();
+    } catch {}
     this.audio
       .play()
       .then(() => {
@@ -1280,8 +1330,13 @@ export class AudioService {
     }, 1000);
 
     if (this.repeatMode() === 'one') {
-      this.seek(0);
-      this.audio.play().catch(() => {});
+      const cur = this.currentTrack();
+      if (cur) {
+        this.playTrack(cur, undefined, this.recService.isMixActive(), this.queueIndex()).catch(() => {});
+      } else {
+        this.seek(0);
+        this.audio.play().catch(() => {});
+      }
     } else {
       this.next(true);
     }

@@ -191,7 +191,7 @@ pub async fn stream_audio(
             let id = id.trim().to_string();
             if id.starts_with("http") {
                 target = id;
-            } else if !id.starts_with("dz-") && !id.starts_with("sc-") && !id.starts_with("audius-") {
+            } else if id.len() == 11 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
                 target = format!("https://www.youtube.com/watch?v={}", id);
             }
         }
@@ -281,7 +281,7 @@ pub async fn stream_audio(
 
     if let Ok(guard) = state.stream_cache.lock() {
         if let Some((cached_url, cached_at)) = guard.get(&cache_key) {
-            if cached_at.elapsed() < Duration::from_secs(1200) {
+            if cached_at.elapsed() < Duration::from_secs(600) {
                 direct_url = cached_url.clone();
             }
         }

@@ -88,7 +88,22 @@
   <div class="player-center">
     <!-- Buttons Row -->
     <div class="player-buttons">
-      <!-- Shuffle -->
+      <!-- Lyrics / Текст песни -->
+      <button 
+        class="ctrl-feature-btn desktop-only font-mono" 
+        [class.active]="lyricsService.isLyricsOpen()"
+        (click)="lyricsService.toggleLyricsView(); $event.stopPropagation()"
+        title="Текст песни (караоке)"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="4" y1="6" x2="20" y2="6"/>
+          <line x1="4" y1="12" x2="16" y2="12"/>
+          <line x1="4" y1="18" x2="12" y2="18"/>
+        </svg>
+        <span>ТЕКСТ</span>
+      </button>
+
+      <!-- Shuffle / Случайный порядок -->
       <button 
         class="ctrl-btn desktop-only" 
         [class.active]="audioService.isShuffle()"
@@ -104,7 +119,7 @@
         </svg>
       </button>
 
-      <!-- Prev -->
+      <!-- Prev / Предыдущий трек -->
       <button class="ctrl-btn desktop-only" (click)="audioService.prev(); $event.stopPropagation()" title="Предыдущий трек">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="19 20 9 12 19 4 19 20"/>
@@ -130,7 +145,7 @@
         }
       </button>
 
-      <!-- Next -->
+      <!-- Next / Следующий трек -->
       <button class="ctrl-btn btn-mobile-visible" (click)="audioService.next(); $event.stopPropagation()" title="Следующий трек">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="5 4 15 12 5 20 5 4"/>
@@ -150,7 +165,7 @@
         </button>
       }
 
-      <!-- Repeat -->
+      <!-- Repeat / Повтор -->
       <button 
         class="ctrl-btn desktop-only" 
         [class.active]="audioService.repeatMode() !== 'off'"
@@ -165,6 +180,25 @@
         </svg>
         @if (audioService.repeatMode() === 'one') {
           <span class="repeat-one-badge font-mono">1</span>
+        }
+      </button>
+
+      <!-- Sleep Timer / Таймер сна -->
+      <button 
+        class="ctrl-feature-btn desktop-only font-mono" 
+        [class.active]="timerService.isActive()"
+        (click)="timerService.openTimerModal(); $event.stopPropagation()"
+        [title]="timerService.isActive() ? 'Музыкальный таймер активен: ' + timerService.formattedRemaining() : 'Музыкальный смарт-таймер'"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        @if (timerService.isActive()) {
+          <span class="timer-active-dot"></span>
+          <span>{{ timerService.formattedRemaining() }}</span>
+        } @else {
+          <span>ТАЙМЕР</span>
         }
       </button>
     </div>
@@ -271,16 +305,6 @@
 
     <button 
       class="utility-btn" 
-      [class.active]="lyricsService.isLyricsOpen()"
-      (click)="lyricsService.toggleLyricsView()"
-      title="Текст песни (караоке)"
-      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
-    >
-      ТЕКСТ
-    </button>
-
-    <button 
-      class="utility-btn" 
       [class.active]="audioService.isVisualizerOpen()"
       (click)="audioService.toggleVisualizer()"
       [title]="audioService.isVisualizerOpen() ? 'Закрыть визуализатор (V)' : 'Открыть аудио-визуализатор спектра (V)'"
@@ -297,25 +321,6 @@
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       GLOW
-    </button>
-
-    <button 
-      class="utility-btn desktop-only" 
-      [class.active]="timerService.isActive()"
-      (click)="timerService.openTimerModal()"
-      [title]="timerService.isActive() ? 'Музыкальный таймер активен: осталось ' + timerService.formattedRemaining() : 'Музыкальный смарт-таймер под ваши дела'"
-      style="padding: 0 8px; font-size: 11px; font-weight: 600; font-family: monospace; display: inline-flex; align-items: center; gap: 5px;"
-    >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-      @if (timerService.isActive()) {
-        <span style="width: 5px; height: 5px; border-radius: 50%; background: #22c55e;"></span>
-        <span>{{ timerService.formattedRemaining() }}</span>
-      } @else {
-        <span>ТАЙМЕР</span>
-      }
     </button>
 
     <!-- Queue Drawer Toggle -->
