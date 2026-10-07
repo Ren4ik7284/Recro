@@ -571,8 +571,16 @@ export class LyricsService {
               this.setCachedLyrics(targetTrackId, parsed);
               this.currentLyrics.set(parsed);
               this.isLoading.set(false);
-              this.persistLyricsToCloud(track, data.lyrics);
-
+              if (!hasExplicitOffset && parsed.duration && parsed.duration > 20) {
+                const trackDur = track.duration || this.audioService.duration();
+                if (trackDur && trackDur > 20) {
+                  const deltaSec = trackDur - parsed.duration;
+                  if (Math.abs(deltaSec) >= 0.8 && Math.abs(deltaSec) <= 15.0) {
+                    const autoOffsetMs = Math.round(deltaSec * 1000);
+                    this.syncOffsetMs.set(autoOffsetMs);
+                  }
+                }
+              }
 
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
@@ -599,11 +607,9 @@ export class LyricsService {
       return;
     }
 
-    // 4. Fallback: прямой поиск через LRCLIB в браузере
     try {
       const lyricsData = await this.fetchFromLrcLib(track, abortCtrl.signal);
 
-      // Защита от race condition: если трек уже сменился или запрос отменен - игнорируем
       if (abortCtrl.signal.aborted || this.audioService.currentTrack()?.id !== targetTrackId) {
         return;
       }
@@ -614,6 +620,17 @@ export class LyricsService {
         this.isLoading.set(false);
         if (lyricsData.raw) {
           this.persistLyricsToCloud(track, lyricsData.raw);
+        }
+
+        if (!hasExplicitOffset && lyricsData.duration && lyricsData.duration > 20) {
+          const trackDur = track.duration || this.audioService.duration();
+          if (trackDur && trackDur > 20) {
+            const deltaSec = trackDur - lyricsData.duration;
+            if (Math.abs(deltaSec) >= 0.8 && Math.abs(deltaSec) <= 15.0) {
+              const autoOffsetMs = Math.round(deltaSec * 1000);
+              this.syncOffsetMs.set(autoOffsetMs);
+            }
+          }
         }
 
 

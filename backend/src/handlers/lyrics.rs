@@ -289,16 +289,25 @@ async fn fetch_lrclib(
     let primary_a = extract_primary_artist(artist);
     let mut queries = Vec::new();
     if !primary_a.is_empty() {
+        if let Some(dur) = duration {
+            if dur > 20.0 {
+                queries.push(format!("track_name={}&artist_name={}&duration={}", urlencoding::encode(title), urlencoding::encode(&primary_a), dur.round() as u64));
+            }
+        }
         queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(&primary_a)));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", primary_a, title))));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, primary_a))));
     }
     if !artist.is_empty() && artist != primary_a {
+        if let Some(dur) = duration {
+            if dur > 20.0 {
+                queries.push(format!("track_name={}&artist_name={}&duration={}", urlencoding::encode(title), urlencoding::encode(artist), dur.round() as u64));
+            }
+        }
         queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(artist)));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", artist, title))));
         queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, artist))));
     }
-    // Ищем только по названию ТОЛЬКО если артист не был передан вообще
     if primary_a.is_empty() && artist.is_empty() {
         queries.push(format!("q={}", urlencoding::encode(title)));
     }
