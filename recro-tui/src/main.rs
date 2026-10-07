@@ -13,8 +13,10 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    io,
-    process::{Child, Command, Stdio},
+    fs::{self, File},
+    io::{self, Write},
+    path::PathBuf,
+    process::{Child, ChildStdin, Command, Stdio},
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc;
@@ -47,6 +49,7 @@ pub struct LrcLine {
 
 pub struct AudioPlayer {
     process: Option<Child>,
+    stdin: Option<ChildStdin>,
     current_track: Option<Track>,
     playback_start: Option<Instant>,
     playback_offset: Duration,
@@ -58,11 +61,12 @@ impl AudioPlayer {
     pub fn new() -> Self {
         Self {
             process: None,
+            stdin: None,
             current_track: None,
             playback_start: None,
             playback_offset: Duration::ZERO,
             is_paused: false,
-            volume: 100,
+            volume: 40,
         }
     }
 
@@ -77,13 +81,14 @@ impl AudioPlayer {
             .arg("-loglevel")
             .arg("quiet")
             .arg(stream_url)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn();
 
         match child {
-            Ok(p) => {
+            Ok(mut p) => {
+                self.stdin = p.stdin.take();
                 self.process = Some(p);
                 self.current_track = Some(track);
                 self.playback_start = Some(Instant::now());
@@ -92,6 +97,7 @@ impl AudioPlayer {
             }
             Err(_) => {
                 self.process = None;
+                self.stdin = None;
             }
         }
     }
@@ -101,6 +107,7 @@ impl AudioPlayer {
             let _ = p.kill();
             let _ = p.wait();
         }
+        self.stdin = None;
         self.current_track = None;
         self.playback_start = None;
         self.playback_offset = Duration::ZERO;
@@ -112,6 +119,11 @@ impl AudioPlayer {
             return;
         }
 
+        if let Some(stdin) = &mut self.stdin {
+            let _ = stdin.write_all(b"p");
+            let _ = stdin.flush();
+        }
+
         if self.is_paused {
             self.playback_start = Some(Instant::now());
             self.is_paused = false;
@@ -121,6 +133,22 @@ impl AudioPlayer {
             }
             self.playback_start = None;
             self.is_paused = true;
+        }
+    }
+
+    pub fn volume_up(&mut self) {
+        self.volume = (self.volume + 5).min(100);
+        if let Some(stdin) = &mut self.stdin {
+            let _ = stdin.write_all(b"0");
+            let _ = stdin.flush();
+        }
+    }
+
+    pub fn volume_down(&mut self) {
+        self.volume = self.volume.saturating_sub(5);
+        if let Some(stdin) = &mut self.stdin {
+            let _ = stdin.write_all(b"9");
+            let _ = stdin.flush();
         }
     }
 
@@ -139,6 +167,7 @@ impl AudioPlayer {
             match p.try_wait() {
                 Ok(Some(_)) => {
                     self.process = None;
+                    self.stdin = None;
                     self.playback_start = None;
                     false
                 }
@@ -188,6 +217,12 @@ pub fn parse_lrc(raw: &str) -> Vec<LrcLine> {
     lines
 }
 
+#[derive(PartialEq, Clone, Copy)]
+pub enum Tab {
+    Search,
+    Favorites,
+}
+
 #[derive(PartialEq)]
 pub enum Mode {
     Normal,
@@ -200,16 +235,46 @@ pub enum AppEvent {
     LyricsLoaded(Vec<LrcLine>, String),
 }
 
+fn get_favorites_path() -> PathBuf {
+    let mut p = dirs_next().unwrap_or_else(|| PathBuf::from("."));
+    p.push(".config");
+    p.push("recro-tui");
+    let _ = fs::create_dir_all(&p);
+    p.push("favorites.json");
+    p
+}
+
+fn dirs_next() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
+}
+
+fn load_favorites() -> Vec<Track> {
+    let path = get_favorites_path();
+    if let Ok(file) = File::open(path) {
+        serde_json::from_reader(file).unwrap_or_default()
+    } else {
+        Vec::new()
+    }
+}
+
+fn save_favorites(tracks: &[Track]) {
+    let path = get_favorites_path();
+    if let Ok(file) = File::create(path) {
+        let _ = serde_json::to_writer_pretty(file, tracks);
+    }
+}
+
 pub struct App {
+    pub current_tab: Tab,
     pub mode: Mode,
     pub backend_url: String,
     pub search_input: String,
     pub search_results: Vec<Track>,
+    pub favorites: Vec<Track>,
     pub list_state: ListState,
     pub player: AudioPlayer,
     pub lyrics: Vec<LrcLine>,
     pub lyrics_source: String,
-    pub lyrics_scroll: usize,
     pub status_message: String,
     pub is_searching: bool,
     pub is_lyrics_loading: bool,
@@ -222,22 +287,69 @@ impl App {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
+        let favs = load_favorites();
+
         Self {
+            current_tab: Tab::Search,
             mode: Mode::Normal,
             backend_url,
             search_input: String::new(),
             search_results: Vec::new(),
+            favorites: favs,
             list_state,
             player: AudioPlayer::new(),
             lyrics: Vec::new(),
             lyrics_source: String::new(),
-            lyrics_scroll: 0,
-            status_message: "Нажмите '/' для поиска треков, '?' для помощи".to_string(),
+            status_message: "Нажмите '/' для поиска, 'f' добавить в Мои треки, 'Tab' переключить вкладку".to_string(),
             is_searching: false,
             is_lyrics_loading: false,
             http_client: reqwest::Client::new(),
             tx,
         }
+    }
+
+    pub fn current_tracks(&self) -> &Vec<Track> {
+        match self.current_tab {
+            Tab::Search => &self.search_results,
+            Tab::Favorites => &self.favorites,
+        }
+    }
+
+    pub fn toggle_tab(&mut self) {
+        self.current_tab = match self.current_tab {
+            Tab::Search => Tab::Favorites,
+            Tab::Favorites => Tab::Search,
+        };
+        self.list_state.select(Some(0));
+    }
+
+    pub fn toggle_favorite_current(&mut self) {
+        let selected_track = if let Some(sel) = self.list_state.selected() {
+            self.current_tracks().get(sel).cloned()
+        } else {
+            None
+        };
+
+        let track = match selected_track {
+            Some(t) => t,
+            None => match self.player.current_track.clone() {
+                Some(t) => t,
+                None => return,
+            },
+        };
+
+        if let Some(pos) = self.favorites.iter().position(|t| t.id == track.id) {
+            self.favorites.remove(pos);
+            self.status_message = format!("Удалено из Моих треков: {} - {}", track.artist, track.title);
+        } else {
+            self.favorites.insert(0, track.clone());
+            self.status_message = format!("Добавлено в Мои треки: {} - {}", track.artist, track.title);
+        }
+        save_favorites(&self.favorites);
+    }
+
+    pub fn is_favorite(&self, id: &str) -> bool {
+        self.favorites.iter().any(|t| t.id == id)
     }
 
     pub fn trigger_search(&mut self) {
@@ -246,6 +358,7 @@ impl App {
             return;
         }
 
+        self.current_tab = Tab::Search;
         self.is_searching = true;
         self.status_message = format!("Поиск '{}'...", q);
         let client = self.http_client.clone();
@@ -297,7 +410,7 @@ impl App {
 
     pub fn play_selected(&mut self) {
         if let Some(sel) = self.list_state.selected() {
-            if let Some(track) = self.search_results.get(sel).cloned() {
+            if let Some(track) = self.current_tracks().get(sel).cloned() {
                 let stream_url = format!(
                     "{}/api/stream?id={}&url={}&title={}&artist={}",
                     self.backend_url,
@@ -315,12 +428,13 @@ impl App {
     }
 
     pub fn next_track_in_list(&mut self) {
-        if self.search_results.is_empty() {
+        let count = self.current_tracks().len();
+        if count == 0 {
             return;
         }
         let i = match self.list_state.selected() {
             Some(i) => {
-                if i >= self.search_results.len() - 1 {
+                if i >= count - 1 {
                     0
                 } else {
                     i + 1
@@ -332,13 +446,14 @@ impl App {
     }
 
     pub fn prev_track_in_list(&mut self) {
-        if self.search_results.is_empty() {
+        let count = self.current_tracks().len();
+        if count == 0 {
             return;
         }
         let i = match self.list_state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.search_results.len() - 1
+                    count - 1
                 } else {
                     i - 1
                 }
@@ -374,33 +489,45 @@ fn ui(f: &mut Frame, app: &mut App) {
     let player_rect = chunks[2];
     let footer_rect = chunks[3];
 
-    let header_title = Span::styled(
-        " 🎵 RECRO MUSIC TUI ",
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
-    );
-    let search_disp = if app.mode == Mode::Search {
-        format!(" [Поиск]: {}_ ", app.search_input)
-    } else if !app.search_input.is_empty() {
-        format!(" [Запрос]: {} ", app.search_input)
+    let tab_search_str = if app.current_tab == Tab::Search {
+        Span::styled(" [1] Поиск ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
     } else {
-        " [/] Искать треки | [Пробел] Пауза | [Enter] Играть | [?] Справка ".to_string()
+        Span::styled(" [1] Поиск ", Style::default().fg(Color::DarkGray))
     };
 
-    let header_widget = Paragraph::new(search_disp)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(if app.mode == Mode::Search {
-                    Style::default().fg(Color::Yellow)
-                } else {
-                    Style::default().fg(Color::DarkGray)
-                })
-                .title(header_title),
-        )
-        .alignment(Alignment::Left);
+    let tab_fav_str = if app.current_tab == Tab::Favorites {
+        Span::styled(format!(" [2] Мои треки ({}) ", app.favorites.len()), Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD))
+    } else {
+        Span::styled(format!(" [2] Мои треки ({}) ", app.favorites.len()), Style::default().fg(Color::DarkGray))
+    };
+
+    let search_disp = if app.mode == Mode::Search {
+        format!(" Поиск: {}_ ", app.search_input)
+    } else if !app.search_input.is_empty() {
+        format!(" Запрос: {} | [Tab] Вкладка | [+/-] Звук {}% ", app.search_input, app.player.volume)
+    } else {
+        format!(" [/] Поиск | [Tab] Вкладка | [Пробел] Пауза | [f] Избранное | [+/-] Звук {}% ", app.player.volume)
+    };
+
+    let header_widget = Paragraph::new(Line::from(vec![
+        tab_search_str,
+        Span::raw(" | "),
+        tab_fav_str,
+        Span::raw("   "),
+        Span::styled(search_disp, Style::default().fg(if app.mode == Mode::Search { Color::Yellow } else { Color::White })),
+    ]))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(if app.mode == Mode::Search {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            })
+            .title(Span::styled(" 🎵 RECRO MUSIC TUI ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+    )
+    .alignment(Alignment::Left);
     f.render_widget(header_widget, header_rect);
 
     let main_columns = Layout::default()
@@ -411,34 +538,56 @@ fn ui(f: &mut Frame, app: &mut App) {
     let results_rect = main_columns[0];
     let lyrics_rect = main_columns[1];
 
-    let items: Vec<ListItem> = app
-        .search_results
-        .iter()
-        .enumerate()
-        .map(|(idx, track)| {
-            let dur = format_time(track.duration);
-            let line = Line::from(vec![
-                Span::styled(
-                    format!("{:2}. ", idx + 1),
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(
-                    &track.artist,
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(" - "),
-                Span::styled(&track.title, Style::default().fg(Color::Gray)),
-                Span::raw(" "),
-                Span::styled(
-                    format!("[{}]", dur),
-                    Style::default().fg(Color::DarkGray),
-                ),
-            ]);
-            ListItem::new(line)
-        })
-        .collect();
+    let items: Vec<ListItem> = {
+        let tracks = match app.current_tab {
+            Tab::Search => &app.search_results,
+            Tab::Favorites => &app.favorites,
+        };
+        tracks
+            .iter()
+            .enumerate()
+            .map(|(idx, track)| {
+                let dur = format_time(track.duration);
+                let is_fav = app.favorites.iter().any(|t| t.id == track.id);
+                let fav_icon = if is_fav { "♥ " } else { "  " };
+
+                let line = Line::from(vec![
+                    Span::styled(
+                        fav_icon,
+                        Style::default().fg(if is_fav { Color::Red } else { Color::DarkGray }),
+                    ),
+                    Span::styled(
+                        format!("{:2}. ", idx + 1),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                    Span::styled(
+                        &track.artist,
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw(" - "),
+                    Span::styled(&track.title, Style::default().fg(Color::Gray)),
+                    Span::raw(" "),
+                    Span::styled(
+                        format!("[{}]", dur),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                ]);
+                ListItem::new(line)
+            })
+            .collect()
+    };
+
+    let track_count = match app.current_tab {
+        Tab::Search => app.search_results.len(),
+        Tab::Favorites => app.favorites.len(),
+    };
+
+    let list_title = match app.current_tab {
+        Tab::Search => format!(" Результаты поиска ({}) ", track_count),
+        Tab::Favorites => format!(" Мои треки ({}) ", track_count),
+    };
 
     let list_widget = List::new(items)
         .block(
@@ -447,9 +596,9 @@ fn ui(f: &mut Frame, app: &mut App) {
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(Color::DarkGray))
                 .title(Span::styled(
-                    format!(" Результаты ({}) ", app.search_results.len()),
+                    list_title,
                     Style::default()
-                        .fg(Color::Green)
+                        .fg(if app.current_tab == Tab::Favorites { Color::LightRed } else { Color::Green })
                         .add_modifier(Modifier::BOLD),
                 )),
         )
@@ -569,7 +718,8 @@ fn ui(f: &mut Frame, app: &mut App) {
         "⏹ СТОП"
     };
 
-    let gauge_label = format!("{} / {}", format_time(cur_pos), format_time(total_dur));
+    let vol_bar = format!(" 🔊 {}% ", app.player.volume);
+    let gauge_label = format!("{} / {} |{}", format_time(cur_pos), format_time(total_dur), vol_bar);
     let player_block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -601,7 +751,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(footer_widget, footer_rect);
 
     if app.mode == Mode::Help {
-        let help_rect = centered_rect(60, 50, size);
+        let help_rect = centered_rect(65, 55, size);
         f.render_widget(Clear, help_rect);
 
         let help_text = vec![
@@ -614,23 +764,31 @@ fn ui(f: &mut Frame, app: &mut App) {
             Line::from(""),
             Line::from(vec![
                 Span::styled(" /            ", Style::default().fg(Color::Cyan)),
-                Span::raw("Активировать строку поиска"),
+                Span::raw("Активировать поиск"),
             ]),
             Line::from(vec![
-                Span::styled(" Enter        ", Style::default().fg(Color::Cyan)),
-                Span::raw("Подтвердить поиск или воспроизвести трек"),
+                Span::styled(" Tab / 1 / 2  ", Style::default().fg(Color::Cyan)),
+                Span::raw("Переключить вкладки (Поиск / Мои треки)"),
             ]),
             Line::from(vec![
-                Span::styled(" j / Down     ", Style::default().fg(Color::Cyan)),
-                Span::raw("Следующий трек в списке"),
+                Span::styled(" f            ", Style::default().fg(Color::Cyan)),
+                Span::raw("Добавить/удалить трек из Моих треков (Избранное)"),
             ]),
             Line::from(vec![
-                Span::styled(" k / Up       ", Style::default().fg(Color::Cyan)),
-                Span::raw("Предыдущий трек в списке"),
+                Span::styled(" + / -        ", Style::default().fg(Color::Cyan)),
+                Span::raw("Громкость выше / тише (комфортный шаг 5%)"),
             ]),
             Line::from(vec![
                 Span::styled(" Space        ", Style::default().fg(Color::Cyan)),
                 Span::raw("Пауза / Продолжить воспроизведение"),
+            ]),
+            Line::from(vec![
+                Span::styled(" Enter        ", Style::default().fg(Color::Cyan)),
+                Span::raw("Включить выбранный трек"),
+            ]),
+            Line::from(vec![
+                Span::styled(" j / k / Вниз ", Style::default().fg(Color::Cyan)),
+                Span::raw("Выбор трека в списке"),
             ]),
             Line::from(vec![
                 Span::styled(" s            ", Style::default().fg(Color::Cyan)),
@@ -638,11 +796,11 @@ fn ui(f: &mut Frame, app: &mut App) {
             ]),
             Line::from(vec![
                 Span::styled(" ?            ", Style::default().fg(Color::Cyan)),
-                Span::raw("Показать / скрыть эту справку"),
+                Span::raw("Скрыть/показать справку"),
             ]),
             Line::from(vec![
                 Span::styled(" q / Esc      ", Style::default().fg(Color::Cyan)),
-                Span::raw("Выход из режима или выход из программы"),
+                Span::raw("Выход из программы"),
             ]),
         ];
 
@@ -757,6 +915,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('/') => {
                             app.mode = Mode::Search;
                             app.search_input.clear();
+                        }
+                        KeyCode::Tab => {
+                            app.toggle_tab();
+                        }
+                        KeyCode::Char('1') => {
+                            app.current_tab = Tab::Search;
+                            app.list_state.select(Some(0));
+                        }
+                        KeyCode::Char('2') => {
+                            app.current_tab = Tab::Favorites;
+                            app.list_state.select(Some(0));
+                        }
+                        KeyCode::Char('f') => {
+                            app.toggle_favorite_current();
+                        }
+                        KeyCode::Char('+') | KeyCode::Char('=') => {
+                            app.player.volume_up();
+                            app.status_message = format!("Громкость: {}%", app.player.volume);
+                        }
+                        KeyCode::Char('-') | KeyCode::Char('_') => {
+                            app.player.volume_down();
+                            app.status_message = format!("Громкость: {}%", app.player.volume);
                         }
                         KeyCode::Char('?') => {
                             app.mode = Mode::Help;
