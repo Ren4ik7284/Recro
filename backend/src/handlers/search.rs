@@ -762,31 +762,7 @@ pub async fn get_recommendations(
         }
     }
 
-    if tracks.is_empty() && (!chart.is_empty() || (artist.is_empty() && !genre.is_empty())) {
-        let genre_queries: &[&str] = if genre.contains("rap") || genre.contains("hip") || genre.contains("trap") || genre.contains("drill") {
-            &["russian rap", "русский хип хоп", "underground rap", "hip hop", "trap"]
-        } else if genre.contains("phonk") {
-            &["drift phonk", "phonk remix", "brazilian phonk", "memphis phonk"]
-        } else if genre.contains("rock") || genre.contains("metal") || genre.contains("alternative") {
-            &["русский рок", "альтернативный рок", "indie rock", "post punk"]
-        } else if genre.contains("pop") {
-            &["популярная музыка", "русский поп", "pop hits", "хиты"]
-        } else {
-            &["trending", "топ треки", "hits", "новинки"]
-        };
-        let sc_query = genre_queries[fastrand::usize(..genre_queries.len())];
-
-        let sc_res = state.soundcloud.search_tracks(sc_query, limit * 2, &base_url).await;
-        for t in sc_res {
-            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
-                && !is_noisy_compilation(&t.title)
-                && seen_ids.insert(t.id.clone())
-            {
-                tracks.push(t);
-            }
-        }
-        fastrand::shuffle(&mut tracks);
-    } else if tracks.is_empty() && !artist.is_empty() {
+    if tracks.is_empty() && !artist.is_empty() {
         let sc_artist_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
         let mut first_id = None;
         for t in sc_artist_res {
@@ -818,6 +794,32 @@ pub async fn get_recommendations(
                 }
             }
         }
+    }
+
+    if tracks.is_empty() && (!chart.is_empty() || !genre.is_empty()) {
+        let genre_queries: &[&str] = if genre.contains("rap") || genre.contains("hip") || genre.contains("trap") || genre.contains("drill") {
+            &["russian rap", "русский хип хоп", "underground rap", "hip hop", "trap"]
+        } else if genre.contains("phonk") {
+            &["drift phonk", "phonk remix", "brazilian phonk", "memphis phonk"]
+        } else if genre.contains("rock") || genre.contains("metal") || genre.contains("alternative") {
+            &["русский рок", "альтернативный рок", "indie rock", "post punk"]
+        } else if genre.contains("pop") {
+            &["популярная музыка", "русский поп", "pop hits", "хиты"]
+        } else {
+            &["trending", "топ треки", "hits", "новинки"]
+        };
+        let sc_query = genre_queries[fastrand::usize(..genre_queries.len())];
+
+        let sc_res = state.soundcloud.search_tracks(sc_query, limit * 2, &base_url).await;
+        for t in sc_res {
+            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+                && !is_noisy_compilation(&t.title)
+                && seen_ids.insert(t.id.clone())
+            {
+                tracks.push(t);
+            }
+        }
+        fastrand::shuffle(&mut tracks);
     }
 
     if !tracks.is_empty() {

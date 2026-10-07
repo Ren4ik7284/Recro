@@ -183,19 +183,30 @@ pub async fn stream_audio(
 
     let mut target = String::new();
 
-    if let Some(u) = params.url.clone() {
-        if !u.trim().is_empty() {
-            target = u.trim().to_string();
+    if let Some(id) = params.id.clone() {
+        let id_clean = id.trim().to_string();
+        if id_clean.starts_with("sc-") {
+            target = id_clean;
+        } else if id_clean.starts_with("http") {
+            target = id_clean;
+        } else if id_clean.len() == 11 && id_clean.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+            target = format!("https://www.youtube.com/watch?v={}", id_clean);
+        }
+    }
+
+    if target.is_empty() {
+        if let Some(u) = params.url.clone() {
+            if !u.trim().is_empty() {
+                target = u.trim().to_string();
+            }
         }
     }
 
     if target.is_empty() {
         if let Some(id) = params.id.clone() {
             let id = id.trim().to_string();
-            if id.starts_with("http") {
+            if !id.is_empty() {
                 target = id;
-            } else if id.len() == 11 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
-                target = format!("https://www.youtube.com/watch?v={}", id);
             }
         }
     }

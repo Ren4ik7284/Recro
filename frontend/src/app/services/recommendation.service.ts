@@ -1324,39 +1324,40 @@ export class RecommendationService {
     // 1. Personalized seed queries: artist top tracks (e.g. "Платина топ", "Miyagi хиты")
     if (userTopArtists.length > 0) {
       const shuffledSeeds = [...userTopArtists].sort(() => 0.5 - Math.random());
-      for (const artist of shuffledSeeds.slice(0, 4)) {
-        if (isRu) {
-          queries.push(`${artist} feat`, `${artist} ft`, `${artist} топ`, `${artist} популярные`);
-        } else {
-          queries.push(`${artist} feat`, `${artist} top hits`, artist);
-        }
+      for (const artist of shuffledSeeds) {
+        queries.push(
+          `${artist} feat`,
+          `${artist} ft`,
+          `${artist} remix`,
+          `${artist} топ`,
+          `${artist}`
+        );
       }
+      return queries;
     }
 
-    // 2. SoundCloud charts and genre-aligned queries based on user taste with deep subgenre variety
     const ruQueries: string[] = [];
     const enQueries: string[] = [];
 
     if (userTaste.hiphop > 0.40) {
-      ruQueries.push('russian rap топ', 'русский рэп чарт', 'русский трэп', 'хиты soundcloud рэп', 'underground rap новинки', 'новинки рэпа');
-      enQueries.push('trap hits soundcloud', 'drill rap top', 'hip hop hits', 'rap trending 2024');
+      ruQueries.push('russian rap', 'русский рэп', 'русский трэп', 'underground rap');
+      enQueries.push('trap hits', 'drill rap', 'hip hop');
     }
     if (userTaste.electronic > 0.40) {
-      ruQueries.push('drift phonk hits', 'фонк топ soundcloud', 'фонк чарт', 'brazilian phonk', 'aggressive phonk remix');
-      enQueries.push('drift phonk hits', 'viral phonk soundcloud', 'edm festival hits', 'memphis phonk hits');
+      ruQueries.push('drift phonk', 'фонк топ', 'brazilian phonk');
+      enQueries.push('drift phonk', 'phonk remix', 'memphis phonk');
     }
     if (userTaste.rock > 0.40) {
-      ruQueries.push('русский рок хиты', 'русский рок топ', 'альтернативный рок', 'русский пост панк', 'indie rock новинки');
-      enQueries.push('alternative rock hits', 'rock top hits', 'modern rock playlist');
+      ruQueries.push('русский рок', 'альтернативный рок', 'пост панк');
+      enQueries.push('alternative rock', 'modern rock');
     }
     if (userTaste.pop > 0.40) {
-      ruQueries.push('русские хиты топ', 'популярные треки soundcloud', 'новинки поп музыки', 'хиты радио 2024');
-      enQueries.push('viral pop hits', 'trending soundcloud hits', 'billboard hot 100 hits');
+      ruQueries.push('русские хиты', 'популярные треки');
+      enQueries.push('viral pop hits', 'trending hits');
     }
 
-    // Default chart fallbacks if no specific vector fired
-    if (ruQueries.length === 0) ruQueries.push('russian rap топ', 'русские хиты топ', 'drift phonk hits', 'новинки музыки');
-    if (enQueries.length === 0) enQueries.push('trending soundcloud hits', 'trap hits soundcloud', 'viral hits');
+    if (ruQueries.length === 0) ruQueries.push('russian rap', 'drift phonk', 'русский рок');
+    if (enQueries.length === 0) enQueries.push('trap hits', 'viral hits');
 
     if (isRu) {
       queries.push(...ruQueries);
@@ -1460,7 +1461,7 @@ export class RecommendationService {
         }
       }
 
-      if (this.libraryService.getSoundCloudCharts) {
+      if (candidates.length === 0 && this.libraryService.getSoundCloudCharts) {
         pass1Tasks.push(
           this.libraryService.getSoundCloudCharts(dominantGenre, 10).catch(() => [] as Track[])
         );
