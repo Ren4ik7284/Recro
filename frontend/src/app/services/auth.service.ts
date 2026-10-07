@@ -217,8 +217,7 @@ export class AuthService {
       } catch {}
 
       return true;
-    } catch (e: any) {
-      console.error('[Recro AUTH LOGIN ERROR]', e);
+    } catch {
       this.authError.set('Не удалось подключиться к серверу');
       return false;
     } finally {
@@ -281,8 +280,7 @@ export class AuthService {
       } catch {}
 
       return true;
-    } catch (e: any) {
-      console.error('[Recro AUTH REGISTER ERROR]', e);
+    } catch {
       this.authError.set('Не удалось подключиться к серверу');
       return false;
     } finally {
@@ -307,8 +305,7 @@ export class AuthService {
           }
         }
       }
-    } catch (e) {
-      console.warn('[Recro AUTH] Не удалось загрузить конфигурацию аутентификации:', e);
+    } catch {
     }
   }
 
@@ -357,8 +354,7 @@ export class AuthService {
       } catch {}
 
       return true;
-    } catch (e: any) {
-      console.error('[Recro GOOGLE AUTH ERROR]', e);
+    } catch {
       this.authError.set('Не удалось подключиться к серверу для авторизации через Google');
       return false;
     } finally {

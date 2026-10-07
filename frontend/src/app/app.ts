@@ -628,6 +628,7 @@ export class App implements OnInit {
   }
 
   closeAuthModal() {
+    this.authPasswordInput.set('');
     this.isAuthModalOpen.set(false);
     this.navService.closeOverlay('auth');
   }
@@ -742,8 +743,8 @@ export class App implements OnInit {
       }
 
       const ok = await this.authService.login(backendUrl, loginVal, pass);
+      this.authPasswordInput.set('');
       if (ok) {
-        this.authPasswordInput.set('');
         this.closeAuthModal();
         this.showToast(`Добро пожаловать, ${this.authService.currentUser()?.username || loginVal}!`);
         this.audioService.resetSessionAudio();
@@ -774,8 +775,8 @@ export class App implements OnInit {
       }
 
       const ok = await this.authService.register(backendUrl, username, pass);
+      this.authPasswordInput.set('');
       if (ok) {
-        this.authPasswordInput.set('');
         this.closeAuthModal();
         this.showToast(`Регистрация успешна! Добро пожаловать, ${username}!`);
         this.audioService.resetSessionAudio();

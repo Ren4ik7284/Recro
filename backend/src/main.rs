@@ -110,6 +110,7 @@ async fn main() {
         .route("/api/stream", get(stream_audio))
         .route("/api/lyrics", get(get_lyrics))
         .route("/api/track/meta", get(get_track_meta).post(save_track_meta))
+        .layer(axum::middleware::from_fn(security_headers_middleware))
         .layer(RequestBodyLimitLayer::new(5 * 1024 * 1024))
         .layer(cors)
         .with_state(state);
@@ -135,4 +136,25 @@ async fn main() {
     if let Err(e) = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await {
         eprintln!("Server error: {}", e);
     }
+}
+
+async fn security_headers_middleware(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        axum::http::header::HeaderName::from_static("x-content-type-options"),
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        axum::http::header::HeaderName::from_static("x-frame-options"),
+        axum::http::HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        axum::http::header::HeaderName::from_static("referrer-policy"),
+        axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    response
 }

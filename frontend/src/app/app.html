@@ -2022,6 +2022,10 @@
                 [ngModel]="authUsernameInput()"
                 (ngModelChange)="authUsernameInput.set($event)"
                 (keyup.enter)="submitAuth()"
+                autocomplete="username"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
                 class="form-text-input"
                 autofocus
               />
@@ -2036,6 +2040,10 @@
                   [ngModel]="authPasswordInput()"
                   (ngModelChange)="authPasswordInput.set($event)"
                   (keyup.enter)="submitAuth()"
+                  autocomplete="current-password"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                   class="form-text-input"
                 />
                 <button 
@@ -2067,6 +2075,10 @@
                 [ngModel]="authUsernameInput()"
                 (ngModelChange)="authUsernameInput.set($event)"
                 (keyup.enter)="submitAuth()"
+                autocomplete="username"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
                 class="form-text-input"
                 autofocus
               />
@@ -2082,6 +2094,10 @@
                   [ngModel]="authPasswordInput()"
                   (ngModelChange)="authPasswordInput.set($event)"
                   (keyup.enter)="submitAuth()"
+                  autocomplete="new-password"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                   class="form-text-input"
                 />
                 <button 
