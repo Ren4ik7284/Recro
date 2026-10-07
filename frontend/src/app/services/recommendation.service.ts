@@ -298,6 +298,8 @@ const CHILL_REGEX = /\b(lo-?fi|chill|ambient|relax|sleep|piano|acoustic|акус
 const POP_REGEX = /\b(pop|поп|indie|инди|hit|k-?pop|vocal|вокал)\b/i;
 
 export const JUNK_GENRES_REGEX = /\b(jazz|джаз|classical|классика|классическая|blues|блюз|chamber|orchestral|symphony|симфония|opera|опера|relaxing piano|sleep music|meditation|lounge bar|soothing piano|bossa nova)\b/i;
+export const REGIONAL_SPAM_REGEX = /[\u0900-\u097F]|punjabi|hindi|bollywood|desi|bhangra|sidhu|haryanvi|tamil|telugu|[іїєґІЇЄҐ]|українськ|ukrainian|\bзсу\b/i;
+export const BEDROOM_PRODUCER_REGEX = /\b(type beat|beat prod|instrumental|karaoke|караоке|минус|slowed|reverb|8d audio|bass boosted|nightcore|sped up|speed up|remake|guitar cover|кавер|1 hour|10 hours|hour mix|compilation|сборник)\b/i;
 
 @Injectable({
   providedIn: 'root',
@@ -1321,15 +1323,13 @@ export class RecommendationService {
     const queries: string[] = [];
     const isRu = lang === 'ru' || (lang === 'all' && this.isCyrillicUserLibrary());
 
-    // 1. Personalized seed queries: artist top tracks (e.g. "Платина топ", "Miyagi хиты")
     if (userTopArtists.length > 0) {
       const shuffledSeeds = [...userTopArtists].sort(() => 0.5 - Math.random());
       for (const artist of shuffledSeeds) {
         queries.push(
-          `${artist} feat`,
-          `${artist} ft`,
-          `${artist} remix`,
+          `${artist} хиты`,
           `${artist} топ`,
+          `${artist} популярное`,
           `${artist}`
         );
       }
@@ -1340,30 +1340,27 @@ export class RecommendationService {
     const enQueries: string[] = [];
 
     if (userTaste.hiphop > 0.40) {
-      ruQueries.push('russian rap', 'русский рэп', 'русский трэп', 'underground rap');
-      enQueries.push('trap hits', 'drill rap', 'hip hop');
+      ruQueries.push('русский рэп хиты', 'OG Buda', 'Платина', 'Kizaru', 'MAYOT', 'Miyagi');
+      enQueries.push('hip hop hits', 'rap hits');
     }
     if (userTaste.electronic > 0.40) {
-      ruQueries.push('drift phonk', 'фонк топ', 'brazilian phonk');
-      enQueries.push('drift phonk', 'phonk remix', 'memphis phonk');
+      ruQueries.push('drift phonk', 'phonk remix', 'memphis phonk');
+      enQueries.push('drift phonk', 'phonk remix');
     }
     if (userTaste.rock > 0.40) {
-      ruQueries.push('русский рок', 'альтернативный рок', 'пост панк');
-      enQueries.push('alternative rock', 'modern rock');
+      ruQueries.push('русский рок', 'Король и Шут', 'Порнофильмы', 'Кино', 'Ария');
+      enQueries.push('rock hits', 'alternative rock');
     }
     if (userTaste.pop > 0.40) {
-      ruQueries.push('русские хиты', 'популярные треки');
-      enQueries.push('viral pop hits', 'trending hits');
+      ruQueries.push('русские хиты', 'популярные треки', 'ANNA ASTI', 'JONY');
+      enQueries.push('pop hits', 'top hits');
     }
 
-    if (ruQueries.length === 0) ruQueries.push('russian rap', 'drift phonk', 'русский рок');
-    if (enQueries.length === 0) enQueries.push('trap hits', 'viral hits');
+    if (ruQueries.length === 0) ruQueries.push('русский рэп хиты', 'drift phonk', 'русский рок');
+    if (enQueries.length === 0) enQueries.push('top hits', 'viral hits');
 
     if (isRu) {
       queries.push(...ruQueries);
-      if (lang === 'all') {
-        queries.push(...enQueries.slice(0, 2));
-      }
     } else {
       queries.push(...enQueries);
     }
@@ -1432,17 +1429,15 @@ export class RecommendationService {
 
       const effectiveSeed = seedTrack || (candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : null);
       if (effectiveSeed) {
-        const seedId = effectiveSeed.id?.startsWith('sc-') ? effectiveSeed.id : undefined;
         pass1Tasks.push(
-          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 12, seedId).catch(() => [] as Track[])
+          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 12).catch(() => [] as Track[])
         );
 
         const seedArtists = extractAllArtists(effectiveSeed.artist, effectiveSeed.title);
         if (seedArtists.length > 0) {
           const randArtist = seedArtists[Math.floor(Math.random() * seedArtists.length)];
-          const featQuery = `${randArtist} feat`;
           pass1Tasks.push(
-            this.libraryService.searchOnline(featQuery).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(randArtist, dominantGenre, 8).catch(() => [] as Track[])
           );
         }
       }
@@ -1454,7 +1449,7 @@ export class RecommendationService {
           ...userTopArtists.slice(offset),
           ...userTopArtists.slice(0, offset),
         ];
-        for (const seedArtist of rotated.slice(0, 2)) {
+        for (const seedArtist of rotated.slice(0, 3)) {
           pass1Tasks.push(
             this.libraryService.getRecommendations(seedArtist, dominantGenre, 8).catch(() => [] as Track[])
           );
@@ -1469,14 +1464,17 @@ export class RecommendationService {
 
       const pass1Results = await Promise.all(pass1Tasks);
       const pass1Tracks = pass1Results.flat();
+      const isRuLib = this.isCyrillicUserLibrary();
 
       for (const t of pass1Tracks) {
         if (selectedTracks.length >= count) break;
         if (!t || !t.audioUrl || !t.audioUrl.trim() || !t.title || !t.title.trim()) continue;
         if (excludeIds.has(t.id) || this.isDisliked(t.id) || this.isSessionDuplicate(t)) continue;
         if (t.duration < 50 || t.duration > 480) continue;
-        if (PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`)) continue;
-        if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`)) continue;
+        const textKey = `${t.genre} ${t.title} ${t.artist}`;
+        if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
+        if (isRuLib && REGIONAL_SPAM_REGEX.test(textKey)) continue;
+        if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(textKey)) continue;
 
         const primaryArt = normalizeArtist(t.artist);
         const normTitle = normalizeTitle(t.title);
@@ -1484,7 +1482,6 @@ export class RecommendationService {
         if (normTitle && seenTitles.has(normTitle)) continue;
         if (this.isRecentlyPlayed(t, 90)) continue;
 
-        // Taste Vector Alignment Check:
         const trackVec = this.extractTrackVector(t);
         const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
         if (similarity < 0.42) {
@@ -1521,7 +1518,9 @@ export class RecommendationService {
           !this.isDisliked(t.id) &&
           !this.isSessionDuplicate(t) &&
           (t.duration === 0 || (t.duration >= 50 && t.duration <= 480)) &&
-          !PLAYLIST_NOISE_REGEX.test(`${t.title} ${t.artist}`) &&
+          !PLAYLIST_NOISE_REGEX.test(`${t.genre} ${t.title} ${t.artist}`) &&
+          !BEDROOM_PRODUCER_REGEX.test(`${t.genre} ${t.title} ${t.artist}`) &&
+          (!isRuLib || !REGIONAL_SPAM_REGEX.test(`${t.genre} ${t.title} ${t.artist}`)) &&
           (hasJunkAffinity || !JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`))
         );
 
@@ -1539,7 +1538,6 @@ export class RecommendationService {
           if (normTitle && seenTitles.has(normTitle)) continue;
           if (this.isRecentlyPlayed(t, 60)) continue;
 
-          // Taste Vector Alignment Check:
           const trackVec = this.extractTrackVector(t);
           const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
           if (similarity < minSim) {
@@ -1554,12 +1552,14 @@ export class RecommendationService {
         }
       }
 
-      // SAFE Fallback pass: ONLY pick tracks from fallbackPool IF similarity >= 0.38 and not junk!
       if (selectedTracks.length < count && fallbackPool.length > 0) {
         for (const t of fallbackPool) {
           if (selectedTracks.length >= count) break;
           if (excludeIds.has(t.id) || this.isSessionDuplicate(t)) continue;
-          if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`)) continue;
+          const textKey = `${t.genre} ${t.title} ${t.artist}`;
+          if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
+          if (isRuLib && REGIONAL_SPAM_REGEX.test(textKey)) continue;
+          if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(textKey)) continue;
 
           const primaryArt = normalizeArtist(t.artist);
           const lastArt = selectedTracks.length > 0 ? normalizeArtist(selectedTracks[selectedTracks.length - 1].artist) : null;

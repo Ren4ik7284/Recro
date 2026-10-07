@@ -1630,13 +1630,14 @@ export class AudioService {
       }
     }
 
-    // Resilience fallbacks if online discovery failed or candidates were exhausted
     if (newTracks.length === 0 && localCandidates.length > 0) {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
+      if (newTracks.length === 0) {
+        newTracks = this.recService.pickNextTracks(needed, new Set(curTrack ? [curTrack.id] : []));
+      }
     }
 
-    // Secondary fallback: fresh curated starter candidates that haven't been heard in this session
-    if (newTracks.length === 0) {
+    if (newTracks.length === 0 && localCandidates.length === 0) {
       const starters = this.recService.getStarterCandidates(this.recService.currentMood(), needed * 2);
       const freshStarters = starters.filter(
         (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t)

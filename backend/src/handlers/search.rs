@@ -551,20 +551,35 @@ pub async fn execute_deezer_search(query: &str, limit: usize, base_url: &str) ->
     tracks
 }
 
-pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
+pub async fn fetch_deezer_related_artists(artist_name: &str) -> Vec<String> {
+    let clean = artist_name
+        .split("feat")
+        .next()
+        .unwrap_or(artist_name)
+        .split("ft.")
+        .next()
+        .unwrap_or(artist_name)
+        .split('&')
+        .next()
+        .unwrap_or(artist_name)
+        .trim();
+
+    if clean.is_empty() {
+        return Vec::new();
+    }
+
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_millis(3000))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .build()
     {
         Ok(c) => c,
         Err(_) => return Vec::new(),
     };
 
-    // 1. Find artist id on Deezer
     let search_url = format!(
         "https://api.deezer.com/search/artist?q={}&limit=1",
-        urlencoding::encode(artist_name)
+        urlencoding::encode(clean)
     );
     let artist_id = match client.get(&search_url).send().await {
         Ok(r) if r.status().is_success() => {
@@ -582,16 +597,15 @@ pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &
         None => return Vec::new(),
     };
 
-    // 2. Fetch related artists (request wider pool for deep variety)
-    let rel_url = format!("https://api.deezer.com/artist/{}/related?limit=12", artist_id);
-    let mut rel_artists = match client.get(&rel_url).send().await {
+    let rel_url = format!("https://api.deezer.com/artist/{}/related?limit=15", artist_id);
+    match client.get(&rel_url).send().await {
         Ok(r) if r.status().is_success() => {
             if let Ok(data) = r.json::<serde_json::Value>().await {
                 data["data"]
                     .as_array()
                     .map(|arr| {
                         arr.iter()
-                            .filter_map(|a| a["id"].as_i64())
+                            .filter_map(|a| a["name"].as_str().map(|s| s.to_string()))
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default()
@@ -600,89 +614,53 @@ pub async fn execute_deezer_related(artist_name: &str, limit: usize, base_url: &
             }
         }
         _ => Vec::new(),
-    };
-
-    if rel_artists.is_empty() {
-        return Vec::new();
     }
+}
 
-    // Shuffle related artists so recommendations don't fixate on the same top-3 artists
-    fastrand::shuffle(&mut rel_artists);
+pub fn is_junk_track(title: &str, artist: &str, query_is_cyrillic: bool) -> bool {
+    let lower_title = title.to_lowercase();
+    let lower_artist = artist.to_lowercase();
+    let combined = format!("{} {}", lower_title, lower_artist);
 
-    // 3. Concurrently fetch top tracks from diverse related artists
-    let mut set = tokio::task::JoinSet::new();
-    for rel_id in rel_artists.into_iter().take(7) {
-        let cl = client.clone();
-        set.spawn(async move {
-            let top_url = format!("https://api.deezer.com/artist/{}/top?limit=4", rel_id);
-            if let Ok(r) = cl.get(&top_url).send().await {
-                if r.status().is_success() {
-                    if let Ok(v) = r.json::<serde_json::Value>().await {
-                        return v["data"].as_array().cloned().unwrap_or_default();
-                    }
-                }
-            }
-            Vec::new()
-        });
-    }
-
-    let mut tracks = Vec::new();
-    let max_pool = limit * 3;
-    while let Some(res) = set.join_next().await {
-        if let Ok(items) = res {
-            for item in items {
-                if tracks.len() >= max_pool {
-                    break;
-                }
-                let id_num = match item["id"].as_i64() {
-                    Some(n) => n,
-                    None => continue,
-                };
-                let id = format!("dz-{}", id_num);
-                let raw_title = item["title_short"]
-                    .as_str()
-                    .or_else(|| item["title"].as_str())
-                    .unwrap_or("Без названия")
-                    .trim();
-                let raw_artist = item["artist"]["name"]
-                    .as_str()
-                    .unwrap_or("Неизвестный исполнитель")
-                    .trim();
-                let duration = item["duration"].as_f64().unwrap_or(0.0);
-
-                if duration > 720.0 || (duration > 0.0 && duration < 30.0) {
-                    continue;
-                }
-
-                let cover_url = item["album"]["cover_xl"]
-                    .as_str()
-                    .or_else(|| item["album"]["cover_big"].as_str())
-                    .or_else(|| item["album"]["cover_medium"].as_str())
-                    .map(|u| u.to_string());
-
-                let encoded_title = urlencoding::encode(raw_title);
-                let encoded_artist = urlencoding::encode(raw_artist);
-                let audio_url = format!(
-                    "{}/api/stream?title={}&artist={}&duration={}&id={}",
-                    base_url, encoded_title, encoded_artist, duration as u64, id
-                );
-
-                tracks.push(SearchTrack {
-                    id,
-                    title: raw_title.to_string(),
-                    artist: raw_artist.to_string(),
-                    duration,
-                    audio_url,
-                    cover_url,
-                });
-            }
+    let noise_words = [
+        "type beat", "beat prod", "instrumental", "karaoke", "караоке",
+        "минус", "minus", "slowed", "reverb", "8d audio", "bass boosted",
+        "nightcore", "sped up", "speed up", "remake", "guitar cover",
+        "кавер", "cover", "1 hour", "10 hours", "hour mix", "compilation",
+        "сборник", "плейлист", "playlist", "full album", "альбом целиком",
+    ];
+    for w in noise_words {
+        if combined.contains(w) {
+            return true;
         }
     }
 
-    // Shuffle gathered pool and select distinct results
-    fastrand::shuffle(&mut tracks);
-    tracks.truncate(limit);
-    tracks
+    let indian_markers = [
+        "punjabi", "hindi", "bollywood", "desi", "bhangra", "sidhu", "haryanvi", "tamil", "telugu",
+    ];
+    for m in indian_markers {
+        if combined.contains(m) {
+            return true;
+        }
+    }
+    if combined.chars().any(|c| ('\u{0900}'..='\u{097F}').contains(&c)) {
+        return true;
+    }
+
+    if query_is_cyrillic {
+        let ua_markers = ["українськ", "ukrainian", "зсу", "слава україні"];
+        for m in ua_markers {
+            if combined.contains(m) {
+                return true;
+            }
+        }
+        let ua_chars = ['і', 'ї', 'є', 'ґ', 'І', 'Ї', 'Є', 'Ґ'];
+        if combined.chars().any(|c| ua_chars.contains(&c)) {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn is_noisy_compilation(title: &str) -> bool {
@@ -750,70 +728,57 @@ pub async fn get_recommendations(
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
 
-    if !track_id.is_empty() {
-        let rel_tracks = state.soundcloud.get_related_tracks(track_id, limit * 2, &base_url).await;
-        for t in rel_tracks {
-            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
-                && !is_noisy_compilation(&t.title)
-                && seen_ids.insert(t.id.clone())
-            {
-                tracks.push(t);
-            }
-        }
-    }
+    if !artist.is_empty() {
+        let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+        let mut target_artists = Vec::new();
+        target_artists.push(artist.to_string());
 
-    if tracks.is_empty() && !artist.is_empty() {
-        let sc_artist_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
-        let mut first_id = None;
-        for t in sc_artist_res {
-            if first_id.is_none() {
-                first_id = Some(t.id.clone());
-            }
-            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
-                && !is_noisy_compilation(&t.title)
-                && seen_ids.insert(t.id.clone())
-            {
-                tracks.push(t);
-                if tracks.len() >= 3 {
-                    break;
+        let mut rel_names = fetch_deezer_related_artists(artist).await;
+        if !rel_names.is_empty() {
+            fastrand::shuffle(&mut rel_names);
+            for name in rel_names.into_iter().take(5) {
+                if !target_artists.iter().any(|a| a.eq_ignore_ascii_case(&name)) {
+                    target_artists.push(name);
                 }
             }
         }
 
-        if let Some(fid) = first_id {
-            let rel = state.soundcloud.get_related_tracks(&fid, limit * 2, &base_url).await;
-            for t in rel {
-                if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+        for art in &target_artists {
+            let sc_res = state.soundcloud.search_tracks(art, 5, &base_url).await;
+            for t in sc_res {
+                if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                     && !is_noisy_compilation(&t.title)
+                    && !is_junk_track(&t.title, &t.artist, is_cyrillic)
                     && seen_ids.insert(t.id.clone())
                 {
                     tracks.push(t);
-                    if tracks.len() >= limit {
-                        break;
-                    }
                 }
             }
+            if tracks.len() >= limit * 2 {
+                break;
+            }
         }
+        fastrand::shuffle(&mut tracks);
     }
 
-    if tracks.is_empty() && (!chart.is_empty() || !genre.is_empty()) {
-        let genre_queries: &[&str] = if genre.contains("rap") || genre.contains("hip") || genre.contains("trap") || genre.contains("drill") {
-            &["russian rap", "русский хип хоп", "underground rap", "hip hop", "trap"]
-        } else if genre.contains("phonk") {
-            &["drift phonk", "phonk remix", "brazilian phonk", "memphis phonk"]
+    if tracks.is_empty() && (!chart.is_empty() || !genre.is_empty() || !artist.is_empty()) {
+        let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)) || chart.contains("ru");
+        let fallback_pool: &[&str] = if genre.contains("phonk") {
+            &["drift phonk", "phonk remix", "memphis phonk", "brazilian phonk"]
         } else if genre.contains("rock") || genre.contains("metal") || genre.contains("alternative") {
-            &["русский рок", "альтернативный рок", "indie rock", "post punk"]
+            &["Король и Шут", "Порнофильмы", "Кино", "Ария", "Сектор Газа", "Три дня дождя"]
         } else if genre.contains("pop") {
-            &["популярная музыка", "русский поп", "pop hits", "хиты"]
+            &["ANNA ASTI", "JONY", "Zivert", "Баста"]
         } else {
-            &["trending", "топ треки", "hits", "новинки"]
+            &["Платина", "OG Buda", "Scally Milano", "Kizaru", "MAYOT", "Miyagi", "Big Baby Tape"]
         };
-        let sc_query = genre_queries[fastrand::usize(..genre_queries.len())];
+        let pick = fallback_pool[fastrand::usize(..fallback_pool.len())];
 
-        let sc_res = state.soundcloud.search_tracks(sc_query, limit * 2, &base_url).await;
+        let sc_res = state.soundcloud.search_tracks(pick, limit * 2, &base_url).await;
         for t in sc_res {
-            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                 && !is_noisy_compilation(&t.title)
+                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
                 && seen_ids.insert(t.id.clone())
             {
                 tracks.push(t);
