@@ -66,23 +66,20 @@ impl AudioPlayer {
             playback_start: None,
             playback_offset: Duration::ZERO,
             is_paused: false,
-            volume: 25,
+            volume: 70,
         }
     }
 
     pub fn play(&mut self, track: Track, stream_url: &str) {
         self.stop();
 
-        let vol_mult = (self.volume as f64 / 100.0).clamp(0.02, 1.0);
-        let vol_filter = format!("volume={:.2}", vol_mult);
-
         let child = Command::new("ffplay")
             .arg("-nodisp")
             .arg("-autoexit")
             .arg("-loglevel")
             .arg("quiet")
-            .arg("-af")
-            .arg(vol_filter)
+            .arg("-volume")
+            .arg(self.volume.to_string())
             .arg(stream_url)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
@@ -139,12 +136,13 @@ impl AudioPlayer {
         }
     }
 
-    pub fn volume_up(&mut self) {
+    pub fn volume_up(&mut self, backend_url: &str) {
         self.volume = (self.volume + 5).min(100);
         if let Some(track) = self.current_track.clone() {
             let pos = self.get_position_sec();
             let url = format!(
-                "https://signal-audio-backend-production.up.railway.app/api/stream?id={}&url={}&title={}&artist={}&ss={}",
+                "{}/api/stream?id={}&url={}&title={}&artist={}&ss={}",
+                backend_url,
                 urlencoding::encode(&track.id),
                 urlencoding::encode(&track.audio_url),
                 urlencoding::encode(&track.title),
@@ -157,12 +155,13 @@ impl AudioPlayer {
         }
     }
 
-    pub fn volume_down(&mut self) {
+    pub fn volume_down(&mut self, backend_url: &str) {
         self.volume = self.volume.saturating_sub(5).max(5);
         if let Some(track) = self.current_track.clone() {
             let pos = self.get_position_sec();
             let url = format!(
-                "https://signal-audio-backend-production.up.railway.app/api/stream?id={}&url={}&title={}&artist={}&ss={}",
+                "{}/api/stream?id={}&url={}&title={}&artist={}&ss={}",
+                backend_url,
                 urlencoding::encode(&track.id),
                 urlencoding::encode(&track.audio_url),
                 urlencoding::encode(&track.title),
@@ -954,11 +953,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             app.toggle_favorite_current();
                         }
                         KeyCode::Char('+') | KeyCode::Char('=') => {
-                            app.player.volume_up();
+                            app.player.volume_up(&app.backend_url);
                             app.status_message = format!("Громкость: {}%", app.player.volume);
                         }
                         KeyCode::Char('-') | KeyCode::Char('_') => {
-                            app.player.volume_down();
+                            app.player.volume_down(&app.backend_url);
                             app.status_message = format!("Громкость: {}%", app.player.volume);
                         }
                         KeyCode::Char('?') => {
