@@ -847,6 +847,13 @@ export class AudioService {
       return;
     }
 
+    if (this.recService.isDisliked(track.id) || this.libraryService.isDisliked(track)) {
+      if (this.recService.isMixActive()) {
+        this.next();
+      }
+      return;
+    }
+
     const playRequestId = ++this.currentPlayRequestId;
 
     if (this.errorTimeoutId) {
@@ -1595,7 +1602,7 @@ export class AudioService {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
     } else if (source === 'discovery_heavy') {
       const onlineCount = Math.min(needed, 3);
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(onlineCount, excludeIds, recentArtists);
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(onlineCount, excludeIds, recentArtists, curTrack);
       newTracks.push(...discovery);
       discovery.forEach((d) => {
         excludeIds.add(d.id);
@@ -1609,7 +1616,7 @@ export class AudioService {
     } else {
       // Balanced mode: reliably blend 50% online discovery recommendations with 50% library affinity
       const discoveryCount = Math.max(1, Math.ceil(needed / 2));
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists);
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists, curTrack);
       newTracks.push(...discovery);
       discovery.forEach((d) => {
         excludeIds.add(d.id);
@@ -1696,21 +1703,20 @@ export class AudioService {
         const discovery = await this.recService.fetchOnlineDiscoveryTracks(
           6 - candidates.length,
           new Set(candidates.map((t) => t.id)),
-          recentArtists
+          recentArtists,
+          curTrack
         );
         candidates = [...candidates, ...discovery];
       }
     } else {
-      // Balanced / Discovery mode for "Моя волна":
-      // Начинаем с потоковых рекомендаций (Deezer / похожие исполнители / вкусовой профиль),
-      // чередуя их со знакомыми треками из медиатеки, чтобы волна выполняла функцию открытия новой музыки!
       const onlineCount = source === 'discovery_heavy' ? 4 : 3;
       const localCount = 6 - onlineCount;
 
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(
         onlineCount,
         new Set(curTrack ? [curTrack.id] : []),
-        recentArtists
+        recentArtists,
+        curTrack
       );
       discovery.forEach((d) => {
         if (d.artist) recentArtists.add(d.artist);
@@ -1790,10 +1796,21 @@ export class AudioService {
     );
   }
 
+  dislikeTrack(track: Track) {
+    if (!track) return;
+    this.recService.dislikeTrack(track.id);
+    this.libraryService.dislikeTrack(track);
+
+    this.queue.update((q) => q.filter((t) => t.id !== track.id));
+
+    if (this.currentTrack()?.id === track.id) {
+      this.next();
+    }
+  }
+
   dislikeCurrentTrack() {
     const cur = this.currentTrack();
     if (!cur) return;
-    this.recService.dislikeTrack(cur.id);
-    this.next();
+    this.dislikeTrack(cur);
   }
 }

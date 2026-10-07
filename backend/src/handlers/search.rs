@@ -81,12 +81,9 @@ pub async fn search_music(
         return Ok(Json(tracks));
     }
 
-    let sc_arg = format!("scsearch10:{}", query);
-
-    // Parallel fetch: Deezer API (super-fast official tracks, HD covers) + SoundCloud (remixes & underground)
     let (dz_res, sc_res) = tokio::join!(
         execute_deezer_search(query, 12, &base_url),
-        execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url),
+        state.soundcloud.search_tracks(query, 15, &base_url),
     );
 
     let mut combined = Vec::new();
@@ -704,6 +701,7 @@ fn is_noisy_compilation(title: &str) -> bool {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct RecommendParams {
+    pub track_id: Option<String>,
     pub artist: Option<String>,
     pub genre: Option<String>,
     pub chart: Option<String>,
@@ -714,19 +712,21 @@ pub async fn get_recommendations(
     State(state): State<AppState>,
     Query(params): Query<RecommendParams>,
 ) -> Result<Json<Vec<SearchTrack>>, StatusCode> {
+    let track_id = params.track_id.as_deref().unwrap_or("").trim();
     let artist = params.artist.as_deref().unwrap_or("").trim();
     let genre = params.genre.as_deref().unwrap_or("").trim().to_lowercase();
     let chart = params.chart.as_deref().unwrap_or("").trim().to_lowercase();
 
-    if artist.is_empty() && chart.is_empty() && genre.is_empty() {
+    if track_id.is_empty() && artist.is_empty() && chart.is_empty() && genre.is_empty() {
         return Ok(Json(Vec::new()));
     }
 
     let limit = params.limit.unwrap_or(10).min(30);
     let base_url = get_base_url();
-    let yt_cmd = get_yt_dlp_cmd();
 
-    let cache_key = if !chart.is_empty() {
+    let cache_key = if !track_id.is_empty() {
+        format!("rec:tid:{}", track_id)
+    } else if !chart.is_empty() {
         format!("rec:chart:{}:{}", chart, genre)
     } else if !artist.is_empty() {
         format!("rec:art:{}:{}", artist.to_lowercase(), genre)
@@ -734,7 +734,6 @@ pub async fn get_recommendations(
         format!("rec:gen:{}", genre)
     };
 
-    // 5-minute TTL cache with random sampling to avoid repetitive loops
     if let Ok(guard) = state.search_cache.lock() {
         if let Some((cached_tracks, cached_at)) = guard.get(&cache_key) {
             if cached_at.elapsed() < Duration::from_secs(300) && !cached_tracks.is_empty() {
@@ -751,24 +750,33 @@ pub async fn get_recommendations(
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
 
-    // 1. Chart / trending query for SoundCloud with dynamic subgenre variety
-    if !chart.is_empty() || (artist.is_empty() && !genre.is_empty()) {
+    if !track_id.is_empty() {
+        let rel_tracks = state.soundcloud.get_related_tracks(track_id, limit * 2, &base_url).await;
+        for t in rel_tracks {
+            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+                && !is_noisy_compilation(&t.title)
+                && seen_ids.insert(t.id.clone())
+            {
+                tracks.push(t);
+            }
+        }
+    }
+
+    if tracks.is_empty() && (!chart.is_empty() || (artist.is_empty() && !genre.is_empty())) {
         let genre_queries: &[&str] = if genre.contains("rap") || genre.contains("hip") || genre.contains("trap") || genre.contains("drill") {
-            &["russian rap топ", "русский хип хоп тренды", "underground rap новинки", "хип хоп чарт soundcloud", "новинки рэпа"]
+            &["russian rap", "русский хип хоп", "underground rap", "hip hop", "trap"]
         } else if genre.contains("phonk") {
-            &["drift phonk hits", "phonk remix", "brazilian phonk bass", "aggressive phonk", "memphis phonk hits"]
+            &["drift phonk", "phonk remix", "brazilian phonk", "memphis phonk"]
         } else if genre.contains("rock") || genre.contains("metal") || genre.contains("alternative") {
-            &["русский рок хиты", "альтернативный рок новинки", "indie rock hits", "русский панк рок", "post punk russian"]
+            &["русский рок", "альтернативный рок", "indie rock", "post punk"]
         } else if genre.contains("pop") {
-            &["популярные русские песни топ", "хиты 2024 новинки", "pop music charting hits", "русский поп чарт", "новинки музыки радио"]
+            &["популярная музыка", "русский поп", "pop hits", "хиты"]
         } else {
-            &["топ треки soundcloud чарт", "популярная музыка тренды", "trending songs hits", "топ музыка новинки"]
+            &["trending", "топ треки", "hits", "новинки"]
         };
         let sc_query = genre_queries[fastrand::usize(..genre_queries.len())];
 
-        let fetch_limit = (limit * 2).clamp(20, 30);
-        let sc_arg = format!("scsearch{}:{}", fetch_limit, sc_query);
-        let sc_res = execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url).await;
+        let sc_res = state.soundcloud.search_tracks(sc_query, limit * 2, &base_url).await;
         for t in sc_res {
             if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
                 && !is_noisy_compilation(&t.title)
@@ -778,38 +786,31 @@ pub async fn get_recommendations(
             }
         }
         fastrand::shuffle(&mut tracks);
-    } else if !artist.is_empty() {
-        // 2. Artist-based recommendations:
-        // Try Deezer related artists first
-        let dz_related = execute_deezer_related(artist, limit, &base_url).await;
-        for t in dz_related {
-            if seen_ids.insert(t.id.clone()) {
-                tracks.push(t);
+    } else if tracks.is_empty() && !artist.is_empty() {
+        let sc_artist_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
+        let mut first_id = None;
+        for t in sc_artist_res {
+            if first_id.is_none() {
+                first_id = Some(t.id.clone());
             }
-        }
-
-        // If Deezer related gave few tracks (< 4), complement with SoundCloud artist hits / trending
-        if tracks.len() < limit {
-            let sc_arg = format!("scsearch{}:{} топ", (limit - tracks.len()).max(6), artist);
-            let sc_res = execute_yt_dlp_search(&yt_cmd, &sc_arg, 8, &base_url).await;
-            for t in sc_res {
-                if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
-                    && !is_noisy_compilation(&t.title)
-                    && seen_ids.insert(t.id.clone())
-                {
-                    tracks.push(t);
-                    if tracks.len() >= limit {
-                        break;
-                    }
+            if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+                && !is_noisy_compilation(&t.title)
+                && seen_ids.insert(t.id.clone())
+            {
+                tracks.push(t);
+                if tracks.len() >= 3 {
+                    break;
                 }
             }
         }
 
-        // If still fewer than 3, search Deezer for artist directly
-        if tracks.len() < 3 {
-            let dz_direct = execute_deezer_search(artist, limit, &base_url).await;
-            for t in dz_direct {
-                if seen_ids.insert(t.id.clone()) {
+        if let Some(fid) = first_id {
+            let rel = state.soundcloud.get_related_tracks(&fid, limit * 2, &base_url).await;
+            for t in rel {
+                if (t.duration == 0.0 || (t.duration >= 45.0 && t.duration <= 600.0))
+                    && !is_noisy_compilation(&t.title)
+                    && seen_ids.insert(t.id.clone())
+                {
                     tracks.push(t);
                     if tracks.len() >= limit {
                         break;
@@ -825,6 +826,302 @@ pub async fn get_recommendations(
         }
     }
 
+    tracks.truncate(limit);
+    Ok(Json(tracks))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SimilarTracksParams {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub limit: Option<usize>,
+}
+
+/// Collaborative-filtering-style recommendations using Last.fm Similar Tracks + Deezer Radio.
+/// This is the key upgrade that gives Spotify-quality "people who listen to X also listen to Y".
+pub async fn get_similar_tracks(
+    State(state): State<AppState>,
+    Query(params): Query<SimilarTracksParams>,
+) -> Result<Json<Vec<SearchTrack>>, StatusCode> {
+    let title = params.title.as_deref().unwrap_or("").trim();
+    let artist = params.artist.as_deref().unwrap_or("").trim();
+
+    if title.is_empty() && artist.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+
+    let limit = params.limit.unwrap_or(10).min(30);
+    let base_url = get_base_url();
+
+    let cache_key = format!("similar:{}:{}", artist.to_lowercase(), title.to_lowercase());
+
+    // 10-minute TTL cache with random sampling for variety
+    if let Ok(guard) = state.search_cache.lock() {
+        if let Some((cached_tracks, cached_at)) = guard.get(&cache_key) {
+            if cached_at.elapsed() < Duration::from_secs(600) && !cached_tracks.is_empty() {
+                let mut out = cached_tracks.clone();
+                if out.len() > limit {
+                    fastrand::shuffle(&mut out);
+                    out.truncate(limit);
+                }
+                return Ok(Json(out));
+            }
+        }
+    }
+
+    let lastfm_api_key = std::env::var("LASTFM_API_KEY")
+        .unwrap_or_else(|_| "1913322afac44ffa30bbec00e1e4c0f2".to_string());
+
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(4000))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Ok(Json(Vec::new())),
+    };
+
+    let mut tracks: Vec<SearchTrack> = Vec::new();
+    let mut seen_ids = HashSet::new();
+    let mut seen_artists = HashSet::new();
+
+    // === SOURCE 1: Last.fm track.getSimilar (collaborative filtering from billions of scrobbles) ===
+    if !title.is_empty() && !artist.is_empty() {
+        let lfm_url = format!(
+            "https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist={}&track={}&api_key={}&format=json&limit=20",
+            urlencoding::encode(artist),
+            urlencoding::encode(title),
+            lastfm_api_key
+        );
+
+        if let Ok(resp) = client.get(&lfm_url).send().await {
+            if resp.status().is_success() {
+                if let Ok(data) = resp.json::<serde_json::Value>().await {
+                    if let Some(similar_tracks) = data["similartracks"]["track"].as_array() {
+                        for item in similar_tracks {
+                            let t_name = item["name"].as_str().unwrap_or("").trim();
+                            let t_artist = item["artist"]["name"].as_str().unwrap_or("").trim();
+                            if t_name.is_empty() || t_artist.is_empty() { continue; }
+                            if is_noisy_compilation(t_name) { continue; }
+
+                            let norm_art = t_artist.to_lowercase();
+                            if seen_artists.contains(&norm_art) { continue; }
+
+                            let encoded_title = urlencoding::encode(t_name);
+                            let encoded_artist = urlencoding::encode(t_artist);
+                            let id = format!("lfm-{}-{}", encoded_artist, encoded_title);
+
+                            if !seen_ids.insert(id.clone()) { continue; }
+
+                            let audio_url = format!(
+                                "{}/api/stream?title={}&artist={}",
+                                base_url, encoded_title, encoded_artist
+                            );
+
+                            // Try to get cover from Last.fm image array
+                            let cover_url = item["image"].as_array()
+                                .and_then(|imgs| {
+                                    imgs.iter().rev().find_map(|img| {
+                                        let url = img["#text"].as_str().unwrap_or("");
+                                        if !url.is_empty() && !url.contains("2a96cbd8b46e442fc41c2b86b821562f") {
+                                            Some(url.to_string())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                });
+
+                            tracks.push(SearchTrack {
+                                id,
+                                title: t_name.to_string(),
+                                artist: t_artist.to_string(),
+                                duration: 0.0, // Last.fm doesn't give duration; backend /api/stream resolves it
+                                audio_url,
+                                cover_url,
+                            });
+                            seen_artists.insert(norm_art);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // === SOURCE 2: Last.fm artist.getSimilar (if track-level gave < 5 results) ===
+    if tracks.len() < 5 && !artist.is_empty() {
+        let lfm_artist_url = format!(
+            "https://ws.audioscrobbler.com/2.0/?method=artist.getSimilar&artist={}&api_key={}&format=json&limit=10",
+            urlencoding::encode(artist),
+            lastfm_api_key
+        );
+
+        if let Ok(resp) = client.get(&lfm_artist_url).send().await {
+            if resp.status().is_success() {
+                if let Ok(data) = resp.json::<serde_json::Value>().await {
+                    if let Some(similar_artists) = data["similarartists"]["artist"].as_array() {
+                        let cl = client.clone();
+                        let mut artist_tasks = tokio::task::JoinSet::new();
+
+                        for sa in similar_artists.iter().take(6) {
+                            let sa_name = match sa["name"].as_str() {
+                                Some(n) if !n.is_empty() => n.to_string(),
+                                _ => continue,
+                            };
+                            let norm = sa_name.to_lowercase();
+                            if seen_artists.contains(&norm) { continue; }
+
+                            let c = cl.clone();
+                            let bu = base_url.clone();
+                            artist_tasks.spawn(async move {
+                                // Get top 2 tracks from Deezer for this similar artist
+                                let dz_url = format!(
+                                    "https://api.deezer.com/search?q=artist:\"{}\"&limit=2",
+                                    urlencoding::encode(&sa_name)
+                                );
+                                let mut result = Vec::new();
+                                if let Ok(r) = c.get(&dz_url).send().await {
+                                    if r.status().is_success() {
+                                        if let Ok(d) = r.json::<serde_json::Value>().await {
+                                            if let Some(items) = d["data"].as_array() {
+                                                for item in items {
+                                                    let id_num = match item["id"].as_i64() {
+                                                        Some(n) => n,
+                                                        None => continue,
+                                                    };
+                                                    let raw_title = item["title_short"].as_str()
+                                                        .or_else(|| item["title"].as_str())
+                                                        .unwrap_or("").trim();
+                                                    let raw_artist = item["artist"]["name"].as_str()
+                                                        .unwrap_or("").trim();
+                                                    let duration = item["duration"].as_f64().unwrap_or(0.0);
+                                                    if raw_title.is_empty() || raw_artist.is_empty() { continue; }
+                                                    if duration > 600.0 || (duration > 0.0 && duration < 30.0) { continue; }
+
+                                                    let cover_url = item["album"]["cover_xl"].as_str()
+                                                        .or_else(|| item["album"]["cover_big"].as_str())
+                                                        .map(|u| u.to_string());
+
+                                                    let id = format!("dz-{}", id_num);
+                                                    let encoded_title = urlencoding::encode(raw_title);
+                                                    let encoded_artist = urlencoding::encode(raw_artist);
+                                                    let audio_url = format!(
+                                                        "{}/api/stream?title={}&artist={}&duration={}&id={}",
+                                                        bu, encoded_title, encoded_artist, duration as u64, id
+                                                    );
+                                                    result.push(SearchTrack {
+                                                        id,
+                                                        title: raw_title.to_string(),
+                                                        artist: raw_artist.to_string(),
+                                                        duration,
+                                                        audio_url,
+                                                        cover_url,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                result
+                            });
+                        }
+
+                        while let Some(res) = artist_tasks.join_next().await {
+                            if let Ok(items) = res {
+                                for t in items {
+                                    let norm_art = t.artist.to_lowercase();
+                                    if seen_artists.contains(&norm_art) { continue; }
+                                    if !seen_ids.insert(t.id.clone()) { continue; }
+                                    seen_artists.insert(norm_art);
+                                    tracks.push(t);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // === SOURCE 3: Deezer Artist Radio (fill remaining slots) ===
+    if tracks.len() < limit && !artist.is_empty() {
+        let search_url = format!(
+            "https://api.deezer.com/search/artist?q={}&limit=1",
+            urlencoding::encode(artist)
+        );
+        if let Ok(r) = client.get(&search_url).send().await {
+            if r.status().is_success() {
+                if let Ok(data) = r.json::<serde_json::Value>().await {
+                    if let Some(artist_id) = data["data"].as_array()
+                        .and_then(|arr| arr.first())
+                        .and_then(|a| a["id"].as_i64())
+                    {
+                        let radio_url = format!(
+                            "https://api.deezer.com/artist/{}/radio?limit={}",
+                            artist_id, (limit * 2).min(40)
+                        );
+                        if let Ok(r2) = client.get(&radio_url).send().await {
+                            if r2.status().is_success() {
+                                if let Ok(radio_data) = r2.json::<serde_json::Value>().await {
+                                    if let Some(items) = radio_data["data"].as_array() {
+                                        for item in items {
+                                            let id_num = match item["id"].as_i64() {
+                                                Some(n) => n,
+                                                None => continue,
+                                            };
+                                            let raw_title = item["title_short"].as_str()
+                                                .or_else(|| item["title"].as_str())
+                                                .unwrap_or("").trim();
+                                            let raw_artist = item["artist"]["name"].as_str()
+                                                .unwrap_or("").trim();
+                                            let duration = item["duration"].as_f64().unwrap_or(0.0);
+                                            if raw_title.is_empty() || raw_artist.is_empty() { continue; }
+                                            if duration > 600.0 || (duration > 0.0 && duration < 30.0) { continue; }
+
+                                            let norm_art = raw_artist.to_lowercase();
+                                            if seen_artists.contains(&norm_art) { continue; }
+
+                                            let id = format!("dz-{}", id_num);
+                                            if !seen_ids.insert(id.clone()) { continue; }
+
+                                            let cover_url = item["album"]["cover_xl"].as_str()
+                                                .or_else(|| item["album"]["cover_big"].as_str())
+                                                .map(|u| u.to_string());
+
+                                            let encoded_title = urlencoding::encode(raw_title);
+                                            let encoded_artist = urlencoding::encode(raw_artist);
+                                            let audio_url = format!(
+                                                "{}/api/stream?title={}&artist={}&duration={}&id={}",
+                                                base_url, encoded_title, encoded_artist, duration as u64, id
+                                            );
+
+                                            tracks.push(SearchTrack {
+                                                id,
+                                                title: raw_title.to_string(),
+                                                artist: raw_artist.to_string(),
+                                                duration,
+                                                audio_url,
+                                                cover_url,
+                                            });
+                                            seen_artists.insert(norm_art);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Cache all collected tracks
+    if !tracks.is_empty() {
+        if let Ok(mut guard) = state.search_cache.lock() {
+            guard.insert(cache_key, (tracks.clone(), std::time::Instant::now()));
+        }
+    }
+
+    fastrand::shuffle(&mut tracks);
     tracks.truncate(limit);
     Ok(Json(tracks))
 }

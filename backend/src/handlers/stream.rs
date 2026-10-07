@@ -321,13 +321,21 @@ pub async fn stream_audio(
                 || target.contains(":80"))
         {
             direct_url = target.clone();
+        } else if target.starts_with("sc-") {
+            if let Some(u) = state.soundcloud.resolve_stream_url(&target).await {
+                direct_url = u;
+            }
         } else if target.contains("soundcloud.com") && !target.starts_with("scsearch") && !target.starts_with("search:") {
-            let mut sc_cmd = Command::new(&yt_cmd);
-            apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
-            sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &target]);
-            if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_secs(5), sc_cmd.output()).await {
-                if let Some(u) = extract_stream_url_from_output(&out) {
-                    direct_url = u;
+            if let Some(u) = state.soundcloud.resolve_stream_by_permalink(&target).await {
+                direct_url = u;
+            } else {
+                let mut sc_cmd = Command::new(&yt_cmd);
+                apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
+                sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &target]);
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_secs(5), sc_cmd.output()).await {
+                    if let Some(u) = extract_stream_url_from_output(&out) {
+                        direct_url = u;
+                    }
                 }
             }
         }

@@ -936,6 +936,10 @@
                 color: var(--accent-white);
               }
 
+              &.btn-dislike:hover {
+                color: #ef4444;
+              }
+
               &.btn-delete:hover {
                 color: #ef4444;
               }
@@ -3071,6 +3075,12 @@
 
           &.favorited {
             color: var(--accent-white);
+          }
+
+          &.btn-dislike {
+            &:hover, &:active {
+              color: var(--color-danger, #ef4444);
+            }
           }
 
           &.btn-delete {

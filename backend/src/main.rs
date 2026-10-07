@@ -4,10 +4,12 @@ mod db;
 mod handlers;
 mod models;
 mod security;
+mod soundcloud;
 mod ytdlp;
 
 use axum::routing::{get, post};
 use axum::Router;
+use soundcloud::SoundCloudClient;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -21,7 +23,7 @@ use handlers::auth::{get_auth_config, get_me, google_login, login, register};
 use handlers::cover::{health_check, proxy_cover};
 use handlers::history::{clear_history, get_history, record_play};
 use handlers::library::{get_library, save_library};
-use handlers::search::{extract_info, get_recommendations, search_music};
+use handlers::search::{extract_info, get_recommendations, get_similar_tracks, search_music};
 use handlers::lyrics::{get_lyrics, get_track_meta, save_track_meta, LyricsCache};
 use handlers::stats::get_wrapped;
 use handlers::stream::stream_audio;
@@ -42,12 +44,15 @@ pub struct AppState {
     pub lyrics_cache: LyricsCache,
     pub search_cache: SearchCache,
     pub cover_cache: CoverCache,
+    pub soundcloud: Arc<SoundCloudClient>,
 }
 
 #[tokio::main]
 async fn main() {
     init_cookies_from_env();
     tokio::spawn(ensure_cookies_on_start());
+
+    let soundcloud = SoundCloudClient::new();
 
     let pool = match init_db().await {
         Ok(p) => p,
@@ -66,6 +71,7 @@ async fn main() {
         lyrics_cache: Arc::new(Mutex::new(HashMap::new())),
         search_cache: Arc::new(Mutex::new(HashMap::new())),
         cover_cache: Arc::new(Mutex::new(HashMap::new())),
+        soundcloud,
     };
 
     let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {
@@ -99,6 +105,7 @@ async fn main() {
         .route("/api/cover", get(proxy_cover))
         .route("/api/search", get(search_music))
         .route("/api/recommendations", get(get_recommendations))
+        .route("/api/similar-tracks", get(get_similar_tracks))
         .route("/api/extract", get(extract_info))
         .route("/api/stream", get(stream_audio))
         .route("/api/lyrics", get(get_lyrics))

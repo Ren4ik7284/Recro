@@ -87,15 +87,24 @@ export class LibraryService implements OnDestroy {
     this.markUpdated();
   }
 
-  dislikeTrack(trackId: string) {
+  dislikeTrack(trackOrId: string | Track) {
+    let trackId = typeof trackOrId === 'string' ? trackOrId : trackOrId.id;
+    let trackObj = typeof trackOrId === 'object' ? trackOrId : this.tracks().find((t) => t.id === trackId);
+
     this.dislikedTrackIds.update((set) => {
       const next = new Set(set);
       next.add(trackId);
+      if (trackObj && trackObj.artist && trackObj.title) {
+        const key = `${trackObj.artist.trim().toLowerCase()}::${trackObj.title.trim().toLowerCase()}`;
+        next.add(key);
+      }
       return next;
     });
+
     try {
       localStorage.setItem(this.STORAGE_KEY_DISLIKES, JSON.stringify(Array.from(this.dislikedTrackIds())));
     } catch {}
+
     const tr = this.tracks().find((t) => t.id === trackId);
     if (tr && tr.isFavorite) {
       this.toggleFavorite(trackId, tr);
@@ -104,9 +113,17 @@ export class LibraryService implements OnDestroy {
     }
   }
 
-  isDisliked(trackId: string): boolean {
-    if (this.tracks().some((t) => t.id === trackId && (!t.playlistOnly || t.isFavorite))) return false;
-    return this.dislikedTrackIds().has(trackId);
+  isDisliked(trackOrId: string | Track): boolean {
+    const dislikes = this.dislikedTrackIds();
+    if (typeof trackOrId === 'string') {
+      return dislikes.has(trackOrId);
+    }
+    if (dislikes.has(trackOrId.id)) return true;
+    if (trackOrId.artist && trackOrId.title) {
+      const key = `${trackOrId.artist.trim().toLowerCase()}::${trackOrId.title.trim().toLowerCase()}`;
+      if (dislikes.has(key)) return true;
+    }
+    return false;
   }
 
   readonly defaultTracks: Track[] = [];
@@ -410,13 +427,15 @@ export class LibraryService implements OnDestroy {
     }
   }
 
-  async getRecommendations(artist?: string, genre?: string, limit = 10): Promise<Track[]> {
+  async getRecommendations(artist?: string, genre?: string, limit = 10, trackId?: string): Promise<Track[]> {
     const a = (artist || '').trim();
     const g = (genre || '').trim();
-    if (!a && !g) return [];
+    const tid = (trackId || '').trim();
+    if (!a && !g && !tid) return [];
 
     try {
       const queryParams = new URLSearchParams();
+      if (tid) queryParams.set('track_id', tid);
       if (a) queryParams.set('artist', a);
       if (g) queryParams.set('genre', g);
       queryParams.set('limit', limit.toString());
@@ -429,7 +448,7 @@ export class LibraryService implements OnDestroy {
       return data
         .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
         .map((item) => ({
-          id: item.id.startsWith('dz-') || item.id.startsWith('sc-') || item.id.startsWith('yt-') ? item.id : 'dz-' + item.id,
+          id: item.id.startsWith('dz-') || item.id.startsWith('sc-') || item.id.startsWith('yt-') ? item.id : 'sc-' + item.id,
           title: item.title,
           artist: item.artist,
           duration: Math.round(item.duration),
@@ -482,6 +501,44 @@ export class LibraryService implements OnDestroy {
     }
   }
 
+
+  async getSimilarTracks(title: string, artist: string, limit = 10): Promise<Track[]> {
+    const t = (title || '').trim();
+    const a = (artist || '').trim();
+    if (!t && !a) return [];
+
+    try {
+      const queryParams = new URLSearchParams();
+      if (t) queryParams.set('title', t);
+      if (a) queryParams.set('artist', a);
+      queryParams.set('limit', limit.toString());
+
+      const res = await fetch(`${this.getBackendUrl()}/api/similar-tracks?${queryParams.toString()}`);
+      if (!res.ok) return [];
+
+      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
+
+      return data
+        .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
+        .map((item) => ({
+          id: item.id.startsWith('dz-') || item.id.startsWith('sc-') || item.id.startsWith('yt-') || item.id.startsWith('lfm-') ? item.id : 'dz-' + item.id,
+          title: item.title,
+          artist: item.artist,
+          duration: Math.round(item.duration),
+          audioUrl: item.audio_url,
+          coverUrl: this.formatCoverUrl(item.cover_url),
+          genre: 'Similar',
+          format: 'mp3' as const,
+          bitrate: '192 kbps',
+          plays: 0,
+          isFavorite: false,
+          addedAt: new Date().toISOString().split('T')[0],
+        }));
+    } catch (e) {
+      console.warn('Get similar tracks error:', e);
+      return [];
+    }
+  }
 
   async extractFromUrl(url: string): Promise<ExtractedResult> {
     const targetUrl = url.trim();

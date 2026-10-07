@@ -253,6 +253,32 @@ export function normalizeArtist(artist?: string): string {
     .trim();
 }
 
+export function extractAllArtists(artist?: string, title?: string): string[] {
+  const text = `${artist || ''} ${title || ''}`;
+  const parts = text.split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]|\s+[-–—+]\s+/i);
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const part of parts) {
+    const cleaned = part
+      .replace(/\(.*?\)|\[.*?]|{.*?}/g, ' ')
+      .replace(/\b(prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера)\b.*/i, ' ')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (cleaned.length >= 2) {
+      const lower = cleaned.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        result.push(cleaned);
+      }
+    }
+  }
+
+  return result;
+}
+
 export function normalizeTitle(title?: string): string {
   if (!title) return '';
   return title
@@ -1300,9 +1326,9 @@ export class RecommendationService {
       const shuffledSeeds = [...userTopArtists].sort(() => 0.5 - Math.random());
       for (const artist of shuffledSeeds.slice(0, 4)) {
         if (isRu) {
-          queries.push(`${artist} топ`, `${artist} популярные`, `${artist} лучшее`, `${artist} remix`);
+          queries.push(`${artist} feat`, `${artist} ft`, `${artist} топ`, `${artist} популярные`);
         } else {
-          queries.push(`${artist} top hits`, `${artist} remix`, artist);
+          queries.push(`${artist} feat`, `${artist} top hits`, artist);
         }
       }
     }
@@ -1355,7 +1381,8 @@ export class RecommendationService {
   async fetchOnlineDiscoveryTracks(
     count = 3,
     excludeIds: Set<string> = new Set(),
-    excludeArtists: Set<string> = new Set()
+    excludeArtists: Set<string> = new Set(),
+    seedTrack: Track | null = null
   ): Promise<Track[]> {
     if (this.isFetchingDiscovery()) return [];
     if (this.libraryService.mixConfig().source === 'library_only' && this.getAllLocalCandidates().length > 0) return [];
@@ -1368,7 +1395,6 @@ export class RecommendationService {
       const targetVec = this.getTargetVectorForMood(mood);
       const targetNorm = this.computeVectorNorm(targetVec);
 
-      // Build frequency map of user top artists
       const topArtistsMap = new Map<string, number>();
       for (const t of candidates) {
         if (t.artist && t.artist.trim()) {
@@ -1401,17 +1427,25 @@ export class RecommendationService {
         : targetVec.pop >= 0.45 ? 'pop'
         : undefined;
 
-      // PASS 1: SoundCloud Charts & Related Artists Discovery
       const pass1Tasks: Promise<Track[]>[] = [];
 
-      // A) SoundCloud Trending Charts tailored to user genre
-      if (this.libraryService.getSoundCloudCharts) {
+      const effectiveSeed = seedTrack || (candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : null);
+      if (effectiveSeed) {
+        const seedId = effectiveSeed.id?.startsWith('sc-') ? effectiveSeed.id : undefined;
         pass1Tasks.push(
-          this.libraryService.getSoundCloudCharts(dominantGenre, 12).catch(() => [] as Track[])
+          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 12, seedId).catch(() => [] as Track[])
         );
+
+        const seedArtists = extractAllArtists(effectiveSeed.artist, effectiveSeed.title);
+        if (seedArtists.length > 0) {
+          const randArtist = seedArtists[Math.floor(Math.random() * seedArtists.length)];
+          const featQuery = `${randArtist} feat`;
+          pass1Tasks.push(
+            this.libraryService.searchOnline(featQuery).catch(() => [] as Track[])
+          );
+        }
       }
 
-      // B) Related artists recommendations with rotation across batches
       if (userTopArtists.length > 0) {
         const offset = this.artistSeedOffset % userTopArtists.length;
         this.artistSeedOffset = (this.artistSeedOffset + 2) % 1000;
@@ -1419,11 +1453,17 @@ export class RecommendationService {
           ...userTopArtists.slice(offset),
           ...userTopArtists.slice(0, offset),
         ];
-        for (const seedArtist of rotated.slice(0, 3)) {
+        for (const seedArtist of rotated.slice(0, 2)) {
           pass1Tasks.push(
-            this.libraryService.getRecommendations(seedArtist, dominantGenre, 10).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(seedArtist, dominantGenre, 8).catch(() => [] as Track[])
           );
         }
+      }
+
+      if (this.libraryService.getSoundCloudCharts) {
+        pass1Tasks.push(
+          this.libraryService.getSoundCloudCharts(dominantGenre, 10).catch(() => [] as Track[])
+        );
       }
 
       const pass1Results = await Promise.all(pass1Tasks);

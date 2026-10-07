@@ -1133,6 +1133,14 @@ export class App implements OnInit {
     this.showToast('Параметры волны сброшены по умолчанию');
   }
 
+  dislikeTrack(track: Track, event?: Event) {
+    if (event) event.stopPropagation();
+    if (!this.requireAuth('обучать персональные рекомендации')) return;
+    if (!track) return;
+    this.audioService.dislikeTrack(track);
+    this.showToast(`Трек "${track.title}" скрыт и не будет звучать`);
+  }
+
   dislikeCurrentTrack() {
     if (!this.requireAuth('обучать персональные рекомендации')) return;
     const cur = this.audioService.currentTrack();
