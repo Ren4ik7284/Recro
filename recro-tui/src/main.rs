@@ -59,6 +59,17 @@ pub struct AudioPlayer {
 
 impl AudioPlayer {
     pub fn new() -> Self {
+        let initial_vol = if let Ok(out) = Command::new("wpctl").arg("get-volume").arg("@DEFAULT_AUDIO_SINK@").output() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            s.split_whitespace()
+                .nth(1)
+                .and_then(|v| v.parse::<f64>().ok())
+                .map(|v| (v * 100.0).round() as u32)
+                .unwrap_or(40)
+        } else {
+            40
+        };
+
         Self {
             process: None,
             stdin: None,
@@ -66,7 +77,7 @@ impl AudioPlayer {
             playback_start: None,
             playback_offset: Duration::ZERO,
             is_paused: false,
-            volume: 40,
+            volume: initial_vol,
         }
     }
 
@@ -76,8 +87,6 @@ impl AudioPlayer {
         let child = Command::new("ffplay")
             .arg("-nodisp")
             .arg("-autoexit")
-            .arg("-volume")
-            .arg(self.volume.to_string())
             .arg("-loglevel")
             .arg("quiet")
             .arg(stream_url)
@@ -138,6 +147,12 @@ impl AudioPlayer {
 
     pub fn volume_up(&mut self) {
         self.volume = (self.volume + 5).min(100);
+        let _ = Command::new("wpctl")
+            .arg("set-volume")
+            .arg("@DEFAULT_AUDIO_SINK@")
+            .arg("5%+")
+            .output();
+
         if let Some(stdin) = &mut self.stdin {
             let _ = stdin.write_all(b"0");
             let _ = stdin.flush();
@@ -146,6 +161,12 @@ impl AudioPlayer {
 
     pub fn volume_down(&mut self) {
         self.volume = self.volume.saturating_sub(5);
+        let _ = Command::new("wpctl")
+            .arg("set-volume")
+            .arg("@DEFAULT_AUDIO_SINK@")
+            .arg("5%-")
+            .output();
+
         if let Some(stdin) = &mut self.stdin {
             let _ = stdin.write_all(b"9");
             let _ = stdin.flush();
