@@ -59,17 +59,6 @@ pub struct AudioPlayer {
 
 impl AudioPlayer {
     pub fn new() -> Self {
-        let initial_vol = if let Ok(out) = Command::new("wpctl").arg("get-volume").arg("@DEFAULT_AUDIO_SINK@").output() {
-            let s = String::from_utf8_lossy(&out.stdout);
-            s.split_whitespace()
-                .nth(1)
-                .and_then(|v| v.parse::<f64>().ok())
-                .map(|v| (v * 100.0).round() as u32)
-                .unwrap_or(40)
-        } else {
-            40
-        };
-
         Self {
             process: None,
             stdin: None,
@@ -77,18 +66,23 @@ impl AudioPlayer {
             playback_start: None,
             playback_offset: Duration::ZERO,
             is_paused: false,
-            volume: initial_vol,
+            volume: 25,
         }
     }
 
     pub fn play(&mut self, track: Track, stream_url: &str) {
         self.stop();
 
+        let vol_mult = (self.volume as f64 / 100.0).clamp(0.02, 1.0);
+        let vol_filter = format!("volume={:.2}", vol_mult);
+
         let child = Command::new("ffplay")
             .arg("-nodisp")
             .arg("-autoexit")
             .arg("-loglevel")
             .arg("quiet")
+            .arg("-af")
+            .arg(vol_filter)
             .arg(stream_url)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
@@ -147,29 +141,37 @@ impl AudioPlayer {
 
     pub fn volume_up(&mut self) {
         self.volume = (self.volume + 5).min(100);
-        let _ = Command::new("wpctl")
-            .arg("set-volume")
-            .arg("@DEFAULT_AUDIO_SINK@")
-            .arg("5%+")
-            .output();
-
-        if let Some(stdin) = &mut self.stdin {
-            let _ = stdin.write_all(b"0");
-            let _ = stdin.flush();
+        if let Some(track) = self.current_track.clone() {
+            let pos = self.get_position_sec();
+            let url = format!(
+                "https://signal-audio-backend-production.up.railway.app/api/stream?id={}&url={}&title={}&artist={}&ss={}",
+                urlencoding::encode(&track.id),
+                urlencoding::encode(&track.audio_url),
+                urlencoding::encode(&track.title),
+                urlencoding::encode(&track.artist),
+                pos.floor() as u64
+            );
+            self.play(track, &url);
+            self.playback_offset = Duration::from_secs_f64(pos);
+            self.playback_start = Some(Instant::now());
         }
     }
 
     pub fn volume_down(&mut self) {
-        self.volume = self.volume.saturating_sub(5);
-        let _ = Command::new("wpctl")
-            .arg("set-volume")
-            .arg("@DEFAULT_AUDIO_SINK@")
-            .arg("5%-")
-            .output();
-
-        if let Some(stdin) = &mut self.stdin {
-            let _ = stdin.write_all(b"9");
-            let _ = stdin.flush();
+        self.volume = self.volume.saturating_sub(5).max(5);
+        if let Some(track) = self.current_track.clone() {
+            let pos = self.get_position_sec();
+            let url = format!(
+                "https://signal-audio-backend-production.up.railway.app/api/stream?id={}&url={}&title={}&artist={}&ss={}",
+                urlencoding::encode(&track.id),
+                urlencoding::encode(&track.audio_url),
+                urlencoding::encode(&track.title),
+                urlencoding::encode(&track.artist),
+                pos.floor() as u64
+            );
+            self.play(track, &url);
+            self.playback_offset = Duration::from_secs_f64(pos);
+            self.playback_start = Some(Instant::now());
         }
     }
 
