@@ -1267,7 +1267,7 @@ export class LibraryService implements OnDestroy {
     this.pushLibraryToBackend();
   }
 
-  createPlaylist(title: string, description?: string): Playlist {
+  createPlaylist(title: string, description?: string, coverUrl?: string): Playlist {
     const cleanTitle = title.trim();
     const coverText = cleanTitle.slice(0, 2).toUpperCase();
     const newPl: Playlist = {
@@ -1276,12 +1276,22 @@ export class LibraryService implements OnDestroy {
       description: description?.trim() || 'Пользовательский плейлист',
       trackIds: [],
       coverText,
+      coverUrl: coverUrl?.trim() || undefined,
     };
     this.playlists.update((pls) => [...pls, newPl]);
     this.persistPlaylists();
     this.pushLibraryToBackend();
     return newPl;
   }
+
+  updatePlaylistCover(playlistId: string, coverUrl: string) {
+    this.playlists.update((pls) =>
+      pls.map((p) => (p.id === playlistId ? { ...p, coverUrl: coverUrl.trim() || undefined } : p))
+    );
+    this.persistPlaylists();
+    this.pushLibraryToBackend();
+  }
+
 
   deletePlaylist(playlistId: string) {
     const pl = this.playlists().find((p) => p.id === playlistId);

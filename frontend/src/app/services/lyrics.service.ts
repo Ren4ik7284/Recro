@@ -85,14 +85,10 @@ export class LyricsService {
     return raw;
   }
 
-  // Зрительно-слуховое упреждение (85мс) для естественного восприятия текста в такт вокалу
   getTempoLeadSec(): number {
-    const bpm = this.currentBpm();
-    if (bpm && bpm >= 60 && bpm <= 200) {
-      return Math.max(0.065, Math.min(0.11, (60 / bpm) * 0.16));
-    }
-    return 0.085; // 85ms золотой стандарт зрительного восприятия
+    return 0;
   }
+
 
   // Индекс активной строки текста в зависимости от текущего времени трека
   readonly activeLineIndex = computed<number>(() => {
@@ -279,8 +275,14 @@ export class LyricsService {
   closeLyrics(popHistory = true) {
     this.isLyricsOpen.set(false);
     this.stopHighPrecisionTracking();
+    if (this.navService.currentTab() === 'profile') {
+      this.navService.setTab('all', null, false);
+    }
     if (popHistory) {
       this.navService.closeOverlay('lyrics');
+    }
+    if (this.navService.currentTab() === 'profile') {
+      this.navService.setTab('all', null, false);
     }
   }
 

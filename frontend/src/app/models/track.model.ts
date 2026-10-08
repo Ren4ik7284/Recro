@@ -26,6 +26,7 @@ export interface Playlist {
   description: string;
   trackIds: string[];
   coverText: string;
+  coverUrl?: string;
 }
 
 export interface RadioStation {

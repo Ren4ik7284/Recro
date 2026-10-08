@@ -163,6 +163,7 @@
       .pl-avatar {
         width: 28px;
         height: 28px;
+        min-width: 28px;
         background-color: var(--bg-card);
         border: 1px solid var(--border-subtle);
         border-radius: 4px;
@@ -173,6 +174,12 @@
         font-weight: 700;
         font-family: var(--font-mono);
         color: var(--text-secondary);
+        overflow: hidden;
+
+        &.pl-avatar-img {
+          object-fit: cover;
+          display: block;
+        }
       }
 
       .pl-meta {

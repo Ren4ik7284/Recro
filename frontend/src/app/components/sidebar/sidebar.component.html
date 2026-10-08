@@ -130,7 +130,11 @@
           [class.active]="activeTab === 'playlist' && libraryService.activePlaylistId() === pl.id"
           (click)="viewChange.emit({view: 'playlist', playlistId: pl.id})"
         >
-          <span class="pl-avatar">{{ pl.coverText }}</span>
+          @if (pl.coverUrl) {
+            <img [src]="pl.coverUrl" class="pl-avatar pl-avatar-img" alt="" />
+          } @else {
+            <span class="pl-avatar">{{ pl.coverText }}</span>
+          }
           <div class="pl-meta">
             <span class="pl-name">{{ pl.title }}</span>
             <span class="pl-count font-mono">{{ pl.trackIds.length }} трека</span>

@@ -150,12 +150,16 @@
           @for (pl of userPlaylists(); track pl.id) {
             <div class="playlist-card-item" (click)="onPlaylistClick(pl.id)">
               <div class="playlist-cover-box">
-                <svg class="playlist-note-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                  <rect x="3" y="3" width="18" height="18" rx="5"/>
-                  <path d="M9 16V8l8-2v8"/>
-                  <circle cx="8" cy="16" r="2"/>
-                  <circle cx="16" cy="14" r="2"/>
-                </svg>
+                @if (pl.coverUrl) {
+                  <img [src]="pl.coverUrl" class="playlist-card-cover-img" alt="" />
+                } @else {
+                  <svg class="playlist-note-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                    <rect x="3" y="3" width="18" height="18" rx="5"/>
+                    <path d="M9 16V8l8-2v8"/>
+                    <circle cx="8" cy="16" r="2"/>
+                    <circle cx="16" cy="14" r="2"/>
+                  </svg>
+                }
               </div>
               <span class="playlist-title-label" [title]="pl.title">{{ pl.title }}</span>
               <span class="playlist-author-label">{{ authService.currentUser()?.username || 'Nickname' }}</span>

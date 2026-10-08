@@ -16,8 +16,7 @@ export type AppOverlay =
   | 'wrapped'
   | 'pwa'
   | 'timer'
-  | 'timer-finish'
-  | 'profile';
+  | 'timer-finish';
 
 export interface RouteState {
   tab: AppTab;
@@ -28,7 +27,7 @@ export interface RouteState {
 const KNOWN_OVERLAYS = new Set<string>([
   'lyrics', 'visualizer', 'player', 'queue', 'add', 'playlists',
   'playlist-new', 'playlist-add', 'history', 'mix-settings', 'auth', 'wrapped', 'pwa',
-  'timer', 'timer-finish', 'profile',
+  'timer', 'timer-finish',
 ]);
 const KNOWN_TABS = new Set<string>(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline', 'profile']);
 
@@ -155,6 +154,23 @@ export class NavigationService {
     const active = this.currentOverlay();
     if (!active || (overlay && active !== overlay)) return;
 
+    if (active === 'lyrics') {
+      this.currentOverlay.set(null);
+      if (this.currentTab() === 'profile') {
+        this.currentTab.set('all');
+      }
+      const targetTab = this.currentTab();
+      if (typeof window !== 'undefined') {
+        const newHash = this.buildHash(targetTab, this.currentPlaylistId(), null);
+        window.history.replaceState(
+          { signalApp: true, depth: this.appHistoryDepth, tab: targetTab, playlistId: this.currentPlaylistId(), overlay: null },
+          '',
+          newHash
+        );
+      }
+      return;
+    }
+
     if (typeof window !== 'undefined') {
       const currentHash = window.location.hash;
       if (currentHash.includes(active) && this.appHistoryDepth > 0) {
@@ -183,6 +199,9 @@ export class NavigationService {
     }
 
     const parsed = this.parseHash(window.location.hash);
+    if (this.currentOverlay() === 'lyrics' && !parsed.overlay && parsed.tab === 'profile') {
+      parsed.tab = 'all';
+    }
     this.currentTab.set(parsed.tab);
     this.currentPlaylistId.set(parsed.playlistId || null);
     this.currentOverlay.set(parsed.overlay || null);

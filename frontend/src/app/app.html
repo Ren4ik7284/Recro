@@ -79,7 +79,16 @@
           <div class="view-header-main-row">
             @if (activeTab() === 'playlist' && currentPlaylist(); as pl) {
               <div class="playlist-header-details">
-                <div class="playlist-badge-avatar">{{ pl.coverText }}</div>
+                @if (pl.coverUrl) {
+                  <div class="playlist-cover-clickable" (click)="playlistHeaderCoverInput.click()" title="Нажмите для смены обложки">
+                    <img [src]="pl.coverUrl" class="playlist-badge-avatar-img" alt="" />
+                  </div>
+                } @else {
+                  <div class="playlist-badge-avatar playlist-badge-clickable" (click)="playlistHeaderCoverInput.click()" title="Нажмите для загрузки обложки">
+                    {{ pl.coverText }}
+                  </div>
+                }
+                <input #playlistHeaderCoverInput type="file" accept="image/*" style="display: none;" (change)="onExistingPlaylistCoverUpload(pl, $event)" />
                 <div class="playlist-header-meta">
                   <div class="playlist-label font-mono">ПЛЕЙЛИСТ</div>
                   <h1 class="view-title">{{ pl.title }}</h1>
@@ -1094,7 +1103,11 @@
         <div class="modal-body">
           @for (pl of libraryService.playlists(); track pl.id) {
             <div class="playlist-row" (click)="setView('playlist', pl.id)">
-              <span class="pl-avatar">{{ pl.coverText }}</span>
+              @if (pl.coverUrl) {
+                <img [src]="pl.coverUrl" class="pl-avatar pl-avatar-img" alt="" />
+              } @else {
+                <span class="pl-avatar">{{ pl.coverText }}</span>
+              }
               <div class="pl-meta">
                 <span class="pl-name">{{ pl.title }}</span>
                 <span class="pl-count font-mono">{{ pl.trackIds.length }} треков</span>
@@ -1805,6 +1818,30 @@
               (keyup.enter)="submitCreatePlaylist()"
               class="form-text-input"
             />
+          </div>
+
+          <div class="input-field">
+            <label class="field-label">Обложка (опционально)</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input 
+                type="text" 
+                placeholder="URL картинки или файл..."
+                [ngModel]="playlistCoverInput()"
+                (ngModelChange)="playlistCoverInput.set($event)"
+                class="form-text-input"
+                style="flex: 1;"
+              />
+              <label class="btn-cancel" style="cursor: pointer; display: flex; align-items: center; white-space: nowrap; margin: 0; padding: 8px 12px; height: 38px;">
+                Загрузить
+                <input type="file" accept="image/*" style="display: none;" (change)="onPlaylistCoverSelected($event)" />
+              </label>
+            </div>
+            @if (playlistCoverInput()) {
+              <div style="margin-top: 8px; display: flex; align-items: center; gap: 10px;">
+                <img [src]="playlistCoverInput()" style="width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-subtle);" alt="" />
+                <button type="button" class="btn-cancel" style="padding: 4px 8px; font-size: 11px;" (click)="playlistCoverInput.set('')">Удалить</button>
+              </div>
+            }
           </div>
         </div>
 

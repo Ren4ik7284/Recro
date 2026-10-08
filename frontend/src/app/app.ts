@@ -168,6 +168,7 @@ export class App implements OnInit {
 
   readonly playlistTitleInput = signal<string>('');
   readonly playlistDescInput = signal<string>('');
+  readonly playlistCoverInput = signal<string>('');
 
   readonly isAddToPlaylistModalOpen = signal<boolean>(false);
   readonly targetTrackForPlaylist = signal<Track | null>(null);
@@ -276,9 +277,6 @@ export class App implements OnInit {
         this.timerService.isTimerModalOpen.set(false);
       }
 
-      if (o === 'profile') {
-        this.setView('profile', undefined, false);
-      }
 
       if (o === 'timer-finish') {
         this.timerService.isFinishModalOpen.set(true);
@@ -828,7 +826,7 @@ export class App implements OnInit {
 
   closeProfileModal() {
     this.isProfileModalOpen.set(false);
-    this.navService.closeOverlay('profile');
+    this.setView('all');
   }
 
   openPlaylistFromProfile(playlistId: string) {
@@ -980,6 +978,10 @@ export class App implements OnInit {
   }
 
   playTrack(track: Track) {
+    if (this.audioService.currentTrack()?.id === track.id) {
+      this.audioService.togglePlay();
+      return;
+    }
     this.audioService.playTrack(track, this.libraryService.filteredTracks());
   }
 
@@ -1207,9 +1209,7 @@ export class App implements OnInit {
 
   addOnlineTrackToLib(track: Track) {
     this.libraryService.addTrackToLibrary(track);
-    this.audioService.playTrack(track, this.libraryService.tracks());
-    this.showToast(`Трек "${track.title}" добавлен и воспроизводится`);
-    // Не скачиваем автоматически — пользователь должен явно нажать кнопку оффлайн
+    this.showToast(`Трек "${track.title}" добавлен в медиатеку`);
   }
 
   async extractYouTubeUrl() {
@@ -1393,6 +1393,7 @@ export class App implements OnInit {
     if (!this.requireAuth('создавать плейлисты')) return;
     this.playlistTitleInput.set('');
     this.playlistDescInput.set('');
+    this.playlistCoverInput.set('');
     this.isPlaylistModalOpen.set(true);
     if (pushHistory) {
       this.navService.pushOverlay('playlist-new');
@@ -1401,7 +1402,37 @@ export class App implements OnInit {
 
   closeCreatePlaylistModal() {
     this.isPlaylistModalOpen.set(false);
+    this.playlistCoverInput.set('');
     this.navService.closeOverlay('playlist-new');
+  }
+
+  onPlaylistCoverSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          this.playlistCoverInput.set(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  onExistingPlaylistCoverUpload(pl: Playlist, event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          this.libraryService.updatePlaylistCover(pl.id, reader.result);
+          this.showToast('Обложка плейлиста обновлена');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   submitCreatePlaylist() {
@@ -1410,7 +1441,8 @@ export class App implements OnInit {
     if (!title) return;
 
     const desc = this.playlistDescInput().trim();
-    const pl = this.libraryService.createPlaylist(title, desc);
+    const cover = this.playlistCoverInput().trim() || undefined;
+    const pl = this.libraryService.createPlaylist(title, desc, cover);
     this.closeCreatePlaylistModal();
     this.showToast(`Плейлист "${pl.title}" создан`);
     this.setView('playlist', pl.id);

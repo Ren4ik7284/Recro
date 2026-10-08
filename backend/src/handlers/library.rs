@@ -91,7 +91,7 @@ pub async fn get_library(
 
     let playlist_rows = sqlx::query(
         r#"
-        SELECT id, title, description, cover_text, track_ids
+        SELECT id, title, description, cover_text, cover_url, track_ids
         FROM playlists
         WHERE user_id = ?
         "#,
@@ -107,6 +107,7 @@ pub async fn get_library(
         let title: String = r.get("title");
         let description: Option<String> = r.get("description");
         let cover_text: Option<String> = r.get("cover_text");
+        let cover_url: Option<String> = r.try_get("cover_url").ok();
         let track_ids_raw: String = r.get("track_ids");
         let track_ids: Vec<String> = serde_json::from_str(&track_ids_raw).unwrap_or_default();
 
@@ -115,9 +116,11 @@ pub async fn get_library(
             "title": title,
             "description": description.unwrap_or_default(),
             "coverText": cover_text.unwrap_or_else(|| "PL".to_string()),
+            "coverUrl": cover_url,
             "trackIds": track_ids,
         }));
     }
+
 
     let station_rows = sqlx::query(
         r#"
@@ -321,14 +324,15 @@ pub async fn save_library(
             let title = item.get("title").and_then(|v| v.as_str()).unwrap_or_default();
             let desc = item.get("description").and_then(|v| v.as_str()).unwrap_or_default();
             let cover_text = item.get("coverText").and_then(|v| v.as_str()).unwrap_or("PL");
+            let cover_url = item.get("coverUrl").and_then(|v| v.as_str());
             let track_ids = item.get("trackIds").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string());
             let now = chrono::Utc::now().timestamp();
 
             if !id.is_empty() {
                 sqlx::query(
                     r#"
-                    INSERT OR REPLACE INTO playlists (id, user_id, title, description, cover_text, track_ids, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO playlists (id, user_id, title, description, cover_text, cover_url, track_ids, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     "#,
                 )
                 .bind(id)
@@ -336,6 +340,7 @@ pub async fn save_library(
                 .bind(title)
                 .bind(desc)
                 .bind(cover_text)
+                .bind(cover_url)
                 .bind(track_ids)
                 .bind(now)
                 .execute(&mut *tx)
