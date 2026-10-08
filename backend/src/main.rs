@@ -23,7 +23,7 @@ use handlers::auth::{get_auth_config, get_me, google_login, login, register, upd
 use handlers::cover::{health_check, proxy_cover};
 use handlers::history::{clear_history, get_history, record_play};
 use handlers::library::{get_library, save_library};
-use handlers::search::{extract_info, get_recommendations, get_similar_tracks, search_music};
+use handlers::search::{extract_info, get_recommendations, get_similar_tracks, get_top_artists, search_music};
 use handlers::lyrics::{get_lyrics, get_track_meta, save_track_meta, LyricsCache};
 use handlers::stats::get_wrapped;
 use handlers::stream::stream_audio;
@@ -105,6 +105,7 @@ async fn main() {
         .route("/api/stats/wrapped", get(get_wrapped))
         .route("/api/cover", get(proxy_cover))
         .route("/api/search", get(search_music))
+        .route("/api/top-artists", get(get_top_artists))
         .route("/api/recommendations", get(get_recommendations))
         .route("/api/similar-tracks", get(get_similar_tracks))
         .route("/api/extract", get(extract_info))

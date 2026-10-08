@@ -354,6 +354,7 @@
         }
 
         .artist-avatar-circle {
+          position: relative;
           width: 124px;
           height: 124px;
           border-radius: 50%;
@@ -375,6 +376,22 @@
             font-size: 42px;
             font-weight: 700;
             color: #d4d4d8;
+          }
+
+          .artist-rank-badge {
+            position: absolute;
+            bottom: 6px;
+            right: 6px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 9999px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            letter-spacing: -0.02em;
           }
         }
 

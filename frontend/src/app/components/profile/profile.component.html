@@ -109,9 +109,20 @@
                       <span>{{ artist.name.slice(0, 1).toUpperCase() }}</span>
                     </div>
                   }
+                  @if (artist.rank) {
+                    <div class="artist-rank-badge font-mono">
+                      <span>#{{ artist.rank }}</span>
+                    </div>
+                  }
                 </div>
                 <span class="artist-name-label" [title]="artist.name">{{ artist.name }}</span>
-                <span class="artist-sub-role">Исполнитель</span>
+                <span class="artist-sub-role">
+                  @if (artist.rank) {
+                    Топ #{{ artist.rank }} в мире
+                  } @else {
+                    Исполнитель
+                  }
+                </span>
               </div>
             }
           </div>

@@ -1465,6 +1465,17 @@ export class LibraryService implements OnDestroy {
     }
   }
 
+  async getTopArtists(): Promise<{ position: number; name: string; picture?: string }[]> {
+    try {
+      const res = await fetch(`${this.getBackendUrl()}/api/top-artists`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  }
+
+
   async onUserLoggedIn() {
     this.tracks.set([]);
     this.playlists.set([]);

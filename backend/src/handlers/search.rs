@@ -11,7 +11,7 @@ use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 
 use crate::config::{apply_yt_dlp_common_args, get_base_url, get_yt_dlp_cmd, is_cloud_env, CLOUD_FALLBACK_URL};
-use crate::models::{ExtractParams, ExtractResponse, SearchParams, SearchTrack};
+use crate::models::{ChartArtist, ExtractParams, ExtractResponse, SearchParams, SearchTrack};
 use crate::security::{check_rate_limit, check_url_ssrf, get_client_ip};
 use crate::ytdlp::{execute_cloud_search, execute_yt_dlp_search, parse_track_json};
 use crate::AppState;
@@ -1149,3 +1149,85 @@ pub async fn get_similar_tracks(
     tracks.truncate(limit);
     Ok(Json(tracks))
 }
+
+pub async fn get_top_artists() -> Result<Json<Vec<ChartArtist>>, StatusCode> {
+    static CACHE: tokio::sync::Mutex<Option<(Vec<ChartArtist>, std::time::Instant)>> =
+        tokio::sync::Mutex::const_new(None);
+
+    {
+        let guard = CACHE.lock().await;
+        if let Some((cached_artists, cached_at)) = &*guard {
+            if cached_at.elapsed() < Duration::from_secs(86400) && !cached_artists.is_empty() {
+                return Ok(Json(cached_artists.clone()));
+            }
+        }
+    }
+
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(5000))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Ok(Json(Vec::new())),
+    };
+
+    let url = "https://api.deezer.com/chart/0/artists?limit=15";
+    let mut artists = Vec::new();
+
+    if let Ok(resp) = client.get(url).send().await {
+        if resp.status().is_success() {
+            if let Ok(data) = resp.json::<serde_json::Value>().await {
+                if let Some(arr) = data["data"].as_array() {
+                    for (idx, item) in arr.iter().enumerate() {
+                        let name = item["name"].as_str().unwrap_or("").trim();
+                        if name.is_empty() {
+                            continue;
+                        }
+                        let position = item["position"].as_u64().map(|p| p as usize).unwrap_or(idx + 1);
+                        let picture = item["picture_medium"]
+                            .as_str()
+                            .or_else(|| item["picture_big"].as_str())
+                            .or_else(|| item["picture"].as_str())
+                            .map(|s| s.to_string());
+
+                        artists.push(ChartArtist {
+                            position,
+                            name: name.to_string(),
+                            picture,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    if artists.is_empty() {
+        let fallback_names = [
+            "The Weeknd",
+            "Drake",
+            "Taylor Swift",
+            "Eminem",
+            "Billie Eilish",
+            "Travis Scott",
+            "Post Malone",
+            "Kanye West",
+            "Dua Lipa",
+            "Ariana Grande",
+        ];
+        for (i, name) in fallback_names.iter().enumerate() {
+            artists.push(ChartArtist {
+                position: i + 1,
+                name: name.to_string(),
+                picture: None,
+            });
+        }
+    }
+
+    {
+        let mut guard = CACHE.lock().await;
+        *guard = Some((artists.clone(), std::time::Instant::now()));
+    }
+
+    Ok(Json(artists))
+}
+

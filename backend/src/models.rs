@@ -102,3 +102,11 @@ pub struct ExtractResponse {
     #[serde(default)]
     pub has_chapters: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChartArtist {
+    pub position: usize,
+    pub name: String,
+    pub picture: Option<String>,
+}
+

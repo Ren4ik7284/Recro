@@ -16,6 +16,7 @@ export interface ProfileArtist {
   name: string;
   plays: number;
   coverUrl?: string;
+  rank?: number;
 }
 
 @Component({
@@ -74,6 +75,7 @@ export class ProfileComponent {
   readonly userPlaylists = computed<Playlist[]>(() => this.libraryService.playlists());
 
   readonly historyArtists = signal<ProfileArtist[]>([]);
+  readonly worldTopArtists = signal<ProfileArtist[]>([]);
 
   readonly topArtists = computed<ProfileArtist[]>(() => {
     const tracks = this.libraryService.tracks();
@@ -103,20 +105,39 @@ export class ProfileComponent {
       }
     }
 
-    const sorted = Array.from(artistMap.entries())
-      .map(([name, data]) => ({
-        name,
-        plays: data.plays,
-        coverUrl: data.coverUrl,
-      }))
-      .sort((a, b) => b.plays - a.plays)
-      .slice(0, 10);
+    if (artistMap.size > 0) {
+      return Array.from(artistMap.entries())
+        .map(([name, data]) => ({
+          name,
+          plays: data.plays,
+          coverUrl: data.coverUrl,
+        }))
+        .sort((a, b) => b.plays - a.plays)
+        .slice(0, 15)
+        .map((a, idx) => ({ ...a, rank: idx + 1 }));
+    }
 
-    return sorted;
+    return this.worldTopArtists();
   });
 
   constructor() {
     this.fetchMonthlyArtistsFromHistory();
+    this.fetchWorldTopArtists();
+  }
+
+  private async fetchWorldTopArtists() {
+    try {
+      const top = await this.libraryService.getTopArtists();
+      if (Array.isArray(top) && top.length > 0) {
+        const mapped: ProfileArtist[] = top.map((item, idx) => ({
+          name: item.name,
+          plays: 0,
+          coverUrl: item.picture,
+          rank: item.position || idx + 1,
+        }));
+        this.worldTopArtists.set(mapped);
+      }
+    } catch {}
   }
 
   private async fetchMonthlyArtistsFromHistory() {
