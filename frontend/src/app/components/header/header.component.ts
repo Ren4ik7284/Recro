@@ -23,6 +23,7 @@ export class HeaderComponent {
   @Output() openAuthModal = new EventEmitter<void>();
   @Output() openWrappedModal = new EventEmitter<void>();
   @Output() openHistoryModal = new EventEmitter<void>();
+  @Output() openProfileModal = new EventEmitter<void>();
 
   readonly isUserMenuOpen = signal<boolean>(false);
 
@@ -32,6 +33,11 @@ export class HeaderComponent {
 
   closeUserMenu() {
     this.isUserMenuOpen.set(false);
+  }
+
+  handleProfileClick() {
+    this.closeUserMenu();
+    this.openProfileModal.emit();
   }
 
   handleWrappedClick() {

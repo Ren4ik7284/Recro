@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::auth::{
     create_jwt, extract_claims_from_headers, hash_password, validate_password,
     validate_username, verify_dummy_password, verify_password, AuthConfigResponse, AuthResponse,
-    GoogleAuthRequest, LoginRequest, RegisterRequest, UserInfo,
+    GoogleAuthRequest, LoginRequest, RegisterRequest, UpdateProfileRequest, UserInfo,
 };
 use crate::security::get_client_ip;
 use crate::AppState;
@@ -124,6 +124,8 @@ pub async fn register(
             username: clean_username,
             email: None,
             avatar_url: None,
+            banner_url: None,
+            profile_tags: None,
         },
     }))
 }
@@ -186,7 +188,7 @@ pub async fn login(
         ));
     }
 
-    let row = sqlx::query("SELECT id, username, password_hash, email, avatar_url FROM users WHERE LOWER(username) = LOWER(?)")
+    let row = sqlx::query("SELECT id, username, password_hash, email, avatar_url, banner_url, profile_tags FROM users WHERE LOWER(username) = LOWER(?)")
         .bind(login)
         .fetch_optional(&state.pool)
         .await
@@ -267,6 +269,8 @@ pub async fn login(
 
     let user_email: Option<String> = user_row.get("email");
     let user_avatar: Option<String> = user_row.get("avatar_url");
+    let user_banner: Option<String> = user_row.get("banner_url");
+    let user_tags: Option<String> = user_row.get("profile_tags");
 
     Ok(Json(AuthResponse {
         token,
@@ -275,6 +279,8 @@ pub async fn login(
             username: db_username,
             email: user_email,
             avatar_url: user_avatar,
+            banner_url: user_banner,
+            profile_tags: user_tags,
         },
     }))
 }
@@ -287,7 +293,7 @@ pub async fn get_me(
         (code, Json(json!({ "error": msg })))
     })?;
 
-    let row = sqlx::query("SELECT id, username, email, avatar_url FROM users WHERE id = ?")
+    let row = sqlx::query("SELECT id, username, email, avatar_url, banner_url, profile_tags FROM users WHERE id = ?")
         .bind(&claims.sub)
         .fetch_optional(&state.pool)
         .await
@@ -304,13 +310,98 @@ pub async fn get_me(
             let username: String = r.get("username");
             let email: Option<String> = r.get("email");
             let avatar_url: Option<String> = r.get("avatar_url");
-            Ok(Json(UserInfo { id, username, email, avatar_url }))
+            let banner_url: Option<String> = r.get("banner_url");
+            let profile_tags: Option<String> = r.get("profile_tags");
+            Ok(Json(UserInfo { id, username, email, avatar_url, banner_url, profile_tags }))
         }
         None => Err((
             StatusCode::NOT_FOUND,
             Json(json!({ "error": "Пользователь не найден" })),
         )),
     }
+}
+
+pub async fn update_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateProfileRequest>,
+) -> Result<Json<UserInfo>, (StatusCode, Json<Value>)> {
+    let claims = extract_claims_from_headers(&headers).map_err(|(code, msg)| {
+        (code, Json(json!({ "error": msg })))
+    })?;
+
+    let user_id = &claims.sub;
+
+    if let Some(ref new_name) = payload.username {
+        let clean = new_name.trim();
+        if clean.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, Json(json!({ "error": "Имя пользователя не может быть пустым" }))));
+        }
+        if let Err(e) = validate_username(clean) {
+            return Err((StatusCode::BAD_REQUEST, Json(json!({ "error": e }))));
+        }
+        let exists = sqlx::query("SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ?")
+            .bind(clean)
+            .bind(user_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Ошибка базы данных" }))))?;
+
+        if exists.is_some() {
+            return Err((StatusCode::CONFLICT, Json(json!({ "error": "Имя пользователя уже занято" }))));
+        }
+
+        let _ = sqlx::query("UPDATE users SET username = ? WHERE id = ?")
+            .bind(clean)
+            .bind(user_id)
+            .execute(&state.pool)
+            .await;
+    }
+
+    if let Some(ref new_avatar) = payload.avatar_url {
+        let clean_avatar = new_avatar.trim();
+        let val = if clean_avatar.is_empty() { None } else { Some(clean_avatar.to_string()) };
+        let _ = sqlx::query("UPDATE users SET avatar_url = ? WHERE id = ?")
+            .bind(val)
+            .bind(user_id)
+            .execute(&state.pool)
+            .await;
+    }
+
+    if let Some(ref new_banner) = payload.banner_url {
+        let clean_banner = new_banner.trim();
+        let val = if clean_banner.is_empty() { None } else { Some(clean_banner.to_string()) };
+        let _ = sqlx::query("UPDATE users SET banner_url = ? WHERE id = ?")
+            .bind(val)
+            .bind(user_id)
+            .execute(&state.pool)
+            .await;
+    }
+
+    if let Some(ref new_tags) = payload.profile_tags {
+        let clean_tags = new_tags.trim();
+        let val = if clean_tags.is_empty() { None } else { Some(clean_tags.to_string()) };
+        let _ = sqlx::query("UPDATE users SET profile_tags = ? WHERE id = ?")
+            .bind(val)
+            .bind(user_id)
+            .execute(&state.pool)
+            .await;
+    }
+
+    let updated = sqlx::query("SELECT id, username, email, avatar_url, banner_url, profile_tags FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Не удалось загрузить профиль" }))))?;
+
+    let id: String = updated.get("id");
+    let username: String = updated.get("username");
+    let email: Option<String> = updated.get("email");
+    let avatar_url: Option<String> = updated.get("avatar_url");
+    let banner_url: Option<String> = updated.get("banner_url");
+    let profile_tags: Option<String> = updated.get("profile_tags");
+
+    Ok(Json(UserInfo { id, username, email, avatar_url, banner_url, profile_tags }))
 }
 
 pub async fn get_auth_config() -> Json<AuthConfigResponse> {
@@ -502,6 +593,8 @@ pub async fn google_login(
                 username,
                 email: email_opt.or(current_email),
                 avatar_url: avatar_opt.or(current_avatar),
+                banner_url: None,
+                profile_tags: None,
             },
         }));
     }
@@ -548,6 +641,8 @@ pub async fn google_login(
                     username,
                     email: Some(email.clone()),
                     avatar_url: avatar_opt.or(current_avatar),
+                    banner_url: None,
+                    profile_tags: None,
                 },
             }));
         }
@@ -648,6 +743,8 @@ pub async fn google_login(
             username: chosen_username,
             email: email_opt,
             avatar_url: avatar_opt,
+            banner_url: None,
+            profile_tags: None,
         },
     }))
 }

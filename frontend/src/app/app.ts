@@ -23,6 +23,7 @@ import { AuthService, HistoryItem, WrappedStats } from './services/auth.service'
 import { RecommendationService } from './services/recommendation.service';
 import { LyricsService } from './services/lyrics.service';
 import { LyricsComponent } from './components/lyrics/lyrics.component';
+import { ProfileComponent } from './components/profile/profile.component';
 import { NavigationService } from './services/navigation.service';
 import { AmbientService } from './services/ambient.service';
 import { PwaService } from './services/pwa.service';
@@ -45,6 +46,7 @@ declare global {
     PlayerBarComponent,
     VisualizerComponent,
     LyricsComponent,
+    ProfileComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -102,6 +104,8 @@ export class App implements OnInit {
   readonly wrappedStats = signal<WrappedStats | null>(null);
   readonly isLoadingWrapped = signal<boolean>(false);
 
+  readonly isProfileModalOpen = signal<boolean>(false);
+
   readonly isHistoryModalOpen = signal<boolean>(false);
   readonly historyList = signal<HistoryItem[]>([]);
   readonly isLoadingHistory = signal<boolean>(false);
@@ -110,7 +114,7 @@ export class App implements OnInit {
   readonly addModalTab = signal<'youtube' | 'search' | 'radio' | 'url' | 'file'>('youtube');
   readonly isPlaylistModalOpen = signal<boolean>(false);
   readonly isQueueDrawerOpen = signal<boolean>(false);
-  readonly activeTab = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline'>('all');
+  readonly activeTab = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile'>('all');
   readonly toastMessage = signal<string | null>(null);
 
   readonly isMobilePlayerExpanded = signal<boolean>(false);
@@ -270,6 +274,10 @@ export class App implements OnInit {
         }
       } else {
         this.timerService.isTimerModalOpen.set(false);
+      }
+
+      if (o === 'profile') {
+        this.setView('profile', undefined, false);
       }
 
       if (o === 'timer-finish') {
@@ -543,6 +551,8 @@ export class App implements OnInit {
         this.closeWrappedModal();
       } else if (this.isHistoryModalOpen()) {
         this.closeHistoryModal();
+      } else if (this.isProfileModalOpen()) {
+        this.closeProfileModal();
       } else if (this.isMixSettingsModalOpen()) {
         this.closeMixSettings();
       } else if (this.isPwaModalOpen()) {
@@ -812,6 +822,25 @@ export class App implements OnInit {
     this.navService.closeOverlay('wrapped');
   }
 
+  openProfileModal(pushHistory = true) {
+    this.setView('profile', undefined, pushHistory);
+  }
+
+  closeProfileModal() {
+    this.isProfileModalOpen.set(false);
+    this.navService.closeOverlay('profile');
+  }
+
+  openPlaylistFromProfile(playlistId: string) {
+    this.closeProfileModal();
+    this.setView('playlist', playlistId);
+  }
+
+  searchArtistFromProfile(artistName: string) {
+    this.closeProfileModal();
+    this.openOnlineSearchWithQuery(artistName);
+  }
+
   async openHistoryModal(pushHistory = true) {
     if (!this.authService.isAuthenticated()) {
       this.showToast('Войдите в аккаунт для просмотра истории');
@@ -889,7 +918,7 @@ export class App implements OnInit {
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
-  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline', playlistId?: string, pushHistory = true) {
+  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile', playlistId?: string, pushHistory = true) {
     this.activeTab.set(view);
     this.libraryService.selectedView.set(view);
     if (playlistId) {
@@ -898,6 +927,9 @@ export class App implements OnInit {
       this.libraryService.activePlaylistId.set(null);
     }
     this.isMobilePlaylistsOpen.set(false);
+    if (this.isProfileModalOpen()) {
+      this.isProfileModalOpen.set(false);
+    }
 
     if (pushHistory) {
       this.navService.setTab(view, playlistId, true);

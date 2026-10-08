@@ -19,7 +19,8 @@ export class SidebarComponent {
   readonly audioService = inject(AudioService);
   readonly timerService = inject(TimerService);
 
-  @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' = 'all';
+  @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' = 'all';
+  @Input() isProfileOpen = false;
 
   @Output() viewChange = new EventEmitter<{ view: string; playlistId?: string }>();
   @Output() triggerSmartMix = new EventEmitter<void>();
@@ -28,6 +29,7 @@ export class SidebarComponent {
   @Output() openHistory = new EventEmitter<void>();
   @Output() openTimer = new EventEmitter<void>();
   @Output() openAuth = new EventEmitter<void>();
+  @Output() openProfile = new EventEmitter<void>();
 
   onMixClick() {
     this.viewChange.emit({ view: 'all' });

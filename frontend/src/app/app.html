@@ -17,11 +17,13 @@
     (openAuthModal)="openAuthModal()"
     (openWrappedModal)="openWrappedModal()"
     (openHistoryModal)="openHistoryModal()"
+    (openProfileModal)="openProfileModal()"
   ></app-header-bar>
 
   <div class="app-body">
     <app-sidebar
       [activeTab]="activeTab()"
+      [isProfileOpen]="isProfileModalOpen()"
       (viewChange)="setView($any($event.view), $event.playlistId)"
       (triggerSmartMix)="toggleSmartMix()"
       (createPlaylist)="openCreatePlaylistModal()"
@@ -29,6 +31,7 @@
       (openHistory)="openHistoryModal()"
       (openTimer)="timerService.openTimerModal()"
       (openAuth)="openAuthModal()"
+      (openProfile)="openProfileModal()"
     ></app-sidebar>
 
     
@@ -64,6 +67,14 @@
           </div>
         }
         
+        @if (activeTab() === 'profile') {
+          <app-profile
+            [showCloseButton]="false"
+            (openPlaylist)="openPlaylistFromProfile($event)"
+            (createPlaylist)="openCreatePlaylistModal()"
+            (searchArtist)="searchArtistFromProfile($event)"
+          ></app-profile>
+        } @else {
         <div class="view-header">
           <div class="view-header-main-row">
             @if (activeTab() === 'playlist' && currentPlaylist(); as pl) {
@@ -757,6 +768,7 @@
             </div>
           </div>
         }
+        }
       </div>
     </main>
   </div>
@@ -818,6 +830,14 @@
         <path d="M4 6h16M4 12h16M4 18h7"/>
       </svg>
       <span>Плейлисты</span>
+    </button>
+
+    <button class="m-nav-item" [class.active]="isProfileModalOpen()" (click)="openProfileModal()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span>Профиль</span>
     </button>
   </nav>
 
@@ -2204,6 +2224,20 @@
             </button>
           }
         </div>
+      </div>
+    </div>
+  }
+
+  @if (isProfileModalOpen()) {
+    <div class="modal-backdrop profile-full-backdrop" (click)="closeProfileModal()">
+      <div class="profile-full-dialog" (click)="$event.stopPropagation()">
+        <app-profile
+          [showCloseButton]="true"
+          (close)="closeProfileModal()"
+          (openPlaylist)="openPlaylistFromProfile($event)"
+          (createPlaylist)="openCreatePlaylistModal()"
+          (searchArtist)="searchArtistFromProfile($event)"
+        ></app-profile>
       </div>
     </div>
   }

@@ -16,25 +16,25 @@ export interface TasteVector {
 }
 
 export const DEFAULT_TASTE_VECTOR: TasteVector = {
-  energy: 0.6,
-  tempo: 0.55,
+  energy: 0.5,
+  tempo: 0.5,
   acoustic: 0.35,
-  hiphop: 0.5,
-  rock: 0.4,
-  electronic: 0.5,
-  pop: 0.5,
-  chill: 0.4,
+  hiphop: 0.2,
+  rock: 0.3,
+  electronic: 0.3,
+  pop: 0.3,
+  chill: 0.3,
 };
 
 export const STARTER_MIX_TRACKS: Track[] = [
   {
     id: 'starter-1',
-    title: 'Иней!',
-    artist: 'Платина',
-    duration: 174,
-    audioUrl: '/api/stream?title=%D0%98%D0%BD%D0%B5%D0%B9!&artist=%D0%9F%D0%BB%D0%B0%D1%82%D0%B8%D0%BD%D0%B0',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6c65b1cbca5aa2771b0292b3bafe6288/500x500.jpg',
-    genre: 'Rap / Trap',
+    title: 'Get Lucky',
+    artist: 'Daft Punk feat. Pharrell Williams',
+    duration: 248,
+    audioUrl: '/api/stream?title=Get%20Lucky&artist=Daft%20Punk',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/2c5aa8c057ee13d8031e42845c48bce6/500x500.jpg',
+    genre: 'Disco / Funk',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -42,12 +42,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-2',
-    title: 'Minor',
-    artist: 'Miyagi & Andy Panda',
-    duration: 175,
-    audioUrl: '/api/stream?title=Minor&artist=Miyagi%20%26%20Andy%20Panda',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/2c5aa8c057ee13d8031e42845c48bce6/500x500.jpg',
-    genre: 'Hip-Hop',
+    title: 'Do I Wanna Know?',
+    artist: 'Arctic Monkeys',
+    duration: 272,
+    audioUrl: '/api/stream?title=Do%20I%20Wanna%20Know&artist=Arctic%20Monkeys',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6c65b1cbca5aa2771b0292b3bafe6288/500x500.jpg',
+    genre: 'Indie Rock',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -55,12 +55,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-3',
-    title: 'Million',
-    artist: 'Big Baby Tape, Kizaru',
-    duration: 153,
-    audioUrl: '/api/stream?title=Million&artist=Big%20Baby%20Tape%2C%20Kizaru',
+    title: 'Blinding Lights',
+    artist: 'The Weeknd',
+    duration: 200,
+    audioUrl: '/api/stream?title=Blinding%20Lights&artist=The%20Weeknd',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/e00f95ecb2649666cfeb317f2be021a8/500x500.jpg',
-    genre: 'Trap / Rap',
+    genre: 'Synthpop',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -146,12 +146,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-10',
-    title: 'Положение',
-    artist: 'Скриптонит',
-    duration: 284,
-    audioUrl: '/api/stream?title=%D0%9F%D0%BE%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5&artist=%D0%A1%D0%BA%D1%80%D0%B8%D0%BF%D1%82%D0%BE%D0%BD%D0%B8%D1%82',
+    title: 'Bohemian Rhapsody',
+    artist: 'Queen',
+    duration: 354,
+    audioUrl: '/api/stream?title=Bohemian%20Rhapsody&artist=Queen',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/03f0bbfb776269dfb48c0aee7144e54a/500x500.jpg',
-    genre: 'Hip-Hop',
+    genre: 'Classic Rock',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -198,12 +198,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-14',
-    title: 'Старшие',
-    artist: 'OG Buda',
-    duration: 162,
-    audioUrl: '/api/stream?title=%D0%A1%D1%82%D0%B0%D1%80%D1%88%D0%B8%D0%B5&artist=OG%20Buda',
+    title: 'Believer',
+    artist: 'Imagine Dragons',
+    duration: 204,
+    audioUrl: '/api/stream?title=Believer&artist=Imagine%20Dragons',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/d513725c4ef68ee410dfa6c7ecb1e5fe/500x500.jpg',
-    genre: 'Trap / Drill',
+    genre: 'Alternative / Rock',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -1340,23 +1340,23 @@ export class RecommendationService {
     const enQueries: string[] = [];
 
     if (userTaste.hiphop > 0.40) {
-      ruQueries.push('русский рэп хиты', 'OG Buda', 'Платина', 'Kizaru', 'MAYOT', 'Miyagi');
+      ruQueries.push('хип хоп хиты', 'рэп новинки');
       enQueries.push('hip hop hits', 'rap hits');
     }
     if (userTaste.electronic > 0.40) {
-      ruQueries.push('drift phonk', 'phonk remix', 'memphis phonk');
-      enQueries.push('drift phonk', 'phonk remix');
+      ruQueries.push('электронная музыка', 'synthwave');
+      enQueries.push('electronic hits', 'synthwave');
     }
     if (userTaste.rock > 0.40) {
-      ruQueries.push('русский рок', 'Король и Шут', 'Порнофильмы', 'Кино', 'Ария');
+      ruQueries.push('рок музыка', 'alternative rock');
       enQueries.push('rock hits', 'alternative rock');
     }
     if (userTaste.pop > 0.40) {
-      ruQueries.push('русские хиты', 'популярные треки', 'ANNA ASTI', 'JONY');
+      ruQueries.push('популярные треки', 'инди музыка');
       enQueries.push('pop hits', 'top hits');
     }
 
-    if (ruQueries.length === 0) ruQueries.push('русский рэп хиты', 'drift phonk', 'русский рок');
+    if (ruQueries.length === 0) ruQueries.push('популярная музыка', 'топ треки');
     if (enQueries.length === 0) enQueries.push('top hits', 'viral hits');
 
     if (isRu) {
@@ -1429,15 +1429,21 @@ export class RecommendationService {
 
       const effectiveSeed = seedTrack || (candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : null);
       if (effectiveSeed) {
+        if (effectiveSeed.title && effectiveSeed.artist) {
+          pass1Tasks.push(
+            this.libraryService.getSimilarTracks(effectiveSeed.title, effectiveSeed.artist, 10).catch(() => [] as Track[])
+          );
+        }
+
         pass1Tasks.push(
-          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 12).catch(() => [] as Track[])
+          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 10).catch(() => [] as Track[])
         );
 
         const seedArtists = extractAllArtists(effectiveSeed.artist, effectiveSeed.title);
         if (seedArtists.length > 0) {
           const randArtist = seedArtists[Math.floor(Math.random() * seedArtists.length)];
           pass1Tasks.push(
-            this.libraryService.getRecommendations(randArtist, dominantGenre, 8).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(randArtist, dominantGenre, 6).catch(() => [] as Track[])
           );
         }
       }
@@ -1524,7 +1530,7 @@ export class RecommendationService {
           (hasJunkAffinity || !JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`))
         );
 
-        const minSim = userTopArtists.length > 0 ? 0.42 : 0.25;
+        const minSim = userTopArtists.length > 0 ? 0.42 : 0.40;
 
         for (const t of valid) {
           if (selectedTracks.length >= count) break;

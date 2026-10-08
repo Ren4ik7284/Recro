@@ -5,6 +5,10 @@ export interface UserInfo {
   username: string;
   email?: string;
   avatar_url?: string;
+  banner_url?: string;
+  profile_tags?: string;
+  tags?: string[];
+  role?: string;
 }
 
 export interface AuthConfigResponse {
@@ -360,6 +364,45 @@ export class AuthService {
     } finally {
       this.isAuthLoading.set(false);
     }
+  }
+
+  async updateProfile(partial: Partial<UserInfo>, backendUrl?: string): Promise<boolean> {
+    const cur = this.currentUser();
+    if (!cur) return false;
+    const updated = { ...cur, ...partial };
+    this.currentUser.set(updated);
+    try {
+      localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    const authToken = this.token();
+    if (authToken && backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/auth/profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            username: partial.username,
+            avatar_url: partial.avatar_url,
+            banner_url: partial.banner_url,
+            profile_tags: partial.profile_tags,
+          }),
+        });
+        if (res.ok) {
+          const serverUser: UserInfo = await res.json();
+          const merged = { ...updated, ...serverUser };
+          this.currentUser.set(merged);
+          try {
+            localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(merged));
+          } catch {}
+          return true;
+        }
+      } catch {}
+    }
+    return true;
   }
 
   logout() {

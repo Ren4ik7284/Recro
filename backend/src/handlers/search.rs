@@ -551,6 +551,54 @@ pub async fn execute_deezer_search(query: &str, limit: usize, base_url: &str) ->
     tracks
 }
 
+pub async fn fetch_lastfm_related_artists(artist_name: &str, api_key: &str) -> Vec<String> {
+    let clean = artist_name
+        .split("feat")
+        .next()
+        .unwrap_or(artist_name)
+        .split("ft.")
+        .next()
+        .unwrap_or(artist_name)
+        .split('&')
+        .next()
+        .unwrap_or(artist_name)
+        .trim();
+
+    if clean.is_empty() {
+        return Vec::new();
+    }
+
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(3000))
+        .user_agent("Mozilla/5.0")
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let url = format!(
+        "https://ws.audioscrobbler.com/2.0/?method=artist.getSimilar&artist={}&api_key={}&format=json&limit=15",
+        urlencoding::encode(clean),
+        api_key
+    );
+
+    match client.get(&url).send().await {
+        Ok(r) if r.status().is_success() => {
+            if let Ok(data) = r.json::<serde_json::Value>().await {
+                if let Some(arr) = data["similarartists"]["artist"].as_array() {
+                    return arr
+                        .iter()
+                        .filter_map(|a| a["name"].as_str().map(|s| s.to_string()))
+                        .collect();
+                }
+            }
+            Vec::new()
+        }
+        _ => Vec::new(),
+    }
+}
+
 pub async fn fetch_deezer_related_artists(artist_name: &str) -> Vec<String> {
     let clean = artist_name
         .split("feat")
@@ -733,7 +781,12 @@ pub async fn get_recommendations(
         let mut target_artists = Vec::new();
         target_artists.push(artist.to_string());
 
+        let lastfm_api_key = std::env::var("LASTFM_API_KEY")
+            .unwrap_or_else(|_| "1913322afac44ffa30bbec00e1e4c0f2".to_string());
         let mut rel_names = fetch_deezer_related_artists(artist).await;
+        if rel_names.is_empty() {
+            rel_names = fetch_lastfm_related_artists(artist, &lastfm_api_key).await;
+        }
         if !rel_names.is_empty() {
             fastrand::shuffle(&mut rel_names);
             for name in rel_names.into_iter().take(5) {
@@ -761,20 +814,24 @@ pub async fn get_recommendations(
         fastrand::shuffle(&mut tracks);
     }
 
-    if tracks.is_empty() && (!chart.is_empty() || !genre.is_empty() || !artist.is_empty()) {
-        let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)) || chart.contains("ru");
-        let fallback_pool: &[&str] = if genre.contains("phonk") {
-            &["drift phonk", "phonk remix", "memphis phonk", "brazilian phonk"]
-        } else if genre.contains("rock") || genre.contains("metal") || genre.contains("alternative") {
-            &["Король и Шут", "Порнофильмы", "Кино", "Ария", "Сектор Газа", "Три дня дождя"]
-        } else if genre.contains("pop") {
-            &["ANNA ASTI", "JONY", "Zivert", "Баста"]
-        } else {
-            &["Платина", "OG Buda", "Scally Milano", "Kizaru", "MAYOT", "Miyagi", "Big Baby Tape"]
-        };
-        let pick = fallback_pool[fastrand::usize(..fallback_pool.len())];
-
-        let sc_res = state.soundcloud.search_tracks(pick, limit * 2, &base_url).await;
+    // If no related tracks found, search for more tracks by the requested artist itself
+    // NEVER inject arbitrary unrelated artists (like Miyagi or Big Baby Tape)!
+    if tracks.is_empty() && !artist.is_empty() {
+        let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+        let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
+        for t in sc_res {
+            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                && !is_noisy_compilation(&t.title)
+                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
+                && seen_ids.insert(t.id.clone())
+            {
+                tracks.push(t);
+            }
+        }
+        fastrand::shuffle(&mut tracks);
+    } else if tracks.is_empty() && !genre.is_empty() {
+        let is_cyrillic = genre.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)) || chart.contains("ru");
+        let sc_res = state.soundcloud.search_tracks(&genre, limit * 2, &base_url).await;
         for t in sc_res {
             if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                 && !is_noisy_compilation(&t.title)

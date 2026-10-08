@@ -1,0 +1,383 @@
+<div class="profile-view-container">
+  <div 
+    class="profile-header-card" 
+    [style.backgroundImage]="authService.currentUser()?.banner_url ? 'linear-gradient(180deg, rgba(20,20,20,0.4) 0%, rgba(20,20,20,0.85) 100%), url(' + authService.currentUser()?.banner_url + ')' : null"
+    [class.has-custom-banner]="!!authService.currentUser()?.banner_url"
+  >
+    <div class="profile-top-bar" [class.no-back]="!showCloseButton()">
+      @if (showCloseButton()) {
+        <button class="btn-profile-back" (click)="close.emit()" title="Назад">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+      }
+
+      <div class="top-bar-right-actions">
+        <button class="btn-profile-banner-edit font-mono" (click)="openBannerModal()" title="Сменить баннер профиля">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+            <circle cx="9" cy="9" r="2"/>
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+          </svg>
+          <span>Баннер</span>
+        </button>
+
+        <button class="btn-profile-settings" (click)="openSettings()" title="Настройки профиля">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="profile-hero-content">
+      <div class="profile-avatar-wrapper" (click)="openAvatarModal()" title="Нажмите, чтобы изменить аватар">
+        <div class="profile-avatar-circle">
+          @if (authService.currentUser()?.avatar_url; as avatar) {
+            <img [src]="avatar" class="profile-avatar-img" alt="avatar" referrerpolicy="no-referrer" />
+          } @else {
+            <svg class="profile-avatar-placeholder" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+          }
+          <div class="profile-avatar-hover-overlay">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+        </div>
+        <span class="profile-online-badge" title="В сети"></span>
+      </div>
+
+      <div class="profile-meta-info">
+        <span class="profile-label-subtitle">Страничка пользователя</span>
+        <h1 class="profile-nickname-text">{{ authService.currentUser()?.username || 'Nickname' }}</h1>
+
+        <div class="profile-tags-container">
+          @for (tag of userTags(); track tag.text) {
+            <span 
+              class="profile-tag-pill font-mono" 
+              [style.background]="tag.color"
+              [style.borderColor]="tag.color"
+            >
+              {{ tag.text }}
+              <button class="btn-tag-remove" (click)="removeTag(tag, $event)" title="Удалить тег">
+                &times;
+              </button>
+            </span>
+          }
+
+          <button class="btn-add-tag-trigger font-mono" (click)="openAddTag()" title="Создать свой тег">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>Тег</span>
+          </button>
+        </div>
+
+        <p class="profile-stats-meta font-mono">
+          {{ userPlaylists().length }} плейлистов пользователя &bull; онлайн
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="profile-body-sections">
+    <section class="profile-section top-artists-section">
+      <h2 class="profile-section-title">Топ исполнителей этого месяца</h2>
+
+      @if (topArtists().length > 0) {
+        <div class="carousel-outer-wrapper">
+          <button class="carousel-arrow-btn left" (click)="scrollCarousel('left')" title="Назад">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+
+          <div class="artists-carousel-track" #carouselRef>
+            @for (artist of topArtists(); track artist.name + $index) {
+              <div class="artist-card-item" (click)="onArtistClick(artist.name)">
+                <div class="artist-avatar-circle">
+                  @if (artist.coverUrl) {
+                    <img [src]="artist.coverUrl" class="artist-img" [alt]="artist.name" loading="lazy" />
+                  } @else {
+                    <div class="artist-monogram">
+                      <span>{{ artist.name.slice(0, 1).toUpperCase() }}</span>
+                    </div>
+                  }
+                </div>
+                <span class="artist-name-label" [title]="artist.name">{{ artist.name }}</span>
+                <span class="artist-sub-role">Исполнитель</span>
+              </div>
+            }
+          </div>
+
+          <button class="carousel-arrow-btn right" (click)="scrollCarousel('right')" title="Вперед">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </div>
+      } @else {
+        <div class="empty-artists-box">
+          <p class="empty-artists-text">Слушайте больше треков в этом месяце, чтобы здесь появился ваш персональный топ исполнителей.</p>
+        </div>
+      }
+
+      <div class="section-divider-line"></div>
+    </section>
+
+    <section class="profile-section user-playlists-section">
+      <h2 class="profile-section-title">Плейлисты Пользователя</h2>
+
+      @if (userPlaylists().length > 0) {
+        <div class="playlists-grid">
+          @for (pl of userPlaylists(); track pl.id) {
+            <div class="playlist-card-item" (click)="onPlaylistClick(pl.id)">
+              <div class="playlist-cover-box">
+                <svg class="playlist-note-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <rect x="3" y="3" width="18" height="18" rx="5"/>
+                  <path d="M9 16V8l8-2v8"/>
+                  <circle cx="8" cy="16" r="2"/>
+                  <circle cx="16" cy="14" r="2"/>
+                </svg>
+              </div>
+              <span class="playlist-title-label" [title]="pl.title">{{ pl.title }}</span>
+              <span class="playlist-author-label">{{ authService.currentUser()?.username || 'Nickname' }}</span>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="empty-playlists-box">
+          <p class="empty-playlists-text">Плейлисты еще не созданы</p>
+          <button class="btn-create-first-playlist font-mono" (click)="createPlaylist.emit()">
+            Создать плейлист
+          </button>
+        </div>
+      }
+    </section>
+  </div>
+
+  @if (isAddTagOpen()) {
+    <div class="profile-modal-backdrop" (click)="closeAddTag()">
+      <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-header">
+          <h3>Добавить тег</h3>
+          <button class="btn-modal-close" (click)="closeAddTag()">&times;</button>
+        </div>
+        <div class="modal-dialog-body">
+          <label class="modal-input-label">Название тега (без эмодзи)</label>
+          <input 
+            type="text" 
+            class="modal-text-input font-mono"
+            placeholder="Например: Beatmaker, VIP, PRO"
+            maxlength="20"
+            [ngModel]="newTagInput()"
+            (ngModelChange)="newTagInput.set($event)"
+            (keyup.enter)="createTag()"
+            autofocus
+          />
+
+          <label class="modal-input-label" style="margin-top: 14px;">Цвет тега</label>
+          <div class="tag-color-palette">
+            @for (c of tagColorPresets; track c) {
+              <button 
+                type="button" 
+                class="tag-color-circle" 
+                [style.background]="c" 
+                [class.active]="selectedTagColor() === c"
+                (click)="selectTagColor(c)"
+              ></button>
+            }
+          </div>
+
+          <div class="tag-custom-color-row">
+            <span class="font-mono custom-color-hint">Свой цвет:</span>
+            <input 
+              type="color" 
+              class="tag-color-input" 
+              [ngModel]="selectedTagColor()"
+              (ngModelChange)="selectedTagColor.set($event)"
+            />
+            <span class="font-mono tag-color-hex">{{ selectedTagColor() }}</span>
+          </div>
+
+          @if (tagError(); as err) {
+            <div class="modal-error-text font-mono">{{ err }}</div>
+          }
+        </div>
+        <div class="modal-dialog-footer">
+          <button class="btn-modal-cancel font-mono" (click)="closeAddTag()">Отмена</button>
+          <button class="btn-modal-submit font-mono" (click)="createTag()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (isAvatarModalOpen()) {
+    <div class="profile-modal-backdrop" (click)="closeAvatarModal()">
+      <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-header">
+          <h3>Сменить аватар</h3>
+          <button class="btn-modal-close" (click)="closeAvatarModal()">&times;</button>
+        </div>
+        <div class="modal-dialog-body">
+          <input 
+            type="file" 
+            #avatarFileInput 
+            accept="image/*" 
+            style="display: none;" 
+            (change)="onAvatarFileSelected($event)" 
+          />
+
+          <div class="avatar-preview-container">
+            <div class="avatar-preview-circle">
+              @if (editAvatarUrl()) {
+                <img [src]="editAvatarUrl()" alt="preview" referrerpolicy="no-referrer" />
+              } @else {
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+              }
+            </div>
+          </div>
+
+          <div class="media-upload-options-row">
+            <button type="button" class="btn-upload-device font-mono" (click)="triggerAvatarFile()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+              </svg>
+              <span>Выбрать из галереи устройства</span>
+            </button>
+
+            @if (editAvatarUrl()) {
+              <button type="button" class="btn-upload-remove font-mono" (click)="removeAvatar()" title="Удалить фото">
+                Очистить
+              </button>
+            }
+          </div>
+
+          <div class="upload-divider-text font-mono">или укажите прямую ссылку</div>
+
+          <label class="modal-input-label">Ссылка на изображение аватара (URL)</label>
+          <input 
+            type="text" 
+            class="modal-text-input font-mono"
+            placeholder="https://... (необязательно, если выбрано фото)"
+            [ngModel]="editAvatarUrl()"
+            (ngModelChange)="editAvatarUrl.set($event)"
+          />
+        </div>
+        <div class="modal-dialog-footer">
+          <button class="btn-modal-cancel font-mono" (click)="closeAvatarModal()">Отмена</button>
+          <button class="btn-modal-submit font-mono" (click)="saveAvatar()">Сохранить аватар</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (isBannerModalOpen()) {
+    <div class="profile-modal-backdrop" (click)="closeBannerModal()">
+      <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-header">
+          <h3>Сменить баннер профиля</h3>
+          <button class="btn-modal-close" (click)="closeBannerModal()">&times;</button>
+        </div>
+        <div class="modal-dialog-body">
+          <input 
+            type="file" 
+            #bannerFileInput 
+            accept="image/*" 
+            style="display: none;" 
+            (change)="onBannerFileSelected($event)" 
+          />
+
+          @if (editBannerUrl()) {
+            <div class="banner-preview-box" [style.backgroundImage]="'url(' + editBannerUrl() + ')'"></div>
+          }
+
+          <div class="media-upload-options-row">
+            <button type="button" class="btn-upload-device font-mono" (click)="triggerBannerFile()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+              </svg>
+              <span>Выбрать из галереи устройства</span>
+            </button>
+
+            @if (editBannerUrl()) {
+              <button type="button" class="btn-upload-remove font-mono" (click)="removeBanner()" title="Удалить баннер">
+                Очистить
+              </button>
+            }
+          </div>
+
+          <div class="upload-divider-text font-mono">или укажите прямую ссылку</div>
+
+          <label class="modal-input-label">Ссылка на изображение баннера (URL)</label>
+          <input 
+            type="text" 
+            class="modal-text-input font-mono"
+            placeholder="https://... (изображение для шапки профиля)"
+            [ngModel]="editBannerUrl()"
+            (ngModelChange)="editBannerUrl.set($event)"
+          />
+        </div>
+        <div class="modal-dialog-footer">
+          <button class="btn-modal-cancel font-mono" (click)="closeBannerModal()">Отмена</button>
+          <button class="btn-modal-submit font-mono" (click)="saveBanner()">Сохранить баннер</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (isSettingsOpen()) {
+    <div class="profile-modal-backdrop" (click)="closeSettings()">
+      <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-header">
+          <h3>Настройки профиля</h3>
+          <button class="btn-modal-close" (click)="closeSettings()">&times;</button>
+        </div>
+        <div class="modal-dialog-body">
+          <label class="modal-input-label">Никнейм</label>
+          <input 
+            type="text" 
+            class="modal-text-input font-mono"
+            maxlength="30"
+            [ngModel]="editUsername()"
+            (ngModelChange)="editUsername.set($event)"
+          />
+
+          <label class="modal-input-label" style="margin-top: 14px;">Ссылка на аватар (URL)</label>
+          <input 
+            type="text" 
+            class="modal-text-input font-mono"
+            placeholder="https://..."
+            [ngModel]="editAvatarUrl()"
+            (ngModelChange)="editAvatarUrl.set($event)"
+          />
+
+          <label class="modal-input-label" style="margin-top: 14px;">Ссылка на баннер (URL)</label>
+          <input 
+            type="text" 
+            class="modal-text-input font-mono"
+            placeholder="https://..."
+            [ngModel]="editBannerUrl()"
+            (ngModelChange)="editBannerUrl.set($event)"
+          />
+        </div>
+        <div class="modal-dialog-footer">
+          <button class="btn-modal-cancel font-mono" (click)="closeSettings()">Отмена</button>
+          <button class="btn-modal-submit font-mono" (click)="saveSettings()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

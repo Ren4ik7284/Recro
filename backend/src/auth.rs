@@ -29,6 +29,18 @@ pub struct UserInfo {
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub banner_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_tags: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProfileRequest {
+    pub username: Option<String>,
+    pub avatar_url: Option<String>,
+    pub banner_url: Option<String>,
+    pub profile_tags: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
