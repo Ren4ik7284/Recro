@@ -78,50 +78,10 @@ export class ProfileComponent {
   readonly worldTopArtists = signal<ProfileArtist[]>([]);
 
   readonly topArtists = computed<ProfileArtist[]>(() => {
-    const tracks = this.libraryService.tracks();
-    const artistMap = new Map<string, { plays: number; coverUrl?: string }>();
-
-    for (const t of tracks) {
-      if (!t.artist || !t.artist.trim()) continue;
-      const primary = t.artist.split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]/i)[0].trim();
-      if (!primary || primary.length < 2) continue;
-
-      const current = artistMap.get(primary) || { plays: 0, coverUrl: t.coverUrl };
-      const weight = (t.plays || 0) + (t.isFavorite ? 3 : 1);
-      current.plays += weight;
-      if (!current.coverUrl && t.coverUrl) {
-        current.coverUrl = t.coverUrl;
-      }
-      artistMap.set(primary, current);
-    }
-
-    for (const ha of this.historyArtists()) {
-      const cur = artistMap.get(ha.name);
-      if (cur) {
-        cur.plays += ha.plays;
-        if (!cur.coverUrl && ha.coverUrl) cur.coverUrl = ha.coverUrl;
-      } else {
-        artistMap.set(ha.name, { plays: ha.plays, coverUrl: ha.coverUrl });
-      }
-    }
-
-    if (artistMap.size > 0) {
-      return Array.from(artistMap.entries())
-        .map(([name, data]) => ({
-          name,
-          plays: data.plays,
-          coverUrl: data.coverUrl,
-        }))
-        .sort((a, b) => b.plays - a.plays)
-        .slice(0, 15)
-        .map((a, idx) => ({ ...a, rank: idx + 1 }));
-    }
-
     return this.worldTopArtists();
   });
 
   constructor() {
-    this.fetchMonthlyArtistsFromHistory();
     this.fetchWorldTopArtists();
   }
 
@@ -139,6 +99,7 @@ export class ProfileComponent {
       }
     } catch {}
   }
+
 
   private async fetchMonthlyArtistsFromHistory() {
     try {
