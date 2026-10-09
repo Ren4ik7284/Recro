@@ -107,7 +107,10 @@ pub async fn get_library(
         let title: String = r.get("title");
         let description: Option<String> = r.get("description");
         let cover_text: Option<String> = r.get("cover_text");
-        let cover_url: Option<String> = r.try_get("cover_url").ok();
+        let cover_url: Option<String> = r.try_get("cover_url").ok().and_then(|s: String| {
+            let t = s.trim();
+            if t.is_empty() { None } else { Some(t.to_string()) }
+        });
         let track_ids_raw: String = r.get("track_ids");
         let track_ids: Vec<String> = serde_json::from_str(&track_ids_raw).unwrap_or_default();
 
@@ -324,7 +327,10 @@ pub async fn save_library(
             let title = item.get("title").and_then(|v| v.as_str()).unwrap_or_default();
             let desc = item.get("description").and_then(|v| v.as_str()).unwrap_or_default();
             let cover_text = item.get("coverText").and_then(|v| v.as_str()).unwrap_or("PL");
-            let cover_url = item.get("coverUrl").and_then(|v| v.as_str());
+            let cover_url = item.get("coverUrl")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty());
             let track_ids = item.get("trackIds").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string());
             let now = chrono::Utc::now().timestamp();
 

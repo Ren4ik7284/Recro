@@ -64,7 +64,11 @@ export class LibraryService implements OnDestroy {
     if (typeof localStorage === 'undefined') return { ...DEFAULT_MIX_CONFIG };
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY_MIX_CONFIG);
-      if (saved) return { ...DEFAULT_MIX_CONFIG, ...JSON.parse(saved) };
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.source === 'balanced') parsed.source = 'discovery_heavy';
+        return { ...DEFAULT_MIX_CONFIG, ...parsed };
+      }
     } catch {}
     return { ...DEFAULT_MIX_CONFIG };
   }
@@ -234,18 +238,17 @@ export class LibraryService implements OnDestroy {
   startAutoSync() {
     if (this.syncPollInterval || typeof window === 'undefined') return;
 
-    // 60 сек достаточно — visibilitychange и focus handlers ловят возврат к вкладке.
-    // Было 5000ms (720 запросов/час) → 60_000ms (60 запросов/час)
+    // Регулярная авто-синхронизация библиотеки и профиля (плейлисты, обложки, бейджи, теги)
     this.syncPollInterval = setInterval(() => {
-      this.syncWithBackendOnStartup();
-    }, 30_000);
+      this.syncAllWithBackend();
+    }, 15_000);
 
     this.visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        this.syncWithBackendOnStartup();
+        this.syncAllWithBackend();
       }
     };
-    this.focusHandler = () => this.syncWithBackendOnStartup();
+    this.focusHandler = () => this.syncAllWithBackend();
 
     document.addEventListener('visibilitychange', this.visibilityHandler);
     window.addEventListener('focus', this.focusHandler);
@@ -427,7 +430,7 @@ export class LibraryService implements OnDestroy {
     }
   }
 
-  async getRecommendations(artist?: string, genre?: string, limit = 10, trackId?: string): Promise<Track[]> {
+  async getRecommendations(artist?: string, genre?: string, limit = 10, trackId?: string, fallbackGenre?: string): Promise<Track[]> {
     const a = (artist || '').trim();
     const g = (genre || '').trim();
     const tid = (trackId || '').trim();
@@ -454,7 +457,7 @@ export class LibraryService implements OnDestroy {
           duration: Math.round(item.duration),
           audioUrl: item.audio_url,
           coverUrl: this.formatCoverUrl(item.cover_url),
-          genre: g || 'Discovery',
+          genre: g || fallbackGenre || 'Discovery',
           format: 'mp3',
           bitrate: '192 kbps',
           plays: 0,
@@ -501,8 +504,7 @@ export class LibraryService implements OnDestroy {
     }
   }
 
-
-  async getSimilarTracks(title: string, artist: string, limit = 10): Promise<Track[]> {
+  async getSimilarTracks(title: string, artist: string, limit = 10, fallbackGenre?: string): Promise<Track[]> {
     const t = (title || '').trim();
     const a = (artist || '').trim();
     if (!t && !a) return [];
@@ -527,7 +529,7 @@ export class LibraryService implements OnDestroy {
           duration: Math.round(item.duration),
           audioUrl: item.audio_url,
           coverUrl: this.formatCoverUrl(item.cover_url),
-          genre: 'Similar',
+          genre: fallbackGenre || 'Similar',
           format: 'mp3' as const,
           bitrate: '192 kbps',
           plays: 0,
@@ -741,6 +743,53 @@ export class LibraryService implements OnDestroy {
     }
   }
 
+  async syncAllWithBackend(forceCloud = false): Promise<void> {
+    if (!this.authService.isAuthenticated()) return;
+    const backendUrl = this.getBackendUrl();
+    await Promise.allSettled([
+      this.syncWithBackendOnStartup(forceCloud),
+      this.authService.verifyRemoteSession(backendUrl),
+    ]);
+  }
+
+  async resizeImageFile(file: File, maxDimension = 500, quality = 0.85): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(reader.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => reject(new Error('Image failed to load'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('File reading failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
   async syncWithBackendOnStartup(forceCloud = false) {
     if (!this.isBackendOnline()) return;
     if (!this.authService.isAuthenticated()) return;
@@ -754,6 +803,7 @@ export class LibraryService implements OnDestroy {
       if (!data) return;
 
       if (data.mix_config) {
+        if (data.mix_config.source === 'balanced') data.mix_config.source = 'discovery_heavy';
         const mergedConfig: MixConfig = { ...DEFAULT_MIX_CONFIG, ...data.mix_config };
         this.mixConfig.set(mergedConfig);
         try {
@@ -776,7 +826,12 @@ export class LibraryService implements OnDestroy {
         const cloudTracks: Track[] = this.sanitizeTracks(
           rawTracks.filter((t: Track) => !t.id.startsWith('default-track-'))
         );
-        const cloudPlaylists: Playlist[] = Array.isArray(data.playlists) ? data.playlists : [];
+        const cloudPlaylists: Playlist[] = Array.isArray(data.playlists)
+          ? data.playlists.map((p: any) => ({
+              ...p,
+              coverUrl: typeof p.coverUrl === 'string' && p.coverUrl.trim() ? p.coverUrl.trim() : undefined,
+            }))
+          : [];
         const cloudStations: RadioStation[] = this.sanitizeStations(
           Array.isArray(data.radio_stations) && data.radio_stations.length > 0
             ? data.radio_stations

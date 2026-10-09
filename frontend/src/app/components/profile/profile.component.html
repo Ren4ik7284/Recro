@@ -1,7 +1,7 @@
 <div class="profile-view-container">
   <div 
     class="profile-header-card" 
-    [style.backgroundImage]="authService.currentUser()?.banner_url ? 'linear-gradient(180deg, rgba(20,20,20,0.4) 0%, rgba(20,20,20,0.85) 100%), url(' + authService.currentUser()?.banner_url + ')' : null"
+    [style.background]="getBannerStyle(authService.currentUser()?.banner_url)"
     [class.has-custom-banner]="!!authService.currentUser()?.banner_url"
   >
     <div class="profile-top-bar" [class.no-back]="!showCloseButton()">
@@ -14,6 +14,19 @@
       }
 
       <div class="top-bar-right-actions">
+        <button class="btn-profile-achievements font-mono" (click)="openAchievementsModal()" title="Испытания и значки профиля">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+            <path d="M4 22h16"/>
+            <path d="M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34"/>
+            <path d="M14 14.66V17c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-2.34"/>
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+          </svg>
+          <span>Награды</span>
+          <span class="achievements-badge-count">{{ statsService.unlockedCount() }}/{{ badges().length }}</span>
+        </button>
+
         <button class="btn-profile-banner-edit font-mono" (click)="openBannerModal()" title="Сменить баннер профиля">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
@@ -23,7 +36,7 @@
           <span>Баннер</span>
         </button>
 
-        <button class="btn-profile-settings" (click)="openSettings()" title="Настройки профиля">
+        <button class="btn-profile-settings" (click)="openSettings()" title="Кастомизация и настройки">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -33,8 +46,8 @@
     </div>
 
     <div class="profile-hero-content">
-      <div class="profile-avatar-wrapper" (click)="openAvatarModal()" title="Нажмите, чтобы изменить аватар">
-        <div class="profile-avatar-circle">
+      <div class="profile-avatar-wrapper" (click)="openAvatarModal()" title="Нажмите, чтобы изменить аватар и стиль">
+        <div class="profile-avatar-circle" [class]="'avatar-frame-' + selectedAvatarFrame()">
           @if (authService.currentUser()?.avatar_url; as avatar) {
             <img [src]="avatar" class="profile-avatar-img" alt="avatar" referrerpolicy="no-referrer" />
           } @else {
@@ -53,7 +66,24 @@
       </div>
 
       <div class="profile-meta-info">
-        <span class="profile-label-subtitle">Страничка пользователя</span>
+        <div class="profile-meta-header-row">
+          <span class="profile-label-subtitle">Профиль</span>
+          @if (userVibe(); as vibe) {
+            <button class="profile-vibe-badge font-mono" (click)="openSettings()" title="Изменить статус">
+              <span class="vibe-pulse-dot"></span>
+              <span>{{ vibe }}</span>
+            </button>
+          } @else {
+            <button class="btn-set-vibe-hint font-mono" (click)="openSettings()" title="Установить статус">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Статус</span>
+            </button>
+          }
+        </div>
+
         <h1 class="profile-nickname-text">{{ authService.currentUser()?.username || 'Nickname' }}</h1>
 
         <div class="profile-tags-container">
@@ -79,16 +109,91 @@
           </button>
         </div>
 
+        <div class="profile-equipped-badges">
+          @if (equippedBadgesList().length > 0) {
+            <span class="equipped-label font-mono">ЗНАЧКИ:</span>
+            <div class="equipped-badges-row">
+              @for (b of equippedBadgesList(); track b.id) {
+                <div class="equipped-badge-pill font-mono" [title]="b.name + ': ' + b.desc + ' (кликните для просмотра наград)'" (click)="openAchievementsModal()">
+                  <span class="badge-code-tag">{{ b.code }}</span>
+                  <span class="badge-name-text">{{ b.name }}</span>
+                </div>
+              }
+            </div>
+          } @else {
+            <button class="btn-open-badges-empty font-mono" (click)="openAchievementsModal()" title="Открыть задания и выбрать значки для шапки">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+              </svg>
+              <span>Задания и значки ({{ statsService.unlockedCount() }}/{{ badges().length }})</span>
+            </button>
+          }
+        </div>
+
         <p class="profile-stats-meta font-mono">
-          {{ userPlaylists().length }} плейлистов пользователя &bull; онлайн
+          {{ userPlaylists().length }} плейлистов &bull; онлайн
         </p>
       </div>
     </div>
   </div>
 
   <div class="profile-body-sections">
+
+    <!-- 3. Полка избранных плейлистов -->
+    @if (pinnedPlaylists().length > 0) {
+      <section class="profile-section pinned-playlists-section">
+        <div class="section-header-compact">
+          <h2 class="profile-section-title font-mono">ИЗБРАННЫЕ ПЛЕЙЛИСТЫ</h2>
+          <span class="section-subtitle-tag font-mono">ЗАКРЕПЛЕНО: {{ pinnedPlaylists().length }}</span>
+        </div>
+
+        <div class="playlists-grid pinned-grid">
+          @for (pl of pinnedPlaylists(); track pl.id) {
+            <div class="playlist-card-item is-pinned" (click)="onPlaylistClick(pl.id)">
+              <div class="playlist-cover-box">
+                @if (pl.coverUrl) {
+                  <img [src]="pl.coverUrl" class="playlist-card-cover-img" alt="" />
+                } @else {
+                  <svg class="playlist-note-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                    <rect x="3" y="3" width="18" height="18" rx="5"/>
+                    <path d="M9 16V8l8-2v8"/>
+                    <circle cx="8" cy="16" r="2"/>
+                    <circle cx="16" cy="14" r="2"/>
+                  </svg>
+                }
+                <button 
+                  class="btn-pin-toggle active font-mono" 
+                  (click)="togglePin(pl.id, $event)" 
+                  title="Открепить от полки"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                </button>
+                <button 
+                  class="btn-playlist-cover-edit font-mono"
+                  (click)="openEditPlaylistCover(pl, $event)"
+                  title="Изменить обложку плейлиста"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                </button>
+              </div>
+              <span class="playlist-title-label font-mono" [title]="pl.title">{{ pl.title }}</span>
+              <span class="playlist-author-label font-mono">Избранное</span>
+            </div>
+          }
+        </div>
+
+        <div class="section-divider-line"></div>
+      </section>
+    }
+
+    <!-- Топ исполнителей -->
     <section class="profile-section top-artists-section">
-      <h2 class="profile-section-title">Топ исполнителей этого месяца</h2>
+      <h2 class="profile-section-title font-mono">ТОП ИСПОЛНИТЕЛЕЙ</h2>
 
       @if (topArtists().length > 0) {
         <div class="carousel-outer-wrapper">
@@ -115,8 +220,8 @@
                     </div>
                   }
                 </div>
-                <span class="artist-name-label" [title]="artist.name">{{ artist.name }}</span>
-                <span class="artist-sub-role">
+                <span class="artist-name-label font-mono" [title]="artist.name">{{ artist.name }}</span>
+                <span class="artist-sub-role font-mono">
                   @if (artist.rank) {
                     Топ #{{ artist.rank }} в мире
                   } @else {
@@ -135,15 +240,28 @@
         </div>
       } @else {
         <div class="empty-artists-box">
-          <p class="empty-artists-text">Слушайте больше треков в этом месяце, чтобы здесь появился ваш персональный топ исполнителей.</p>
+          <p class="empty-artists-text font-mono">Слушайте треки, чтобы здесь сформировался ваш персональный чарт.</p>
         </div>
       }
 
       <div class="section-divider-line"></div>
     </section>
 
+    <!-- Все плейлисты -->
     <section class="profile-section user-playlists-section">
-      <h2 class="profile-section-title">Плейлисты Пользователя</h2>
+      <div class="section-header-compact">
+        <div class="section-title-wrap">
+          <h2 class="profile-section-title font-mono">ВСЕ ПЛЕЙЛИСТЫ</h2>
+          <span class="section-subtitle-tag font-mono">ВСЕГО: {{ userPlaylists().length }}</span>
+        </div>
+        <button class="btn-create-pl-profile font-mono" (click)="createPlaylist.emit()" title="Создать новый плейлист">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Новый плейлист</span>
+        </button>
+      </div>
 
       @if (userPlaylists().length > 0) {
         <div class="playlists-grid">
@@ -160,15 +278,35 @@
                     <circle cx="16" cy="14" r="2"/>
                   </svg>
                 }
+                <button 
+                  class="btn-pin-toggle font-mono" 
+                  [class.active]="isPinned(pl.id)"
+                  (click)="togglePin(pl.id, $event)" 
+                  [title]="isPinned(pl.id) ? 'Убрать с полки избранного' : 'Закрепить на полку избранного'"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" [attr.fill]="isPinned(pl.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                </button>
+                <button 
+                  class="btn-playlist-cover-edit font-mono"
+                  (click)="openEditPlaylistCover(pl, $event)"
+                  title="Изменить обложку плейлиста"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                </button>
               </div>
-              <span class="playlist-title-label" [title]="pl.title">{{ pl.title }}</span>
-              <span class="playlist-author-label">{{ authService.currentUser()?.username || 'Nickname' }}</span>
+              <span class="playlist-title-label font-mono" [title]="pl.title">{{ pl.title }}</span>
+              <span class="playlist-author-label font-mono">{{ authService.currentUser()?.username || 'Nickname' }}</span>
             </div>
           }
         </div>
       } @else {
         <div class="empty-playlists-box">
-          <p class="empty-playlists-text">Плейлисты еще не созданы</p>
+          <p class="empty-playlists-text font-mono">Плейлисты еще не созданы</p>
           <button class="btn-create-first-playlist font-mono" (click)="createPlaylist.emit()">
             Создать плейлист
           </button>
@@ -201,7 +339,7 @@
           <div class="tag-color-palette">
             @for (c of tagColorPresets; track c) {
               <button 
-                type="button" 
+                 type="button" 
                 class="tag-color-circle" 
                 [style.background]="c" 
                 [class.active]="selectedTagColor() === c"
@@ -235,12 +373,19 @@
 
   @if (isAvatarModalOpen()) {
     <div class="profile-modal-backdrop" (click)="closeAvatarModal()">
-      <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
+      <div class="profile-modal-dialog modal-customization" (click)="$event.stopPropagation()">
         <div class="modal-dialog-header">
-          <h3>Сменить аватар</h3>
+          <div class="modal-title-with-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <h3>Кастомизация аватара</h3>
+          </div>
           <button class="btn-modal-close" (click)="closeAvatarModal()">&times;</button>
         </div>
-        <div class="modal-dialog-body">
+
+        <div class="modal-dialog-body modal-scrollable-body">
           <input 
             type="file" 
             #avatarFileInput 
@@ -249,18 +394,20 @@
             (change)="onAvatarFileSelected($event)" 
           />
 
+          <!-- Live preview with active frame -->
           <div class="avatar-preview-container">
-            <div class="avatar-preview-circle">
+            <div class="avatar-preview-circle" [class]="'avatar-frame-' + editAvatarFrame()">
               @if (editAvatarUrl()) {
                 <img [src]="editAvatarUrl()" alt="preview" referrerpolicy="no-referrer" />
               } @else {
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
               }
             </div>
           </div>
 
+          <!-- Device upload action -->
           <div class="media-upload-options-row">
             <button type="button" class="btn-upload-device font-mono" (click)="triggerAvatarFile()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -268,27 +415,56 @@
                 <circle cx="9" cy="9" r="2"/>
                 <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
               </svg>
-              <span>Выбрать из галереи устройства</span>
+              <span>Загрузить фото с устройства</span>
             </button>
 
             @if (editAvatarUrl()) {
-              <button type="button" class="btn-upload-remove font-mono" (click)="removeAvatar()" title="Удалить фото">
-                Очистить
+              <button type="button" class="btn-upload-remove font-mono" (click)="removeAvatar()" title="Сбросить фото">
+                Сбросить
               </button>
             }
           </div>
 
-          <div class="upload-divider-text font-mono">или укажите прямую ссылку</div>
+          <!-- Preset avatars -->
+          <div class="custom-section-heading">
+            <span>Стилизованные аватары</span>
+            <small>Быстрый выбор</small>
+          </div>
+          <div class="avatar-presets-grid">
+            @for (preset of avatarPresets; track preset.id) {
+              <button 
+                type="button" 
+                class="preset-avatar-btn" 
+                [class.active]="editAvatarUrl() === preset.url"
+                (click)="selectAvatarPreset(preset)"
+                [title]="preset.name"
+              >
+                <img [src]="preset.url" [alt]="preset.name" />
+                <span class="preset-avatar-tooltip font-mono">{{ preset.name }}</span>
+              </button>
+            }
+          </div>
 
-          <label class="modal-input-label">Ссылка на изображение аватара (URL)</label>
-          <input 
-            type="text" 
-            class="modal-text-input font-mono"
-            placeholder="https://... (необязательно, если выбрано фото)"
-            [ngModel]="editAvatarUrl()"
-            (ngModelChange)="editAvatarUrl.set($event)"
-          />
+          <!-- Frame effect -->
+          <div class="custom-section-heading" style="margin-top: 18px;">
+            <span>Акцентная окантовка</span>
+            <small>Стиль рамки</small>
+          </div>
+          <div class="frames-selector-row">
+            @for (frame of avatarFrames; track frame.id) {
+              <button 
+                type="button" 
+                class="frame-choice-chip font-mono" 
+                [class.active]="editAvatarFrame() === frame.id"
+                (click)="selectAvatarFrame(frame.id)"
+              >
+                <span class="frame-dot" [style.background]="frame.color"></span>
+                <span>{{ frame.name }}</span>
+              </button>
+            }
+          </div>
         </div>
+
         <div class="modal-dialog-footer">
           <button class="btn-modal-cancel font-mono" (click)="closeAvatarModal()">Отмена</button>
           <button class="btn-modal-submit font-mono" (click)="saveAvatar()">Сохранить аватар</button>
@@ -299,12 +475,20 @@
 
   @if (isBannerModalOpen()) {
     <div class="profile-modal-backdrop" (click)="closeBannerModal()">
-      <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
+      <div class="profile-modal-dialog modal-customization modal-wide" (click)="$event.stopPropagation()">
         <div class="modal-dialog-header">
-          <h3>Сменить баннер профиля</h3>
+          <div class="modal-title-with-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+              <circle cx="9" cy="9" r="2"/>
+              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+            </svg>
+            <h3>Кастомизация баннера</h3>
+          </div>
           <button class="btn-modal-close" (click)="closeBannerModal()">&times;</button>
         </div>
-        <div class="modal-dialog-body">
+
+        <div class="modal-dialog-body modal-scrollable-body">
           <input 
             type="file" 
             #bannerFileInput 
@@ -313,10 +497,26 @@
             (change)="onBannerFileSelected($event)" 
           />
 
-          @if (editBannerUrl()) {
-            <div class="banner-preview-box" [style.backgroundImage]="'url(' + editBannerUrl() + ')'"></div>
-          }
+          <!-- Live banner preview card -->
+          <div class="banner-preview-card" [style.background]="getBannerPreviewStyle(editBannerUrl())">
+            <div class="banner-preview-card-inner">
+              <div class="preview-mini-avatar" [class]="'avatar-frame-' + selectedAvatarFrame()">
+                @if (authService.currentUser()?.avatar_url; as av) {
+                  <img [src]="av" alt="" />
+                } @else {
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  </svg>
+                }
+              </div>
+              <div class="preview-mini-meta">
+                <span class="preview-mini-name">{{ authService.currentUser()?.username || 'Nickname' }}</span>
+                <span class="preview-mini-vibe font-mono">{{ userVibe() || 'Статус' }}</span>
+              </div>
+            </div>
+          </div>
 
+          <!-- Device upload action -->
           <div class="media-upload-options-row">
             <button type="button" class="btn-upload-device font-mono" (click)="triggerBannerFile()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -324,27 +524,44 @@
                 <circle cx="9" cy="9" r="2"/>
                 <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
               </svg>
-              <span>Выбрать из галереи устройства</span>
+              <span>Загрузить баннер с устройства</span>
             </button>
 
             @if (editBannerUrl()) {
-              <button type="button" class="btn-upload-remove font-mono" (click)="removeBanner()" title="Удалить баннер">
-                Очистить
+              <button type="button" class="btn-upload-remove font-mono" (click)="removeBanner()" title="Сбросить баннер">
+                Сбросить
               </button>
             }
           </div>
 
-          <div class="upload-divider-text font-mono">или укажите прямую ссылку</div>
-
-          <label class="modal-input-label">Ссылка на изображение баннера (URL)</label>
-          <input 
-            type="text" 
-            class="modal-text-input font-mono"
-            placeholder="https://... (изображение для шапки профиля)"
-            [ngModel]="editBannerUrl()"
-            (ngModelChange)="editBannerUrl.set($event)"
-          />
+          <!-- Preset themes / gradients -->
+          <div class="custom-section-heading">
+            <span>Темы оформления</span>
+            <small>Строгие темные стили</small>
+          </div>
+          <div class="banner-presets-grid">
+            @for (preset of bannerPresets; track preset.id) {
+              <button 
+                type="button" 
+                class="preset-banner-card" 
+                [style.background]="preset.gradient"
+                [class.active]="editBannerUrl() === preset.gradient"
+                (click)="selectBannerPreset(preset)"
+                [title]="preset.name"
+              >
+                <span class="preset-banner-label font-mono">{{ preset.name }}</span>
+                @if (editBannerUrl() === preset.gradient) {
+                  <span class="preset-banner-check">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </span>
+                }
+              </button>
+            }
+          </div>
         </div>
+
         <div class="modal-dialog-footer">
           <button class="btn-modal-cancel font-mono" (click)="closeBannerModal()">Отмена</button>
           <button class="btn-modal-submit font-mono" (click)="saveBanner()">Сохранить баннер</button>
@@ -357,40 +574,266 @@
     <div class="profile-modal-backdrop" (click)="closeSettings()">
       <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
         <div class="modal-dialog-header">
-          <h3>Настройки профиля</h3>
+          <div class="modal-title-with-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <h3>Настройки профиля</h3>
+          </div>
           <button class="btn-modal-close" (click)="closeSettings()">&times;</button>
         </div>
+
         <div class="modal-dialog-body">
-          <label class="modal-input-label">Никнейм</label>
+          <label class="modal-input-label">Имя пользователя (Никнейм)</label>
           <input 
             type="text" 
             class="modal-text-input font-mono"
             maxlength="30"
             [ngModel]="editUsername()"
             (ngModelChange)="editUsername.set($event)"
+            placeholder="Введите никнейм"
           />
 
-          <label class="modal-input-label" style="margin-top: 14px;">Ссылка на аватар (URL)</label>
+          <label class="modal-input-label" style="margin-top: 16px;">Статус профиля</label>
           <input 
             type="text" 
             class="modal-text-input font-mono"
-            placeholder="https://..."
-            [ngModel]="editAvatarUrl()"
-            (ngModelChange)="editAvatarUrl.set($event)"
+            maxlength="35"
+            [ngModel]="editVibe()"
+            (ngModelChange)="editVibe.set($event)"
+            placeholder="Например: В наушниках"
           />
 
-          <label class="modal-input-label" style="margin-top: 14px;">Ссылка на баннер (URL)</label>
-          <input 
-            type="text" 
-            class="modal-text-input font-mono"
-            placeholder="https://..."
-            [ngModel]="editBannerUrl()"
-            (ngModelChange)="editBannerUrl.set($event)"
-          />
+          <div class="vibe-chips-quick-row">
+            @for (vibe of vibePresets; track vibe) {
+              <button 
+                type="button" 
+                class="vibe-quick-chip font-mono" 
+                [class.active]="editVibe() === vibe"
+                (click)="selectVibePreset(vibe)"
+              >
+                {{ vibe }}
+              </button>
+            }
+          </div>
+
+          <div class="settings-customization-shortcuts">
+            <button type="button" class="btn-shortcut-custom font-mono" (click)="closeSettings(); openAvatarModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              <span>Настроить аватар и рамку</span>
+            </button>
+
+            <button type="button" class="btn-shortcut-custom font-mono" (click)="closeSettings(); openBannerModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+              </svg>
+              <span>Выбрать тему баннера</span>
+            </button>
+          </div>
         </div>
+
         <div class="modal-dialog-footer">
           <button class="btn-modal-cancel font-mono" (click)="closeSettings()">Отмена</button>
           <button class="btn-modal-submit font-mono" (click)="saveSettings()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Модальное окно смены обложки плейлиста -->
+  <input 
+    #playlistCoverInput 
+    type="file" 
+    accept="image/*" 
+    style="display: none;" 
+    (change)="onPlaylistCoverFileSelected($event)" 
+  />
+
+  @if (isEditPlaylistCoverOpen()) {
+    <div class="profile-modal-backdrop" (click)="closeEditPlaylistCover()">
+      <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-header">
+          <h3 class="font-mono">ОБЛОЖКА ПЛЕЙЛИСТА</h3>
+          <button class="btn-modal-close" (click)="closeEditPlaylistCover()">&times;</button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="playlist-cover-preview-wrapper">
+            <div class="playlist-cover-preview-box">
+              @if (editPlaylistCoverUrl()) {
+                <img [src]="editPlaylistCoverUrl()" class="playlist-preview-img" alt="cover" />
+              } @else {
+                <svg class="playlist-note-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="5"/>
+                  <path d="M9 16V8l8-2v8"/>
+                  <circle cx="8" cy="16" r="2"/>
+                  <circle cx="16" cy="14" r="2"/>
+                </svg>
+              }
+            </div>
+          </div>
+
+          <div class="modal-actions-list">
+            <button class="btn-modal-action-option font-mono" (click)="triggerPlaylistCoverFile()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span>Выбрать файл с устройства</span>
+            </button>
+
+            @if (editPlaylistCoverUrl()) {
+              <button class="btn-modal-action-option delete font-mono" (click)="removePlaylistCover()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                <span>Удалить обложку</span>
+              </button>
+            }
+          </div>
+
+          <div class="preset-covers-section">
+            <label class="modal-input-label font-mono">Готовые стили оформления:</label>
+            <div class="preset-covers-grid">
+              @for (preset of playlistCoverPresets; track preset.id) {
+                <div 
+                  class="preset-cover-card" 
+                  [class.selected]="editPlaylistCoverUrl() === preset.url"
+                  (click)="selectPlaylistCoverPreset(preset)"
+                >
+                  <img [src]="preset.url" class="preset-cover-thumbnail" [alt]="preset.name" />
+                  <span class="preset-cover-name font-mono">{{ preset.name }}</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          <label class="modal-input-label font-mono" style="margin-top: 14px;">Или прямая ссылка на изображение</label>
+          <input 
+            type="text" 
+            class="modal-text-input font-mono"
+            placeholder="https://example.com/cover.jpg"
+            [ngModel]="editPlaylistCoverUrl()"
+            (ngModelChange)="editPlaylistCoverUrl.set($event)"
+          />
+        </div>
+        <div class="modal-dialog-footer">
+          <button class="btn-modal-cancel font-mono" (click)="closeEditPlaylistCover()">Отмена</button>
+          <button class="btn-modal-submit font-mono" (click)="savePlaylistCover()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Модальное окно: Достижения, Испытания и Честная IRL Статистика -->
+  @if (isAchievementsModalOpen()) {
+    <div class="profile-modal-backdrop" (click)="closeAchievementsModal()">
+      <div class="profile-modal-dialog achievements-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-dialog-header">
+          <div class="dialog-title-group">
+            <h3 class="font-mono">ИСПЫТАНИЯ И ЗНАЧКИ</h3>
+            <span class="dialog-subtitle-mono font-mono">
+              ВЫПОЛНЕНО: {{ statsService.unlockedCount() }} ИЗ {{ badges().length }}
+            </span>
+          </div>
+          <button class="btn-modal-close" (click)="closeAchievementsModal()">&times;</button>
+        </div>
+
+        <div class="modal-dialog-body achievements-body">
+          <div class="achievements-info-banner font-mono">
+            <span class="pulse-status-dot"></span>
+            <span>Слушайте треки в плеере и выполняйте испытания. Полученные значки можно надеть в шапку профиля (до 3 значков).</span>
+          </div>
+
+          <div class="badges-minimal-list modal-badges-list">
+            @for (badge of badges(); track badge.id) {
+              <div 
+                class="badge-card" 
+                [class.unlocked]="badge.unlocked" 
+                [class.claimed]="badge.claimed"
+                [class.equipped]="badge.equipped"
+              >
+                <div class="badge-icon-cell font-mono">
+                  <div class="badge-code-box">
+                    {{ badge.code }}
+                  </div>
+                </div>
+
+                <div class="badge-info-cell">
+                  <div class="badge-title-row">
+                    <span class="badge-title font-mono">{{ badge.name }}</span>
+                    <span class="badge-status-label font-mono">
+                      @if (badge.equipped) {
+                        <span class="status-badge-active">В ШАПКЕ</span>
+                      } @else if (badge.claimed) {
+                        <span class="status-badge-claimed">В КОЛЛЕКЦИИ</span>
+                      } @else if (badge.unlocked) {
+                        <span class="status-badge-ready">ВЫПОЛНЕНО</span>
+                      } @else {
+                        <span class="status-badge-progress">В ПРОЦЕССЕ</span>
+                      }
+                    </span>
+                  </div>
+
+                  <p class="badge-desc font-mono">{{ badge.desc }}</p>
+
+                  <div class="badge-progress-container">
+                    <div class="badge-progress-bar-bg">
+                      <div 
+                        class="badge-progress-bar-fill" 
+                        [style.width.%]="(badge.current / badge.target) * 100"
+                      ></div>
+                    </div>
+                    <div class="badge-progress-numbers font-mono">
+                      <span>{{ badge.current }} {{ badge.unit }}</span>
+                      <span>{{ badge.target }} {{ badge.unit }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="badge-action-cell">
+                  @if (!badge.claimed) {
+                    <button 
+                      class="btn-badge-action font-mono"
+                      [disabled]="!badge.unlocked"
+                      [class.ready]="badge.unlocked"
+                      (click)="claimBadge(badge.id, $event)"
+                    >
+                      @if (badge.unlocked) {
+                        ЗАБРАТЬ
+                      } @else {
+                        В ПРОЦЕССЕ
+                      }
+                    </button>
+                  } @else {
+                    <button 
+                      class="btn-badge-action font-mono equip-btn"
+                      [class.is-equipped]="badge.equipped"
+                      (click)="toggleBadgeEquip(badge.id, $event)"
+                      title="Показать / скрыть значок в шапке профиля"
+                    >
+                      @if (badge.equipped) {
+                        СНЯТЬ
+                      } @else {
+                        НАДЕТЬ
+                      }
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="modal-dialog-footer">
+          <button class="btn-modal-cancel font-mono" (click)="closeAchievementsModal()">Закрыть</button>
         </div>
       </div>
     </div>

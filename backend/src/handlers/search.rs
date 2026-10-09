@@ -551,6 +551,7 @@ pub async fn execute_deezer_search(query: &str, limit: usize, base_url: &str) ->
     tracks
 }
 
+#[allow(dead_code)]
 pub async fn fetch_lastfm_related_artists(artist_name: &str, api_key: &str) -> Vec<String> {
     let clean = artist_name
         .split("feat")
@@ -663,6 +664,116 @@ pub async fn fetch_deezer_related_artists(artist_name: &str) -> Vec<String> {
         }
         _ => Vec::new(),
     }
+}
+
+pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
+    let clean = artist_name
+        .split("feat")
+        .next()
+        .unwrap_or(artist_name)
+        .split("ft.")
+        .next()
+        .unwrap_or(artist_name)
+        .split('&')
+        .next()
+        .unwrap_or(artist_name)
+        .trim();
+
+    if clean.is_empty() {
+        return Vec::new();
+    }
+
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(3500))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let search_url = format!(
+        "https://api.deezer.com/search/artist?q={}&limit=1",
+        urlencoding::encode(clean)
+    );
+    let artist_id = match client.get(&search_url).send().await {
+        Ok(r) if r.status().is_success() => {
+            if let Ok(data) = r.json::<serde_json::Value>().await {
+                data["data"].as_array().and_then(|arr| arr.first()).and_then(|a| a["id"].as_i64())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
+    let artist_id = match artist_id {
+        Some(id) => id,
+        None => return Vec::new(),
+    };
+
+    let radio_url = format!(
+        "https://api.deezer.com/artist/{}/radio?limit={}",
+        artist_id,
+        (limit * 2).max(25).min(50)
+    );
+
+    let mut tracks = Vec::new();
+    if let Ok(r) = client.get(&radio_url).send().await {
+        if r.status().is_success() {
+            if let Ok(data) = r.json::<serde_json::Value>().await {
+                if let Some(items) = data["data"].as_array() {
+                    let is_cyrillic = artist_name.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+                    for item in items {
+                        let id_num = match item["id"].as_i64() {
+                            Some(n) => n,
+                            None => continue,
+                        };
+                        let raw_title = item["title_short"]
+                            .as_str()
+                            .or_else(|| item["title"].as_str())
+                            .unwrap_or("")
+                            .trim();
+                        let raw_artist = item["artist"]["name"].as_str().unwrap_or("").trim();
+                        let duration = item["duration"].as_f64().unwrap_or(0.0);
+                        if raw_title.is_empty() || raw_artist.is_empty() {
+                            continue;
+                        }
+                        if duration > 600.0 || (duration > 0.0 && duration < 30.0) {
+                            continue;
+                        }
+                        if is_noisy_compilation(raw_title) || is_junk_track(raw_title, raw_artist, is_cyrillic) {
+                            continue;
+                        }
+
+                        let cover_url = item["album"]["cover_xl"]
+                            .as_str()
+                            .or_else(|| item["album"]["cover_big"].as_str())
+                            .map(|u| u.to_string());
+
+                        let id = format!("dz-{}", id_num);
+                        let encoded_title = urlencoding::encode(raw_title);
+                        let encoded_artist = urlencoding::encode(raw_artist);
+                        let audio_url = format!(
+                            "{}/api/stream?title={}&artist={}&duration={}&id={}",
+                            base_url, encoded_title, encoded_artist, duration as u64, id
+                        );
+
+                        tracks.push(SearchTrack {
+                            id,
+                            title: raw_title.to_string(),
+                            artist: raw_artist.to_string(),
+                            duration,
+                            audio_url,
+                            cover_url,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    tracks
 }
 
 pub fn is_junk_track(title: &str, artist: &str, query_is_cyrillic: bool) -> bool {
@@ -778,26 +889,37 @@ pub async fn get_recommendations(
 
     if !artist.is_empty() {
         let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
-        let mut target_artists = Vec::new();
-        target_artists.push(artist.to_string());
 
-        let lastfm_api_key = std::env::var("LASTFM_API_KEY")
-            .unwrap_or_else(|_| "1913322afac44ffa30bbec00e1e4c0f2".to_string());
-        let mut rel_names = fetch_deezer_related_artists(artist).await;
-        if rel_names.is_empty() {
-            rel_names = fetch_lastfm_related_artists(artist, &lastfm_api_key).await;
+        // 1. Direct Deezer Artist Radio (instant high-fidelity recommendations from real listeners)
+        let dz_tracks = fetch_deezer_artist_radio(artist, limit * 2, &base_url).await;
+        for t in dz_tracks {
+            if seen_ids.insert(t.id.clone()) {
+                tracks.push(t);
+            }
         }
-        if !rel_names.is_empty() {
-            fastrand::shuffle(&mut rel_names);
-            for name in rel_names.into_iter().take(5) {
-                if !target_artists.iter().any(|a| a.eq_ignore_ascii_case(&name)) {
-                    target_artists.push(name);
+
+        // 2. Deezer related artists top radio tracks
+        if tracks.len() < limit * 2 {
+            let rel_names = fetch_deezer_related_artists(artist).await;
+            for rel_name in rel_names.into_iter().take(3) {
+                if tracks.len() >= limit * 2 {
+                    break;
+                }
+                let rel_tracks = fetch_deezer_artist_radio(&rel_name, 5, &base_url).await;
+                for t in rel_tracks {
+                    if seen_ids.insert(t.id.clone()) {
+                        tracks.push(t);
+                    }
+                    if tracks.len() >= limit * 2 {
+                        break;
+                    }
                 }
             }
         }
 
-        for art in &target_artists {
-            let sc_res = state.soundcloud.search_tracks(art, 5, &base_url).await;
+        // 3. Fallback: SoundCloud search
+        if tracks.is_empty() {
+            let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
             for t in sc_res {
                 if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                     && !is_noisy_compilation(&t.title)
@@ -806,9 +928,6 @@ pub async fn get_recommendations(
                 {
                     tracks.push(t);
                 }
-            }
-            if tracks.len() >= limit * 2 {
-                break;
             }
         }
         fastrand::shuffle(&mut tracks);
@@ -893,250 +1012,67 @@ pub async fn get_similar_tracks(
         }
     }
 
-    let lastfm_api_key = std::env::var("LASTFM_API_KEY")
-        .unwrap_or_else(|_| "1913322afac44ffa30bbec00e1e4c0f2".to_string());
-
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_millis(4000))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return Ok(Json(Vec::new())),
-    };
-
     let mut tracks: Vec<SearchTrack> = Vec::new();
     let mut seen_ids = HashSet::new();
     let mut seen_artists = HashSet::new();
 
-    // === SOURCE 1: Last.fm track.getSimilar (collaborative filtering from billions of scrobbles) ===
-    if !title.is_empty() && !artist.is_empty() {
-        let lfm_url = format!(
-            "https://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist={}&track={}&api_key={}&format=json&limit=20",
-            urlencoding::encode(artist),
-            urlencoding::encode(title),
-            lastfm_api_key
-        );
+    // === PRIMARY: Deezer Artist Radio (vibe & genre aligned from actual user listening habits) ===
+    if !artist.is_empty() {
+        let dz_tracks = fetch_deezer_artist_radio(artist, limit * 2, &base_url).await;
+        for t in dz_tracks {
+            let norm_art = t.artist.to_lowercase();
+            if seen_artists.contains(&norm_art) {
+                continue;
+            }
+            if seen_ids.insert(t.id.clone()) {
+                seen_artists.insert(norm_art);
+                tracks.push(t);
+            }
+        }
 
-        if let Ok(resp) = client.get(&lfm_url).send().await {
-            if resp.status().is_success() {
-                if let Ok(data) = resp.json::<serde_json::Value>().await {
-                    if let Some(similar_tracks) = data["similartracks"]["track"].as_array() {
-                        for item in similar_tracks {
-                            let t_name = item["name"].as_str().unwrap_or("").trim();
-                            let t_artist = item["artist"]["name"].as_str().unwrap_or("").trim();
-                            if t_name.is_empty() || t_artist.is_empty() { continue; }
-                            if is_noisy_compilation(t_name) { continue; }
-
-                            let norm_art = t_artist.to_lowercase();
-                            if seen_artists.contains(&norm_art) { continue; }
-
-                            let encoded_title = urlencoding::encode(t_name);
-                            let encoded_artist = urlencoding::encode(t_artist);
-                            let id = format!("lfm-{}-{}", encoded_artist, encoded_title);
-
-                            if !seen_ids.insert(id.clone()) { continue; }
-
-                            let audio_url = format!(
-                                "{}/api/stream?title={}&artist={}",
-                                base_url, encoded_title, encoded_artist
-                            );
-
-                            // Try to get cover from Last.fm image array
-                            let cover_url = item["image"].as_array()
-                                .and_then(|imgs| {
-                                    imgs.iter().rev().find_map(|img| {
-                                        let url = img["#text"].as_str().unwrap_or("");
-                                        if !url.is_empty() && !url.contains("2a96cbd8b46e442fc41c2b86b821562f") {
-                                            Some(url.to_string())
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                });
-
-                            tracks.push(SearchTrack {
-                                id,
-                                title: t_name.to_string(),
-                                artist: t_artist.to_string(),
-                                duration: 0.0, // Last.fm doesn't give duration; backend /api/stream resolves it
-                                audio_url,
-                                cover_url,
-                            });
-                            seen_artists.insert(norm_art);
-                        }
+        // If more tracks needed, expand to Deezer related artists
+        if tracks.len() < limit * 2 {
+            let rel_names = fetch_deezer_related_artists(artist).await;
+            for rel_name in rel_names.into_iter().take(4) {
+                if tracks.len() >= limit * 2 {
+                    break;
+                }
+                let rel_tracks = fetch_deezer_artist_radio(&rel_name, 5, &base_url).await;
+                for t in rel_tracks {
+                    let norm_art = t.artist.to_lowercase();
+                    if seen_artists.contains(&norm_art) {
+                        continue;
+                    }
+                    if seen_ids.insert(t.id.clone()) {
+                        seen_artists.insert(norm_art);
+                        tracks.push(t);
+                    }
+                    if tracks.len() >= limit * 2 {
+                        break;
                     }
                 }
             }
         }
     }
 
-    // === SOURCE 2: Last.fm artist.getSimilar (if track-level gave < 5 results) ===
-    if tracks.len() < 5 && !artist.is_empty() {
-        let lfm_artist_url = format!(
-            "https://ws.audioscrobbler.com/2.0/?method=artist.getSimilar&artist={}&api_key={}&format=json&limit=10",
-            urlencoding::encode(artist),
-            lastfm_api_key
-        );
-
-        if let Ok(resp) = client.get(&lfm_artist_url).send().await {
-            if resp.status().is_success() {
-                if let Ok(data) = resp.json::<serde_json::Value>().await {
-                    if let Some(similar_artists) = data["similarartists"]["artist"].as_array() {
-                        let cl = client.clone();
-                        let mut artist_tasks = tokio::task::JoinSet::new();
-
-                        for sa in similar_artists.iter().take(6) {
-                            let sa_name = match sa["name"].as_str() {
-                                Some(n) if !n.is_empty() => n.to_string(),
-                                _ => continue,
-                            };
-                            let norm = sa_name.to_lowercase();
-                            if seen_artists.contains(&norm) { continue; }
-
-                            let c = cl.clone();
-                            let bu = base_url.clone();
-                            artist_tasks.spawn(async move {
-                                // Get top 2 tracks from Deezer for this similar artist
-                                let dz_url = format!(
-                                    "https://api.deezer.com/search?q=artist:\"{}\"&limit=2",
-                                    urlencoding::encode(&sa_name)
-                                );
-                                let mut result = Vec::new();
-                                if let Ok(r) = c.get(&dz_url).send().await {
-                                    if r.status().is_success() {
-                                        if let Ok(d) = r.json::<serde_json::Value>().await {
-                                            if let Some(items) = d["data"].as_array() {
-                                                for item in items {
-                                                    let id_num = match item["id"].as_i64() {
-                                                        Some(n) => n,
-                                                        None => continue,
-                                                    };
-                                                    let raw_title = item["title_short"].as_str()
-                                                        .or_else(|| item["title"].as_str())
-                                                        .unwrap_or("").trim();
-                                                    let raw_artist = item["artist"]["name"].as_str()
-                                                        .unwrap_or("").trim();
-                                                    let duration = item["duration"].as_f64().unwrap_or(0.0);
-                                                    if raw_title.is_empty() || raw_artist.is_empty() { continue; }
-                                                    if duration > 600.0 || (duration > 0.0 && duration < 30.0) { continue; }
-
-                                                    let cover_url = item["album"]["cover_xl"].as_str()
-                                                        .or_else(|| item["album"]["cover_big"].as_str())
-                                                        .map(|u| u.to_string());
-
-                                                    let id = format!("dz-{}", id_num);
-                                                    let encoded_title = urlencoding::encode(raw_title);
-                                                    let encoded_artist = urlencoding::encode(raw_artist);
-                                                    let audio_url = format!(
-                                                        "{}/api/stream?title={}&artist={}&duration={}&id={}",
-                                                        bu, encoded_title, encoded_artist, duration as u64, id
-                                                    );
-                                                    result.push(SearchTrack {
-                                                        id,
-                                                        title: raw_title.to_string(),
-                                                        artist: raw_artist.to_string(),
-                                                        duration,
-                                                        audio_url,
-                                                        cover_url,
-                                                    });
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                result
-                            });
-                        }
-
-                        while let Some(res) = artist_tasks.join_next().await {
-                            if let Ok(items) = res {
-                                for t in items {
-                                    let norm_art = t.artist.to_lowercase();
-                                    if seen_artists.contains(&norm_art) { continue; }
-                                    if !seen_ids.insert(t.id.clone()) { continue; }
-                                    seen_artists.insert(norm_art);
-                                    tracks.push(t);
-                                }
-                            }
-                        }
-                    }
-                }
+    // === FALLBACK: Deezer search by query if tracks still empty ===
+    if tracks.is_empty() {
+        let query = if !title.is_empty() && !artist.is_empty() {
+            format!("{} {}", artist, title)
+        } else if !artist.is_empty() {
+            artist.to_string()
+        } else {
+            title.to_string()
+        };
+        let dz_search = execute_deezer_search(&query, limit * 2, &base_url).await;
+        for t in dz_search {
+            if seen_ids.insert(t.id.clone()) {
+                tracks.push(t);
             }
         }
     }
 
-    // === SOURCE 3: Deezer Artist Radio (fill remaining slots) ===
-    if tracks.len() < limit && !artist.is_empty() {
-        let search_url = format!(
-            "https://api.deezer.com/search/artist?q={}&limit=1",
-            urlencoding::encode(artist)
-        );
-        if let Ok(r) = client.get(&search_url).send().await {
-            if r.status().is_success() {
-                if let Ok(data) = r.json::<serde_json::Value>().await {
-                    if let Some(artist_id) = data["data"].as_array()
-                        .and_then(|arr| arr.first())
-                        .and_then(|a| a["id"].as_i64())
-                    {
-                        let radio_url = format!(
-                            "https://api.deezer.com/artist/{}/radio?limit={}",
-                            artist_id, (limit * 2).min(40)
-                        );
-                        if let Ok(r2) = client.get(&radio_url).send().await {
-                            if r2.status().is_success() {
-                                if let Ok(radio_data) = r2.json::<serde_json::Value>().await {
-                                    if let Some(items) = radio_data["data"].as_array() {
-                                        for item in items {
-                                            let id_num = match item["id"].as_i64() {
-                                                Some(n) => n,
-                                                None => continue,
-                                            };
-                                            let raw_title = item["title_short"].as_str()
-                                                .or_else(|| item["title"].as_str())
-                                                .unwrap_or("").trim();
-                                            let raw_artist = item["artist"]["name"].as_str()
-                                                .unwrap_or("").trim();
-                                            let duration = item["duration"].as_f64().unwrap_or(0.0);
-                                            if raw_title.is_empty() || raw_artist.is_empty() { continue; }
-                                            if duration > 600.0 || (duration > 0.0 && duration < 30.0) { continue; }
-
-                                            let norm_art = raw_artist.to_lowercase();
-                                            if seen_artists.contains(&norm_art) { continue; }
-
-                                            let id = format!("dz-{}", id_num);
-                                            if !seen_ids.insert(id.clone()) { continue; }
-
-                                            let cover_url = item["album"]["cover_xl"].as_str()
-                                                .or_else(|| item["album"]["cover_big"].as_str())
-                                                .map(|u| u.to_string());
-
-                                            let encoded_title = urlencoding::encode(raw_title);
-                                            let encoded_artist = urlencoding::encode(raw_artist);
-                                            let audio_url = format!(
-                                                "{}/api/stream?title={}&artist={}&duration={}&id={}",
-                                                base_url, encoded_title, encoded_artist, duration as u64, id
-                                            );
-
-                                            tracks.push(SearchTrack {
-                                                id,
-                                                title: raw_title.to_string(),
-                                                artist: raw_artist.to_string(),
-                                                duration,
-                                                audio_url,
-                                                cover_url,
-                                            });
-                                            seen_artists.insert(norm_art);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    fastrand::shuffle(&mut tracks);
 
     // Cache all collected tracks
     if !tracks.is_empty() {

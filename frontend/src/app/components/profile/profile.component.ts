@@ -1,11 +1,23 @@
-import { Component, inject, signal, computed, input, output, ElementRef, ViewChild } from '@angular/core';
+import { Component, inject, signal, computed, input, output, ElementRef, ViewChild, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import { LibraryService } from '../../services/library.service';
 import { AudioService } from '../../services/audio.service';
 import { NavigationService } from '../../services/navigation.service';
-import { Track, Playlist } from '../../models/track.model';
+import { ProfileStatsService, BadgeItem } from '../../services/profile-stats.service';
+import { Playlist } from '../../models/track.model';
+import { 
+  AVATAR_PRESETS, 
+  BANNER_PRESETS, 
+  AVATAR_FRAMES, 
+  VIBE_PRESETS, 
+  PLAYLIST_COVER_PRESETS,
+  AvatarPreset, 
+  BannerPreset, 
+  AvatarFrame,
+  PlaylistCoverPreset
+} from './profile-presets';
 
 export interface ColoredTag {
   text: string;
@@ -31,10 +43,12 @@ export class ProfileComponent {
   readonly libraryService = inject(LibraryService);
   readonly audioService = inject(AudioService);
   readonly navService = inject(NavigationService);
+  readonly statsService = inject(ProfileStatsService);
 
   @ViewChild('carouselRef') carouselRef!: ElementRef<HTMLDivElement>;
   @ViewChild('avatarFileInput') avatarFileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('bannerFileInput') bannerFileInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('playlistCoverInput') playlistCoverInput?: ElementRef<HTMLInputElement>;
 
   readonly showCloseButton = input<boolean>(false);
   readonly close = output<void>();
@@ -46,33 +60,59 @@ export class ProfileComponent {
   readonly isAvatarModalOpen = signal<boolean>(false);
   readonly isBannerModalOpen = signal<boolean>(false);
   readonly isAddTagOpen = signal<boolean>(false);
+  readonly isAchievementsModalOpen = signal<boolean>(false);
+  readonly isEditPlaylistCoverOpen = signal<boolean>(false);
+  readonly selectedPlaylistForCover = signal<Playlist | null>(null);
+  readonly editPlaylistCoverUrl = signal<string>('');
 
   readonly newTagInput = signal<string>('');
-  readonly selectedTagColor = signal<string>('#8b5cf6');
+  readonly selectedTagColor = signal<string>('#ffffff');
   readonly tagError = signal<string | null>(null);
 
   readonly editUsername = signal<string>('');
   readonly editAvatarUrl = signal<string>('');
   readonly editBannerUrl = signal<string>('');
+  readonly editAvatarFrame = signal<string>('default');
+  readonly editVibe = signal<string>('');
+
+  readonly avatarPresets: AvatarPreset[] = AVATAR_PRESETS;
+  readonly bannerPresets: BannerPreset[] = BANNER_PRESETS;
+  readonly avatarFrames: AvatarFrame[] = AVATAR_FRAMES;
+  readonly vibePresets: string[] = VIBE_PRESETS;
+  readonly playlistCoverPresets: PlaylistCoverPreset[] = PLAYLIST_COVER_PRESETS;
 
   readonly tagColorPresets: string[] = [
-    '#8b5cf6',
-    '#ec4899',
+    '#ffffff',
+    '#e4e4e7',
+    '#71717a',
     '#3b82f6',
     '#10b981',
+    '#06b6d4',
     '#f59e0b',
     '#ef4444',
-    '#06b6d4',
-    '#6366f1',
-    '#14b8a6',
-    '#d946ef',
   ];
 
   private readonly STORAGE_TAGS_PREFIX = 'recro_profile_tags_colored_';
 
-  readonly userTags = signal<ColoredTag[]>(this.loadUserTags());
+  // Loaded metadata
+  readonly userTags = signal<ColoredTag[]>([]);
+  readonly userVibe = signal<string>('');
+  readonly selectedAvatarFrame = signal<string>('default');
 
   readonly userPlaylists = computed<Playlist[]>(() => this.libraryService.playlists());
+  readonly pinnedPlaylists = computed<Playlist[]>(() => {
+    const pins = this.statsService.pinnedPlaylistIds();
+    return this.userPlaylists().filter((p) => pins.includes(p.id));
+  });
+  readonly otherPlaylists = computed<Playlist[]>(() => {
+    const pins = this.statsService.pinnedPlaylistIds();
+    return this.userPlaylists().filter((p) => !pins.includes(p.id));
+  });
+
+  readonly badges = computed<BadgeItem[]>(() => this.statsService.allBadges());
+  readonly equippedBadgesList = computed<BadgeItem[]>(() => {
+    return this.statsService.allBadges().filter((b) => b.equipped);
+  });
 
   readonly historyArtists = signal<ProfileArtist[]>([]);
   readonly worldTopArtists = signal<ProfileArtist[]>([]);
@@ -81,8 +121,43 @@ export class ProfileComponent {
     return this.worldTopArtists();
   });
 
+  togglePin(playlistId: string, event: Event) {
+    event.stopPropagation();
+    this.statsService.togglePinPlaylist(playlistId);
+  }
+
+  isPinned(playlistId: string): boolean {
+    return this.statsService.isPlaylistPinned(playlistId);
+  }
+
+  claimBadge(badgeId: string, event: Event) {
+    event.stopPropagation();
+    this.statsService.claimBadge(badgeId);
+  }
+
+  toggleBadgeEquip(badgeId: string, event: Event) {
+    event.stopPropagation();
+    this.statsService.toggleEquipBadge(badgeId);
+  }
+
   constructor() {
+    this.initProfileMetadata();
     this.fetchWorldTopArtists();
+
+    // Cross-device auto sync: реактивно обновляем теги, вайб и рамку профиля при синхронизации
+    effect(() => {
+      const u = this.authService.currentUser();
+      if (u) {
+        this.initProfileMetadata();
+      }
+    });
+  }
+
+  private initProfileMetadata() {
+    const meta = this.getParsedProfileMeta();
+    this.userTags.set(meta.tags);
+    this.userVibe.set(meta.vibe);
+    this.selectedAvatarFrame.set(meta.frame);
   }
 
   private async fetchWorldTopArtists() {
@@ -100,56 +175,51 @@ export class ProfileComponent {
     } catch {}
   }
 
-
-  private async fetchMonthlyArtistsFromHistory() {
-    try {
-      const history = await this.libraryService.getHistory();
-      if (!Array.isArray(history) || history.length === 0) return;
-
-      const monthAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
-      const map = new Map<string, { plays: number; coverUrl?: string }>();
-
-      for (const item of history) {
-        if (item.played_at && item.played_at < monthAgo) continue;
-        if (!item.track_artist) continue;
-        const primary = item.track_artist.split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]/i)[0].trim();
-        if (!primary || primary.length < 2) continue;
-
-        const cur = map.get(primary) || { plays: 0, coverUrl: item.cover_url };
-        cur.plays += 1;
-        if (!cur.coverUrl && item.cover_url) cur.coverUrl = item.cover_url;
-        map.set(primary, cur);
-      }
-
-      const list: ProfileArtist[] = Array.from(map.entries()).map(([name, data]) => ({
-        name,
-        plays: data.plays,
-        coverUrl: data.coverUrl,
-      }));
-      this.historyArtists.set(list);
-    } catch {}
-  }
-
-  private loadUserTags(): ColoredTag[] {
+  private getParsedProfileMeta(): { tags: ColoredTag[]; vibe: string; frame: string } {
     const user = this.authService.currentUser();
+    const userId = user?.id || 'guest';
+    let tags: ColoredTag[] = [];
+    let vibe = '';
+    let frame = 'default';
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        vibe = localStorage.getItem(`recro_profile_vibe_${userId}`) || '';
+        frame = localStorage.getItem(`recro_profile_frame_${userId}`) || 'default';
+      } catch {}
+    }
+
     if (user?.profile_tags) {
       try {
         const parsed = JSON.parse(user.profile_tags);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return this.normalizeTags(parsed);
+        if (Array.isArray(parsed)) {
+          tags = this.normalizeTags(parsed);
+        } else if (parsed && typeof parsed === 'object') {
+          if (Array.isArray(parsed.tags)) {
+            tags = this.normalizeTags(parsed.tags);
+          }
+          if (typeof parsed.vibe === 'string' && parsed.vibe.trim()) {
+            vibe = parsed.vibe.trim();
+          }
+          if (typeof parsed.frame === 'string' && parsed.frame.trim()) {
+            frame = parsed.frame.trim();
+          }
         }
       } catch {}
     }
-    if (typeof localStorage === 'undefined') return [];
-    try {
-      const key = `${this.STORAGE_TAGS_PREFIX}${user?.id || 'guest'}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return this.normalizeTags(parsed);
-      }
-    } catch {}
-    return [];
+
+    if (tags.length === 0 && typeof localStorage !== 'undefined') {
+      try {
+        const key = `${this.STORAGE_TAGS_PREFIX}${userId}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) tags = this.normalizeTags(parsed);
+        }
+      } catch {}
+    }
+
+    return { tags, vibe, frame };
   }
 
   private normalizeTags(list: any[]): ColoredTag[] {
@@ -160,30 +230,76 @@ export class ProfileComponent {
       }
       return {
         text: item.text || 'Тег',
-        color: item.color || '#8b5cf6',
+        color: item.color || '#ffffff',
       };
     });
   }
 
-  private saveUserTags(tags: ColoredTag[]) {
+  private saveProfileCustomization(tags: ColoredTag[], vibe: string, frame: string) {
     const user = this.authService.currentUser();
-    const str = JSON.stringify(tags);
+    const userId = user?.id || 'guest';
+
     if (typeof localStorage !== 'undefined') {
       try {
-        const key = `${this.STORAGE_TAGS_PREFIX}${user?.id || 'guest'}`;
-        localStorage.setItem(key, str);
+        localStorage.setItem(`${this.STORAGE_TAGS_PREFIX}${userId}`, JSON.stringify(tags));
+        localStorage.setItem(`recro_profile_vibe_${userId}`, vibe);
+        localStorage.setItem(`recro_profile_frame_${userId}`, frame);
       } catch {}
     }
-    if (this.authService.isAuthenticated()) {
-      this.authService.updateProfile({ profile_tags: str }, this.libraryService.getBackendUrl());
+
+    let existingMeta: any = {};
+    if (user?.profile_tags) {
+      try {
+        existingMeta = JSON.parse(user.profile_tags);
+      } catch {}
     }
+
+    const payloadObj = {
+      ...existingMeta,
+      tags,
+      vibe,
+      frame,
+      pinnedPlaylists: this.statsService.pinnedPlaylistIds(),
+    };
+
+    const payloadStr = JSON.stringify(payloadObj);
+
+    if (this.authService.isAuthenticated()) {
+      this.authService.updateProfile({ profile_tags: payloadStr }, this.libraryService.getBackendUrl());
+    }
+  }
+
+  getBannerStyle(banner?: string | null): string | null {
+    if (!banner) return null;
+    const trimmed = banner.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('linear-gradient') || trimmed.startsWith('radial-gradient')) {
+      return `linear-gradient(180deg, rgba(15,15,18,0.2) 0%, rgba(15,15,18,0.85) 100%), ${trimmed}`;
+    }
+    return `linear-gradient(180deg, rgba(15,15,18,0.3) 0%, rgba(15,15,18,0.88) 100%), url('${trimmed}') center/cover no-repeat`;
+  }
+
+  getBannerPreviewStyle(banner?: string | null): string {
+    if (!banner) return 'linear-gradient(135deg, #27272a 0%, #18181b 100%)';
+    const trimmed = banner.trim();
+    if (trimmed.startsWith('linear-gradient') || trimmed.startsWith('radial-gradient')) {
+      return trimmed;
+    }
+    return `url('${trimmed}') center/cover no-repeat`;
+  }
+
+  openAchievementsModal() {
+    this.isAchievementsModalOpen.set(true);
+  }
+
+  closeAchievementsModal() {
+    this.isAchievementsModalOpen.set(false);
   }
 
   openSettings() {
     const user = this.authService.currentUser();
     this.editUsername.set(user?.username || 'Nickname');
-    this.editAvatarUrl.set(user?.avatar_url || '');
-    this.editBannerUrl.set(user?.banner_url || '');
+    this.editVibe.set(this.userVibe());
     this.isSettingsOpen.set(true);
   }
 
@@ -193,11 +309,13 @@ export class ProfileComponent {
 
   saveSettings() {
     const name = this.editUsername().trim();
+    const vibe = this.editVibe().trim();
+    this.userVibe.set(vibe);
+    this.saveProfileCustomization(this.userTags(), vibe, this.selectedAvatarFrame());
+
     if (name) {
       this.authService.updateProfile({
         username: name,
-        avatar_url: this.editAvatarUrl().trim() || undefined,
-        banner_url: this.editBannerUrl().trim() || undefined,
       }, this.libraryService.getBackendUrl());
     }
     this.closeSettings();
@@ -206,6 +324,7 @@ export class ProfileComponent {
   openAvatarModal() {
     const user = this.authService.currentUser();
     this.editAvatarUrl.set(user?.avatar_url || '');
+    this.editAvatarFrame.set(this.selectedAvatarFrame());
     this.isAvatarModalOpen.set(true);
   }
 
@@ -213,10 +332,24 @@ export class ProfileComponent {
     this.isAvatarModalOpen.set(false);
   }
 
+  selectAvatarPreset(preset: AvatarPreset) {
+    this.editAvatarUrl.set(preset.url);
+  }
+
+  selectAvatarFrame(frameId: string) {
+    this.editAvatarFrame.set(frameId);
+  }
+
   saveAvatar() {
+    const avatarToSave = this.editAvatarUrl().trim();
     this.authService.updateProfile({
-      avatar_url: this.editAvatarUrl().trim() || undefined,
+      avatar_url: avatarToSave ? avatarToSave : '',
     }, this.libraryService.getBackendUrl());
+
+    const newFrame = this.editAvatarFrame();
+    this.selectedAvatarFrame.set(newFrame);
+    this.saveProfileCustomization(this.userTags(), this.userVibe(), newFrame);
+
     this.closeAvatarModal();
   }
 
@@ -224,46 +357,28 @@ export class ProfileComponent {
     this.avatarFileInput?.nativeElement?.click();
   }
 
-  onAvatarFileSelected(event: Event) {
+  async onAvatarFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
     if (!file.type.startsWith('image/')) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
+    try {
+      const dataUrl = await this.resizeImage(file, 360, 0.88);
       this.editAvatarUrl.set(dataUrl);
-    };
-    reader.readAsDataURL(file);
-    input.value = '';
-  }
-
-  triggerBannerFile() {
-    this.bannerFileInput?.nativeElement?.click();
-  }
-
-  onBannerFileSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    if (!file.type.startsWith('image/')) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      this.editBannerUrl.set(dataUrl);
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      // Fallback to standard reader
+      const reader = new FileReader();
+      reader.onload = () => {
+        this.editAvatarUrl.set(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
     input.value = '';
   }
 
   removeAvatar() {
     this.editAvatarUrl.set('');
-  }
-
-  removeBanner() {
-    this.editBannerUrl.set('');
   }
 
   openBannerModal() {
@@ -276,16 +391,86 @@ export class ProfileComponent {
     this.isBannerModalOpen.set(false);
   }
 
+  selectBannerPreset(preset: BannerPreset) {
+    this.editBannerUrl.set(preset.gradient);
+  }
+
   saveBanner() {
+    const bannerToSave = this.editBannerUrl().trim();
     this.authService.updateProfile({
-      banner_url: this.editBannerUrl().trim() || undefined,
+      banner_url: bannerToSave ? bannerToSave : '',
     }, this.libraryService.getBackendUrl());
     this.closeBannerModal();
   }
 
+  triggerBannerFile() {
+    this.bannerFileInput?.nativeElement?.click();
+  }
+
+  async onBannerFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    if (!file.type.startsWith('image/')) return;
+
+    try {
+      const dataUrl = await this.resizeImage(file, 1280, 0.85);
+      this.editBannerUrl.set(dataUrl);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        this.editBannerUrl.set(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+    input.value = '';
+  }
+
+  removeBanner() {
+    this.editBannerUrl.set('');
+  }
+
+  private resizeImage(file: File, maxDimension: number, quality = 0.86): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(reader.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => reject(new Error('Image failed to load'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('File reading failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
   openAddTag() {
     this.newTagInput.set('');
-    this.selectedTagColor.set('#8b5cf6');
+    this.selectedTagColor.set('#ffffff');
     this.tagError.set(null);
     this.isAddTagOpen.set(true);
   }
@@ -321,7 +506,7 @@ export class ProfileComponent {
 
     const updated: ColoredTag[] = [...current, { text: sanitized, color: this.selectedTagColor() }];
     this.userTags.set(updated);
-    this.saveUserTags(updated);
+    this.saveProfileCustomization(updated, this.userVibe(), this.selectedAvatarFrame());
     this.closeAddTag();
   }
 
@@ -329,7 +514,11 @@ export class ProfileComponent {
     event.stopPropagation();
     const updated = this.userTags().filter((t) => t.text !== tagToRemove.text);
     this.userTags.set(updated);
-    this.saveUserTags(updated);
+    this.saveProfileCustomization(updated, this.userVibe(), this.selectedAvatarFrame());
+  }
+
+  selectVibePreset(vibe: string) {
+    this.editVibe.set(vibe);
   }
 
   scrollCarousel(direction: 'left' | 'right') {
@@ -350,5 +539,62 @@ export class ProfileComponent {
 
   onPlaylistClick(playlistId: string) {
     this.openPlaylist.emit(playlistId);
+  }
+
+  openEditPlaylistCover(pl: Playlist, event: Event) {
+    event.stopPropagation();
+    this.selectedPlaylistForCover.set(pl);
+    this.editPlaylistCoverUrl.set(pl.coverUrl || '');
+    this.isEditPlaylistCoverOpen.set(true);
+  }
+
+  closeEditPlaylistCover() {
+    this.isEditPlaylistCoverOpen.set(false);
+    this.selectedPlaylistForCover.set(null);
+  }
+
+  selectPlaylistCoverPreset(preset: PlaylistCoverPreset) {
+    this.editPlaylistCoverUrl.set(preset.url);
+  }
+
+  triggerPlaylistCoverFile() {
+    this.playlistCoverInput?.nativeElement?.click();
+  }
+
+  async onPlaylistCoverFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    if (!file.type.startsWith('image/')) return;
+
+    try {
+      const dataUrl = await this.libraryService.resizeImageFile(file, 500, 0.85);
+      this.editPlaylistCoverUrl.set(dataUrl);
+    } catch {
+      try {
+        const fallback = await this.resizeImage(file, 500, 0.85);
+        this.editPlaylistCoverUrl.set(fallback);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => {
+          this.editPlaylistCoverUrl.set(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+    input.value = '';
+  }
+
+  removePlaylistCover() {
+    this.editPlaylistCoverUrl.set('');
+  }
+
+  savePlaylistCover() {
+    const pl = this.selectedPlaylistForCover();
+    if (!pl) return;
+
+    const cover = this.editPlaylistCoverUrl().trim();
+    this.libraryService.updatePlaylistCover(pl.id, cover);
+    this.closeEditPlaylistCover();
   }
 }

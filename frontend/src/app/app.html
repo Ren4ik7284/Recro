@@ -210,8 +210,7 @@
                     @else { ВСЕ СТИЛИ }
                     •
                     @if (recService.mixConfig().source === 'library_only') { МОЯ МУЗЫКА }
-                    @else if (recService.mixConfig().source === 'discovery_heavy') { БОЛЬШЕ ОТКРЫТИЙ }
-                    @else { СМЕШАННЫЙ }
+                    @else { ПОТОК ОТКРЫТИЙ }
                   </span>
 
                   @if (recService.isFetchingDiscovery()) {
@@ -1821,27 +1820,65 @@
           </div>
 
           <div class="input-field">
-            <label class="field-label">Обложка (опционально)</label>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <label class="field-label">Обложка плейлиста (опционально)</label>
+            <div class="playlist-cover-creator-box" style="display: flex; gap: 14px; align-items: center; margin-bottom: 10px;">
+              <div style="width: 64px; height: 64px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+                @if (playlistCoverInput()) {
+                  <img [src]="playlistCoverInput()" style="width: 100%; height: 100%; object-fit: cover;" alt="" />
+                } @else {
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color: var(--text-muted);">
+                    <rect x="3" y="3" width="18" height="18" rx="4"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                }
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <label class="btn-confirm-action" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 6px 12px; margin: 0; white-space: nowrap;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <span>Выбрать фото с устройства</span>
+                    <input type="file" accept="image/*" style="display: none;" (change)="onPlaylistCoverSelected($event)" />
+                  </label>
+                  @if (playlistCoverInput()) {
+                    <button type="button" class="btn-cancel" style="padding: 6px 10px; font-size: 11px;" (click)="playlistCoverInput.set('')">Удалить</button>
+                  }
+                </div>
+                <span style="font-size: 10px; color: var(--text-muted);">Любая картинка или фото с вашего компьютера / галереи телефона</span>
+              </div>
+            </div>
+
+            <div style="margin-top: 10px;">
+              <span style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); display: block; margin-bottom: 6px;">ИЛИ ВЫБЕРИТЕ СТИЛЬ ОБЛОЖКИ:</span>
+              <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;">
+                @for (preset of playlistCoverPresets; track preset.id) {
+                  <div 
+                    (click)="selectPlaylistCoverPreset(preset)" 
+                    [style.border]="playlistCoverInput() === preset.url ? '2px solid #ffffff' : '1px solid var(--border-subtle)'"
+                    style="border-radius: 6px; overflow: hidden; cursor: pointer; aspect-ratio: 1/1; background: #18181b;"
+                    [title]="preset.name"
+                  >
+                    <img [src]="preset.url" style="width: 100%; height: 100%; object-fit: cover;" [alt]="preset.name" />
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div style="margin-top: 10px;">
               <input 
                 type="text" 
-                placeholder="URL картинки или файл..."
+                placeholder="Или ссылка на картинку (https://...)"
                 [ngModel]="playlistCoverInput()"
                 (ngModelChange)="playlistCoverInput.set($event)"
                 class="form-text-input"
-                style="flex: 1;"
+                style="font-size: 11px;"
               />
-              <label class="btn-cancel" style="cursor: pointer; display: flex; align-items: center; white-space: nowrap; margin: 0; padding: 8px 12px; height: 38px;">
-                Загрузить
-                <input type="file" accept="image/*" style="display: none;" (change)="onPlaylistCoverSelected($event)" />
-              </label>
             </div>
-            @if (playlistCoverInput()) {
-              <div style="margin-top: 8px; display: flex; align-items: center; gap: 10px;">
-                <img [src]="playlistCoverInput()" style="width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-subtle);" alt="" />
-                <button type="button" class="btn-cancel" style="padding: 4px 8px; font-size: 11px;" (click)="playlistCoverInput.set('')">Удалить</button>
-              </div>
-            }
           </div>
         </div>
 
@@ -1977,7 +2014,7 @@
 
             @if (canInstallPwa()) {
               <button class="btn-cancel-action font-mono" style="width: 100%; margin-top: 10px; font-size: 11px; padding: 8px 12px;" (click)="pwaService.promptInstall()">
-                ⚡ Или установить через браузер (PWA)
+                Или установить через браузер (PWA)
               </button>
             }
           }
@@ -2780,30 +2817,28 @@
               <span class="mix-group-title">Источник музыки</span>
             </div>
             <div class="mix-grid-cards mix-grid-source">
-              <!-- Balanced -->
+              <!-- Discovery (Default, no library tracks) -->
               <button 
                 type="button"
                 class="mix-card-item" 
-                [class.active]="recService.mixConfig().source === 'balanced'" 
-                (click)="updateMixSource('balanced')"
+                [class.active]="recService.mixConfig().source !== 'library_only'" 
+                (click)="updateMixSource('discovery_heavy')"
               >
                 <div class="mix-card-head-row">
                   <div class="mix-card-title-group">
                     <div class="mix-card-icon-box">
                       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="m4.93 4.93 4.24 4.24"/>
-                        <path d="m14.83 9.17 4.24-4.24"/>
-                        <circle cx="12" cy="12" r="4"/>
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Смешанный</span>
+                    <span class="mix-card-name">Поток открытий</span>
                   </div>
-                  <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source === 'balanced'">
+                  <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source !== 'library_only'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">70% ваша коллекция, 30% рекомендации и открытия</span>
+                <span class="mix-card-description">Только новые похожие треки по вкусу, без песен из вашей медиатеки</span>
               </button>
 
               <!-- Library Only -->
@@ -2821,37 +2856,13 @@
                         <path d="M6 6h10"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Только моя музыка</span>
+                    <span class="mix-card-name">Моя медиатека</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source === 'library_only'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
                 <span class="mix-card-description">Исключительно треки из вашего каталога и плейлистов</span>
-              </button>
-
-              <!-- Discovery Heavy -->
-              <button 
-                type="button"
-                class="mix-card-item" 
-                [class.active]="recService.mixConfig().source === 'discovery_heavy'" 
-                (click)="updateMixSource('discovery_heavy')"
-              >
-                <div class="mix-card-head-row">
-                  <div class="mix-card-title-group">
-                    <div class="mix-card-icon-box">
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                      </svg>
-                    </div>
-                    <span class="mix-card-name">Больше открытий</span>
-                  </div>
-                  <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source === 'discovery_heavy'">
-                    <div class="mix-radio-dot"></div>
-                  </div>
-                </div>
-                <span class="mix-card-description">Новые похожие треки, подобранные по вкусу</span>
               </button>
             </div>
           </div>

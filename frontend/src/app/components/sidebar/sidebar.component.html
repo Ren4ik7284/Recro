@@ -131,7 +131,7 @@
           (click)="viewChange.emit({view: 'playlist', playlistId: pl.id})"
         >
           @if (pl.coverUrl) {
-            <img [src]="pl.coverUrl" class="pl-avatar pl-avatar-img" alt="" />
+            <img [src]="pl.coverUrl" class="pl-avatar pl-avatar-img" (error)="pl.coverUrl = undefined" alt="" />
           } @else {
             <span class="pl-avatar">{{ pl.coverText }}</span>
           }

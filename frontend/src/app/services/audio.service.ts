@@ -1600,47 +1600,30 @@ export class AudioService {
 
     if (source === 'library_only') {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-    } else if (source === 'discovery_heavy') {
-      const onlineCount = Math.min(needed, 3);
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(onlineCount, excludeIds, recentArtists, curTrack);
-      newTracks.push(...discovery);
-      discovery.forEach((d) => {
-        excludeIds.add(d.id);
-        if (d.artist) recentArtists.add(d.artist);
-      });
-
-      if (newTracks.length < needed) {
-        const local = this.recService.pickNextTracks(needed - newTracks.length, excludeIds, curTrack, recentArtists);
-        newTracks.push(...local);
-      }
     } else {
-      // Balanced mode: reliably blend 50% online discovery recommendations with 50% library affinity
-      const discoveryCount = Math.max(1, Math.ceil(needed / 2));
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists, curTrack);
+      // Pure 100% discovery stream without 70/30 mixing of library tracks
+      for (const t of this.libraryService.tracks()) {
+        excludeIds.add(t.id);
+      }
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists, curTrack);
       newTracks.push(...discovery);
       discovery.forEach((d) => {
         excludeIds.add(d.id);
         if (d.artist) recentArtists.add(d.artist);
       });
-
-      const remainingNeeded = needed - newTracks.length;
-      if (remainingNeeded > 0) {
-        const local = this.recService.pickNextTracks(remainingNeeded, excludeIds, curTrack, recentArtists);
-        newTracks.push(...local);
-      }
     }
 
-    if (newTracks.length === 0 && localCandidates.length > 0) {
+    if (newTracks.length === 0 && source === 'library_only' && localCandidates.length > 0) {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
       if (newTracks.length === 0) {
         newTracks = this.recService.pickNextTracks(needed, new Set(curTrack ? [curTrack.id] : []));
       }
     }
 
-    if (newTracks.length === 0 && localCandidates.length === 0) {
+    if (newTracks.length === 0 && (source === 'library_only' ? localCandidates.length === 0 : true)) {
       const starters = this.recService.getStarterCandidates(this.recService.currentMood(), needed * 2);
       const freshStarters = starters.filter(
-        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t)
+        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && (source === 'library_only' || !this.recService.isLibraryTrack(t))
       );
       if (freshStarters.length > 0) {
         newTracks = freshStarters.slice(0, needed);
@@ -1677,14 +1660,13 @@ export class AudioService {
 
     const curTrack = this.currentTrack() || null;
     const localCandidates = this.recService.getAllLocalCandidates();
+    const source = this.recService.mixConfig().source;
 
     // Instant Cold-Start for brand new / clean accounts:
-    // Instantly start playback with curated popular starter tracks in 0ms without waiting for network searches!
     if (localCandidates.length === 0 && mood !== 'favorites') {
       const starterTracks = this.recService.getStarterCandidates(mood, 5);
       if (starterTracks.length > 0) {
         this.playTrack(starterTracks[0], starterTracks, true, 0);
-        // Asynchronously populate and enrich the queue ahead with discovery tracks in background
         this.ensureSmartQueue();
         return true;
       }
@@ -1695,7 +1677,6 @@ export class AudioService {
       recentArtists.add(curTrack.artist);
     }
 
-    const source = this.recService.mixConfig().source;
     let candidates: Track[] = [];
 
     if (mood === 'favorites' || source === 'library_only') {
@@ -1710,53 +1691,43 @@ export class AudioService {
         candidates = [...candidates, ...discovery];
       }
     } else {
-      const onlineCount = source === 'discovery_heavy' ? 4 : 3;
-      const localCount = 6 - onlineCount;
+      // Pure 100% discovery stream: exclude all tracks in user's library
+      const excludeIds = new Set<string>(this.libraryService.tracks().map((t) => t.id));
+      if (curTrack) excludeIds.add(curTrack.id);
 
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(
-        onlineCount,
-        new Set(curTrack ? [curTrack.id] : []),
+        6,
+        excludeIds,
         recentArtists,
         curTrack
       );
-      discovery.forEach((d) => {
-        if (d.artist) recentArtists.add(d.artist);
-      });
+      candidates = discovery;
+    }
 
-      const locals = this.recService.pickNextTracks(
-        localCount,
-        new Set([...discovery.map((d) => d.id), ...(curTrack ? [curTrack.id] : [])]),
-        curTrack,
-        recentArtists
-      );
-
-      // Чередуем: рекомендация, любимый/знакомый трек, рекомендация...
-      let dIdx = 0;
-      let lIdx = 0;
-      while (dIdx < discovery.length || lIdx < locals.length) {
-        if (dIdx < discovery.length) candidates.push(discovery[dIdx++]);
-        if (lIdx < locals.length) candidates.push(locals[lIdx++]);
+    if (candidates.length === 0) {
+      const excludeIds = new Set<string>();
+      if (source !== 'library_only') {
+        for (const t of this.libraryService.tracks()) {
+          excludeIds.add(t.id);
+        }
       }
-
-      if (candidates.length < 6) {
-        const remaining = 6 - candidates.length;
-        const moreLocals = this.recService.pickNextTracks(
-          remaining,
-          new Set(candidates.map((t) => t.id)),
-          curTrack,
-          recentArtists
-        );
-        candidates = [...candidates, ...moreLocals];
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(6, excludeIds, recentArtists, curTrack);
+      if (discovery.length === 0) {
+        if (source === 'library_only' && localCandidates.length > 0) {
+          candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
+        } else {
+          candidates = this.recService.getStarterCandidates(mood, 6).filter(
+            (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t)
+          );
+        }
+      } else {
+        candidates = discovery;
       }
     }
 
     if (candidates.length === 0) {
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(6, new Set(), recentArtists);
-      if (discovery.length === 0) {
-        this.recService.isMixActive.set(false);
-        return false;
-      }
-      candidates = discovery;
+      this.recService.isMixActive.set(false);
+      return false;
     }
 
     this.playTrack(candidates[0], candidates, true, 0);

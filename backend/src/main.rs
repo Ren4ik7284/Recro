@@ -113,7 +113,7 @@ async fn main() {
         .route("/api/lyrics", get(get_lyrics))
         .route("/api/track/meta", get(get_track_meta).post(save_track_meta))
         .layer(axum::middleware::from_fn(security_headers_middleware))
-        .layer(RequestBodyLimitLayer::new(5 * 1024 * 1024))
+        .layer(RequestBodyLimitLayer::new(15 * 1024 * 1024))
         .layer(cors)
         .with_state(state);
 

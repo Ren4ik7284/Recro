@@ -28,6 +28,7 @@ import { NavigationService } from './services/navigation.service';
 import { AmbientService } from './services/ambient.service';
 import { PwaService } from './services/pwa.service';
 import { TimerService, TIMER_MOODS, TimerMood } from './services/timer.service';
+import { PLAYLIST_COVER_PRESETS, PlaylistCoverPreset } from './components/profile/profile-presets';
 
 declare global {
   interface Window {
@@ -1406,32 +1407,49 @@ export class App implements OnInit {
     this.navService.closeOverlay('playlist-new');
   }
 
-  onPlaylistCoverSelected(event: Event) {
+  readonly playlistCoverPresets: PlaylistCoverPreset[] = PLAYLIST_COVER_PRESETS;
+
+  selectPlaylistCoverPreset(preset: PlaylistCoverPreset) {
+    this.playlistCoverInput.set(preset.url);
+  }
+
+  async onPlaylistCoverSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       const file = input.files[0];
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          this.playlistCoverInput.set(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const dataUrl = await this.libraryService.resizeImageFile(file, 500, 0.85);
+        this.playlistCoverInput.set(dataUrl);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            this.playlistCoverInput.set(reader.result);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   }
 
-  onExistingPlaylistCoverUpload(pl: Playlist, event: Event) {
+  async onExistingPlaylistCoverUpload(pl: Playlist, event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       const file = input.files[0];
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          this.libraryService.updatePlaylistCover(pl.id, reader.result);
-          this.showToast('Обложка плейлиста обновлена');
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const dataUrl = await this.libraryService.resizeImageFile(file, 500, 0.85);
+        this.libraryService.updatePlaylistCover(pl.id, dataUrl);
+        this.showToast('Обложка плейлиста обновлена');
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            this.libraryService.updatePlaylistCover(pl.id, reader.result);
+            this.showToast('Обложка плейлиста обновлена');
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   }
 

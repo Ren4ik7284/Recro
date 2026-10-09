@@ -15,7 +15,7 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
     mockLibraryService = {
       mixConfig: signal({
         mood: 'all',
-        source: 'balanced',
+        source: 'discovery_heavy',
         language: 'all',
       }),
       dislikedTrackIds: signal(new Set<string>()),
@@ -26,6 +26,8 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
       setMixConfig: vi.fn(),
       getHistory: vi.fn().mockResolvedValue([]),
       searchOnline: vi.fn().mockResolvedValue([]),
+      getSimilarTracks: vi.fn().mockResolvedValue([]),
+      getRecommendations: vi.fn().mockResolvedValue([]),
     };
 
     TestBed.configureTestingModule({
@@ -207,6 +209,35 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
       // NEVER allow 3 or 4 tracks from OG Buda in a row!
       expect(uniqueArtists.size).toBe(3);
       expect(artists.filter((a) => a === 'og buda').length).toBe(1);
+    });
+
+    it('isLibraryTrack should identify library tracks by ID or normalized artist/title', () => {
+      mockLibraryService.tracks.set([
+        { id: 'lib-1', title: 'Believer', artist: 'Imagine Dragons', duration: 200, audioUrl: 'u', genre: 'Rock', format: 'mp3', plays: 1, isFavorite: true, addedAt: '2026-01-01' },
+      ]);
+
+      expect(service.isLibraryTrack({ id: 'lib-1', title: 'Believer', artist: 'Imagine Dragons', duration: 200, audioUrl: 'u', genre: 'Rock', format: 'mp3', plays: 0, isFavorite: false, addedAt: '2026-01-01' })).toBe(true);
+      expect(service.isLibraryTrack({ id: 'yt-diff-id', title: 'Believer (Official Video)', artist: 'Imagine Dragons', duration: 200, audioUrl: 'u', genre: 'Rock', format: 'mp3', plays: 0, isFavorite: false, addedAt: '2026-01-01' })).toBe(true);
+      expect(service.isLibraryTrack({ id: 'other', title: 'Thunder', artist: 'Imagine Dragons', duration: 200, audioUrl: 'u', genre: 'Rock', format: 'mp3', plays: 0, isFavorite: false, addedAt: '2026-01-01' })).toBe(false);
+    });
+
+    it('fetchOnlineDiscoveryTracks should strictly exclude any tracks that are present in user library', async () => {
+      // User has Track 1 in their library
+      mockLibraryService.tracks.set([
+        { id: 'yt-1', title: 'Track 1', artist: 'OG Buda', duration: 180, audioUrl: 'u1', genre: 'Rap', format: 'mp3', plays: 5, isFavorite: true, addedAt: '2026-01-01' },
+      ]);
+
+      mockLibraryService.searchOnline.mockResolvedValue([
+        { id: 'yt-1', title: 'Track 1', artist: 'OG Buda', duration: 180, audioUrl: 'u1' }, // IN LIBRARY -> MUST BE SKIPPED
+        { id: 'yt-4', title: 'Track 4', artist: 'Miyagi', duration: 200, audioUrl: 'u4' },
+        { id: 'yt-5', title: 'Track 5', artist: 'Saluki', duration: 210, audioUrl: 'u5' },
+      ]);
+
+      const discovery = await service.fetchOnlineDiscoveryTracks(2);
+      expect(discovery.length).toBe(2);
+      // Track 1 must NOT appear in the discovery results
+      expect(discovery.some((t) => t.id === 'yt-1')).toBe(false);
+      expect(discovery.map((t) => t.id)).toEqual(['yt-4', 'yt-5']);
     });
   });
 });

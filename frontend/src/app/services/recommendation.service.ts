@@ -351,6 +351,15 @@ export class RecommendationService {
     return false;
   }
 
+  isLibraryTrack(track: Track): boolean {
+    if (!track) return false;
+    const localTracks = this.libraryService.tracks();
+    if (localTracks.some((t) => t.id === track.id)) return true;
+    const trackKey = this.getTitleKey(track);
+    if (trackKey && localTracks.some((t) => this.getTitleKey(t) === trackKey)) return true;
+    return false;
+  }
+
   registerSessionPlayed(track: Track): void {
     if (!track || track.isLiveStream) return;
     this.sessionPlayedIds.add(track.id);
@@ -358,11 +367,11 @@ export class RecommendationService {
     if (key) {
       this.sessionPlayedKeys.add(key);
     }
-    if (this.sessionPlayedIds.size > 300) {
+    if (this.sessionPlayedIds.size > 1000) {
       const firstId = this.sessionPlayedIds.keys().next().value;
       if (firstId !== undefined) this.sessionPlayedIds.delete(firstId);
     }
-    if (this.sessionPlayedKeys.size > 300) {
+    if (this.sessionPlayedKeys.size > 1000) {
       const firstKey = this.sessionPlayedKeys.keys().next().value;
       if (firstKey !== undefined) this.sessionPlayedKeys.delete(firstKey);
     }
@@ -1356,8 +1365,8 @@ export class RecommendationService {
       enQueries.push('pop hits', 'top hits');
     }
 
-    if (ruQueries.length === 0) ruQueries.push('популярная музыка', 'топ треки');
-    if (enQueries.length === 0) enQueries.push('top hits', 'viral hits');
+    if (ruQueries.length === 0) ruQueries.push('инди музыка', 'альтернатива');
+    if (enQueries.length === 0) enQueries.push('indie rock', 'alternative hits');
 
     if (isRu) {
       queries.push(...ruQueries);
@@ -1389,9 +1398,17 @@ export class RecommendationService {
     try {
       const candidates = this.getAllLocalCandidates();
       const mood = this.currentMood();
+      const isLibraryOnly = this.libraryService.mixConfig().source === 'library_only';
       const lang = this.libraryService.mixConfig().language;
       const targetVec = this.getTargetVectorForMood(mood);
       const targetNorm = this.computeVectorNorm(targetVec);
+
+      // In discovery mix, NEVER include tracks already in the user's library!
+      if (!isLibraryOnly) {
+        for (const t of candidates) {
+          excludeIds.add(t.id);
+        }
+      }
 
       const topArtistsMap = new Map<string, number>();
       for (const t of candidates) {
@@ -1428,22 +1445,24 @@ export class RecommendationService {
       const pass1Tasks: Promise<Track[]>[] = [];
 
       const effectiveSeed = seedTrack || (candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : null);
+      const seedGenre = effectiveSeed?.genre || dominantGenre;
+
       if (effectiveSeed) {
         if (effectiveSeed.title && effectiveSeed.artist) {
           pass1Tasks.push(
-            this.libraryService.getSimilarTracks(effectiveSeed.title, effectiveSeed.artist, 10).catch(() => [] as Track[])
+            this.libraryService.getSimilarTracks(effectiveSeed.title, effectiveSeed.artist, 10, seedGenre).catch(() => [] as Track[])
           );
         }
 
         pass1Tasks.push(
-          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 10).catch(() => [] as Track[])
+          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 10, undefined, seedGenre).catch(() => [] as Track[])
         );
 
         const seedArtists = extractAllArtists(effectiveSeed.artist, effectiveSeed.title);
         if (seedArtists.length > 0) {
           const randArtist = seedArtists[Math.floor(Math.random() * seedArtists.length)];
           pass1Tasks.push(
-            this.libraryService.getRecommendations(randArtist, dominantGenre, 6).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(randArtist, dominantGenre, 6, undefined, seedGenre).catch(() => [] as Track[])
           );
         }
       }
@@ -1457,7 +1476,7 @@ export class RecommendationService {
         ];
         for (const seedArtist of rotated.slice(0, 3)) {
           pass1Tasks.push(
-            this.libraryService.getRecommendations(seedArtist, dominantGenre, 8).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(seedArtist, dominantGenre, 8, undefined, dominantGenre).catch(() => [] as Track[])
           );
         }
       }
@@ -1476,6 +1495,7 @@ export class RecommendationService {
         if (selectedTracks.length >= count) break;
         if (!t || !t.audioUrl || !t.audioUrl.trim() || !t.title || !t.title.trim()) continue;
         if (excludeIds.has(t.id) || this.isDisliked(t.id) || this.isSessionDuplicate(t)) continue;
+        if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
         if (t.duration < 50 || t.duration > 480) continue;
         const textKey = `${t.genre} ${t.title} ${t.artist}`;
         if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
@@ -1490,7 +1510,7 @@ export class RecommendationService {
 
         const trackVec = this.extractTrackVector(t);
         const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        if (similarity < 0.42) {
+        if (similarity < 0.38) {
           continue;
         }
 
@@ -1523,6 +1543,7 @@ export class RecommendationService {
           !excludeIds.has(t.id) &&
           !this.isDisliked(t.id) &&
           !this.isSessionDuplicate(t) &&
+          (isLibraryOnly || !this.isLibraryTrack(t)) &&
           (t.duration === 0 || (t.duration >= 50 && t.duration <= 480)) &&
           !PLAYLIST_NOISE_REGEX.test(`${t.genre} ${t.title} ${t.artist}`) &&
           !BEDROOM_PRODUCER_REGEX.test(`${t.genre} ${t.title} ${t.artist}`) &&
@@ -1530,7 +1551,7 @@ export class RecommendationService {
           (hasJunkAffinity || !JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`))
         );
 
-        const minSim = userTopArtists.length > 0 ? 0.42 : 0.40;
+        const minSim = userTopArtists.length > 0 ? 0.40 : 0.38;
 
         for (const t of valid) {
           if (selectedTracks.length >= count) break;
@@ -1547,7 +1568,7 @@ export class RecommendationService {
           const trackVec = this.extractTrackVector(t);
           const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
           if (similarity < minSim) {
-            if (similarity >= 0.38) fallbackPool.push(t);
+            if (similarity >= 0.35) fallbackPool.push(t);
             continue;
           }
 
@@ -1562,6 +1583,7 @@ export class RecommendationService {
         for (const t of fallbackPool) {
           if (selectedTracks.length >= count) break;
           if (excludeIds.has(t.id) || this.isSessionDuplicate(t)) continue;
+          if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
           const textKey = `${t.genre} ${t.title} ${t.artist}`;
           if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
           if (isRuLib && REGIONAL_SPAM_REGEX.test(textKey)) continue;
@@ -1577,9 +1599,9 @@ export class RecommendationService {
         }
       }
 
-      // Final resilience: If online discovery didn't fill count, fall back to user's favorite library tracks
-      // NEVER dump random unrelated songs!
-      if (selectedTracks.length < count && candidates.length > 0) {
+      // Final resilience: If library_only mode and didn't fill count, fall back to user's favorite library tracks
+      // For general mix/discovery, NEVER dump user's library tracks!
+      if (isLibraryOnly && selectedTracks.length < count && candidates.length > 0) {
         const localFill = this.pickNextTracks(count - selectedTracks.length, excludeIds);
         for (const lt of localFill) {
           if (selectedTracks.length >= count) break;
@@ -1588,12 +1610,12 @@ export class RecommendationService {
         }
       }
 
-      // Emergency starter candidates only for completely fresh/empty libraries
+      // Emergency starter candidates only when pool is completely dry, ensuring no library duplicates
       if (selectedTracks.length < count && candidates.length === 0) {
         const starters = this.getStarterCandidates(mood, count - selectedTracks.length);
         for (const st of starters) {
           if (selectedTracks.length >= count) break;
-          if (!excludeIds.has(st.id)) {
+          if (!excludeIds.has(st.id) && !this.isSessionDuplicate(st) && (isLibraryOnly || !this.isLibraryTrack(st))) {
             selectedTracks.push(st);
             excludeIds.add(st.id);
           }
