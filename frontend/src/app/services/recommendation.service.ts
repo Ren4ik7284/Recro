@@ -27,47 +27,9 @@ export const DEFAULT_TASTE_VECTOR: TasteVector = {
 };
 
 export const STARTER_MIX_TRACKS: Track[] = [
+  // --- Russian / CIS Tracks ---
   {
-    id: 'starter-1',
-    title: 'Get Lucky',
-    artist: 'Daft Punk feat. Pharrell Williams',
-    duration: 248,
-    audioUrl: '/api/stream?title=Get%20Lucky&artist=Daft%20Punk',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/2c5aa8c057ee13d8031e42845c48bce6/500x500.jpg',
-    genre: 'Disco / Funk',
-    format: 'mp3',
-    plays: 0,
-    isFavorite: false,
-    addedAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'starter-2',
-    title: 'Do I Wanna Know?',
-    artist: 'Arctic Monkeys',
-    duration: 272,
-    audioUrl: '/api/stream?title=Do%20I%20Wanna%20Know&artist=Arctic%20Monkeys',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6c65b1cbca5aa2771b0292b3bafe6288/500x500.jpg',
-    genre: 'Indie Rock',
-    format: 'mp3',
-    plays: 0,
-    isFavorite: false,
-    addedAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'starter-3',
-    title: 'Blinding Lights',
-    artist: 'The Weeknd',
-    duration: 200,
-    audioUrl: '/api/stream?title=Blinding%20Lights&artist=The%20Weeknd',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/e00f95ecb2649666cfeb317f2be021a8/500x500.jpg',
-    genre: 'Synthpop',
-    format: 'mp3',
-    plays: 0,
-    isFavorite: false,
-    addedAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'starter-4',
+    id: 'starter-ru-1',
     title: 'Моя голова винтом',
     artist: 'Kostromin',
     duration: 135,
@@ -80,7 +42,7 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-5',
+    id: 'starter-ru-2',
     title: 'Close Eyes',
     artist: 'DVRST',
     duration: 132,
@@ -93,7 +55,7 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-6',
+    id: 'starter-ru-3',
     title: 'Группа крови',
     artist: 'Кино',
     duration: 285,
@@ -106,20 +68,7 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-7',
-    title: 'Starboy',
-    artist: 'The Weeknd',
-    duration: 230,
-    audioUrl: '/api/stream?title=Starboy&artist=The%20Weeknd',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6a7605d311394b3063fec65a19fb0962/500x500.jpg',
-    genre: 'Pop / R&B',
-    format: 'mp3',
-    plays: 0,
-    isFavorite: false,
-    addedAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'starter-8',
+    id: 'starter-ru-4',
     title: 'Кукла колдуна',
     artist: 'Король и Шут',
     duration: 203,
@@ -132,33 +81,7 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-9',
-    title: 'Murder In My Mind',
-    artist: 'Kordhell',
-    duration: 145,
-    audioUrl: '/api/stream?title=Murder%20In%20My%20Mind&artist=Kordhell',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/4488b39c065f3775f0aee7bb059ee20a/500x500.jpg',
-    genre: 'Drift Phonk',
-    format: 'mp3',
-    plays: 0,
-    isFavorite: false,
-    addedAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'starter-10',
-    title: 'Bohemian Rhapsody',
-    artist: 'Queen',
-    duration: 354,
-    audioUrl: '/api/stream?title=Bohemian%20Rhapsody&artist=Queen',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/03f0bbfb776269dfb48c0aee7144e54a/500x500.jpg',
-    genre: 'Classic Rock',
-    format: 'mp3',
-    plays: 0,
-    isFavorite: false,
-    addedAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'starter-11',
+    id: 'starter-ru-5',
     title: 'Отпускай',
     artist: 'Три дня дождя',
     duration: 172,
@@ -171,7 +94,7 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-12',
+    id: 'starter-ru-6',
     title: 'Стрелы',
     artist: 'Markul, Тося Чайкина',
     duration: 168,
@@ -184,7 +107,165 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-13',
+    id: 'starter-ru-7',
+    title: 'Minor',
+    artist: 'Miyagi & Andy Panda',
+    duration: 175,
+    audioUrl: '/api/stream?title=Minor&artist=Miyagi%20%26%20Andy%20Panda',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/3be8134764b8bb279ebaaec10714c330/500x500.jpg',
+    genre: 'Hip-Hop / Reggae',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-ru-8',
+    title: '99 Problems',
+    artist: 'Big Baby Tape, Kizaru',
+    duration: 147,
+    audioUrl: '/api/stream?title=99%20Problems&artist=Big%20Baby%20Tape%2C%20Kizaru',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/c9c4391264c78fe233b860ce394c8651/500x500.jpg',
+    genre: 'Hip-Hop / Rap',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-ru-9',
+    title: 'Огней',
+    artist: 'SALUKI',
+    duration: 184,
+    audioUrl: '/api/stream?title=%D0%9E%D0%B3%D0%BD%D0%B5%D0%B9&artist=SALUKI',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/36b856b377ee13dfbb74f9d452d3a827/500x500.jpg',
+    genre: 'Hip-Hop / Alternative',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-ru-10',
+    title: 'Положение',
+    artist: 'Скриптонит',
+    duration: 283,
+    audioUrl: '/api/stream?title=%D0%9F%D0%BE%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5&artist=%D0%A1%D0%BA%D1%80%D0%B8%D0%BF%D1%82%D0%BE%D0%BD%D0%B8%D1%82',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/c7cb7efbb5a999bb57c3fcbfa5290b9b/500x500.jpg',
+    genre: 'Hip-Hop / Rap',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-ru-11',
+    title: 'Life',
+    artist: 'Zivert',
+    duration: 188,
+    audioUrl: '/api/stream?title=Life&artist=Zivert',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/c0f86a9f4c3cbcc898cfda034446dfc0/500x500.jpg',
+    genre: 'Pop / Dance',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-ru-12',
+    title: 'Я так соскучился',
+    artist: 'Порнофильмы',
+    duration: 213,
+    audioUrl: '/api/stream?title=%D0%AF%20%D1%82%D0%B0%D0%BA%20%D1%81%D0%BE%D1%81%D0%BA%D1%83%D1%87%D0%B8%D0%BB%D1%81%D1%8F&artist=%D0%9F%D0%BE%D1%80%D0%BD%D0%BE%D1%84%D0%B8%D0%BB%D1%8C%D0%BC%D1%8B',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/88b8f2d5c3da49b380387431e33d0eb6/500x500.jpg',
+    genre: 'Punk Rock',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+
+  // --- Foreign / International Tracks ---
+  {
+    id: 'starter-en-1',
+    title: 'Get Lucky',
+    artist: 'Daft Punk feat. Pharrell Williams',
+    duration: 248,
+    audioUrl: '/api/stream?title=Get%20Lucky&artist=Daft%20Punk',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/2c5aa8c057ee13d8031e42845c48bce6/500x500.jpg',
+    genre: 'Disco / Funk',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-2',
+    title: 'Do I Wanna Know?',
+    artist: 'Arctic Monkeys',
+    duration: 272,
+    audioUrl: '/api/stream?title=Do%20I%20Wanna%20Know&artist=Arctic%20Monkeys',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6c65b1cbca5aa2771b0292b3bafe6288/500x500.jpg',
+    genre: 'Indie Rock',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-3',
+    title: 'Blinding Lights',
+    artist: 'The Weeknd',
+    duration: 200,
+    audioUrl: '/api/stream?title=Blinding%20Lights&artist=The%20Weeknd',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/e00f95ecb2649666cfeb317f2be021a8/500x500.jpg',
+    genre: 'Synthpop',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-4',
+    title: 'Starboy',
+    artist: 'The Weeknd',
+    duration: 230,
+    audioUrl: '/api/stream?title=Starboy&artist=The%20Weeknd',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6a7605d311394b3063fec65a19fb0962/500x500.jpg',
+    genre: 'Pop / R&B',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-5',
+    title: 'Murder In My Mind',
+    artist: 'Kordhell',
+    duration: 145,
+    audioUrl: '/api/stream?title=Murder%20In%20My%20Mind&artist=Kordhell',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/4488b39c065f3775f0aee7bb059ee20a/500x500.jpg',
+    genre: 'Drift Phonk',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-6',
+    title: 'Bohemian Rhapsody',
+    artist: 'Queen',
+    duration: 354,
+    audioUrl: '/api/stream?title=Bohemian%20Rhapsody&artist=Queen',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/03f0bbfb776269dfb48c0aee7144e54a/500x500.jpg',
+    genre: 'Classic Rock',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-7',
     title: 'In The End',
     artist: 'Linkin Park',
     duration: 216,
@@ -197,7 +278,7 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-14',
+    id: 'starter-en-8',
     title: 'Believer',
     artist: 'Imagine Dragons',
     duration: 204,
@@ -210,7 +291,7 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-15',
+    id: 'starter-en-9',
     title: 'COWBELL WARRIOR!',
     artist: 'SXMPRA',
     duration: 110,
@@ -223,13 +304,39 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'starter-16',
+    id: 'starter-en-10',
     title: 'Glimpse of Us',
     artist: 'Joji',
     duration: 233,
     audioUrl: '/api/stream?title=Glimpse%20of%20Us&artist=Joji',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/86a9a95782782e441ea636a0d241d7d2/500x500.jpg',
     genre: 'Lo-Fi / R&B',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-11',
+    title: 'Goosebumps',
+    artist: 'Travis Scott',
+    duration: 243,
+    audioUrl: '/api/stream?title=Goosebumps&artist=Travis%20Scott',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/7864aa9c80d5d5a71f005470d0879e60/500x500.jpg',
+    genre: 'Hip-Hop / Rap',
+    format: 'mp3',
+    plays: 0,
+    isFavorite: false,
+    addedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'starter-en-12',
+    title: 'Smells Like Teen Spirit',
+    artist: 'Nirvana',
+    duration: 301,
+    audioUrl: '/api/stream?title=Smells%20Like%20Teen%20Spirit&artist=Nirvana',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/8ee2f1c834a5d8ee9fb4d8b63e9f4d1e/500x500.jpg',
+    genre: 'Grunge / Rock',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -285,19 +392,52 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'oxxxymiron', 'markul', 'obladaet', 'saluki', 'boulevard depo', 'jeembo',
   'pharaoh', 'scriptonite', 'skryptonite', 'loqiemean', 'noize mc', 'anacondaz',
   'face', 'gone fludd', 'gone.fludd', 'flesh', 'lizer', 'thrill pill', 'platina',
-  'kordhell', 'dvrst', 'sxmpra', 'shadowraze', 'zxcursed', 'hikikomori kai',
-  'kostromin', 'sub urban', 'gidayyat', 'kambulat', 'the limba', 'jony',
+  'dvrst', 'shadowraze', 'zxcursed', 'hikikomori kai',
+  'kostromin', 'gidayyat', 'kambulat', 'the limba', 'jony',
   'hammali', 'navai', 'jah khalib', 'rauf', 'faik', 'mot', 'basta', 'noggano',
   'max korzh', 'feduk', 'eldzhey', 'allj', 'slava marlow', 'instasamka',
   'sqwoz bab', 'dava', 'dead blonde', 'gspd', 'cmh', 'dk', 'mzlff',
   'serebro', 'tatu', 'little big', 'ic3peak', 'shortparis', 'motorama',
   'molchat doma', 'ssshhhiiittt', 'buerak', 'plamenev', 'radio tapok',
-  'pyrokinesis', 'stigmata', 'amatory', 'slot', 'louna', 'epidemia'
+  'pyrokinesis', 'stigmata', 'amatory', 'slot', 'louna', 'epidemia',
+  // Additional popular Russian / CIS artists commonly formatted in Latin:
+  'alblak 52', 'friendly thug', 'friendly thug 52 ngg', 'bushido zho', 'heronwater',
+  'toxi$', 'toxis', 'kai angel', '9mice', 'viperr', 'icegergert', 'pepel nahudi',
+  'aarne', 'lovv66', 'seemee', 'yungway', 'pinq', 'lil krystalll', 'white punk',
+  'yanix', 'rocket', 't-fest', '104', 'truwer', 'niman', 'tumaniyo', 'i61',
+  'grebz', 'thomas mraz', 'atl', 'horus', 'sirotkin', 'zoloto', 'green apelsin',
+  'cream soda', 'poshlaya molly', 'tri dnya dozhdya', 'kosmonavtov net', 'smetana band',
+  'dzhizus', 'mukka', 'playingtheangel', 'xcho', 'janaga', 'andro', 'elman',
+  'gafur', 'toni', 'mona', 'klava coca', 'mary gu', 'dora', 'mia boyka',
+  'zivert', 'mari kraimbrery', 'misha marvin', 'timati', 'egor kreed', 'hanna',
+  'nyusha', 'iowa', 'pizza', 'aria', 'kipelov', 'wildways', 'neverlove',
+  'zveri', 'lumen', 'splin', 'bi-2', 'zemfira', 'mumiy troll', 'ddt',
+  'nautilus pompilius', 'sektor gaza', 'leningrad', 'mnogoznaal', 'nervy',
+  'valentin strykalo', 'polnalyubvi', 'antoha mc', 'detsl', 'smoki mo', 'rem digga',
+  'kaspiyskiy gruz', 'centr', 'kasta', 'bad balance', 'artik & asti', 'artik and asti',
+  'anna asti', 'gayazovs brothers', 'gayazov$ brother$', 'intelligency', 'rsac',
+  'shokk', 'schokk', 'endspiel', 'endshpil', 'polina gagarina', 'sergey lazarev',
+  'dima bilan', 'maksim', 'glukoza', 'uma2rman', 'bravo', 'alisa', 'piknik',
+  'agata kristi', 'krematoriy', 'akvarium', 'the hatters'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
   if (!artist) return false;
   if (/[а-яё]/i.test(artist)) return true;
+
+  const parts = extractAllArtists(artist);
+  for (const part of parts) {
+    if (/[а-яё]/i.test(part)) return true;
+    const norm = normalizeArtist(part);
+    if (!norm) continue;
+    if (KNOWN_RUSSIAN_LATIN_ARTISTS.has(norm)) return true;
+    for (const known of KNOWN_RUSSIAN_LATIN_ARTISTS) {
+      if (norm === known || norm.startsWith(known + ' ') || norm.endsWith(' ' + known)) {
+        return true;
+      }
+    }
+  }
+
   const norm = normalizeArtist(artist);
   if (!norm) return false;
   if (KNOWN_RUSSIAN_LATIN_ARTISTS.has(norm)) return true;
@@ -313,14 +453,22 @@ export function isTrackLanguageMatch(track: { title?: string; artist?: string; g
   if (!track) return false;
   if (lang === 'all') return true;
 
-  const title = track.title || '';
-  const artist = track.artist || '';
-  const genre = track.genre || '';
-  const fullText = `${title} ${artist} ${genre}`;
+  const rawTitle = track.title || '';
+  const rawArtist = track.artist || '';
 
-  const hasCyrillic = /[а-яё]/i.test(fullText);
-  const isRuArtist = isRussianArtist(artist);
-  const isRussianTrack = hasCyrillic || isRuArtist;
+  // Clean title from brackets, features, and video/promotional noise
+  // e.g. "Eminem - Mockingbird (Русский перевод / клип)" -> "Eminem - Mockingbird"
+  const cleanTitle = rawTitle
+    .replace(/\(.*?\)|\[.*?]|{.*?}/g, ' ')
+    .replace(/\b(feat|ft|prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера|концерт|перевод|субтитры|кавер|cover)\b.*/i, ' ')
+    .trim();
+
+  // Check Cyrillic letters exclusively in clean title and artist (NEVER in genre, which may be localized like "Рок")
+  const hasCyrillicInArtist = /[а-яё]/i.test(rawArtist);
+  const hasCyrillicInTitle = /[а-яё]/i.test(cleanTitle);
+
+  const isRuArtist = hasCyrillicInArtist || isRussianArtist(rawArtist);
+  const isRussianTrack = isRuArtist || hasCyrillicInTitle;
 
   if (lang === 'ru') {
     return isRussianTrack;
@@ -402,15 +550,53 @@ export class RecommendationService {
     if (this.sessionPlayedIds.has(track.id)) return true;
     const key = this.getTitleKey(track);
     if (key && this.sessionPlayedKeys.has(key)) return true;
+    if (track.audioUrl && this.sessionPlayedKeys.has(track.audioUrl)) return true;
     return false;
   }
 
   isLibraryTrack(track: Track): boolean {
     if (!track) return false;
-    const localTracks = this.libraryService.tracks();
-    if (localTracks.some((t) => t.id === track.id)) return true;
+    const candidates = this.getAllLocalCandidates();
+    if (candidates.length === 0) return false;
+
+    // 1. Direct ID match
+    if (candidates.some((t) => t.id === track.id)) return true;
+
+    // 3. Exact artist::title key match
     const trackKey = this.getTitleKey(track);
-    if (trackKey && localTracks.some((t) => this.getTitleKey(t) === trackKey)) return true;
+    if (trackKey && candidates.some((t) => this.getTitleKey(t) === trackKey)) return true;
+
+    // 4. Robust title & artist normalization matching (catches remixes, re-uploads, official video versions)
+    const trackNormTit = normalizeTitle(track.title);
+    if (!trackNormTit) return false;
+    const trackNormArt = normalizeArtist(track.artist);
+    const trackArtists = extractAllArtists(track.artist, track.title).map((a) => a.toLowerCase());
+
+    for (const local of candidates) {
+      const localNormTit = normalizeTitle(local.title);
+      if (!localNormTit) continue;
+
+      const titleMatch = trackNormTit === localNormTit ||
+        (trackNormTit.length >= 4 && localNormTit.length >= 4 && (trackNormTit.includes(localNormTit) || localNormTit.includes(trackNormTit)));
+
+      if (!titleMatch) continue;
+
+      const localNormArt = normalizeArtist(local.artist);
+      if (trackNormArt && localNormArt) {
+        if (trackNormArt === localNormArt || trackNormArt.includes(localNormArt) || localNormArt.includes(trackNormArt)) {
+          return true;
+        }
+      }
+
+      const localArtists = extractAllArtists(local.artist, local.title).map((a) => a.toLowerCase());
+      const hasArtistOverlap = trackArtists.some((ta) =>
+        localArtists.some((la) => ta === la || (ta.length >= 3 && la.length >= 3 && (ta.includes(la) || la.includes(ta))))
+      );
+      if (hasArtistOverlap) {
+        return true;
+      }
+    }
+
     return false;
   }
 
@@ -420,6 +606,9 @@ export class RecommendationService {
     const key = this.getTitleKey(track);
     if (key) {
       this.sessionPlayedKeys.add(key);
+    }
+    if (track.audioUrl) {
+      this.sessionPlayedKeys.add(track.audioUrl);
     }
     if (this.sessionPlayedIds.size > 1000) {
       const firstId = this.sessionPlayedIds.keys().next().value;
@@ -1414,6 +1603,27 @@ export class RecommendationService {
           );
         }
       }
+    } else {
+      // Fallback seed artists if user library lacks artists in the requested language
+      const defaultRuArtists = mood === 'energetic'
+        ? ['Король и Шут', 'DVRST', 'Три дня дождя', 'Порнофильмы']
+        : mood === 'chill'
+        ? ['Zivert', 'Сироткин', 'Markul', 'Хадн Дадн']
+        : ['Miyagi & Andy Panda', 'Кино', 'SALUKI', 'Скриптонит'];
+      const defaultEnArtists = mood === 'energetic'
+        ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott']
+        : mood === 'chill'
+        ? ['Joji', 'Billie Eilish', 'Frank Ocean', 'Lorde']
+        : ['Daft Punk', 'Imagine Dragons', 'Queen', 'Nirvana'];
+
+      const seedList = lang === 'ru' ? defaultRuArtists : lang === 'en' ? defaultEnArtists : [...defaultRuArtists.slice(0, 2), ...defaultEnArtists.slice(0, 2)];
+      for (const artist of seedList) {
+        if (lang === 'ru') {
+          queries.push(`${artist} хиты`, `${artist}`);
+        } else {
+          queries.push(`${artist} hits`, `${artist}`);
+        }
+      }
     }
 
     const ruQueries: string[] = [];
@@ -1485,7 +1695,7 @@ export class RecommendationService {
       const targetVec = this.getTargetVectorForMood(mood);
       const targetNorm = this.computeVectorNorm(targetVec);
 
-      // In discovery mix, NEVER include tracks already in the user's library!
+      // In discovery mix, NEVER include tracks already in the user's library or playlists!
       if (!isLibraryOnly) {
         for (const t of candidates) {
           excludeIds.add(t.id);
@@ -1528,9 +1738,18 @@ export class RecommendationService {
 
       // Filter candidate pool by language to pick appropriate effectiveSeed
       const langFilteredCandidates = candidates.filter((t) => isTrackLanguageMatch(t, lang));
-      const effectiveSeed = seedTrack && isTrackLanguageMatch(seedTrack, lang)
+      let effectiveSeed = seedTrack && isTrackLanguageMatch(seedTrack, lang)
         ? seedTrack
         : (langFilteredCandidates.length > 0 ? langFilteredCandidates[Math.floor(Math.random() * langFilteredCandidates.length)] : null);
+
+      // If user library has no tracks in the requested language, pick an appropriate starter seed track
+      if (!effectiveSeed) {
+        const langStarters = this.getStarterCandidates(mood, 10, lang);
+        if (langStarters.length > 0) {
+          effectiveSeed = langStarters[Math.floor(Math.random() * langStarters.length)];
+        }
+      }
+
       const seedGenre = effectiveSeed?.genre || dominantGenre;
 
       if (effectiveSeed) {
@@ -1604,7 +1823,8 @@ export class RecommendationService {
 
         const trackVec = this.extractTrackVector(t);
         const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        if (similarity < 0.38) {
+        const minPass1Sim = langFilteredCandidates.length > 0 ? 0.38 : 0.28;
+        if (similarity < minPass1Sim) {
           continue;
         }
 
@@ -1646,7 +1866,7 @@ export class RecommendationService {
           (hasJunkAffinity || !JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`))
         );
 
-        const minSim = userTopArtists.length > 0 ? 0.40 : 0.38;
+        const minSim = langFilteredCandidates.length > 0 ? 0.38 : 0.28;
 
         for (const t of valid) {
           if (selectedTracks.length >= count) break;
@@ -1663,7 +1883,7 @@ export class RecommendationService {
           const trackVec = this.extractTrackVector(t);
           const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
           if (similarity < minSim) {
-            if (similarity >= 0.35) fallbackPool.push(t);
+            if (similarity >= 0.25) fallbackPool.push(t);
             continue;
           }
 
@@ -1706,12 +1926,12 @@ export class RecommendationService {
         }
       }
 
-      // Emergency starter candidates only when pool is completely dry, ensuring no library duplicates and strict language match
-      if (selectedTracks.length < count && candidates.length === 0) {
-        const starters = this.getStarterCandidates(mood, count - selectedTracks.length, lang);
+      // Emergency starter candidates to top off discovery pool, ensuring strict language match and NO library duplicates
+      if (!isLibraryOnly && selectedTracks.length < count) {
+        const starters = this.getStarterCandidates(mood, (count - selectedTracks.length) * 2, lang);
         for (const st of starters) {
           if (selectedTracks.length >= count) break;
-          if (!excludeIds.has(st.id) && !this.isSessionDuplicate(st) && (isLibraryOnly || !this.isLibraryTrack(st))) {
+          if (!excludeIds.has(st.id) && !this.isSessionDuplicate(st) && !this.isLibraryTrack(st)) {
             selectedTracks.push(st);
             excludeIds.add(st.id);
           }

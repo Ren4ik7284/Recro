@@ -1089,7 +1089,7 @@ export class App implements OnInit {
     }
   }
 
-  async toggleSmartMix(mood: MixMood = 'all') {
+  async toggleSmartMix(mood: MixMood = this.recService.currentMood()) {
     const isCurrentlyActive = this.recService.isMixActive();
     const currentMood = this.recService.currentMood();
 
@@ -1150,21 +1150,21 @@ export class App implements OnInit {
   updateMixSource(source: MixSource) {
     this.libraryService.setMixConfig({ source });
     if (this.recService.isMixActive()) {
-      this.audioService.setMixMood(this.recService.currentMood());
+      this.audioService.applyMixFilterChange();
     }
   }
 
   updateMixLanguage(language: MixLanguage) {
     this.libraryService.setMixConfig({ language });
     if (this.recService.isMixActive()) {
-      this.audioService.setMixMood(this.recService.currentMood());
+      this.audioService.applyMixFilterChange();
     }
   }
 
   resetMixConfig() {
     this.libraryService.setMixConfig(DEFAULT_MIX_CONFIG);
     if (this.recService.isMixActive()) {
-      this.audioService.setMixMood('all');
+      this.audioService.applyMixFilterChange();
     }
     this.showToast('Параметры волны сброшены по умолчанию');
   }

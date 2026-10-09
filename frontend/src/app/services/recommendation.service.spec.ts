@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { RecommendationService, normalizeArtist, normalizeTitle } from './recommendation.service';
+import { RecommendationService, normalizeArtist, normalizeTitle, isTrackLanguageMatch, isRussianArtist } from './recommendation.service';
 import { LibraryService } from './library.service';
 import { Track } from '../models/track.model';
 import { signal } from '@angular/core';
@@ -238,6 +238,60 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
       // Track 1 must NOT appear in the discovery results
       expect(discovery.some((t) => t.id === 'yt-1')).toBe(false);
       expect(discovery.map((t) => t.id)).toEqual(['yt-4', 'yt-5']);
+    });
+
+    it('isTrackLanguageMatch should strictly separate Russian and foreign tracks', () => {
+      // Russian tracks (Cyrillic title/artist or Russian artists in Latin)
+      const ru1 = { title: 'Кукла колдуна', artist: 'Король и Шут', genre: 'Rock' };
+      const ru2 = { title: 'Minor', artist: 'Miyagi & Andy Panda', genre: 'Hip-Hop' };
+      const ru3 = { title: '99 Problems', artist: 'Big Baby Tape, Kizaru', genre: 'Rap' };
+      const ru4 = { title: 'Close Eyes', artist: 'DVRST', genre: 'Drift Phonk' };
+
+      expect(isTrackLanguageMatch(ru1, 'ru')).toBe(true);
+      expect(isTrackLanguageMatch(ru2, 'ru')).toBe(true);
+      expect(isTrackLanguageMatch(ru3, 'ru')).toBe(true);
+      expect(isTrackLanguageMatch(ru4, 'ru')).toBe(true);
+
+      expect(isTrackLanguageMatch(ru1, 'en')).toBe(false);
+      expect(isTrackLanguageMatch(ru2, 'en')).toBe(false);
+      expect(isTrackLanguageMatch(ru3, 'en')).toBe(false);
+      expect(isTrackLanguageMatch(ru4, 'en')).toBe(false);
+
+      // Foreign tracks (even if genre is localized like 'Рок' or video has Russian tags)
+      const en1 = { title: 'In The End', artist: 'Linkin Park', genre: 'Рок' };
+      const en2 = { title: 'Mockingbird (Русский перевод)', artist: 'Eminem', genre: 'Хип-хоп' };
+      const en3 = { title: 'Do I Wanna Know?', artist: 'Arctic Monkeys', genre: 'Indie Rock' };
+      const en4 = { title: 'Murder In My Mind', artist: 'Kordhell', genre: 'Drift Phonk' };
+
+      expect(isTrackLanguageMatch(en1, 'en')).toBe(true);
+      expect(isTrackLanguageMatch(en2, 'en')).toBe(true);
+      expect(isTrackLanguageMatch(en3, 'en')).toBe(true);
+      expect(isTrackLanguageMatch(en4, 'en')).toBe(true);
+
+      expect(isTrackLanguageMatch(en1, 'ru')).toBe(false);
+      expect(isTrackLanguageMatch(en2, 'ru')).toBe(false);
+      expect(isTrackLanguageMatch(en3, 'ru')).toBe(false);
+      expect(isTrackLanguageMatch(en4, 'ru')).toBe(false);
+
+      // 'all' language accepts everything
+      expect(isTrackLanguageMatch(ru1, 'all')).toBe(true);
+      expect(isTrackLanguageMatch(en1, 'all')).toBe(true);
+    });
+
+    it('getStarterCandidates should strictly filter by requested language', () => {
+      const ruStarters = service.getStarterCandidates('all', 10, 'ru');
+      expect(ruStarters.length).toBeGreaterThan(0);
+      for (const t of ruStarters) {
+        expect(isTrackLanguageMatch(t, 'ru')).toBe(true);
+        expect(isTrackLanguageMatch(t, 'en')).toBe(false);
+      }
+
+      const enStarters = service.getStarterCandidates('all', 10, 'en');
+      expect(enStarters.length).toBeGreaterThan(0);
+      for (const t of enStarters) {
+        expect(isTrackLanguageMatch(t, 'en')).toBe(true);
+        expect(isTrackLanguageMatch(t, 'ru')).toBe(false);
+      }
     });
   });
 });
