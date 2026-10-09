@@ -1621,7 +1621,8 @@ export class AudioService {
     }
 
     if (newTracks.length === 0 && (source === 'library_only' ? localCandidates.length === 0 : true)) {
-      const starters = this.recService.getStarterCandidates(this.recService.currentMood(), needed * 2);
+      const lang = this.recService.mixConfig().language;
+      const starters = this.recService.getStarterCandidates(this.recService.currentMood(), needed * 2, lang);
       const freshStarters = starters.filter(
         (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && (source === 'library_only' || !this.recService.isLibraryTrack(t))
       );
@@ -1663,8 +1664,9 @@ export class AudioService {
     const source = this.recService.mixConfig().source;
 
     // Instant Cold-Start for brand new / clean accounts:
+    const lang = this.recService.mixConfig().language;
     if (localCandidates.length === 0 && mood !== 'favorites') {
-      const starterTracks = this.recService.getStarterCandidates(mood, 5);
+      const starterTracks = this.recService.getStarterCandidates(mood, 5, lang);
       if (starterTracks.length > 0) {
         this.playTrack(starterTracks[0], starterTracks, true, 0);
         this.ensureSmartQueue();
@@ -1716,7 +1718,7 @@ export class AudioService {
         if (source === 'library_only' && localCandidates.length > 0) {
           candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
         } else {
-          candidates = this.recService.getStarterCandidates(mood, 6).filter(
+          candidates = this.recService.getStarterCandidates(mood, 6, lang).filter(
             (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t)
           );
         }
