@@ -18,8 +18,11 @@ export class LibraryService implements OnDestroy {
   private activeBackendUrl =
     typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
       ? window.location.origin
-      : 'https://signal-audio-backend-production.up.railway.app';
-  private readonly FALLBACK_BACKEND_URL = 'https://signal-audio-backend-production.up.railway.app';
+      : 'http://80.87.202.157';
+  private readonly FALLBACK_BACKEND_URL =
+    typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+      ? window.location.origin
+      : 'http://80.87.202.157';
 
   readonly offlineService = inject(OfflineService);
   readonly authService = inject(AuthService);
@@ -374,7 +377,8 @@ export class LibraryService implements OnDestroy {
 
     for (const testUrl of urlsToTest) {
       try {
-        const res = await fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(3000) });
+        // Увеличен таймаут до 8 секунд для надежного прохождения через VPN-соединения
+        const res = await fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(8000) });
         if (res.ok) {
           this.activeBackendUrl = testUrl;
           this.isBackendOnline.set(true);
@@ -384,7 +388,8 @@ export class LibraryService implements OnDestroy {
       } catch {}
     }
 
-    this.activeBackendUrl = this.FALLBACK_BACKEND_URL;
+    // Если оба таймаутнулись на медленном VPN-рукопожатии, на проде всегда держим Same-Origin (nginx /api/)
+    this.activeBackendUrl = isRemoteHost && typeof window !== 'undefined' ? window.location.origin : this.FALLBACK_BACKEND_URL;
     this.isBackendOnline.set(true);
     this.authService.verifyRemoteSession(this.activeBackendUrl);
   }

@@ -133,7 +133,10 @@ export class AuthService {
     return clean.length >= 6 && clean.length <= 72;
   }
 
-  private activeBackendUrl = 'https://signal-audio-backend-production.up.railway.app';
+  private activeBackendUrl =
+    typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+      ? window.location.origin
+      : 'http://80.87.202.157';
 
   setActiveBackendUrl(url: string) {
     if (url) {
@@ -165,11 +168,8 @@ export class AuthService {
 
   private getEffectiveBackendUrl(backendUrl?: string): string {
     let base = (backendUrl || this.activeBackendUrl || '').trim().replace(/\/+$/, '');
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    if (isHttps && base.startsWith('http://')) {
-      base = 'https://signal-audio-backend-production.up.railway.app';
-    }
-    return base || 'https://signal-audio-backend-production.up.railway.app';
+    const defaultOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://80.87.202.157';
+    return base || defaultOrigin;
   }
 
   async login(backendUrl: string, login: string, password: string): Promise<boolean> {

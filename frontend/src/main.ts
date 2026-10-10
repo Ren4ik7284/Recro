@@ -18,12 +18,16 @@ if (typeof window !== 'undefined') {
   console.error = (...args: any[]) => origError.apply(console, sanitize(args));
   console.warn = (...args: any[]) => origWarn.apply(console, sanitize(args));
 
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    console.log = () => {};
-    console.debug = () => {};
-    console.info = () => {};
-  }
 }
-
+ 
 bootstrapApplication(App, appConfig)
-  .catch(() => {});
+  .catch((err) => {
+    console.error('[Bootstrap Error]', err);
+    if (typeof document !== 'undefined') {
+      const el = document.getElementById('recro-status');
+      if (el) {
+        el.style.color = '#ef4444';
+        el.textContent = 'Ошибка: ' + (err?.message || err);
+      }
+    }
+  });

@@ -2,7 +2,7 @@ use std::path::Path;
 use std::process::Stdio;
 use tokio::process::Command;
 
-pub const CLOUD_FALLBACK_URL: &str = "https://signal-audio-backend-production.up.railway.app";
+pub const CLOUD_FALLBACK_URL: &str = "http://80.87.202.157";
 
 pub fn is_cloud_env() -> bool {
     std::env::var("RAILWAY_PUBLIC_DOMAIN").is_ok()

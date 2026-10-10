@@ -26,7 +26,7 @@ pub async fn search_music(
     check_rate_limit(
         &state.endpoint_rate_limits,
         &format!("search:{}", client_ip),
-        30,
+        120,
         60,
     )?;
 
@@ -179,7 +179,7 @@ pub async fn extract_info(
     check_rate_limit(
         &state.endpoint_rate_limits,
         &format!("extract:{}", client_ip),
-        25,
+        60,
         60,
     )?;
 

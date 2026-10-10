@@ -176,7 +176,7 @@ pub async fn stream_audio(
         check_rate_limit(
             &state.endpoint_rate_limits,
             &format!("stream:{}", client_ip),
-            200,
+            600,
             60,
         )?;
     }
@@ -204,9 +204,13 @@ pub async fn stream_audio(
 
     if target.is_empty() {
         if let Some(id) = params.id.clone() {
-            let id = id.trim().to_string();
-            if !id.is_empty() {
-                target = id;
+            let id_clean = id.trim().to_string();
+            if let Some(yt_id) = id_clean.strip_prefix("yt-") {
+                if yt_id.len() == 11 && yt_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+                    target = format!("https://www.youtube.com/watch?v={}", yt_id);
+                }
+            } else if !id_clean.starts_with("dz-") && !id_clean.starts_with("lfm-") && !id_clean.starts_with("audius-") && !id_clean.starts_with("starter-") && !id_clean.starts_with("default-") {
+                target = id_clean;
             }
         }
     }
@@ -292,6 +296,32 @@ pub async fn stream_audio(
         target.clone()
     };
 
+    let cache_filename = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        cache_key.hash(&mut hasher);
+        format!("{:016x}.mp3", hasher.finish())
+    };
+    let cache_dir = "/var/www/recro/cache";
+    let cache_file_path = format!("{}/{}", cache_dir, cache_filename);
+
+    if params.ss.unwrap_or(0) == 0 && !is_live {
+        if let Ok(meta) = std::fs::metadata(&cache_file_path) {
+            if meta.len() > 30_000 {
+                if params.prefetch.unwrap_or(false) {
+                    return Ok(StatusCode::NO_CONTENT.into_response());
+                }
+                let redirect_url = format!("/cache/{}", cache_filename);
+                let mut res_headers = HeaderMap::new();
+                res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
+                res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
+                res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
+                return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
+            }
+        }
+    }
+
     let mut direct_url = String::new();
 
     if let Ok(guard) = state.stream_cache.lock() {
@@ -300,10 +330,6 @@ pub async fn stream_audio(
                 direct_url = cached_url.clone();
             }
         }
-    }
-
-    if params.prefetch.unwrap_or(false) && !direct_url.is_empty() {
-        return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
     let _permit = match tokio::time::timeout(
@@ -377,12 +403,12 @@ pub async fn stream_audio(
                     "--no-playlist",
                     "--ignore-errors",
                     "-g",
-                    "-f", "bestaudio/ba/b",
-                    "--extractor-args", "youtube:player_client=ios,android,web,mweb",
+                    "-f", "ba[ext=m4a]/ba/b",
+                    "--extractor-args", "youtube:player_client=android",
                     "--",
                     &target,
                 ]);
-                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_secs(5), cmd_fast.output()).await {
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(10000), cmd_fast.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&out) {
                         direct_url = u;
                     }
@@ -423,72 +449,46 @@ pub async fn stream_audio(
                 resolved_title = stripped.trim().to_string();
             }
 
-            // 2. High-speed concurrent SoundCloud & YouTube search when title/artist are known
+            // 2. High-speed YouTube search first (works reliably on VPS and worldwide)
             if direct_url.is_empty() && !resolved_title.is_empty() {
                 let clean_title = clean_music_title(&resolved_title);
                 let clean_uploader = clean_music_title(&resolved_uploader);
-                let sc_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
-                    format!("scsearch1:{} {}", clean_title, clean_uploader)
-                } else {
-                    format!("scsearch1:{}", clean_title)
-                };
                 let yt_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
                     format!("ytsearch1:{} {}", clean_title, clean_uploader)
                 } else {
                     format!("ytsearch1:{}", clean_title)
                 };
 
-                let yt_cmd_clone = yt_cmd.clone();
-                let sc_fut = async {
+                let mut yt_search_cmd = Command::new(&yt_cmd);
+                apply_yt_dlp_common_args(&mut yt_search_cmd);
+                yt_search_cmd.args([
+                    "--no-playlist",
+                    "--ignore-errors",
+                    "-g",
+                    "-f", "ba[ext=m4a]/ba/b",
+                    "--extractor-args", "youtube:player_client=android",
+                    "--",
+                    &yt_query,
+                ]);
+                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(10000), yt_search_cmd.output()).await {
+                    if let Some(u) = extract_stream_url_from_output(&yt_out) {
+                        direct_url = u;
+                    }
+                }
+
+                // Fast SoundCloud fallback with short timeout only if YouTube didn't find anything
+                if direct_url.is_empty() {
+                    let sc_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
+                        format!("scsearch1:{} {}", clean_title, clean_uploader)
+                    } else {
+                        format!("scsearch1:{}", clean_title)
+                    };
                     let mut sc_cmd = Command::new(&yt_cmd);
                     apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
                     sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_query]);
-                    if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_millis(8500), sc_cmd.output()).await {
-                        extract_stream_url_from_output(&sc)
-                    } else {
-                        None
-                    }
-                };
-
-                let yt_fut = async {
-                    let mut yt_search_cmd = Command::new(&yt_cmd_clone);
-                    apply_yt_dlp_common_args(&mut yt_search_cmd);
-                    yt_search_cmd.args([
-                        "--no-playlist",
-                        "--ignore-errors",
-                        "-g",
-                        "-f", "bestaudio/ba/b",
-                        "--extractor-args", "youtube:player_client=ios,android,web,mweb",
-                        "--",
-                        &yt_query,
-                    ]);
-                    if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(8500), yt_search_cmd.output()).await {
-                        extract_stream_url_from_output(&yt_out)
-                    } else {
-                        None
-                    }
-                };
-
-                // Run SoundCloud and YouTube searches concurrently; pick the fastest valid result!
-                let (sc_res, yt_res) = tokio::join!(sc_fut, yt_fut);
-                if let Some(u) = sc_res.or(yt_res) {
-                    direct_url = u;
-                }
-
-                // Cascade Fallback: if exact query yielded no stream, try flipped artist/title query on SoundCloud
-                if direct_url.is_empty() {
-                    let fallback_title = clean_music_title(&resolved_title);
-                    let fallback_uploader = clean_music_title(&resolved_uploader);
-                    let alt_query = format!("{} {}", fallback_uploader, fallback_title).trim().to_string();
-                    if !alt_query.is_empty() {
-                        let sc_arg = format!("scsearch1:{}", alt_query);
-                        let mut sc_cmd = Command::new(&yt_cmd);
-                        apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
-                        sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_arg]);
-                        if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_millis(4500), sc_cmd.output()).await {
-                            if let Some(u) = extract_stream_url_from_output(&sc) {
-                                direct_url = u;
-                            }
+                    if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_millis(2000), sc_cmd.output()).await {
+                        if let Some(u) = extract_stream_url_from_output(&sc) {
+                            direct_url = u;
                         }
                     }
                 }
@@ -583,11 +583,6 @@ pub async fn stream_audio(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    // Если это запрос фонового прогрева кэша - возвращаем успешный 204 No Content
-    if params.prefetch.unwrap_or(false) {
-        return Ok(StatusCode::NO_CONTENT.into_response());
-    }
-
     let referer = if direct_url.contains("soundcloud") || direct_url.contains("sndcdn") {
         "https://soundcloud.com/"
     } else if direct_url.contains("audius") || direct_url.contains("cidstream") {
@@ -595,6 +590,98 @@ pub async fn stream_audio(
     } else {
         "https://www.youtube.com/"
     };
+
+    if params.ss.unwrap_or(0) == 0 && !is_live {
+        let is_already_transcoding = {
+            let mut guard = state.active_transcodes.lock().unwrap();
+            if guard.contains(&cache_filename) {
+                true
+            } else {
+                guard.insert(cache_filename.clone());
+                false
+            }
+        };
+
+        if !is_already_transcoding {
+            let active_transcodes = state.active_transcodes.clone();
+            let cfn = cache_filename.clone();
+            let cfp = cache_file_path.clone();
+            let d_url = direct_url.clone();
+            let ref_hdr = referer.to_string();
+
+            tokio::spawn(async move {
+                let codec_args = if d_url.contains(".mp3") {
+                    vec!["-c:a", "copy"]
+                } else {
+                    vec!["-c:a", "libmp3lame", "-q:a", "9", "-threads", "4"]
+                };
+
+                let mut conv_cmd = Command::new("ffmpeg");
+                conv_cmd.args([
+                    "-y",
+                    "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data,hls,applehttp",
+                    "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                    "-referer", &ref_hdr,
+                    "-reconnect", "1",
+                    "-reconnect_streamed", "1",
+                    "-reconnect_on_network_error", "1",
+                    "-reconnect_delay_max", "5",
+                    "-i", &d_url,
+                    "-vn",
+                ]);
+                conv_cmd.args(&codec_args);
+                conv_cmd.args(["-f", "mp3", &cfp]);
+                conv_cmd.stdout(Stdio::null());
+                conv_cmd.stderr(Stdio::null());
+
+                if let Ok(mut child) = conv_cmd.spawn() {
+                    let _ = child.wait().await;
+                }
+
+                if let Ok(mut guard) = active_transcodes.lock() {
+                    guard.remove(&cfn);
+                }
+
+                // Очистка при сбое или повреждении
+                if let Ok(meta) = std::fs::metadata(&cfp) {
+                    if meta.len() < 30_000 {
+                        let _ = std::fs::remove_file(&cfp);
+                    }
+                }
+            });
+        }
+
+        // Если это запрос фонового прогрева — фоновое кэширование уже запущено, возвращаем 204 No Content
+        if params.prefetch.unwrap_or(false) {
+            return Ok(StatusCode::NO_CONTENT.into_response());
+        }
+
+        // Для воспроизведения: ждём до 2.5 сек пока запишется стартовый буфер (>= 32 КБ) и перенаправляем на nginx
+        let start_wait = std::time::Instant::now();
+        let mut file_ready = false;
+        while start_wait.elapsed() < Duration::from_millis(2500) {
+            if let Ok(meta) = std::fs::metadata(&cache_file_path) {
+                if meta.len() >= 32_000 {
+                    file_ready = true;
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(40)).await;
+        }
+
+        if file_ready {
+            let redirect_url = format!("/cache/{}", cache_filename);
+            let mut res_headers = HeaderMap::new();
+            res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
+            res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
+            res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
+            return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
+        }
+    }
+
+    if params.prefetch.unwrap_or(false) {
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
 
     let mut ffmpeg_args = vec![
         "-protocol_whitelist".to_string(),
@@ -690,6 +777,7 @@ pub async fn stream_audio(
     res_headers.insert(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate".parse().unwrap());
     res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
     res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, "*".parse().unwrap());
+    res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
 
     Ok((StatusCode::OK, res_headers, body).into_response())
 }

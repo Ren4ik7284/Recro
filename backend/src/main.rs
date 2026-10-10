@@ -31,6 +31,7 @@ use handlers::stream::stream_audio;
 pub type LoginAttempts = Arc<Mutex<HashMap<String, (u32, Instant)>>>;
 pub type EndpointRateLimits = Arc<Mutex<HashMap<String, (u32, Instant)>>>;
 pub type StreamCache = Arc<Mutex<HashMap<String, (String, Instant)>>>;
+pub type ActiveTranscodes = Arc<Mutex<std::collections::HashSet<String>>>;
 pub type SearchCache = Arc<Mutex<HashMap<String, (Vec<crate::models::SearchTrack>, Instant)>>>;
 pub type CoverCache = Arc<Mutex<HashMap<String, (axum::body::Bytes, axum::http::HeaderValue, Instant)>>>;
 
@@ -41,6 +42,7 @@ pub struct AppState {
     pub endpoint_rate_limits: EndpointRateLimits,
     pub heavy_process_semaphore: Arc<tokio::sync::Semaphore>,
     pub stream_cache: StreamCache,
+    pub active_transcodes: ActiveTranscodes,
     pub lyrics_cache: LyricsCache,
     pub search_cache: SearchCache,
     pub cover_cache: CoverCache,
@@ -68,6 +70,7 @@ async fn main() {
         endpoint_rate_limits: Arc::new(Mutex::new(HashMap::new())),
         heavy_process_semaphore: Arc::new(tokio::sync::Semaphore::new(16)),
         stream_cache: Arc::new(Mutex::new(HashMap::new())),
+        active_transcodes: Arc::new(Mutex::new(std::collections::HashSet::new())),
         lyrics_cache: Arc::new(Mutex::new(HashMap::new())),
         search_cache: Arc::new(Mutex::new(HashMap::new())),
         cover_cache: Arc::new(Mutex::new(HashMap::new())),

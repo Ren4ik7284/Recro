@@ -14,8 +14,9 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png?v=recro3">
   <link rel="icon" type="image/x-icon" href="/favicon.ico?v=recro3">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=recro3">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     (function() {
@@ -33,35 +34,21 @@
   </script>
 </head>
 <body>
-  <app-root></app-root>
+  <app-root>
+    <div style="position:fixed;inset:0;background:#09090b;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;z-index:99999;">
+      <div style="font-size:26px;font-weight:700;letter-spacing:-0.5px;margin-bottom:12px;">Recro</div>
+      <div style="width:24px;height:24px;border:2px solid #27272a;border-top-color:#22c55e;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px;"></div>
+      <div id="recro-status" style="font-size:13px;color:#a1a1aa;font-family:monospace;letter-spacing:0.5px;">Подключение...</div>
+      <div style="width:160px;height:3px;background:#27272a;border-radius:2px;margin-top:10px;overflow:hidden;">
+        <div id="recro-bar" style="width:0%;height:100%;background:#22c55e;transition:width 0.15s ease;"></div>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
+  </app-root>
   <script>
     if ('serviceWorker' in navigator) {
-      var hadController = Boolean(navigator.serviceWorker.controller);
-      var refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function() {
-        if (hadController && !refreshing) {
-          refreshing = true;
-          window.location.reload();
-        }
-      });
-
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js').then(function(reg) {
-          reg.update();
-          if (reg.waiting) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
-          reg.addEventListener('updatefound', function() {
-            var newWorker = reg.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', function() {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  newWorker.postMessage({ type: 'SKIP_WAITING' });
-                }
-              });
-            }
-          });
-        }).catch(function() {});
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
       });
     }
   </script>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'recro-pwa-v12';
+const CACHE_NAME = 'recro-pwa-v15';
 const OFFLINE_AUDIO_CACHE = 'recro-offline-tracks-v1';
 
 const ASSETS_TO_CACHE = [
@@ -39,6 +39,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // Bypass chunk slices and range requests so they never get trapped in SW
+  if (url.searchParams.has('slice') || event.request.headers.get('range')) {
+    return;
+  }
 
   // Do not intercept non-GET requests or backend API requests
   if (event.request.method !== 'GET' || url.pathname.startsWith('/api/')) {
@@ -90,18 +95,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. For static assets (JS, CSS, Icons): Network-First, fallback to cache
+  // 4. For static assets (JS, CSS, Icons): Cache-First for instant loads, network fallback
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
           return networkResponse;
-        })
-        .catch(() => caches.match(event.request))
+        });
+      })
     );
   }
 });

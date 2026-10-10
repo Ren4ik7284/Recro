@@ -57,6 +57,7 @@ export class AudioService {
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
   private wakeLockSentinel: any = null;
+  private activeStreamAbortController: AbortController | null = null;
 
   private async requestWakeLock() {
     if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
@@ -543,6 +544,24 @@ export class AudioService {
         this.playTrack({ ...cur, isOffline: false });
         return;
       }
+
+      // Если произошла ошибка при crossOrigin = 'anonymous' (частый сбой CORS на VPN),
+      // мгновенно снимаем crossorigin и пробуем воспроизвести как opaque media!
+      if (this.audio.hasAttribute('crossorigin')) {
+        console.warn('[AudioService] Potential CORS/VPN block detected, retrying without crossorigin attribute');
+        this.audio.removeAttribute('crossorigin');
+        const retryUrl = this.audio.src;
+        if (retryUrl && !retryUrl.startsWith('blob:')) {
+          try {
+            this.audio.load();
+            this.audio.play().catch(() => {
+              this.handlePlaybackFailure('native_error');
+            });
+            return;
+          } catch {}
+        }
+      }
+
       this.handlePlaybackFailure('native_error');
     });
 
@@ -566,15 +585,6 @@ export class AudioService {
     }
 
     if (this.isLiveStream()) {
-      const cur = this.currentTrack();
-      if (cur && this.audio.src && this.audio.src.includes('/api/stream') && cur.audioUrl.startsWith('https://')) {
-        console.warn('[AudioService] Proxied stream failed, trying direct HTTPS stream URL fallback');
-        this.audio.removeAttribute('crossorigin');
-        this.audio.src = cur.audioUrl;
-        this.audio.play().catch(() => {});
-        return;
-      }
-
       console.warn('[AudioService] Live stream error/interrupted, attempting reconnect in 2s');
       this.errorTimeoutId = setTimeout(() => {
         const current = this.currentTrack();
@@ -589,13 +599,26 @@ export class AudioService {
     if (!this.recService.isMixActive()) {
       const q = this.queue();
       const nextIdx = this.queueIndex() + 1;
+      this.consecutiveErrorCount++;
+
+      // Попытка 1: повторить текущий трек с задержкой 1.2с (дает бэкенду время завершить резолв под медленным VPN)
+      if (this.consecutiveErrorCount === 1) {
+        const cur = this.currentTrack();
+        if (cur) {
+          console.warn('[AudioService] Transient failure under VPN/slow connection, retrying track in 1.2s...');
+          this.errorTimeoutId = setTimeout(() => {
+            this.playTrack(cur, this.queue(), false, this.queueIndex());
+          }, 1200);
+          return;
+        }
+      }
+
       if (nextIdx < q.length || this.repeatMode() === 'all') {
-        this.consecutiveErrorCount++;
-        if (this.consecutiveErrorCount <= 3) {
-          console.warn('[AudioService] Track error in queue, auto-advancing to next track in 1.2s');
+        if (this.consecutiveErrorCount <= 4) {
+          console.warn('[AudioService] Track error in queue, auto-advancing to next track in 1.5s');
           this.errorTimeoutId = setTimeout(() => {
             this.next(true);
-          }, 1200);
+          }, 1500);
           return;
         }
       }
@@ -977,9 +1000,12 @@ export class AudioService {
       } else if (
         track.isLiveStream ||
         track.format === 'stream' ||
-        (typeof window !== 'undefined' && window.location.protocol === 'https:' && playUrl.startsWith('http://'))
+        track.id.startsWith('radio-') ||
+        track.id.startsWith('default-') ||
+        (!playUrl.startsWith('/') && !playUrl.startsWith(activeBase))
       ) {
-        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}&is_live=true`;
+        const isLive = Boolean(track.isLiveStream || track.format === 'stream' || track.id.startsWith('radio-') || track.id.startsWith('default-'));
+        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}${isLive ? '&is_live=true' : ''}`;
       }
 
       if (playUrl.includes('/api/stream')) {
@@ -1017,6 +1043,11 @@ export class AudioService {
     if (isSameSrc && playUrl.includes('/api/stream')) {
       const glue = playUrl.includes('?') ? '&' : '?';
       playUrl = `${playUrl.split('&_t=')[0]}${glue}_t=${Date.now()}`;
+    }
+
+    if (!playUrl.startsWith('blob:') && !track.isLiveStream && !playUrl.includes(':8014') && !playUrl.includes(':8030')) {
+      this.playViaChunkedStream(playUrl, track, playRequestId);
+      return;
     }
 
     try {
@@ -1135,6 +1166,8 @@ export class AudioService {
   }
 
   stopPlayback() {
+    this.activeStreamAbortController?.abort();
+    this.activeStreamAbortController = null;
     this.notifyNativeBridge(null, false);
     try {
       this.audio.pause();
@@ -1155,6 +1188,264 @@ export class AudioService {
   resetSessionAudio() {
     this.stopPlayback();
     this.recService.resetMixSession();
+  }
+
+  private async playViaChunkedStream(playUrl: string, track: Track, playRequestId: number): Promise<void> {
+    if (this.activeStreamAbortController) {
+      this.activeStreamAbortController.abort();
+    }
+    this.activeStreamAbortController = new AbortController();
+    const abortSignal = this.activeStreamAbortController.signal;
+
+    try {
+      const CHUNK_SIZE = 28000;
+      const headRes = await fetch(playUrl, {
+        method: 'GET',
+        headers: { 'Range': `bytes=0-${CHUNK_SIZE - 1}` },
+        signal: abortSignal
+      });
+
+      if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
+
+      const finalUrl = headRes.url;
+      const cr = headRes.headers.get('content-range') || '';
+      const totalMatch = cr.match(/\/(\d+)$/);
+      let totalBytes = totalMatch ? parseInt(totalMatch[1], 10) : 0;
+      if (!totalBytes) {
+        totalBytes = parseInt(headRes.headers.get('content-length') || '0', 10);
+      }
+
+      const firstChunk = await headRes.arrayBuffer();
+      if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
+
+      const hasMse = typeof window !== 'undefined' && 'MediaSource' in window && (
+        MediaSource.isTypeSupported('audio/mpeg') || MediaSource.isTypeSupported('audio/mp3')
+      );
+
+      if (hasMse && firstChunk.byteLength > 0) {
+        const ms = new MediaSource();
+        const msUrl = URL.createObjectURL(ms);
+        this.audio.src = msUrl;
+        try {
+          this.audio.load();
+        } catch {}
+
+        await new Promise<void>((resolve) => {
+          ms.addEventListener('sourceopen', () => resolve(), { once: true });
+        });
+        if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
+
+        const mime = MediaSource.isTypeSupported('audio/mpeg') ? 'audio/mpeg' : 'audio/mp3';
+        const sb = ms.addSourceBuffer(mime);
+
+        const appendToSb = (buf: ArrayBuffer): Promise<void> => {
+          return new Promise<void>((resolve) => {
+            if (!sb.updating) {
+              sb.appendBuffer(buf);
+              resolve();
+            } else {
+              sb.addEventListener('updateend', () => {
+                sb.appendBuffer(buf);
+                resolve();
+              }, { once: true });
+            }
+          });
+        };
+
+        await appendToSb(firstChunk);
+
+        // Pre-buffer next 2 chunks in parallel to provide ~5.5s of buffer headroom before play()
+        const prebufferOffsets = [firstChunk.byteLength, firstChunk.byteLength + CHUNK_SIZE];
+        const prebufferTasks = prebufferOffsets.map(async (offset) => {
+          if (totalBytes > 0 && offset >= totalBytes) return null;
+          const end = totalBytes > 0 ? Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1) : offset + CHUNK_SIZE - 1;
+          try {
+            const res = await fetch(finalUrl, {
+              headers: { 'Range': `bytes=${offset}-${end}` },
+              signal: abortSignal
+            });
+            if (res.ok || res.status === 206) {
+              return { offset, data: await res.arrayBuffer() };
+            }
+          } catch {}
+          return null;
+        });
+
+        const prebufferChunks = (await Promise.all(prebufferTasks)).filter((c): c is { offset: number; data: ArrayBuffer } => Boolean(c && c.data.byteLength > 0));
+        prebufferChunks.sort((a, b) => a.offset - b.offset);
+
+        for (const c of prebufferChunks) {
+          if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
+          await new Promise<void>((r) => {
+            if (!sb.updating) r();
+            else sb.addEventListener('updateend', () => r(), { once: true });
+          });
+          sb.appendBuffer(c.data);
+        }
+
+        this.applyFadeIn(1.0);
+        this.audio.play().then(() => {
+          this.isSwitchingTrack = false;
+          if (playRequestId !== this.currentPlayRequestId) return;
+          this.hasAudioStartedPlaying = true;
+          this.isPlaying.set(true);
+          this.updateMediaSessionPlaybackState('playing');
+          this.updateMediaSessionMetadata(track);
+          this.updateMediaSessionPosition();
+          this.libraryService.recordHistoryPlay(track);
+          this.requestWakeLock();
+          this.preloadNextTrack();
+          if (this.recService.isMixActive()) {
+            this.ensureSmartQueue();
+          }
+        }).catch(() => {});
+
+        const allChunks: ArrayBuffer[] = [firstChunk, ...prebufferChunks.map(c => c.data)];
+        let nextFetchOffset = firstChunk.byteLength + prebufferChunks.reduce((acc, c) => acc + c.data.byteLength, 0);
+        let nextAppendOffset = nextFetchOffset;
+        const downloadedChunks = new Map<number, ArrayBuffer>();
+        let isFetchingDone = false;
+        let consecutiveFailures = 0;
+
+        // Strict in-order SourceBuffer appender
+        const appenderPromise = (async () => {
+          while (!abortSignal.aborted && playRequestId === this.currentPlayRequestId) {
+            if (downloadedChunks.has(nextAppendOffset)) {
+              const chunk = downloadedChunks.get(nextAppendOffset)!;
+              downloadedChunks.delete(nextAppendOffset);
+              await new Promise<void>((r) => {
+                if (!sb.updating) r();
+                else sb.addEventListener('updateend', () => r(), { once: true });
+              });
+              if (abortSignal.aborted || playRequestId !== this.currentPlayRequestId) break;
+              sb.appendBuffer(chunk);
+              nextAppendOffset += chunk.byteLength;
+            } else if (isFetchingDone) {
+              break;
+            } else {
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          }
+        })();
+
+        // Concurrency 3 download worker
+        const worker = async () => {
+          while (!abortSignal.aborted && playRequestId === this.currentPlayRequestId && !isFetchingDone) {
+            const curTime = this.audio.currentTime || 0;
+            const bufferedEnd = sb.buffered.length > 0 ? sb.buffered.end(sb.buffered.length - 1) : 0;
+            if (bufferedEnd - curTime > 40) {
+              await new Promise((r) => setTimeout(r, 400));
+              continue;
+            }
+
+            const start = nextFetchOffset;
+            if (totalBytes > 0 && start >= totalBytes) {
+              isFetchingDone = true;
+              break;
+            }
+            const end = totalBytes > 0 ? Math.min(start + CHUNK_SIZE - 1, totalBytes - 1) : start + CHUNK_SIZE - 1;
+            nextFetchOffset = end + 1;
+
+            try {
+              const timeoutSignal = typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : abortSignal;
+              const chunkRes = await fetch(finalUrl, {
+                headers: { 'Range': `bytes=${start}-${end}` },
+                signal: timeoutSignal
+              });
+
+              if (chunkRes.status === 206 || chunkRes.ok) {
+                const chunk = await chunkRes.arrayBuffer();
+                if (chunk.byteLength > 0) {
+                  const crNew = chunkRes.headers.get('content-range') || '';
+                  const tmNew = crNew.match(/\/(\d+)$/);
+                  if (tmNew) {
+                    const newTotal = parseInt(tmNew[1], 10);
+                    if (newTotal > totalBytes) totalBytes = newTotal;
+                  }
+                  downloadedChunks.set(start, chunk);
+                  allChunks.push(chunk);
+                  consecutiveFailures = 0;
+                } else {
+                  if (totalBytes > 0 && start >= totalBytes) {
+                    isFetchingDone = true;
+                    break;
+                  }
+                }
+              } else if (chunkRes.status === 416) {
+                consecutiveFailures++;
+                if (consecutiveFailures > 6) {
+                  isFetchingDone = true;
+                  break;
+                }
+                nextFetchOffset = start;
+                await new Promise((r) => setTimeout(r, 350));
+              } else {
+                nextFetchOffset = start;
+                await new Promise((r) => setTimeout(r, 200));
+              }
+            } catch {
+              nextFetchOffset = start;
+              await new Promise((r) => setTimeout(r, 200));
+            }
+          }
+        };
+
+        await Promise.all([worker(), worker(), worker()]);
+        isFetchingDone = true;
+        await appenderPromise;
+
+        if (!abortSignal.aborted && playRequestId === this.currentPlayRequestId && ms.readyState === 'open') {
+          try { ms.endOfStream(); } catch {}
+          const fullBlob = new Blob(allChunks, { type: 'audio/mpeg' });
+          this.offlineService.saveBlobOffline(track, fullBlob).catch(() => {});
+        }
+      } else {
+        // Fallback for browsers without MSE audio/mpeg (downloads via parallel pipeline and plays blob)
+        const allChunks: ArrayBuffer[] = [firstChunk];
+        let offset = firstChunk.byteLength;
+
+        while (offset < totalBytes && !abortSignal.aborted && playRequestId === this.currentPlayRequestId) {
+          const end = Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1);
+          const chunkRes = await fetch(finalUrl, {
+            headers: { 'Range': `bytes=${offset}-${end}` },
+            signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : abortSignal
+          });
+          const chunk = await chunkRes.arrayBuffer();
+          allChunks.push(chunk);
+          offset += chunk.byteLength;
+        }
+
+        if (playRequestId === this.currentPlayRequestId && !abortSignal.aborted) {
+          const blob = new Blob(allChunks, { type: 'audio/mpeg' });
+          const blobUrl = URL.createObjectURL(blob);
+          this.audio.src = blobUrl;
+          try { this.audio.load(); } catch {}
+          this.applyFadeIn(1.0);
+          this.audio.play().then(() => {
+            this.isSwitchingTrack = false;
+            this.hasAudioStartedPlaying = true;
+            this.isPlaying.set(true);
+            this.updateMediaSessionPlaybackState('playing');
+            this.updateMediaSessionMetadata(track);
+            this.updateMediaSessionPosition();
+            this.libraryService.recordHistoryPlay(track);
+            this.requestWakeLock();
+            this.preloadNextTrack();
+            if (this.recService.isMixActive()) {
+              this.ensureSmartQueue();
+            }
+          }).catch(() => {});
+          this.offlineService.saveBlobOffline(track, blob).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn('[Chunked Stream Fallback]', err);
+      if (playRequestId === this.currentPlayRequestId && !abortSignal.aborted) {
+        this.audio.src = playUrl;
+        this.applyFadeIn(1.0);
+        this.audio.play().catch(() => {});
+      }
+    }
   }
 
   seek(seconds: number) {
