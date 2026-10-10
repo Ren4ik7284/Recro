@@ -1628,16 +1628,6 @@ export class AudioService {
 
     if (source === 'library_only') {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-    } else if (source === 'balanced' && localCandidates.length > 0) {
-      const localCount = Math.max(1, Math.floor(needed / 2));
-      const discoveryCount = needed - localCount;
-      const localTracks = this.recService.pickNextTracks(localCount, excludeIds, curTrack, recentArtists);
-      localTracks.forEach((t) => {
-        excludeIds.add(t.id);
-        if (t.artist) recentArtists.add(t.artist);
-      });
-      const discoveryTracks = await this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists, curTrack);
-      newTracks = [...localTracks, ...discoveryTracks];
     } else {
       for (const t of localCandidates) {
         excludeIds.add(t.id);
@@ -1672,7 +1662,7 @@ export class AudioService {
       (t) => !existingQueueIds.has(t.id) &&
              !this.recService.isSessionDuplicate(t) &&
              isTrackLanguageMatch(t, effectiveLang) &&
-             (source !== 'discovery_heavy' || !this.recService.isLibraryTrack(t))
+             (source === 'library_only' || !this.recService.isLibraryTrack(t))
     );
 
     if (strictlyUniqueTracks.length > 0) {
@@ -1702,7 +1692,7 @@ export class AudioService {
     const source = this.recService.mixConfig().source;
     const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
 
-    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang)) {
+    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && (source === 'library_only' || !this.recService.isLibraryTrack(curTrack))) {
       this.queue.set([curTrack]);
       this.queueIndex.set(0);
       await this.ensureSmartQueue();
@@ -1726,38 +1716,27 @@ export class AudioService {
 
     let candidates: Track[] = [];
 
-    if (mood === 'favorites' || source === 'library_only') {
+    if (source === 'library_only') {
       candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
-      if (candidates.length < 6 && source !== 'library_only') {
-        const discovery = await this.recService.fetchOnlineDiscoveryTracks(
-          6 - candidates.length,
-          new Set(candidates.map((t) => t.id)),
-          recentArtists,
-          curTrack
-        );
-        candidates = [...candidates, ...discovery];
-      }
-    } else if (source === 'balanced' && localCandidates.length > 0) {
-      const localCount = Math.min(3, localCandidates.length);
-      const localTracks = this.recService.pickNextTracks(localCount, new Set(), curTrack, recentArtists);
-      const discoveryExclude = new Set<string>(localTracks.map((t) => t.id));
-      if (curTrack) discoveryExclude.add(curTrack.id);
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(
-        6 - localTracks.length,
-        discoveryExclude,
-        recentArtists,
-        curTrack || localTracks[0] || null
-      );
-      candidates = [...localTracks, ...discovery];
     } else {
       const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
       if (curTrack) excludeIds.add(curTrack.id);
+
+      let seedTrack: Track | null = curTrack;
+      if (!seedTrack || this.recService.isLibraryTrack(seedTrack)) {
+        const langMatches = localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
+        if (langMatches.length > 0) {
+          const favs = langMatches.filter((t) => t.isFavorite);
+          const pool = favs.length > 0 ? favs : langMatches;
+          seedTrack = pool[Math.floor(Math.random() * pool.length)];
+        }
+      }
 
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(
         6,
         excludeIds,
         recentArtists,
-        curTrack
+        seedTrack
       );
       candidates = discovery;
     }
