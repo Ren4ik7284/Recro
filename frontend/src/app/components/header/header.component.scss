@@ -158,6 +158,26 @@
       }
     }
 
+    .btn-pwa-install {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background-color: var(--bg-panel);
+        border-color: var(--border-focus);
+      }
+    }
+
     .btn-auth-trigger {
       display: flex;
       align-items: center;

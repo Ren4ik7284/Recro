@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LibraryService } from '../../services/library.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
+import { PwaService } from '../../services/pwa.service';
 
 @Component({
   selector: 'app-header-bar',
@@ -17,6 +18,7 @@ export class HeaderComponent {
   readonly libraryService = inject(LibraryService);
   readonly authService = inject(AuthService);
   readonly audioService = inject(AudioService);
+  readonly pwaService = inject(PwaService);
 
   @Output() openAddModal = new EventEmitter<void>();
   @Output() openOnlineSearch = new EventEmitter<string>();
@@ -24,6 +26,7 @@ export class HeaderComponent {
   @Output() openWrappedModal = new EventEmitter<void>();
   @Output() openHistoryModal = new EventEmitter<void>();
   @Output() openProfileModal = new EventEmitter<void>();
+  @Output() openInstallModal = new EventEmitter<void>();
 
   readonly isUserMenuOpen = signal<boolean>(false);
 

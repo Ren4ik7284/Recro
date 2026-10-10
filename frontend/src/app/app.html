@@ -18,6 +18,7 @@
     (openWrappedModal)="openWrappedModal()"
     (openHistoryModal)="openHistoryModal()"
     (openProfileModal)="openProfileModal()"
+    (openInstallModal)="installPwa()"
   ></app-header-bar>
 
   <div class="app-body">
@@ -1122,7 +1123,7 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Скачать приложение (APK)</span>
+              <span>{{ isIos() ? 'Установить на iPhone' : 'Скачать приложение' }}</span>
             </button>
           }
 
@@ -1967,22 +1968,32 @@
         </div>
         <div class="modal-body pwa-instructions-body">
           @if (isIos()) {
+            <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px;">
+              <div style="width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; border: 1px solid var(--border-subtle);">
+                <img src="/icons/apple-touch-icon.png?v=recro3" style="width: 100%; height: 100%; object-fit: cover;" alt="Recro" />
+              </div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Recro для iPhone</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Работает как нативное приложение без App Store</div>
+              </div>
+            </div>
+
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">1</div>
               <div class="pwa-step-text">
-                В нижней панели Safari нажмите кнопку <strong>«Поделиться»</strong> (квадрат со стрелкой ⬆).
+                В нижней панели Safari нажмите значок <strong>«Поделиться»</strong> (квадрат со стрелкой ⬆).
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">2</div>
               <div class="pwa-step-text">
-                Пролистайте список действий вниз и выберите <strong>«На экран "Домой"»</strong>.
+                Пролистайте меню вниз и выберите <strong>«На экран "Домой"»</strong>.
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">3</div>
               <div class="pwa-step-text">
-                Нажмите <strong>«Добавить»</strong> в правом верхнем углу экрана.
+                В правом верхнем углу нажмите <strong>«Добавить»</strong> — иконка Recro появится на рабочем столе.
               </div>
             </div>
           } @else {
