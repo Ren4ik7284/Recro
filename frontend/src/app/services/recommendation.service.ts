@@ -423,7 +423,8 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'enjoykin', '5\'nizza', 'sunsaay', 'sunsay', 'boombox', 'okean elzy', 'dakhabrakha',
   'onuka', 'the chemodan', 'brick bazuka', 'ou 74', 'triagrutrika', 'tgk', '100pro',
   'bicycles for afghanistan', 'glintshake', 'on-the-go', 'therr maitz', 'kedr livanskiy',
-  'lyapis trubetskoy', 'brutto', 'vopli vidoplyasova', 'ramil'
+  'lyapis trubetskoy', 'brutto', 'vopli vidoplyasova', 'ramil',
+  'mudkid', 'cupsize', 'zhanulka'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
@@ -1447,7 +1448,6 @@ export class RecommendationService {
     const curPrimaryArt = normalizeArtist(currentTrack?.artist);
 
     if (primaryArt && curPrimaryArt && primaryArt === curPrimaryArt) {
-      // Строгий запрет двух треков подряд от одного артиста
       score -= 150;
     } else if (recentArtists && primaryArt) {
       for (const recent of recentArtists) {
@@ -1456,6 +1456,33 @@ export class RecommendationService {
           break;
         }
       }
+    }
+
+    const trackArtists = extractAllArtists(track.artist, track.title).map((a) => normalizeArtist(a));
+    const userCandidates = this.getAllLocalCandidates();
+    let hasCollabWithFavorites = false;
+    let maxArtistPlayWeight = 0;
+
+    for (const libTrack of userCandidates) {
+      const libArtists = extractAllArtists(libTrack.artist, libTrack.title).map((a) => normalizeArtist(a));
+      for (const ta of trackArtists) {
+        if (ta && libArtists.includes(ta)) {
+          const weight = (libTrack.isFavorite ? 18 : 6) + Math.min(12, (libTrack.plays || 0) * 1.5);
+          if (weight > maxArtistPlayWeight) {
+            maxArtistPlayWeight = weight;
+          }
+          if (trackArtists.length > 1 || libArtists.length > 1) {
+            hasCollabWithFavorites = true;
+          }
+        }
+      }
+    }
+
+    if (maxArtistPlayWeight > 0) {
+      score += maxArtistPlayWeight;
+    }
+    if (hasCollabWithFavorites) {
+      score += 15;
     }
 
     // BPM / Tempo Continuity
@@ -1884,8 +1911,21 @@ export class RecommendationService {
         if (this.isRecentlyPlayed(t, 60)) continue;
 
         const trackVec = this.extractTrackVector(t);
-        const sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
+        let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
         if (sim < 0.38) continue;
+
+        const candArtists = extractAllArtists(t.artist, t.title).map((a) => normalizeArtist(a));
+        let artistAffinityBonus = 0;
+        for (const [topArt, weight] of topArtistsMap.entries()) {
+          const normTop = normalizeArtist(topArt);
+          if (normTop && candArtists.includes(normTop)) {
+            artistAffinityBonus = Math.max(artistAffinityBonus, 0.18 + Math.min(0.12, weight * 0.02));
+            if (candArtists.length > 1) {
+              artistAffinityBonus += 0.08;
+            }
+          }
+        }
+        sim += artistAffinityBonus;
 
         scoredCandidates.push({ track: t, sim });
       }

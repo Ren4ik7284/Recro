@@ -917,17 +917,14 @@ pub async fn get_recommendations(
             }
         }
 
-        // 3. Fallback: SoundCloud search
-        if tracks.is_empty() {
-            let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
-            for t in sc_res {
-                if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
-                    && !is_noisy_compilation(&t.title)
-                    && !is_junk_track(&t.title, &t.artist, is_cyrillic)
-                    && seen_ids.insert(t.id.clone())
-                {
-                    tracks.push(t);
-                }
+        let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
+        for t in sc_res {
+            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                && !is_noisy_compilation(&t.title)
+                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
+                && seen_ids.insert(t.id.clone())
+            {
+                tracks.push(t);
             }
         }
         fastrand::shuffle(&mut tracks);
@@ -1053,9 +1050,19 @@ pub async fn get_similar_tracks(
                 }
             }
         }
+        let sc_res = state.soundcloud.search_tracks(artist, limit, &base_url).await;
+        for t in sc_res {
+            let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                && !is_noisy_compilation(&t.title)
+                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
+                && seen_ids.insert(t.id.clone())
+            {
+                tracks.push(t);
+            }
+        }
     }
 
-    // === FALLBACK: Deezer search by query if tracks still empty ===
     if tracks.is_empty() {
         let query = if !title.is_empty() && !artist.is_empty() {
             format!("{} {}", artist, title)
