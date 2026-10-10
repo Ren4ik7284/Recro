@@ -20,7 +20,7 @@ impl SoundCloudClient {
             .unwrap_or_default();
 
         let client = Arc::new(Self {
-            client_id: RwLock::new("BtYbFoM0mqN0NzaXzMgrbRx7UwdTAbmf".to_string()),
+            client_id: RwLock::new("vI5BsvpTIlavDLl7RDbbcFAPg8kls8Bg".to_string()),
             is_refreshing: AtomicBool::new(false),
             http,
         });
@@ -90,6 +90,7 @@ impl SoundCloudClient {
         let mut idx = 0;
         while let Some(found) = js[idx..].find(needle) {
             let pos = idx + found + needle.len();
+            idx = pos;
             let slice = &js[pos..std::cmp::min(pos + 60, js.len())];
             let trimmed = slice.trim_start();
             let remainder = if let Some(stripped) = trimmed.strip_prefix(':') {
@@ -97,11 +98,12 @@ impl SoundCloudClient {
             } else if let Some(stripped) = trimmed.strip_prefix('=') {
                 stripped.trim_start()
             } else {
-                idx = pos;
                 continue;
             };
 
-            let quote_char = remainder.chars().next()?;
+            let Some(quote_char) = remainder.chars().next() else {
+                continue;
+            };
             if quote_char == '"' || quote_char == '\'' {
                 let token = &remainder[1..];
                 if let Some(end) = token.find(quote_char) {
@@ -111,8 +113,6 @@ impl SoundCloudClient {
                     }
                 }
             }
-
-            idx = pos;
         }
         None
     }
@@ -179,6 +179,35 @@ impl SoundCloudClient {
         Self::parse_collection(&json_val, base_url)
     }
 
+    pub async fn search_and_resolve_stream(&self, query: &str) -> Option<String> {
+        let client_id = self.get_client_id().await;
+        let url = format!(
+            "https://api-v2.soundcloud.com/search/tracks?q={}&client_id={}&limit=6&offset=0",
+            urlencoding::encode(query),
+            client_id
+        );
+
+        let resp = self.http.get(&url).send().await.ok()?;
+        if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 {
+            self.refresh_client_id().await;
+            return None;
+        }
+
+        let json_val: serde_json::Value = resp.json().await.ok()?;
+        let collection = json_val["collection"].as_array()?;
+
+        for item in collection {
+            let is_snipped = item["policy"].as_str() == Some("SNIP") || item["snipped"].as_bool() == Some(true);
+            if is_snipped {
+                continue;
+            }
+            if let Some(stream_url) = Self::resolve_stream_from_track_json(&self.http, item, &client_id).await {
+                return Some(stream_url);
+            }
+        }
+        None
+    }
+
     pub async fn resolve_stream_url(&self, track_id: &str) -> Option<String> {
         let sc_id = if let Some(stripped) = track_id.strip_prefix("sc-") {
             stripped
@@ -196,14 +225,20 @@ impl SoundCloudClient {
             sc_id, client_id
         );
 
-        let resp = self.http.get(&track_api_url).send().await.ok()?;
-        if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 {
-            self.refresh_client_id().await;
-            return None;
+        if let Ok(resp) = self.http.get(&track_api_url).send().await {
+            if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 {
+                self.refresh_client_id().await;
+            } else if resp.status().is_success() {
+                if let Ok(track_json) = resp.json::<serde_json::Value>().await {
+                    if let Some(url) = Self::resolve_stream_from_track_json(&self.http, &track_json, &client_id).await {
+                        return Some(url);
+                    }
+                }
+            }
         }
 
-        let track_json: serde_json::Value = resp.json().await.ok()?;
-        Self::resolve_stream_from_track_json(&self.http, &track_json, &client_id).await
+        // Fallback: search by track ID directly
+        self.search_and_resolve_stream(sc_id).await
     }
 
     pub async fn resolve_stream_by_permalink(&self, permalink_url: &str) -> Option<String> {
@@ -214,9 +249,28 @@ impl SoundCloudClient {
             client_id
         );
 
-        let resp = self.http.get(&resolve_url).send().await.ok()?;
-        let track_json: serde_json::Value = resp.json().await.ok()?;
-        Self::resolve_stream_from_track_json(&self.http, &track_json, &client_id).await
+        if let Ok(resp) = self.http.get(&resolve_url).send().await {
+            if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 {
+                self.refresh_client_id().await;
+            } else if resp.status().is_success() {
+                if let Ok(track_json) = resp.json::<serde_json::Value>().await {
+                    if let Some(url) = Self::resolve_stream_from_track_json(&self.http, &track_json, &client_id).await {
+                        return Some(url);
+                    }
+                }
+            }
+        }
+
+        // Fallback: extract title/artist from permalink URL slug and search
+        if let Some(path) = permalink_url.split("soundcloud.com/").nth(1) {
+            let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+            if parts.len() >= 2 {
+                let query = format!("{} {}", parts[0].replace('-', " "), parts[1].replace('-', " "));
+                return self.search_and_resolve_stream(&query).await;
+            }
+        }
+
+        None
     }
 
     async fn resolve_stream_from_track_json(

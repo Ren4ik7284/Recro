@@ -182,6 +182,7 @@ pub async fn stream_audio(
     }
 
     let mut target = String::new();
+    eprintln!("[STREAM] New request: title={:?}, artist={:?}, id={:?}, url={:?}", params.title, params.artist, params.id, params.url);
 
     if let Some(id) = params.id.clone() {
         let id_clean = id.trim().to_string();
@@ -396,32 +397,12 @@ pub async fn stream_audio(
 
             let is_youtube_target = target.contains("youtube.com") || target.contains("youtu.be");
 
-            // 1. Direct YouTube extraction first if target is a YouTube URL
-            if is_youtube_target && direct_url.is_empty() {
-                let mut cmd_fast = Command::new(&yt_cmd);
-                apply_yt_dlp_common_args(&mut cmd_fast);
-                cmd_fast.args([
-                    "--no-playlist",
-                    "--ignore-errors",
-                    "-g",
-                    "-f", "ba[ext=m4a]/ba/b",
-                    "--extractor-args", "youtube:player_client=android",
-                    "--",
-                    &target,
-                ]);
-                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(10000), cmd_fast.output()).await {
-                    if let Some(u) = extract_stream_url_from_output(&out) {
-                        direct_url = u;
-                    }
-                }
-            }
-
             if direct_url.is_empty() && resolved_title.is_empty() && is_youtube_target {
                 let oembed_url = format!(
                     "https://www.youtube.com/oembed?url={}&format=json",
                     urlencoding::encode(&target)
                 );
-                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_millis(1500)).build() {
+                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_millis(1000)).build() {
                     if let Ok(resp) = client.get(&oembed_url).send().await {
                         if resp.status().is_success() {
                             if let Ok(bytes) = resp.bytes().await {
@@ -450,8 +431,45 @@ pub async fn stream_audio(
                 resolved_title = stripped.trim().to_string();
             }
 
-            // 2. High-speed YouTube search first (works reliably on VPS and worldwide)
+            // 1. Ultra-fast native SoundCloud search & stream resolution (100-250ms, pure async Rust, zero python overhead)
             if direct_url.is_empty() && !resolved_title.is_empty() {
+                let clean_title = clean_music_title(&resolved_title);
+                let clean_uploader = clean_music_title(&resolved_uploader);
+                let sc_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
+                    format!("{} {}", clean_title, clean_uploader)
+                } else {
+                    clean_title.clone()
+                };
+
+                eprintln!("[STREAM] Querying SoundCloud with sc_query={:?}", sc_query);
+                if let Some(u) = state.soundcloud.search_and_resolve_stream(&sc_query).await {
+                    eprintln!("[STREAM] SoundCloud stream resolved directly: {}", u);
+                    direct_url = u;
+                }
+            }
+
+            // 2. Direct YouTube extraction if target is a YouTube URL and SoundCloud didn't match (local/VPS only)
+            if is_youtube_target && direct_url.is_empty() && !is_cloud_env() {
+                let mut cmd_fast = Command::new(&yt_cmd);
+                apply_yt_dlp_common_args(&mut cmd_fast);
+                cmd_fast.args([
+                    "--no-playlist",
+                    "--ignore-errors",
+                    "-g",
+                    "-f", "ba[ext=m4a]/ba/b",
+                    "--extractor-args", "youtube:player_client=android",
+                    "--",
+                    &target,
+                ]);
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(3000), cmd_fast.output()).await {
+                    if let Some(u) = extract_stream_url_from_output(&out) {
+                        direct_url = u;
+                    }
+                }
+            }
+
+            // 3. YouTube search fallback only on VPS/local if SoundCloud had no hits
+            if direct_url.is_empty() && !resolved_title.is_empty() && !is_cloud_env() {
                 let clean_title = clean_music_title(&resolved_title);
                 let clean_uploader = clean_music_title(&resolved_uploader);
                 let yt_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
@@ -471,26 +489,9 @@ pub async fn stream_audio(
                     "--",
                     &yt_query,
                 ]);
-                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(10000), yt_search_cmd.output()).await {
+                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(3000), yt_search_cmd.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&yt_out) {
                         direct_url = u;
-                    }
-                }
-
-                // Fast SoundCloud fallback with short timeout only if YouTube didn't find anything
-                if direct_url.is_empty() {
-                    let sc_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
-                        format!("scsearch1:{} {}", clean_title, clean_uploader)
-                    } else {
-                        format!("scsearch1:{}", clean_title)
-                    };
-                    let mut sc_cmd = Command::new(&yt_cmd);
-                    apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
-                    sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &sc_query]);
-                    if let Ok(Ok(sc)) = tokio::time::timeout(Duration::from_millis(2000), sc_cmd.output()).await {
-                        if let Some(u) = extract_stream_url_from_output(&sc) {
-                            direct_url = u;
-                        }
                     }
                 }
             }
@@ -546,7 +547,8 @@ pub async fn stream_audio(
                 }
             }
 
-            if direct_url.is_empty() && !is_cloud_env() {
+            // Fallback 3: Cloud VPS proxy when deployed on cloud environment (Render / Railway)
+            if direct_url.is_empty() && is_cloud_env() {
                 let cloud_stream_url = format!(
                     "{}/api/stream?url={}{}{}{}",
                     CLOUD_FALLBACK_URL,
@@ -722,6 +724,7 @@ pub async fn stream_audio(
         ]);
     }
 
+    eprintln!("[STREAM] Spawning ffmpeg for direct_url: {}", direct_url);
     let mut ffmpeg_cmd = Command::new("ffmpeg");
     ffmpeg_cmd.kill_on_drop(true);
     let mut ffmpeg_child = match ffmpeg_cmd
@@ -730,8 +733,14 @@ pub async fn stream_audio(
         .stderr(Stdio::null())
         .spawn()
     {
-        Ok(c) => c,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(c) => {
+            eprintln!("[STREAM] ffmpeg spawned successfully!");
+            c
+        },
+        Err(e) => {
+            eprintln!("[STREAM] ffmpeg spawn failed: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
 
     let stdout = match ffmpeg_child.stdout.take() {

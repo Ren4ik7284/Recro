@@ -9,6 +9,9 @@ pub fn is_cloud_env() -> bool {
         || std::env::var("RAILWAY_STATIC_URL").is_ok()
         || std::env::var("RAILWAY_ENVIRONMENT").is_ok()
         || std::env::var("RAILWAY_SERVICE_ID").is_ok()
+        || std::env::var("RENDER").is_ok()
+        || std::env::var("RENDER_SERVICE_ID").is_ok()
+        || std::env::var("IS_RENDER").is_ok()
 }
 
 pub fn get_yt_dlp_cmd() -> String {

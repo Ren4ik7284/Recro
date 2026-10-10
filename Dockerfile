@@ -10,7 +10,7 @@ RUN npm run build
 # Stage 2: Build Rust Axum Backend
 FROM rust:slim-bookworm AS backend-builder
 WORKDIR /app/backend
-RUN rustup update stable
+RUN rustup update stable && rustup default stable
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY backend/ ./
 ENV CARGO_BUILD_JOBS=1
