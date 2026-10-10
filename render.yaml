@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: recro
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: PORT
+        value: 10000

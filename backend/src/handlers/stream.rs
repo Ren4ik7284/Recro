@@ -303,7 +303,8 @@ pub async fn stream_audio(
         cache_key.hash(&mut hasher);
         format!("{:016x}.mp3", hasher.finish())
     };
-    let cache_dir = "/var/www/recro/cache";
+    let cache_dir = std::env::var("CACHE_DIR").unwrap_or_else(|_| "/var/www/recro/cache".to_string());
+    let _ = std::fs::create_dir_all(&cache_dir);
     let cache_file_path = format!("{}/{}", cache_dir, cache_filename);
 
     if params.ss.unwrap_or(0) == 0 && !is_live {

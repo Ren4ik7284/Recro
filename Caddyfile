@@ -1,0 +1,27 @@
+:{$PORT:10000} {
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+        Access-Control-Allow-Headers *
+        Access-Control-Expose-Headers *
+    }
+
+    handle_path /cache/* {
+        root * /var/www/recro/cache
+        file_server
+    }
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8085 {
+            flush_interval -1
+        }
+    }
+
+    handle {
+        root * /var/www/recro/frontend
+        try_files {path} {path}/ /index.html
+        file_server {
+            precompressed gzip
+        }
+    }
+}
