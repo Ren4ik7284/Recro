@@ -1045,6 +1045,10 @@ export class AudioService {
         this.updateMediaSessionPosition();
         this.libraryService.recordHistoryPlay(track);
         this.requestWakeLock();
+        this.preloadNextTrack();
+        if (this.recService.isMixActive()) {
+          this.ensureSmartQueue();
+        }
       })
       .catch(async (err) => {
         this.isSwitchingTrack = false;
@@ -1702,6 +1706,7 @@ export class AudioService {
       this.queue.set([curTrack]);
       this.queueIndex.set(0);
       await this.ensureSmartQueue();
+      this.preloadNextTrack();
       return true;
     }
 
@@ -1764,6 +1769,8 @@ export class AudioService {
     }
 
     this.playTrack(candidates[0], candidates, true, 0);
+    this.preloadNextTrack();
+    this.ensureSmartQueue();
     return true;
   }
 
