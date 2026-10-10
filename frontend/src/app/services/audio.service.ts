@@ -1218,6 +1218,9 @@ export class AudioService {
       const firstChunk = await headRes.arrayBuffer();
       if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
 
+      const trackDurationSec = (track.duration && track.duration > 5) ? track.duration : 180;
+      const expectedMinBytes = Math.max(800000, Math.floor(trackDurationSec * 14000));
+
       const hasMse = typeof window !== 'undefined' && 'MediaSource' in window && (
         MediaSource.isTypeSupported('audio/mpeg') || MediaSource.isTypeSupported('audio/mp3')
       );
@@ -1257,15 +1260,22 @@ export class AudioService {
         // Pre-buffer next 2 chunks in parallel to provide ~5.5s of buffer headroom before play()
         const prebufferOffsets = [firstChunk.byteLength, firstChunk.byteLength + CHUNK_SIZE];
         const prebufferTasks = prebufferOffsets.map(async (offset) => {
-          if (totalBytes > 0 && offset >= totalBytes) return null;
-          const end = totalBytes > 0 ? Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1) : offset + CHUNK_SIZE - 1;
+          if (totalBytes >= expectedMinBytes && offset >= totalBytes) return null;
+          const end = (totalBytes >= expectedMinBytes) ? Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1) : offset + CHUNK_SIZE - 1;
           try {
             const res = await fetch(finalUrl, {
               headers: { 'Range': `bytes=${offset}-${end}` },
               signal: abortSignal
             });
             if (res.ok || res.status === 206) {
-              return { offset, data: await res.arrayBuffer() };
+              const data = await res.arrayBuffer();
+              const cr = res.headers.get('content-range') || '';
+              const tm = cr.match(/\/(\d+)$/);
+              if (tm) {
+                const newT = parseInt(tm[1], 10);
+                if (newT > totalBytes) totalBytes = newT;
+              }
+              return { offset, data };
             }
           } catch {}
           return null;
@@ -1339,11 +1349,11 @@ export class AudioService {
             }
 
             const start = nextFetchOffset;
-            if (totalBytes > 0 && start >= totalBytes) {
+            if (totalBytes >= expectedMinBytes && start >= totalBytes) {
               isFetchingDone = true;
               break;
             }
-            const end = totalBytes > 0 ? Math.min(start + CHUNK_SIZE - 1, totalBytes - 1) : start + CHUNK_SIZE - 1;
+            const end = (totalBytes >= expectedMinBytes) ? Math.min(start + CHUNK_SIZE - 1, totalBytes - 1) : start + CHUNK_SIZE - 1;
             nextFetchOffset = end + 1;
 
             try {
@@ -1366,14 +1376,19 @@ export class AudioService {
                   allChunks.push(chunk);
                   consecutiveFailures = 0;
                 } else {
-                  if (totalBytes > 0 && start >= totalBytes) {
+                  if (totalBytes >= expectedMinBytes && start >= totalBytes) {
                     isFetchingDone = true;
                     break;
                   }
+                  await new Promise((r) => setTimeout(r, 200));
                 }
               } else if (chunkRes.status === 416) {
                 consecutiveFailures++;
-                if (consecutiveFailures > 6) {
+                if (totalBytes >= expectedMinBytes && consecutiveFailures > 5) {
+                  isFetchingDone = true;
+                  break;
+                }
+                if (consecutiveFailures > 25) {
                   isFetchingDone = true;
                   break;
                 }
@@ -1403,16 +1418,46 @@ export class AudioService {
         // Fallback for browsers without MSE audio/mpeg (downloads via parallel pipeline and plays blob)
         const allChunks: ArrayBuffer[] = [firstChunk];
         let offset = firstChunk.byteLength;
+        let failures = 0;
 
-        while (offset < totalBytes && !abortSignal.aborted && playRequestId === this.currentPlayRequestId) {
-          const end = Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1);
-          const chunkRes = await fetch(finalUrl, {
-            headers: { 'Range': `bytes=${offset}-${end}` },
-            signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : abortSignal
-          });
-          const chunk = await chunkRes.arrayBuffer();
-          allChunks.push(chunk);
-          offset += chunk.byteLength;
+        while (!abortSignal.aborted && playRequestId === this.currentPlayRequestId) {
+          if (totalBytes >= expectedMinBytes && offset >= totalBytes) break;
+          const end = (totalBytes >= expectedMinBytes) ? Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1) : offset + CHUNK_SIZE - 1;
+          try {
+            const chunkRes = await fetch(finalUrl, {
+              headers: { 'Range': `bytes=${offset}-${end}` },
+              signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : abortSignal
+            });
+            if (chunkRes.ok || chunkRes.status === 206) {
+              const chunk = await chunkRes.arrayBuffer();
+              if (chunk.byteLength > 0) {
+                const cr = chunkRes.headers.get('content-range') || '';
+                const tm = cr.match(/\/(\d+)$/);
+                if (tm) {
+                  const newT = parseInt(tm[1], 10);
+                  if (newT > totalBytes) totalBytes = newT;
+                }
+                allChunks.push(chunk);
+                offset += chunk.byteLength;
+                failures = 0;
+              } else {
+                if (totalBytes >= expectedMinBytes) break;
+                await new Promise((r) => setTimeout(r, 200));
+              }
+            } else if (chunkRes.status === 416) {
+              failures++;
+              if (totalBytes >= expectedMinBytes || failures > 15) break;
+              await new Promise((r) => setTimeout(r, 300));
+            } else {
+              failures++;
+              if (failures > 10) break;
+              await new Promise((r) => setTimeout(r, 200));
+            }
+          } catch {
+            failures++;
+            if (failures > 10) break;
+            await new Promise((r) => setTimeout(r, 200));
+          }
         }
 
         if (playRequestId === this.currentPlayRequestId && !abortSignal.aborted) {
