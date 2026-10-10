@@ -16,9 +16,8 @@ export class PwaService {
   readonly canPromptInstall = signal<boolean>(false);
   readonly isInstallModalOpen = signal<boolean>(false);
 
-  // Computes whether install button should be visible (e.g. mobile and not already running in standalone)
   readonly shouldShowInstallButton = computed(() => {
-    return this.isMobile() && !this.isStandalone() && !this.isInstalled();
+    return !this.isStandalone();
   });
 
   constructor() {

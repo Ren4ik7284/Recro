@@ -127,6 +127,7 @@ export class App implements OnInit {
   readonly canInstallPwa = this.pwaService.canPromptInstall;
   readonly isPwaModalOpen = this.pwaService.isInstallModalOpen;
   readonly isIos = this.pwaService.isIos;
+  readonly installPlatformTab = signal<'android' | 'ios'>('android');
 
   readonly modalSearchInput = signal<string>('');
 
@@ -343,11 +344,7 @@ export class App implements OnInit {
       this.closeMobilePlaylists();
     }
 
-    if (this.pwaService.isStandalone() || this.pwaService.isInstalled()) {
-      this.showToast('Приложение уже установлено на вашем устройстве');
-      return;
-    }
-
+    this.installPlatformTab.set(this.isIos() ? 'ios' : 'android');
     this.pwaService.openInstallModal();
     if (pushHistory) {
       this.navService.pushOverlay('pwa');
@@ -363,11 +360,6 @@ export class App implements OnInit {
   installPwa() {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
-    }
-
-    if (this.pwaService.isStandalone() || this.pwaService.isInstalled()) {
-      this.showToast('Приложение уже установлено на вашем устройстве');
-      return;
     }
 
     this.openPwaInstallModal();

@@ -841,6 +841,15 @@
       <span>Плейлисты</span>
     </button>
 
+    <button class="m-nav-item" (click)="installPwa()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      <span>Скачать</span>
+    </button>
+
     <button class="m-nav-item" [class.active]="isProfileModalOpen()" (click)="openProfileModal()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -1966,66 +1975,99 @@
             </svg>
           </button>
         </div>
+        <div style="display: flex; gap: 8px; padding: 12px 16px 0; border-bottom: 1px solid var(--border-subtle);">
+          <button 
+            type="button"
+            class="font-mono"
+            [style.background]="installPlatformTab() === 'android' ? 'var(--bg-card)' : 'transparent'"
+            [style.color]="installPlatformTab() === 'android' ? 'var(--accent-green)' : 'var(--text-muted)'"
+            [style.border-bottom]="installPlatformTab() === 'android' ? '2px solid var(--accent-green)' : '2px solid transparent'"
+            style="flex: 1; padding: 10px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 6px 6px 0 0;"
+            (click)="installPlatformTab.set('android')"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 10h16M7 10V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4M6 18v2M18 18v2M6 10v8h12v-8"/>
+            </svg>
+            <span>Android</span>
+          </button>
+
+          <button 
+            type="button"
+            class="font-mono"
+            [style.background]="installPlatformTab() === 'ios' ? 'var(--bg-card)' : 'transparent'"
+            [style.color]="installPlatformTab() === 'ios' ? 'var(--accent-white)' : 'var(--text-muted)'"
+            [style.border-bottom]="installPlatformTab() === 'ios' ? '2px solid var(--accent-white)' : '2px solid transparent'"
+            style="flex: 1; padding: 10px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 6px 6px 0 0;"
+            (click)="installPlatformTab.set('ios')"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20.94c1.88-2.6 4.06-4.94 4.06-7.94a4.06 4.06 0 1 0-8.12 0c0 3 2.18 5.34 4.06 7.94z"/>
+              <circle cx="12" cy="7" r="1.5"/>
+            </svg>
+            <span>iPhone (iOS)</span>
+          </button>
+        </div>
+
         <div class="modal-body pwa-instructions-body">
-          @if (isIos()) {
+          @if (installPlatformTab() === 'ios') {
             <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px;">
               <div style="width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; border: 1px solid var(--border-subtle);">
                 <img src="/icons/apple-touch-icon.png?v=recro3" style="width: 100%; height: 100%; object-fit: cover;" alt="Recro" />
               </div>
               <div style="flex: 1; min-width: 0;">
                 <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Recro для iPhone</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Работает как нативное приложение без App Store</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Работает на весь экран без App Store и сертификатов</div>
               </div>
             </div>
 
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">1</div>
               <div class="pwa-step-text">
-                В нижней панели Safari нажмите значок <strong>«Поделиться»</strong> (квадрат со стрелкой ⬆).
+                Откройте этот сайт в <strong>Safari</strong> и внизу нажмите значок <strong>«Поделиться»</strong> (квадрат со стрелкой ⬆).
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">2</div>
               <div class="pwa-step-text">
-                Пролистайте меню вниз и выберите <strong>«На экран "Домой"»</strong>.
+                Пролистайте список действий вниз и нажмите <strong>«На экран "Домой"»</strong>.
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">3</div>
               <div class="pwa-step-text">
-                В правом верхнем углу нажмите <strong>«Добавить»</strong> — иконка Recro появится на рабочем столе.
+                В правом верхнем углу нажмите <strong>«Добавить»</strong> — приложение появится на рабочем столе.
               </div>
             </div>
           } @else {
-            <a href="/recro.apk" download="recro.apk" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 600; padding: 13px 16px; margin-bottom: 14px; background: #22c55e; color: #000; border-radius: 8px;" (click)="showToast('Загрузка Recro APK началась')">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <a href="/recro.apk" download="recro.apk" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 14px; background: #22c55e; color: #000; border-radius: 10px; font-size: 14px;" (click)="showToast('Загрузка Recro APK началась')">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Скачать APK на телефон</span>
+              <span>Скачать Recro APK</span>
             </a>
 
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">1</div>
               <div class="pwa-step-text">
-                Нажмите зелёную кнопку <strong>«Скачать APK на телефон»</strong> выше.
+                Нажмите зелёную кнопку <strong>«Скачать Recro APK»</strong> выше.
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">2</div>
               <div class="pwa-step-text">
-                Откройте скачанный файл <strong>recro.apk</strong> в шторке уведомлений или в папке «Загрузки».
+                Откройте скачанный файл <strong>recro.apk</strong> в шторке телефона или папке «Загрузки».
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">3</div>
               <div class="pwa-step-text">
-                Нажмите <strong>«Установить»</strong> (при необходимости разрешите установку для браузера в настройках Android).
+                Нажмите <strong>«Установить»</strong> (при необходимости подтвердите разрешение в браузере).
               </div>
             </div>
 
             @if (canInstallPwa()) {
-              <button class="btn-cancel-action font-mono" style="width: 100%; margin-top: 10px; font-size: 11px; padding: 8px 12px;" (click)="pwaService.promptInstall()">
-                Или установить через браузер (PWA)
+              <button class="btn-cancel-action font-mono" style="width: 100%; margin-top: 12px; font-size: 12px; padding: 10px 12px;" (click)="pwaService.promptInstall()">
+                Или установить в 1 клик через браузер (PWA)
               </button>
             }
           }
