@@ -352,12 +352,17 @@ export interface PlayRecord {
 
 export function normalizeArtist(artist?: string): string {
   if (!artist) return '';
-  return artist
+  const cleaned = artist
     .toLowerCase()
     .split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]|\s+[-–—+]\s+/i)[0]
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  if (cleaned === 'madkid' || cleaned === 'мадкид' || cleaned === 'мадкидд') return 'madk1d';
+  if (cleaned === 'капсайз' || cleaned === 'ккапсайз') return 'cupsize';
+  if (cleaned === 'жанулька') return 'zhanulka';
+  if (cleaned === 'унки') return 'unki';
+  return cleaned;
 }
 
 export function extractAllArtists(artist?: string, title?: string): string[] {
@@ -424,7 +429,8 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'onuka', 'the chemodan', 'brick bazuka', 'ou 74', 'triagrutrika', 'tgk', '100pro',
   'bicycles for afghanistan', 'glintshake', 'on-the-go', 'therr maitz', 'kedr livanskiy',
   'lyapis trubetskoy', 'brutto', 'vopli vidoplyasova', 'ramil',
-  'mudkid', 'cupsize', 'zhanulka'
+  'madkid', 'madk1d', 'cupsize', 'zhanulka', 'unki', 'dakook', '13karat', 'polmateri',
+  'aipfs', 'midix', 'serega pirat', 'fallen777angel', 'fortuna 812', 'doxxxelll', 'kristiee', 'bond s knopkoy'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
@@ -480,10 +486,13 @@ export function resolveEffectiveLanguage(
 ): MixLanguage {
   if (configuredLang === 'ru') return 'ru';
   if (configuredLang === 'en') return 'en';
+  if (isCyrillicLibrary) {
+    return 'ru';
+  }
   if (currentTrack) {
     return isRussianTrack(currentTrack) ? 'ru' : 'en';
   }
-  return isCyrillicLibrary ? 'ru' : 'en';
+  return 'en';
 }
 
 export function isTrackLanguageMatch(track: { title?: string; artist?: string; genre?: string }, lang: MixLanguage): boolean {
@@ -1873,10 +1882,10 @@ export class RecommendationService {
         }
       } else {
         const curatedRu = mood === 'energetic'
-          ? ['Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Big Baby Tape']
+          ? ['madk1d', 'cupsize', 'Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Big Baby Tape']
           : mood === 'chill'
-          ? ['Zivert', 'Сироткин', 'Markul', 'SALUKI', 'Хадн Дадн']
-          : ['Miyagi & Andy Panda', 'Кино', 'Скриптонит', 'SALUKI', 'Markul'];
+          ? ['zhanulka', 'Zivert', 'Сироткин', 'Markul', 'SALUKI', 'Хадн Дадн']
+          : ['madk1d', 'cupsize', 'zhanulka', 'Miyagi & Andy Panda', 'Кино', 'Скриптонит', 'SALUKI', 'Markul'];
         const curatedEn = mood === 'energetic'
           ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott', 'Nirvana']
           : mood === 'chill'

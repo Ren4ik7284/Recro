@@ -1672,7 +1672,7 @@ export class AudioService {
       (t) => !existingQueueIds.has(t.id) &&
              !this.recService.isSessionDuplicate(t) &&
              isTrackLanguageMatch(t, effectiveLang) &&
-             (source === 'library_only' || !this.recService.isLibraryTrack(t))
+             (source !== 'discovery_heavy' || !this.recService.isLibraryTrack(t))
     );
 
     if (strictlyUniqueTracks.length > 0) {
@@ -1737,6 +1737,18 @@ export class AudioService {
         );
         candidates = [...candidates, ...discovery];
       }
+    } else if (source === 'balanced' && localCandidates.length > 0) {
+      const localCount = Math.min(3, localCandidates.length);
+      const localTracks = this.recService.pickNextTracks(localCount, new Set(), curTrack, recentArtists);
+      const discoveryExclude = new Set<string>(localTracks.map((t) => t.id));
+      if (curTrack) discoveryExclude.add(curTrack.id);
+      const discovery = await this.recService.fetchOnlineDiscoveryTracks(
+        6 - localTracks.length,
+        discoveryExclude,
+        recentArtists,
+        curTrack || localTracks[0] || null
+      );
+      candidates = [...localTracks, ...discovery];
     } else {
       const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
       if (curTrack) excludeIds.add(curTrack.id);

@@ -89,6 +89,8 @@ pub struct SearchTrack {
     pub duration: f64,
     pub audio_url: String,
     pub cover_url: Option<String>,
+    #[serde(default)]
+    pub plays: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

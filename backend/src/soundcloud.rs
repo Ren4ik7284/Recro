@@ -318,6 +318,7 @@ impl SoundCloudClient {
             duration,
             audio_url,
             cover_url,
+            plays: item["playback_count"].as_i64(),
         })
     }
 

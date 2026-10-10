@@ -242,6 +242,7 @@ pub fn parse_track_json(item: &serde_json::Value, base_url: &str) -> Option<Sear
         duration,
         audio_url,
         cover_url: proxied_cover,
+        plays: None,
     })
 }
 

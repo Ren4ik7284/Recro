@@ -253,6 +253,7 @@ pub async fn extract_info(
                                     duration: ch_duration,
                                     audio_url: ch_audio_url,
                                     cover_url: ch_cover,
+                                    plays: None,
                                 });
                             }
                             if !chapter_tracks.is_empty() {
@@ -382,6 +383,7 @@ pub async fn extract_info(
                                     duration: 0.0,
                                     audio_url,
                                     cover_url: cover,
+                                    plays: None,
                                 };
                                 main_video = Some(fallback_track.clone());
                                 tracks.push(fallback_track);
@@ -473,6 +475,7 @@ pub async fn execute_audius_search(query: &str, limit: usize, base_url: &str) ->
                 duration,
                 audio_url,
                 cover_url,
+                plays: None,
             });
         }
     }
@@ -544,6 +547,7 @@ pub async fn execute_deezer_search(query: &str, limit: usize, base_url: &str) ->
                 duration,
                 audio_url,
                 cover_url,
+                plays: item["rank"].as_i64(),
             });
         }
     }
@@ -666,6 +670,60 @@ pub async fn fetch_deezer_related_artists(artist_name: &str) -> Vec<String> {
     }
 }
 
+pub fn resolve_canonical_artist_name(name: &str) -> &str {
+    let lower = name.trim().to_lowercase();
+    match lower.as_str() {
+        "madkid" | "мадкид" | "мадкидд" => "madk1d",
+        "капсайз" | "ккапсайз" => "cupsize",
+        "жанулька" => "zhanulka",
+        "унки" => "unki",
+        "кай ангел" => "kai angel",
+        "найн майс" | "9 майс" => "9mice",
+        "вайпер" | "вайперр" => "viperr",
+        "бушидо жо" | "бушидожо" => "bushido zho",
+        "херонвотер" | "херон вотер" => "heronwater",
+        "токсис" => "toxi$",
+        "тейп" | "биг бейби тейп" | "биг бэби тэйп" => "big baby tape",
+        "кизару" => "kizaru",
+        "ог буда" => "og buda",
+        "скалли милано" => "scally milano",
+        "аглистефан" => "uglystephan",
+        "платина" => "platina",
+        "майот" => "mayot",
+        "сода лав" => "soda luv",
+        "серега пират" | "серёга пират" => "serega pirat",
+        _ => name,
+    }
+}
+
+pub fn is_russian_artist(name: &str) -> bool {
+    let lower = name.trim().to_lowercase();
+    if lower.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)) {
+        return true;
+    }
+    const KNOWN: &[&str] = &[
+        "madkid", "madk1d", "cupsize", "zhanulka", "unki", "dakook", "13karat",
+        "kai angel", "9mice", "viperr", "toxi$", "toxis", "shadowraze", "zxcursed",
+        "hikikomori kai", "dvrst", "kizaru", "big baby tape", "og buda", "mayot",
+        "soda luv", "163onmyneck", "scally milano", "uglystephan", "bushido zho",
+        "heronwater", "alblak 52", "friendly thug", "friendly thug 52 ngg",
+        "aarne", "lovv66", "seemee", "yungway", "pinq", "lil krystalll", "white punk",
+        "yanix", "rocket", "t-fest", "kostromin", "saluki", "boulevard depo",
+        "jeembo", "pharaoh", "scriptonite", "skryptonite", "loqiemean", "noize mc",
+        "face", "gone fludd", "flesh", "lizer", "thrill pill", "platina", "macan",
+        "markul", "obladaet", "oxxxymiron", "slava marlow", "instasamka", "sqwoz bab",
+        "dead blonde", "gspd", "cmh", "dk", "mzlff", "tri dnya dozhdya", "dzhizus",
+        "mukka", "playingtheangel", "zivert", "serega пират", "midix", "polmateri",
+        "fallen777angel", "fortuna 812", "doxxxelll", "kristiee", "bond s knopkoy",
+    ];
+    for &k in KNOWN {
+        if lower == k || lower.starts_with(&format!("{} ", k)) || lower.ends_with(&format!(" {}", k)) || lower.contains(&format!(" {} ", k)) {
+            return true;
+        }
+    }
+    false
+}
+
 pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
     let clean = artist_name
         .split("feat")
@@ -692,14 +750,23 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
         Err(_) => return Vec::new(),
     };
 
+    let canonical = resolve_canonical_artist_name(clean);
     let search_url = format!(
-        "https://api.deezer.com/search/artist?q={}&limit=1",
-        urlencoding::encode(clean)
+        "https://api.deezer.com/search/artist?q={}&limit=5",
+        urlencoding::encode(canonical)
     );
     let artist_id = match client.get(&search_url).send().await {
         Ok(r) if r.status().is_success() => {
             if let Ok(data) = r.json::<serde_json::Value>().await {
-                data["data"].as_array().and_then(|arr| arr.first()).and_then(|a| a["id"].as_i64())
+                if let Some(arr) = data["data"].as_array() {
+                    arr.iter()
+                        .filter(|a| a["radio"].as_bool() == Some(true))
+                        .max_by_key(|a| a["nb_fan"].as_i64().unwrap_or(0))
+                        .and_then(|a| a["id"].as_i64())
+                        .or_else(|| arr.first().and_then(|a| a["id"].as_i64()))
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -723,7 +790,7 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
         if r.status().is_success() {
             if let Ok(data) = r.json::<serde_json::Value>().await {
                 if let Some(items) = data["data"].as_array() {
-                    let is_cyrillic = artist_name.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+                    let is_russian = is_russian_artist(artist_name);
                     for item in items {
                         let id_num = match item["id"].as_i64() {
                             Some(n) => n,
@@ -742,7 +809,7 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
                         if duration > 600.0 || (duration > 0.0 && duration < 30.0) {
                             continue;
                         }
-                        if is_noisy_compilation(raw_title) || is_junk_track(raw_title, raw_artist, is_cyrillic) {
+                        if is_noisy_compilation(raw_title) || is_junk_track(raw_title, raw_artist, is_russian) {
                             continue;
                         }
 
@@ -766,6 +833,7 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
                             duration,
                             audio_url,
                             cover_url,
+                            plays: item["rank"].as_i64(),
                         });
                     }
                 }
@@ -776,7 +844,7 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
     tracks
 }
 
-pub fn is_junk_track(title: &str, artist: &str, query_is_cyrillic: bool) -> bool {
+pub fn is_junk_track(title: &str, artist: &str, query_is_russian: bool) -> bool {
     let lower_title = title.to_lowercase();
     let lower_artist = artist.to_lowercase();
     let combined = format!("{} {}", lower_title, lower_artist);
@@ -787,6 +855,7 @@ pub fn is_junk_track(title: &str, artist: &str, query_is_cyrillic: bool) -> bool
         "nightcore", "sped up", "speed up", "remake", "guitar cover",
         "кавер", "cover", "1 hour", "10 hours", "hour mix", "compilation",
         "сборник", "плейлист", "playlist", "full album", "альбом целиком",
+        "snip", "snippet", "leak", "unreleased",
     ];
     for w in noise_words {
         if combined.contains(w) {
@@ -794,10 +863,10 @@ pub fn is_junk_track(title: &str, artist: &str, query_is_cyrillic: bool) -> bool
         }
     }
 
-    let indian_markers = [
+    let regional_markers = [
         "punjabi", "hindi", "bollywood", "desi", "bhangra", "sidhu", "haryanvi", "tamil", "telugu",
     ];
-    for m in indian_markers {
+    for m in regional_markers {
         if combined.contains(m) {
             return true;
         }
@@ -806,7 +875,7 @@ pub fn is_junk_track(title: &str, artist: &str, query_is_cyrillic: bool) -> bool
         return true;
     }
 
-    if query_is_cyrillic {
+    if query_is_russian {
         let ua_markers = ["українськ", "ukrainian", "зсу", "слава україні"];
         for m in ua_markers {
             if combined.contains(m) {
@@ -815,6 +884,25 @@ pub fn is_junk_track(title: &str, artist: &str, query_is_cyrillic: bool) -> bool
         }
         let ua_chars = ['і', 'ї', 'є', 'ґ', 'І', 'Ї', 'Є', 'Ґ'];
         if combined.chars().any(|c| ua_chars.contains(&c)) {
+            return true;
+        }
+
+        let foreign_markers = [
+            "deutschrap", "german rap", "der ", "die ", "das ", "und ", "nicht ",
+            "macht rap", "berlin", "auf deutsch", "feiern", "french rap", "rap francais",
+            "c'est", "pour toi", "reggaeton", "funk rj", "funk bh", "rap brasileiro",
+            "para ti", "persian", "türkçe", "rap việt", "viet rap", "arabic", "rap marocain",
+            "angelina jolie",
+        ];
+        for f in foreign_markers {
+            if combined.contains(f) {
+                return true;
+            }
+        }
+
+        let has_cyrillic = combined.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+        let is_known_ru = is_russian_artist(artist) || is_russian_artist(title);
+        if !has_cyrillic && !is_known_ru {
             return true;
         }
     }
@@ -888,9 +976,8 @@ pub async fn get_recommendations(
     let mut seen_ids = HashSet::new();
 
     if !artist.is_empty() {
-        let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+        let is_russian = is_russian_artist(artist);
 
-        // 1. Direct Deezer Artist Radio (instant high-fidelity recommendations from real listeners)
         let dz_tracks = fetch_deezer_artist_radio(artist, limit * 2, &base_url).await;
         for t in dz_tracks {
             if seen_ids.insert(t.id.clone()) {
@@ -898,7 +985,6 @@ pub async fn get_recommendations(
             }
         }
 
-        // 2. Deezer related artists top radio tracks
         if tracks.len() < limit * 2 {
             let rel_names = fetch_deezer_related_artists(artist).await;
             for rel_name in rel_names.into_iter().take(3) {
@@ -917,28 +1003,30 @@ pub async fn get_recommendations(
             }
         }
 
-        let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
-        for t in sc_res {
-            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
-                && !is_noisy_compilation(&t.title)
-                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
-                && seen_ids.insert(t.id.clone())
-            {
-                tracks.push(t);
+        if tracks.len() < limit {
+            let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
+            for t in sc_res {
+                if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                    && !is_noisy_compilation(&t.title)
+                    && !is_junk_track(&t.title, &t.artist, is_russian)
+                    && t.plays.unwrap_or(0) >= 1000
+                    && seen_ids.insert(t.id.clone())
+                {
+                    tracks.push(t);
+                }
             }
         }
         fastrand::shuffle(&mut tracks);
     }
 
-    // If no related tracks found, search for more tracks by the requested artist itself
-    // NEVER inject arbitrary unrelated artists (like Miyagi or Big Baby Tape)!
     if tracks.is_empty() && !artist.is_empty() {
-        let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
+        let is_russian = is_russian_artist(artist);
         let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
         for t in sc_res {
             if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                 && !is_noisy_compilation(&t.title)
-                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
+                && !is_junk_track(&t.title, &t.artist, is_russian)
+                && t.plays.unwrap_or(0) >= 1000
                 && seen_ids.insert(t.id.clone())
             {
                 tracks.push(t);
@@ -946,12 +1034,24 @@ pub async fn get_recommendations(
         }
         fastrand::shuffle(&mut tracks);
     } else if tracks.is_empty() && !genre.is_empty() {
-        let is_cyrillic = genre.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)) || chart.contains("ru");
-        let sc_res = state.soundcloud.search_tracks(&genre, limit * 2, &base_url).await;
+        let is_russian = genre.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)) || chart.contains("ru");
+        let search_query = if is_russian {
+            match genre.as_str() {
+                "rap" | "hiphop" | "hip-hop" => "русский рэп",
+                "rock" => "русский рок",
+                "phonk" => "фонк",
+                "pop" => "русская музыка",
+                _ => &genre,
+            }
+        } else {
+            &genre
+        };
+        let sc_res = state.soundcloud.search_tracks(search_query, limit * 2, &base_url).await;
         for t in sc_res {
             if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                 && !is_noisy_compilation(&t.title)
-                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
+                && !is_junk_track(&t.title, &t.artist, is_russian)
+                && t.plays.unwrap_or(0) >= 1000
                 && seen_ids.insert(t.id.clone())
             {
                 tracks.push(t);
@@ -977,8 +1077,6 @@ pub struct SimilarTracksParams {
     pub limit: Option<usize>,
 }
 
-/// Collaborative-filtering-style recommendations using Last.fm Similar Tracks + Deezer Radio.
-/// This is the key upgrade that gives Spotify-quality "people who listen to X also listen to Y".
 pub async fn get_similar_tracks(
     State(state): State<AppState>,
     Query(params): Query<SimilarTracksParams>,
@@ -995,7 +1093,6 @@ pub async fn get_similar_tracks(
 
     let cache_key = format!("similar:{}:{}", artist.to_lowercase(), title.to_lowercase());
 
-    // 10-minute TTL cache with random sampling for variety
     if let Ok(guard) = state.search_cache.lock() {
         if let Some((cached_tracks, cached_at)) = guard.get(&cache_key) {
             if cached_at.elapsed() < Duration::from_secs(600) && !cached_tracks.is_empty() {
@@ -1013,8 +1110,8 @@ pub async fn get_similar_tracks(
     let mut seen_ids = HashSet::new();
     let mut seen_artists = HashSet::new();
 
-    // === PRIMARY: Deezer Artist Radio (vibe & genre aligned from actual user listening habits) ===
     if !artist.is_empty() {
+        let is_russian = is_russian_artist(artist);
         let dz_tracks = fetch_deezer_artist_radio(artist, limit * 2, &base_url).await;
         for t in dz_tracks {
             let norm_art = t.artist.to_lowercase();
@@ -1027,7 +1124,6 @@ pub async fn get_similar_tracks(
             }
         }
 
-        // If more tracks needed, expand to Deezer related artists
         if tracks.len() < limit * 2 {
             let rel_names = fetch_deezer_related_artists(artist).await;
             for rel_name in rel_names.into_iter().take(4) {
@@ -1050,15 +1146,17 @@ pub async fn get_similar_tracks(
                 }
             }
         }
-        let sc_res = state.soundcloud.search_tracks(artist, limit, &base_url).await;
-        for t in sc_res {
-            let is_cyrillic = artist.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
-            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
-                && !is_noisy_compilation(&t.title)
-                && !is_junk_track(&t.title, &t.artist, is_cyrillic)
-                && seen_ids.insert(t.id.clone())
-            {
-                tracks.push(t);
+        if tracks.len() < limit {
+            let sc_res = state.soundcloud.search_tracks(artist, limit, &base_url).await;
+            for t in sc_res {
+                if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                    && !is_noisy_compilation(&t.title)
+                    && !is_junk_track(&t.title, &t.artist, is_russian)
+                    && t.plays.unwrap_or(0) >= 1000
+                    && seen_ids.insert(t.id.clone())
+                {
+                    tracks.push(t);
+                }
             }
         }
     }
