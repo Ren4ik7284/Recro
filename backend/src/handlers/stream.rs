@@ -592,98 +592,73 @@ pub async fn stream_audio(
         "https://www.youtube.com/"
     };
 
-    if params.ss.unwrap_or(0) == 0 && !is_live {
-        let is_already_transcoding = {
-            let mut guard = state.active_transcodes.lock().unwrap();
-            if guard.contains(&cache_filename) {
-                true
-            } else {
-                guard.insert(cache_filename.clone());
-                false
-            }
-        };
-
-        if !is_already_transcoding {
-            let active_transcodes = state.active_transcodes.clone();
-            let cfn = cache_filename.clone();
-            let cfp = cache_file_path.clone();
-            let d_url = direct_url.clone();
-            let ref_hdr = referer.to_string();
-
-            tokio::spawn(async move {
-                let codec_args = if d_url.contains(".mp3") {
-                    vec!["-c:a", "copy"]
-                } else {
-                    vec!["-c:a", "libmp3lame", "-q:a", "9", "-threads", "4"]
-                };
-
-                let mut conv_cmd = Command::new("ffmpeg");
-                conv_cmd.args([
-                    "-y",
-                    "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data,hls,applehttp",
-                    "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                    "-referer", &ref_hdr,
-                    "-reconnect", "1",
-                    "-reconnect_streamed", "1",
-                    "-reconnect_on_network_error", "1",
-                    "-reconnect_delay_max", "5",
-                    "-i", &d_url,
-                    "-vn",
-                ]);
-                conv_cmd.args(&codec_args);
-                conv_cmd.args(["-f", "mp3", &cfp]);
-                conv_cmd.stdout(Stdio::null());
-                conv_cmd.stderr(Stdio::null());
-
-                if let Ok(mut child) = conv_cmd.spawn() {
-                    let _ = child.wait().await;
-                }
-
-                if let Ok(mut guard) = active_transcodes.lock() {
-                    guard.remove(&cfn);
-                }
-
-                // Очистка при сбое или повреждении
-                if let Ok(meta) = std::fs::metadata(&cfp) {
-                    if meta.len() < 30_000 {
-                        let _ = std::fs::remove_file(&cfp);
-                    }
-                }
-            });
-        }
-
-        // Если это запрос фонового прогрева — фоновое кэширование уже запущено, возвращаем 204 No Content
-        if params.prefetch.unwrap_or(false) {
-            return Ok(StatusCode::NO_CONTENT.into_response());
-        }
-
-        // Для воспроизведения: ждём до 2.5 сек пока запишется стартовый буфер (>= 32 КБ) и перенаправляем на nginx
-        let start_wait = std::time::Instant::now();
-        let mut file_ready = false;
-        while start_wait.elapsed() < Duration::from_millis(2500) {
-            if let Ok(meta) = std::fs::metadata(&cache_file_path) {
-                if meta.len() >= 32_000 {
-                    file_ready = true;
-                    break;
-                }
-            }
-            tokio::time::sleep(Duration::from_millis(40)).await;
-        }
-
-        if file_ready {
-            let redirect_url = format!("/cache/{}", cache_filename);
-            let mut res_headers = HeaderMap::new();
-            res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
-            res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
-            res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
-            return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
-        }
-    }
-
+    // Background prefetch request handling
     if params.prefetch.unwrap_or(false) {
+        if params.ss.unwrap_or(0) == 0 && !is_live {
+            let is_already_transcoding = {
+                let mut guard = state.active_transcodes.lock().unwrap();
+                if guard.contains(&cache_filename) {
+                    true
+                } else {
+                    guard.insert(cache_filename.clone());
+                    false
+                }
+            };
+
+            if !is_already_transcoding {
+                let active_transcodes = state.active_transcodes.clone();
+                let cfn = cache_filename.clone();
+                let cfp = cache_file_path.clone();
+                let d_url = direct_url.clone();
+                let ref_hdr = referer.to_string();
+
+                tokio::spawn(async move {
+                    let codec_args = if d_url.contains(".mp3") {
+                        vec!["-c:a", "copy"]
+                    } else {
+                        vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "2"]
+                    };
+
+                    let mut conv_cmd = Command::new("ffmpeg");
+                    conv_cmd.args([
+                        "-y",
+                        "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data,hls,applehttp",
+                        "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                        "-referer", &ref_hdr,
+                        "-reconnect", "1",
+                        "-reconnect_streamed", "1",
+                        "-reconnect_on_network_error", "1",
+                        "-reconnect_delay_max", "5",
+                        "-probesize", "32768",
+                        "-analyzeduration", "100000",
+                        "-i", &d_url,
+                        "-vn",
+                    ]);
+                    conv_cmd.args(&codec_args);
+                    conv_cmd.args(["-f", "mp3", &cfp]);
+                    conv_cmd.stdout(Stdio::null());
+                    conv_cmd.stderr(Stdio::null());
+
+                    if let Ok(mut child) = conv_cmd.spawn() {
+                        let _ = child.wait().await;
+                    }
+
+                    if let Ok(mut guard) = active_transcodes.lock() {
+                        guard.remove(&cfn);
+                    }
+
+                    if let Ok(meta) = std::fs::metadata(&cfp) {
+                        if meta.len() < 30_000 {
+                            let _ = std::fs::remove_file(&cfp);
+                        }
+                    }
+                });
+            }
+        }
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
+    // Direct immediate live streaming with ultra-fast startup
     let mut ffmpeg_args = vec![
         "-protocol_whitelist".to_string(),
         "file,http,https,tcp,tls,crypto,data,hls,applehttp".to_string(),
@@ -701,30 +676,15 @@ pub async fn stream_audio(
         "4xx,5xx".to_string(),
         "-reconnect_delay_max".to_string(),
         "5".to_string(),
-    ];
-
-    if params.ss.unwrap_or(0) == 0 {
-        ffmpeg_args.extend([
-            "-fflags".to_string(),
-            "+nobuffer+fastseek".to_string(),
-            "-probesize".to_string(),
-            "65536".to_string(),
-            "-analyzeduration".to_string(),
-            "200000".to_string(),
-        ]);
-    } else {
-        ffmpeg_args.extend([
-            "-probesize".to_string(),
-            "262144".to_string(),
-            "-analyzeduration".to_string(),
-            "500000".to_string(),
-        ]);
-    }
-
-    ffmpeg_args.extend([
+        "-fflags".to_string(),
+        "+nobuffer+fastseek".to_string(),
+        "-probesize".to_string(),
+        "32768".to_string(),
+        "-analyzeduration".to_string(),
+        "100000".to_string(),
         "-i".to_string(),
-        direct_url,
-    ]);
+        direct_url.clone(),
+    ];
 
     if let Some(seek_sec) = params.ss {
         if seek_sec > 0 {
@@ -733,16 +693,34 @@ pub async fn stream_audio(
         }
     }
 
-    ffmpeg_args.extend([
-        "-vn".to_string(),
-        "-f".to_string(),
-        "mp3".to_string(),
-        "-b:a".to_string(),
-        "320k".to_string(),
-        "-flush_packets".to_string(),
-        "1".to_string(),
-        "pipe:1".to_string(),
-    ]);
+    let is_mp3_direct = direct_url.ends_with(".mp3") || direct_url.contains(".mp3?");
+    if is_mp3_direct && params.ss.unwrap_or(0) == 0 {
+        ffmpeg_args.extend([
+            "-vn".to_string(),
+            "-c:a".to_string(),
+            "copy".to_string(),
+            "-f".to_string(),
+            "mp3".to_string(),
+            "-flush_packets".to_string(),
+            "1".to_string(),
+            "pipe:1".to_string(),
+        ]);
+    } else {
+        ffmpeg_args.extend([
+            "-vn".to_string(),
+            "-c:a".to_string(),
+            "libmp3lame".to_string(),
+            "-b:a".to_string(),
+            "192k".to_string(),
+            "-threads".to_string(),
+            "2".to_string(),
+            "-f".to_string(),
+            "mp3".to_string(),
+            "-flush_packets".to_string(),
+            "1".to_string(),
+            "pipe:1".to_string(),
+        ]);
+    }
 
     let mut ffmpeg_cmd = Command::new("ffmpeg");
     ffmpeg_cmd.kill_on_drop(true);

@@ -1045,11 +1045,6 @@ export class AudioService {
       playUrl = `${playUrl.split('&_t=')[0]}${glue}_t=${Date.now()}`;
     }
 
-    if (!playUrl.startsWith('blob:') && !track.isLiveStream && !playUrl.includes(':8014') && !playUrl.includes(':8030')) {
-      this.playViaChunkedStream(playUrl, track, playRequestId);
-      return;
-    }
-
     try {
       this.audio.currentTime = 0;
     } catch {}
@@ -1190,309 +1185,6 @@ export class AudioService {
     this.recService.resetMixSession();
   }
 
-  private async playViaChunkedStream(playUrl: string, track: Track, playRequestId: number): Promise<void> {
-    if (this.activeStreamAbortController) {
-      this.activeStreamAbortController.abort();
-    }
-    this.activeStreamAbortController = new AbortController();
-    const abortSignal = this.activeStreamAbortController.signal;
-
-    try {
-      const CHUNK_SIZE = 28000;
-      const headRes = await fetch(playUrl, {
-        method: 'GET',
-        headers: { 'Range': `bytes=0-${CHUNK_SIZE - 1}` },
-        signal: abortSignal
-      });
-
-      if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
-
-      const finalUrl = headRes.url;
-      const cr = headRes.headers.get('content-range') || '';
-      const totalMatch = cr.match(/\/(\d+)$/);
-      let totalBytes = totalMatch ? parseInt(totalMatch[1], 10) : 0;
-      if (!totalBytes) {
-        totalBytes = parseInt(headRes.headers.get('content-length') || '0', 10);
-      }
-
-      const firstChunk = await headRes.arrayBuffer();
-      if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
-
-      const trackDurationSec = (track.duration && track.duration > 5) ? track.duration : 180;
-      const expectedMinBytes = Math.max(800000, Math.floor(trackDurationSec * 14000));
-
-      const hasMse = typeof window !== 'undefined' && 'MediaSource' in window && (
-        MediaSource.isTypeSupported('audio/mpeg') || MediaSource.isTypeSupported('audio/mp3')
-      );
-
-      if (hasMse && firstChunk.byteLength > 0) {
-        const ms = new MediaSource();
-        const msUrl = URL.createObjectURL(ms);
-        this.audio.src = msUrl;
-        try {
-          this.audio.load();
-        } catch {}
-
-        await new Promise<void>((resolve) => {
-          ms.addEventListener('sourceopen', () => resolve(), { once: true });
-        });
-        if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
-
-        const mime = MediaSource.isTypeSupported('audio/mpeg') ? 'audio/mpeg' : 'audio/mp3';
-        const sb = ms.addSourceBuffer(mime);
-
-        const appendToSb = (buf: ArrayBuffer): Promise<void> => {
-          return new Promise<void>((resolve) => {
-            if (!sb.updating) {
-              sb.appendBuffer(buf);
-              resolve();
-            } else {
-              sb.addEventListener('updateend', () => {
-                sb.appendBuffer(buf);
-                resolve();
-              }, { once: true });
-            }
-          });
-        };
-
-        await appendToSb(firstChunk);
-
-        // Pre-buffer next 2 chunks in parallel to provide ~5.5s of buffer headroom before play()
-        const prebufferOffsets = [firstChunk.byteLength, firstChunk.byteLength + CHUNK_SIZE];
-        const prebufferTasks = prebufferOffsets.map(async (offset) => {
-          if (totalBytes >= expectedMinBytes && offset >= totalBytes) return null;
-          const end = (totalBytes >= expectedMinBytes) ? Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1) : offset + CHUNK_SIZE - 1;
-          try {
-            const res = await fetch(finalUrl, {
-              headers: { 'Range': `bytes=${offset}-${end}` },
-              signal: abortSignal
-            });
-            if (res.ok || res.status === 206) {
-              const data = await res.arrayBuffer();
-              const cr = res.headers.get('content-range') || '';
-              const tm = cr.match(/\/(\d+)$/);
-              if (tm) {
-                const newT = parseInt(tm[1], 10);
-                if (newT > totalBytes) totalBytes = newT;
-              }
-              return { offset, data };
-            }
-          } catch {}
-          return null;
-        });
-
-        const prebufferChunks = (await Promise.all(prebufferTasks)).filter((c): c is { offset: number; data: ArrayBuffer } => Boolean(c && c.data.byteLength > 0));
-        prebufferChunks.sort((a, b) => a.offset - b.offset);
-
-        for (const c of prebufferChunks) {
-          if (playRequestId !== this.currentPlayRequestId || abortSignal.aborted) return;
-          await new Promise<void>((r) => {
-            if (!sb.updating) r();
-            else sb.addEventListener('updateend', () => r(), { once: true });
-          });
-          sb.appendBuffer(c.data);
-        }
-
-        this.applyFadeIn(1.0);
-        this.audio.play().then(() => {
-          this.isSwitchingTrack = false;
-          if (playRequestId !== this.currentPlayRequestId) return;
-          this.hasAudioStartedPlaying = true;
-          this.isPlaying.set(true);
-          this.updateMediaSessionPlaybackState('playing');
-          this.updateMediaSessionMetadata(track);
-          this.updateMediaSessionPosition();
-          this.libraryService.recordHistoryPlay(track);
-          this.requestWakeLock();
-          this.preloadNextTrack();
-          if (this.recService.isMixActive()) {
-            this.ensureSmartQueue();
-          }
-        }).catch(() => {});
-
-        const allChunks: ArrayBuffer[] = [firstChunk, ...prebufferChunks.map(c => c.data)];
-        let nextFetchOffset = firstChunk.byteLength + prebufferChunks.reduce((acc, c) => acc + c.data.byteLength, 0);
-        let nextAppendOffset = nextFetchOffset;
-        const downloadedChunks = new Map<number, ArrayBuffer>();
-        let isFetchingDone = false;
-        let consecutiveFailures = 0;
-
-        // Strict in-order SourceBuffer appender
-        const appenderPromise = (async () => {
-          while (!abortSignal.aborted && playRequestId === this.currentPlayRequestId) {
-            if (downloadedChunks.has(nextAppendOffset)) {
-              const chunk = downloadedChunks.get(nextAppendOffset)!;
-              downloadedChunks.delete(nextAppendOffset);
-              await new Promise<void>((r) => {
-                if (!sb.updating) r();
-                else sb.addEventListener('updateend', () => r(), { once: true });
-              });
-              if (abortSignal.aborted || playRequestId !== this.currentPlayRequestId) break;
-              sb.appendBuffer(chunk);
-              nextAppendOffset += chunk.byteLength;
-            } else if (isFetchingDone) {
-              break;
-            } else {
-              await new Promise((r) => setTimeout(r, 30));
-            }
-          }
-        })();
-
-        // Concurrency 3 download worker
-        const worker = async () => {
-          while (!abortSignal.aborted && playRequestId === this.currentPlayRequestId && !isFetchingDone) {
-            const curTime = this.audio.currentTime || 0;
-            const bufferedEnd = sb.buffered.length > 0 ? sb.buffered.end(sb.buffered.length - 1) : 0;
-            if (bufferedEnd - curTime > 40) {
-              await new Promise((r) => setTimeout(r, 400));
-              continue;
-            }
-
-            const start = nextFetchOffset;
-            if (totalBytes >= expectedMinBytes && start >= totalBytes) {
-              isFetchingDone = true;
-              break;
-            }
-            const end = (totalBytes >= expectedMinBytes) ? Math.min(start + CHUNK_SIZE - 1, totalBytes - 1) : start + CHUNK_SIZE - 1;
-            nextFetchOffset = end + 1;
-
-            try {
-              const timeoutSignal = typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : abortSignal;
-              const chunkRes = await fetch(finalUrl, {
-                headers: { 'Range': `bytes=${start}-${end}` },
-                signal: timeoutSignal
-              });
-
-              if (chunkRes.status === 206 || chunkRes.ok) {
-                const chunk = await chunkRes.arrayBuffer();
-                if (chunk.byteLength > 0) {
-                  const crNew = chunkRes.headers.get('content-range') || '';
-                  const tmNew = crNew.match(/\/(\d+)$/);
-                  if (tmNew) {
-                    const newTotal = parseInt(tmNew[1], 10);
-                    if (newTotal > totalBytes) totalBytes = newTotal;
-                  }
-                  downloadedChunks.set(start, chunk);
-                  allChunks.push(chunk);
-                  consecutiveFailures = 0;
-                } else {
-                  if (totalBytes >= expectedMinBytes && start >= totalBytes) {
-                    isFetchingDone = true;
-                    break;
-                  }
-                  await new Promise((r) => setTimeout(r, 200));
-                }
-              } else if (chunkRes.status === 416) {
-                consecutiveFailures++;
-                if (totalBytes >= expectedMinBytes && consecutiveFailures > 5) {
-                  isFetchingDone = true;
-                  break;
-                }
-                if (consecutiveFailures > 25) {
-                  isFetchingDone = true;
-                  break;
-                }
-                nextFetchOffset = start;
-                await new Promise((r) => setTimeout(r, 350));
-              } else {
-                nextFetchOffset = start;
-                await new Promise((r) => setTimeout(r, 200));
-              }
-            } catch {
-              nextFetchOffset = start;
-              await new Promise((r) => setTimeout(r, 200));
-            }
-          }
-        };
-
-        await Promise.all([worker(), worker(), worker()]);
-        isFetchingDone = true;
-        await appenderPromise;
-
-        if (!abortSignal.aborted && playRequestId === this.currentPlayRequestId && ms.readyState === 'open') {
-          try { ms.endOfStream(); } catch {}
-          const fullBlob = new Blob(allChunks, { type: 'audio/mpeg' });
-          this.offlineService.saveBlobOffline(track, fullBlob).catch(() => {});
-        }
-      } else {
-        // Fallback for browsers without MSE audio/mpeg (downloads via parallel pipeline and plays blob)
-        const allChunks: ArrayBuffer[] = [firstChunk];
-        let offset = firstChunk.byteLength;
-        let failures = 0;
-
-        while (!abortSignal.aborted && playRequestId === this.currentPlayRequestId) {
-          if (totalBytes >= expectedMinBytes && offset >= totalBytes) break;
-          const end = (totalBytes >= expectedMinBytes) ? Math.min(offset + CHUNK_SIZE - 1, totalBytes - 1) : offset + CHUNK_SIZE - 1;
-          try {
-            const chunkRes = await fetch(finalUrl, {
-              headers: { 'Range': `bytes=${offset}-${end}` },
-              signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : abortSignal
-            });
-            if (chunkRes.ok || chunkRes.status === 206) {
-              const chunk = await chunkRes.arrayBuffer();
-              if (chunk.byteLength > 0) {
-                const cr = chunkRes.headers.get('content-range') || '';
-                const tm = cr.match(/\/(\d+)$/);
-                if (tm) {
-                  const newT = parseInt(tm[1], 10);
-                  if (newT > totalBytes) totalBytes = newT;
-                }
-                allChunks.push(chunk);
-                offset += chunk.byteLength;
-                failures = 0;
-              } else {
-                if (totalBytes >= expectedMinBytes) break;
-                await new Promise((r) => setTimeout(r, 200));
-              }
-            } else if (chunkRes.status === 416) {
-              failures++;
-              if (totalBytes >= expectedMinBytes || failures > 15) break;
-              await new Promise((r) => setTimeout(r, 300));
-            } else {
-              failures++;
-              if (failures > 10) break;
-              await new Promise((r) => setTimeout(r, 200));
-            }
-          } catch {
-            failures++;
-            if (failures > 10) break;
-            await new Promise((r) => setTimeout(r, 200));
-          }
-        }
-
-        if (playRequestId === this.currentPlayRequestId && !abortSignal.aborted) {
-          const blob = new Blob(allChunks, { type: 'audio/mpeg' });
-          const blobUrl = URL.createObjectURL(blob);
-          this.audio.src = blobUrl;
-          try { this.audio.load(); } catch {}
-          this.applyFadeIn(1.0);
-          this.audio.play().then(() => {
-            this.isSwitchingTrack = false;
-            this.hasAudioStartedPlaying = true;
-            this.isPlaying.set(true);
-            this.updateMediaSessionPlaybackState('playing');
-            this.updateMediaSessionMetadata(track);
-            this.updateMediaSessionPosition();
-            this.libraryService.recordHistoryPlay(track);
-            this.requestWakeLock();
-            this.preloadNextTrack();
-            if (this.recService.isMixActive()) {
-              this.ensureSmartQueue();
-            }
-          }).catch(() => {});
-          this.offlineService.saveBlobOffline(track, blob).catch(() => {});
-        }
-      }
-    } catch (err) {
-      console.warn('[Chunked Stream Fallback]', err);
-      if (playRequestId === this.currentPlayRequestId && !abortSignal.aborted) {
-        this.audio.src = playUrl;
-        this.applyFadeIn(1.0);
-        this.audio.play().catch(() => {});
-      }
-    }
-  }
-
   seek(seconds: number) {
     if (this.isLiveStream()) return;
     const total = this.duration() || this.currentTrack()?.duration || 0;
@@ -1605,9 +1297,6 @@ export class AudioService {
   }
 
   async next(immediate: boolean = false) {
-    if (this.isSwitchingTrack) return;
-    this.isSwitchingTrack = true;
-
     try {
       const q = this.queue();
       if (q.length === 0) return;
@@ -1676,12 +1365,6 @@ export class AudioService {
         }
       }
 
-      // Micro-fade перед сменой трека только при ручном переключении на десктопе (на мобилках смена мгновенная без потери фокуса шторки)
-      const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (!immediate && !isMobileDevice) {
-        await this.applyFadeOut(0.12);
-      }
-
       // Queue housekeeping: prevent memory bloat during infinite mix sessions (hours of listening)
       // Keep last 5 played tracks for 'previous' while trimming older history
       if (this.recService.isMixActive() && nextIdx > 20) {
@@ -1710,9 +1393,6 @@ export class AudioService {
       return;
     }
 
-    if (this.isSwitchingTrack) return;
-    this.isSwitchingTrack = true;
-
     try {
       const q = this.queue();
       if (q.length === 0) return;
@@ -1720,12 +1400,6 @@ export class AudioService {
       let prevIdx = this.queueIndex() - 1;
       if (prevIdx < 0) {
         prevIdx = q.length - 1;
-      }
-
-      // Micro-fade before changing track on desktop
-      const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (!isMobileDevice) {
-        await this.applyFadeOut(0.12);
       }
 
       const targetTrack = q[prevIdx];
