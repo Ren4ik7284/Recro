@@ -362,28 +362,49 @@ export function normalizeArtist(artist?: string): string {
   if (cleaned === 'капсайз' || cleaned === 'ккапсайз') return 'cupsize';
   if (cleaned === 'жанулька') return 'zhanulka';
   if (cleaned === 'унки') return 'unki';
+  if (cleaned === 'виллиан' || cleaned === 'вильян' || cleaned === 'v llan' || cleaned === 'vlln') return 'villian';
+  if (cleaned === 'фортуна 812') return 'fortuna 812';
+  if (cleaned === 'темный принц') return 'тёмный принц';
+  if (cleaned === 'аквакей') return 'aquakey';
   return cleaned;
 }
 
 export function extractAllArtists(artist?: string, title?: string): string[] {
-  const text = `${artist || ''} ${title || ''}`;
-  const parts = text.split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]|\s+[-–—+]\s+/i);
   const result: string[] = [];
   const seen = new Set<string>();
-
-  for (const part of parts) {
-    const cleaned = part
+  const addCandidate = (raw: string) => {
+    const cleaned = raw
+      .replace(/\.(mp3|wav|flac|m4a|aac|ogg)$/i, ' ')
       .replace(/\(.*?\)|\[.*?]|{.*?}/g, ' ')
-      .replace(/\b(prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера)\b.*/i, ' ')
+      .replace(/\b(prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера|slowed|reverb|speed up|sped up|remix|part|mp3)\b.*/i, ' ')
       .replace(/[^\p{L}\p{N}\s]/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-
     if (cleaned.length >= 2) {
       const lower = cleaned.toLowerCase();
-      if (!seen.has(lower)) {
+      if (!seen.has(lower) && lower !== 'mp3' && lower !== 'part' && lower !== 'remix' && lower !== 'prod') {
         seen.add(lower);
         result.push(cleaned);
+      }
+    }
+  };
+
+  if (artist && artist.trim()) {
+    const parts = artist.split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]|\s+[-–—+]\s+/i);
+    for (const part of parts) {
+      addCandidate(part);
+    }
+  }
+
+  if (title && title.trim()) {
+    const featMatches = title.match(/\b(?:feat\.?|ft\.?)\s+([^()\[\]\-,]+)/gi);
+    if (featMatches) {
+      for (const fm of featMatches) {
+        const stripped = fm.replace(/\b(?:feat\.?|ft\.?)\s+/i, '');
+        const parts = stripped.split(/\b(?:with|x)\b|[&,/]/i);
+        for (const part of parts) {
+          addCandidate(part);
+        }
       }
     }
   }
@@ -430,7 +451,8 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'bicycles for afghanistan', 'glintshake', 'on-the-go', 'therr maitz', 'kedr livanskiy',
   'lyapis trubetskoy', 'brutto', 'vopli vidoplyasova', 'ramil',
   'madkid', 'madk1d', 'cupsize', 'zhanulka', 'unki', 'dakook', '13karat', 'polmateri',
-  'aipfs', 'midix', 'serega pirat', 'fallen777angel', 'fortuna 812', 'doxxxelll', 'kristiee', 'bond s knopkoy'
+  'aipfs', 'midix', 'serega pirat', 'fallen777angel', 'fortuna 812', 'doxxxelll', 'kristiee', 'bond s knopkoy',
+  'villian', 'v!ll!an', 'aquakey', 'whole lotta swag', '4jaycard'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
@@ -1817,10 +1839,12 @@ export class RecommendationService {
 
       const topArtistsMap = new Map<string, number>();
       for (const t of candidates) {
-        if (t.artist && t.artist.trim()) {
-          const a = t.artist.replace(/feat\..*|ft\..*/i, '').trim();
-          if (a.length > 1) {
-            topArtistsMap.set(a, (topArtistsMap.get(a) || 0) + (t.isFavorite ? 4 : 1) + (t.plays ? 2 : 0));
+        const arts = extractAllArtists(t.artist, t.title);
+        const weight = (t.isFavorite ? 4 : 1) + (t.plays ? 2 : 0);
+        for (const a of arts) {
+          const normA = normalizeArtist(a);
+          if (normA && normA.length > 1) {
+            topArtistsMap.set(normA, (topArtistsMap.get(normA) || 0) + weight);
           }
         }
       }
@@ -1919,21 +1943,22 @@ export class RecommendationService {
         if (normTitle && seenTitles.has(normTitle)) continue;
         if (this.isRecentlyPlayed(t, 60)) continue;
 
-        const trackVec = this.extractTrackVector(t);
-        let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        if (sim < 0.38) continue;
-
         const candArtists = extractAllArtists(t.artist, t.title).map((a) => normalizeArtist(a));
         let artistAffinityBonus = 0;
+        let isDirectCircleMatch = false;
         for (const [topArt, weight] of topArtistsMap.entries()) {
-          const normTop = normalizeArtist(topArt);
-          if (normTop && candArtists.includes(normTop)) {
-            artistAffinityBonus = Math.max(artistAffinityBonus, 0.18 + Math.min(0.12, weight * 0.02));
+          if (candArtists.includes(topArt)) {
+            isDirectCircleMatch = true;
+            artistAffinityBonus = Math.max(artistAffinityBonus, 0.45 + Math.min(0.35, weight * 0.05));
             if (candArtists.length > 1) {
-              artistAffinityBonus += 0.08;
+              artistAffinityBonus += 0.15;
             }
           }
         }
+
+        const trackVec = this.extractTrackVector(t);
+        let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
+        if (!isDirectCircleMatch && sim < 0.38) continue;
         sim += artistAffinityBonus;
 
         scoredCandidates.push({ track: t, sim });

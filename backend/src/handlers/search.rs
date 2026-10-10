@@ -692,6 +692,10 @@ pub fn resolve_canonical_artist_name(name: &str) -> &str {
         "майот" => "mayot",
         "сода лав" => "soda luv",
         "серега пират" | "серёга пират" => "serega pirat",
+        "виллиан" | "вильян" | "v!ll!an" => "villian",
+        "фортуна 812" => "fortuna 812",
+        "темный принц" | "тёмный принц" => "тёмный принц",
+        "аквакей" => "aquakey",
         _ => name,
     }
 }
@@ -715,6 +719,7 @@ pub fn is_russian_artist(name: &str) -> bool {
         "dead blonde", "gspd", "cmh", "dk", "mzlff", "tri dnya dozhdya", "dzhizus",
         "mukka", "playingtheangel", "zivert", "serega пират", "midix", "polmateri",
         "fallen777angel", "fortuna 812", "doxxxelll", "kristiee", "bond s knopkoy",
+        "villian", "v!ll!an", "aquakey", "whole lotta swag", "4jaycard",
     ];
     for &k in KNOWN {
         if lower == k || lower.starts_with(&format!("{} ", k)) || lower.ends_with(&format!(" {}", k)) || lower.contains(&format!(" {} ", k)) {
