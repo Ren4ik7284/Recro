@@ -24,3 +24,6 @@ backend/cookies.txt
 *.jwt_secret
 .jwt_secret
 recro-tui/target/
+*.docx
+*.odt
+*.pdf

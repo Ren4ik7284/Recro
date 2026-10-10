@@ -400,10 +400,9 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'serebro', 'tatu', 'little big', 'ic3peak', 'shortparis', 'motorama',
   'molchat doma', 'ssshhhiiittt', 'buerak', 'plamenev', 'radio tapok',
   'pyrokinesis', 'stigmata', 'amatory', 'slot', 'louna', 'epidemia',
-  // Additional popular Russian / CIS artists commonly formatted in Latin:
   'alblak 52', 'friendly thug', 'friendly thug 52 ngg', 'bushido zho', 'heronwater',
   'toxi$', 'toxis', 'kai angel', '9mice', 'viperr', 'icegergert', 'pepel nahudi',
-  'aarne', 'lovv66', 'seemee', 'yungway', 'pinq', 'lil krystalll', 'white punk',
+  'aarne', 'lovv66', 'seemee', 'yungway', 'pinq', 'lil krystalll', 'lil krystall', 'white punk',
   'yanix', 'rocket', 't-fest', '104', 'truwer', 'niman', 'tumaniyo', 'i61',
   'grebz', 'thomas mraz', 'atl', 'horus', 'sirotkin', 'zoloto', 'green apelsin',
   'cream soda', 'poshlaya molly', 'tri dnya dozhdya', 'kosmonavtov net', 'smetana band',
@@ -418,7 +417,13 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'anna asti', 'gayazovs brothers', 'gayazov$ brother$', 'intelligency', 'rsac',
   'shokk', 'schokk', 'endspiel', 'endshpil', 'polina gagarina', 'sergey lazarev',
   'dima bilan', 'maksim', 'glukoza', 'uma2rman', 'bravo', 'alisa', 'piknik',
-  'agata kristi', 'krematoriy', 'akvarium', 'the hatters'
+  'agata kristi', 'krematoriy', 'akvarium', 'the hatters', 'kishlak', 'autizm',
+  'autism', 'krec', 'vitya ak', 'ak-47', 'l\'one', 'lone', 'kavabanga', 'depo',
+  'kolibri', 'pasosh', 'ploho', 'pompeya', 'tesla boy', 'manizha', 'kate nv',
+  'enjoykin', '5\'nizza', 'sunsaay', 'sunsay', 'boombox', 'okean elzy', 'dakhabrakha',
+  'onuka', 'the chemodan', 'brick bazuka', 'ou 74', 'triagrutrika', 'tgk', '100pro',
+  'bicycles for afghanistan', 'glintshake', 'on-the-go', 'therr maitz', 'kedr livanskiy',
+  'lyapis trubetskoy', 'brutto', 'vopli vidoplyasova', 'ramil'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
@@ -432,7 +437,7 @@ export function isRussianArtist(artist?: string): boolean {
     if (!norm) continue;
     if (KNOWN_RUSSIAN_LATIN_ARTISTS.has(norm)) return true;
     for (const known of KNOWN_RUSSIAN_LATIN_ARTISTS) {
-      if (norm === known || norm.startsWith(known + ' ') || norm.endsWith(' ' + known)) {
+      if (norm === known || norm.startsWith(known + ' ') || norm.endsWith(' ' + known) || norm.includes(' ' + known + ' ')) {
         return true;
       }
     }
@@ -442,40 +447,56 @@ export function isRussianArtist(artist?: string): boolean {
   if (!norm) return false;
   if (KNOWN_RUSSIAN_LATIN_ARTISTS.has(norm)) return true;
   for (const known of KNOWN_RUSSIAN_LATIN_ARTISTS) {
-    if (norm === known || norm.startsWith(known + ' ') || norm.endsWith(' ' + known)) {
+    if (norm === known || norm.startsWith(known + ' ') || norm.endsWith(' ' + known) || norm.includes(' ' + known + ' ')) {
       return true;
     }
   }
   return false;
 }
 
-export function isTrackLanguageMatch(track: { title?: string; artist?: string; genre?: string }, lang: MixLanguage): boolean {
+export function isRussianTrack(track: { title?: string; artist?: string; genre?: string }): boolean {
   if (!track) return false;
-  if (lang === 'all') return true;
-
   const rawTitle = track.title || '';
   const rawArtist = track.artist || '';
 
-  // Clean title from brackets, features, and video/promotional noise
-  // e.g. "Eminem - Mockingbird (Русский перевод / клип)" -> "Eminem - Mockingbird"
+  if (/[а-яё]/i.test(rawArtist)) return true;
+  if (isRussianArtist(rawArtist)) return true;
+
   const cleanTitle = rawTitle
     .replace(/\(.*?\)|\[.*?]|{.*?}/g, ' ')
     .replace(/\b(feat|ft|prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера|концерт|перевод|субтитры|кавер|cover)\b.*/i, ' ')
     .trim();
 
-  // Check Cyrillic letters exclusively in clean title and artist (NEVER in genre, which may be localized like "Рок")
-  const hasCyrillicInArtist = /[а-яё]/i.test(rawArtist);
-  const hasCyrillicInTitle = /[а-яё]/i.test(cleanTitle);
+  if (/[а-яё]/i.test(cleanTitle)) return true;
 
-  const isRuArtist = hasCyrillicInArtist || isRussianArtist(rawArtist);
-  const isRussianTrack = isRuArtist || hasCyrillicInTitle;
+  return false;
+}
+
+export function resolveEffectiveLanguage(
+  configuredLang: MixLanguage,
+  currentTrack?: Track | null,
+  isCyrillicLibrary: boolean = false
+): MixLanguage {
+  if (configuredLang === 'ru') return 'ru';
+  if (configuredLang === 'en') return 'en';
+  if (currentTrack) {
+    return isRussianTrack(currentTrack) ? 'ru' : 'en';
+  }
+  return isCyrillicLibrary ? 'ru' : 'en';
+}
+
+export function isTrackLanguageMatch(track: { title?: string; artist?: string; genre?: string }, lang: MixLanguage): boolean {
+  if (!track) return false;
+  if (lang === 'all') return true;
+
+  const isRu = isRussianTrack(track);
 
   if (lang === 'ru') {
-    return isRussianTrack;
+    return isRu;
   }
 
   if (lang === 'en') {
-    return !isRussianTrack;
+    return !isRu;
   }
 
   return true;
@@ -543,7 +564,20 @@ export class RecommendationService {
   // Active mix session history to strictly eliminate any track or alternate version repeat
   private readonly sessionPlayedIds = new Set<string>();
   private readonly sessionPlayedKeys = new Set<string>();
+  private onlineDiscoveryPool: Track[] = [];
   private artistSeedOffset = 0;
+
+  clearDiscoveryBuffer(): void {
+    this.onlineDiscoveryPool = [];
+  }
+
+  getEffectiveLanguage(currentTrack?: Track | null): MixLanguage {
+    return resolveEffectiveLanguage(
+      this.libraryService.mixConfig().language,
+      currentTrack,
+      this.isCyrillicUserLibrary()
+    );
+  }
 
   isSessionDuplicate(track: Track): boolean {
     if (!track) return false;
@@ -1401,12 +1435,12 @@ export class RecommendationService {
       }
     }
 
-    // Language preference
-    const lang = this.libraryService.mixConfig().language;
-    if (lang !== 'all') {
-      const matches = isTrackLanguageMatch(track, lang);
-      score += matches ? 40 : -10000;
+    const effectiveLang = this.getEffectiveLanguage(currentTrack);
+    const matches = isTrackLanguageMatch(track, effectiveLang);
+    if (!matches) {
+      return -99999;
     }
+    score += 40;
 
     // Artist Diversity & Anti-clustering Penalty
     const primaryArt = normalizeArtist(track.artist);
@@ -1451,12 +1485,12 @@ export class RecommendationService {
   ): Track[] {
     const allLocal = this.getAllLocalCandidates();
     const mood = this.currentMood();
-    const lang = this.libraryService.mixConfig().language;
+    const effectiveLang = this.getEffectiveLanguage(currentTrack);
 
     const validCandidates = allLocal.filter((t) => {
       if (this.isDisliked(t.id)) return false;
       if (mood === 'favorites' && !t.isFavorite) return false;
-      if (!isTrackLanguageMatch(t, lang)) return false;
+      if (!isTrackLanguageMatch(t, effectiveLang)) return false;
       return true;
     });
 
@@ -1691,15 +1725,58 @@ export class RecommendationService {
       const candidates = this.getAllLocalCandidates();
       const mood = this.currentMood();
       const isLibraryOnly = this.libraryService.mixConfig().source === 'library_only';
-      const lang = this.libraryService.mixConfig().language;
+      const effectiveLang = this.getEffectiveLanguage(seedTrack);
       const targetVec = this.getTargetVectorForMood(mood);
       const targetNorm = this.computeVectorNorm(targetVec);
 
-      // In discovery mix, NEVER include tracks already in the user's library or playlists!
       if (!isLibraryOnly) {
         for (const t of candidates) {
           excludeIds.add(t.id);
         }
+      }
+
+      const selectedTracks: Track[] = [];
+      const seenArtists = new Set<string>();
+      for (const a of excludeArtists) {
+        const norm = normalizeArtist(a);
+        if (norm) seenArtists.add(norm);
+      }
+      const seenTitles = new Set<string>();
+
+      const PLAYLIST_NOISE_REGEX = /\b(playlist|плейлист|full album|альбом целиком|сборник|микс|1 hour|10 hours|hour mix|compilation|type beat)\b/i;
+      const hasJunkAffinity = this.hasUserAffinityForJunk();
+
+      const dominantGenre = targetVec.hiphop >= 0.4 ? 'rap'
+        : targetVec.electronic >= 0.5 ? 'phonk'
+        : targetVec.rock >= 0.45 ? 'rock'
+        : targetVec.pop >= 0.45 ? 'pop'
+        : undefined;
+
+      const remainingBuffer: Track[] = [];
+      for (const t of this.onlineDiscoveryPool) {
+        if (!t || !t.id || !t.title || !t.artist) continue;
+        if (excludeIds.has(t.id) || this.isDisliked(t.id) || this.isSessionDuplicate(t)) continue;
+        if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
+        if (!isTrackLanguageMatch(t, effectiveLang)) continue;
+        const art = normalizeArtist(t.artist);
+        const title = normalizeTitle(t.title);
+        if (art && seenArtists.has(art)) continue;
+        if (title && seenTitles.has(title)) continue;
+        if (this.isRecentlyPlayed(t, 60)) continue;
+
+        if (selectedTracks.length < count) {
+          selectedTracks.push(t);
+          excludeIds.add(t.id);
+          if (art) seenArtists.add(art);
+          if (title) seenTitles.add(title);
+        } else {
+          remainingBuffer.push(t);
+        }
+      }
+      this.onlineDiscoveryPool = remainingBuffer;
+
+      if (selectedTracks.length >= count) {
+        return selectedTracks.slice(0, count);
       }
 
       const topArtistsMap = new Map<string, number>();
@@ -1711,229 +1788,141 @@ export class RecommendationService {
           }
         }
       }
-      const userTopArtists = Array.from(topArtistsMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([name]) => name);
 
-      const selectedTracks: Track[] = [];
-      const seenArtists = new Set<string>();
-      for (const a of excludeArtists) {
-        const norm = normalizeArtist(a);
-        if (norm) seenArtists.add(norm);
-      }
-      const seenTitles = new Set<string>();
-      const fallbackPool: Track[] = [];
-
-      const PLAYLIST_NOISE_REGEX = /\b(playlist|плейлист|full album|альбом целиком|сборник|микс|1 hour|10 hours|hour mix|compilation|type beat)\b/i;
-      const hasJunkAffinity = this.hasUserAffinityForJunk();
-
-      const dominantGenre = targetVec.hiphop >= 0.4 ? 'rap'
-        : targetVec.electronic >= 0.5 ? 'phonk'
-        : targetVec.rock >= 0.45 ? 'rock'
-        : targetVec.pop >= 0.45 ? 'pop'
-        : undefined;
-
-      const pass1Tasks: Promise<Track[]>[] = [];
-
-      // Filter candidate pool by language to pick appropriate effectiveSeed
-      const langFilteredCandidates = candidates.filter((t) => isTrackLanguageMatch(t, lang));
-      let effectiveSeed = seedTrack && isTrackLanguageMatch(seedTrack, lang)
+      const langFilteredCandidates = candidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
+      let effectiveSeed = seedTrack && isTrackLanguageMatch(seedTrack, effectiveLang)
         ? seedTrack
         : (langFilteredCandidates.length > 0 ? langFilteredCandidates[Math.floor(Math.random() * langFilteredCandidates.length)] : null);
 
-      // If user library has no tracks in the requested language, pick an appropriate starter seed track
       if (!effectiveSeed) {
-        const langStarters = this.getStarterCandidates(mood, 10, lang);
+        const langStarters = this.getStarterCandidates(mood, 10, effectiveLang);
         if (langStarters.length > 0) {
           effectiveSeed = langStarters[Math.floor(Math.random() * langStarters.length)];
         }
       }
 
       const seedGenre = effectiveSeed?.genre || dominantGenre;
+      const tasks: Promise<Track[]>[] = [];
 
-      if (effectiveSeed) {
-        if (effectiveSeed.title && effectiveSeed.artist) {
-          pass1Tasks.push(
-            this.libraryService.getSimilarTracks(effectiveSeed.title, effectiveSeed.artist, 10, seedGenre).catch(() => [] as Track[])
+      if (effectiveSeed?.artist) {
+        if (effectiveSeed.title) {
+          tasks.push(
+            this.libraryService.getSimilarTracks(effectiveSeed.title, effectiveSeed.artist, 15, seedGenre).catch(() => [] as Track[])
           );
         }
-
-        pass1Tasks.push(
-          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 10, undefined, seedGenre).catch(() => [] as Track[])
+        tasks.push(
+          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 15, undefined, seedGenre).catch(() => [] as Track[])
         );
-
-        const seedArtists = extractAllArtists(effectiveSeed.artist, effectiveSeed.title);
-        if (seedArtists.length > 0) {
-          const randArtist = seedArtists[Math.floor(Math.random() * seedArtists.length)];
-          pass1Tasks.push(
-            this.libraryService.getRecommendations(randArtist, dominantGenre, 6, undefined, seedGenre).catch(() => [] as Track[])
+        const seedParts = extractAllArtists(effectiveSeed.artist, effectiveSeed.title);
+        if (seedParts.length > 1) {
+          const extraArt = seedParts[1];
+          tasks.push(
+            this.libraryService.getRecommendations(extraArt, dominantGenre, 10, undefined, seedGenre).catch(() => [] as Track[])
           );
         }
       }
 
-      // Filter userTopArtists by requested language
-      const langFilteredTopArtists = userTopArtists.filter((artist) => {
-        if (lang === 'all') return true;
-        const isRu = isRussianArtist(artist);
-        return lang === 'ru' ? isRu : !isRu;
-      });
+      const langTopArtists = Array.from(topArtistsMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name]) => name)
+        .filter((a) => {
+          const isRu = isRussianArtist(a);
+          return effectiveLang === 'ru' ? isRu : !isRu;
+        });
 
-      if (langFilteredTopArtists.length > 0) {
-        const offset = this.artistSeedOffset % langFilteredTopArtists.length;
+      if (langTopArtists.length > 0) {
+        const offset = this.artistSeedOffset % langTopArtists.length;
         this.artistSeedOffset = (this.artistSeedOffset + 2) % 1000;
         const rotated = [
-          ...langFilteredTopArtists.slice(offset),
-          ...langFilteredTopArtists.slice(0, offset),
+          ...langTopArtists.slice(offset),
+          ...langTopArtists.slice(0, offset),
         ];
-        for (const seedArtist of rotated.slice(0, 3)) {
-          pass1Tasks.push(
-            this.libraryService.getRecommendations(seedArtist, dominantGenre, 8, undefined, dominantGenre).catch(() => [] as Track[])
+        for (const art of rotated.slice(0, 3)) {
+          if (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist)) {
+            tasks.push(
+              this.libraryService.getRecommendations(art, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
+            );
+          }
+        }
+      } else {
+        const curatedRu = mood === 'energetic'
+          ? ['Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Big Baby Tape']
+          : mood === 'chill'
+          ? ['Zivert', 'Сироткин', 'Markul', 'SALUKI', 'Хадн Дадн']
+          : ['Miyagi & Andy Panda', 'Кино', 'Скриптонит', 'SALUKI', 'Markul'];
+        const curatedEn = mood === 'energetic'
+          ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott', 'Nirvana']
+          : mood === 'chill'
+          ? ['Joji', 'Frank Ocean', 'Billie Eilish', 'Lorde', 'Mac Miller']
+          : ['Queen', 'Daft Punk', 'Arctic Monkeys', 'The Weeknd', 'Imagine Dragons'];
+        const curated = effectiveLang === 'ru' ? curatedRu : curatedEn;
+        for (const art of curated.slice(0, 3)) {
+          tasks.push(
+            this.libraryService.getRecommendations(art, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
           );
         }
       }
 
-      if (candidates.length === 0 && this.libraryService.getSoundCloudCharts) {
-        pass1Tasks.push(
-          this.libraryService.getSoundCloudCharts(dominantGenre, 10).catch(() => [] as Track[])
-        );
-      }
+      const results = await Promise.all(tasks);
+      const rawCandidates = results.flat();
+      const scoredCandidates: { track: Track; sim: number }[] = [];
 
-      const pass1Results = await Promise.all(pass1Tasks);
-      const pass1Tracks = pass1Results.flat();
-      const isRuLib = this.isCyrillicUserLibrary();
-
-      for (const t of pass1Tracks) {
-        if (selectedTracks.length >= count) break;
-        if (!t || !t.audioUrl || !t.audioUrl.trim() || !t.title || !t.title.trim()) continue;
+      for (const t of rawCandidates) {
+        if (!t || !t.id || !t.audioUrl?.trim() || !t.title?.trim() || !t.artist?.trim()) continue;
         if (excludeIds.has(t.id) || this.isDisliked(t.id) || this.isSessionDuplicate(t)) continue;
         if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
-        if (!isTrackLanguageMatch(t, lang)) continue;
-        if (t.duration < 50 || t.duration > 480) continue;
-        const textKey = `${t.genre} ${t.title} ${t.artist}`;
+        if (!isTrackLanguageMatch(t, effectiveLang)) continue;
+        if (t.duration > 0 && (t.duration < 45 || t.duration > 500)) continue;
+
+        const textKey = `${t.genre || ''} ${t.title} ${t.artist}`;
         if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
-        if (isRuLib && REGIONAL_SPAM_REGEX.test(textKey)) continue;
+        if (REGIONAL_SPAM_REGEX.test(textKey)) continue;
         if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(textKey)) continue;
 
-        const primaryArt = normalizeArtist(t.artist);
         const normTitle = normalizeTitle(t.title);
-        if (primaryArt && seenArtists.has(primaryArt)) continue;
         if (normTitle && seenTitles.has(normTitle)) continue;
-        if (this.isRecentlyPlayed(t, 90)) continue;
+        if (this.isRecentlyPlayed(t, 60)) continue;
 
         const trackVec = this.extractTrackVector(t);
-        const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        const minPass1Sim = langFilteredCandidates.length > 0 ? 0.38 : 0.28;
-        if (similarity < minPass1Sim) {
-          continue;
-        }
+        const sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
+        if (sim < 0.38) continue;
 
-        selectedTracks.push(t);
-        excludeIds.add(t.id);
-        if (primaryArt) seenArtists.add(primaryArt);
-        if (normTitle) seenTitles.add(normTitle);
+        scoredCandidates.push({ track: t, sim });
       }
 
-      // PASS 2: Vibe-aligned keyword queries if PASS 1 did not fill count
-      if (selectedTracks.length < count) {
-        const queries = this.getDiscoveryQueries(mood, lang, userTopArtists, targetVec);
-        queries.sort(() => 0.5 - Math.random());
+      scoredCandidates.sort((a, b) => b.sim - a.sim);
 
-        const queryBatch = queries.slice(0, 3);
-        const searchPromises = queryBatch.map((q) =>
-          this.libraryService.searchOnline(q).catch(() => [] as Track[])
-        );
-        const batchResults = await Promise.all(searchPromises);
-        const allBatchTracks = batchResults.flat();
+      const bufferPool: Track[] = [];
+      for (const item of scoredCandidates) {
+        const t = item.track;
+        const art = normalizeArtist(t.artist);
+        const title = normalizeTitle(t.title);
 
-        const valid = allBatchTracks.filter((t) =>
-          t &&
-          t.audioUrl &&
-          t.audioUrl.trim().length > 0 &&
-          t.title &&
-          t.title.trim().length > 0 &&
-          !t.id.startsWith('audius-') &&
-          !t.audioUrl.includes('audius.co') &&
-          !excludeIds.has(t.id) &&
-          !this.isDisliked(t.id) &&
-          !this.isSessionDuplicate(t) &&
-          (isLibraryOnly || !this.isLibraryTrack(t)) &&
-          isTrackLanguageMatch(t, lang) &&
-          (t.duration === 0 || (t.duration >= 50 && t.duration <= 480)) &&
-          !PLAYLIST_NOISE_REGEX.test(`${t.genre} ${t.title} ${t.artist}`) &&
-          !BEDROOM_PRODUCER_REGEX.test(`${t.genre} ${t.title} ${t.artist}`) &&
-          (!isRuLib || !REGIONAL_SPAM_REGEX.test(`${t.genre} ${t.title} ${t.artist}`)) &&
-          (hasJunkAffinity || !JUNK_GENRES_REGEX.test(`${t.genre} ${t.title} ${t.artist}`))
-        );
-
-        const minSim = langFilteredCandidates.length > 0 ? 0.38 : 0.28;
-
-        for (const t of valid) {
-          if (selectedTracks.length >= count) break;
-          const primaryArt = normalizeArtist(t.artist);
-          const normTitle = normalizeTitle(t.title);
-
-          if (primaryArt && seenArtists.has(primaryArt)) {
-            fallbackPool.push(t);
+        if (selectedTracks.length < count) {
+          if (art && seenArtists.has(art)) {
+            bufferPool.push(t);
             continue;
           }
-          if (normTitle && seenTitles.has(normTitle)) continue;
-          if (this.isRecentlyPlayed(t, 60)) continue;
-
-          const trackVec = this.extractTrackVector(t);
-          const similarity = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-          if (similarity < minSim) {
-            if (similarity >= 0.25) fallbackPool.push(t);
-            continue;
-          }
-
           selectedTracks.push(t);
           excludeIds.add(t.id);
-          if (primaryArt) seenArtists.add(primaryArt);
-          if (normTitle) seenTitles.add(normTitle);
+          if (art) seenArtists.add(art);
+          if (title) seenTitles.add(title);
+        } else {
+          bufferPool.push(t);
         }
       }
 
-      if (selectedTracks.length < count && fallbackPool.length > 0) {
-        for (const t of fallbackPool) {
-          if (selectedTracks.length >= count) break;
-          if (excludeIds.has(t.id) || this.isSessionDuplicate(t)) continue;
-          if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
-          if (!isTrackLanguageMatch(t, lang)) continue;
-          const textKey = `${t.genre} ${t.title} ${t.artist}`;
-          if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
-          if (isRuLib && REGIONAL_SPAM_REGEX.test(textKey)) continue;
-          if (!hasJunkAffinity && JUNK_GENRES_REGEX.test(textKey)) continue;
+      this.onlineDiscoveryPool = bufferPool.slice(0, 40);
 
-          const primaryArt = normalizeArtist(t.artist);
-          const lastArt = selectedTracks.length > 0 ? normalizeArtist(selectedTracks[selectedTracks.length - 1].artist) : null;
-          if (!primaryArt || primaryArt !== lastArt) {
-            selectedTracks.push(t);
-            excludeIds.add(t.id);
-            if (primaryArt) seenArtists.add(primaryArt);
-          }
-        }
-      }
-
-      // Final resilience: If library_only mode and didn't fill count, fall back to user's favorite library tracks
-      // For general mix/discovery, NEVER dump user's library tracks!
-      if (isLibraryOnly && selectedTracks.length < count && candidates.length > 0) {
-        const localFill = this.pickNextTracks(count - selectedTracks.length, excludeIds);
-        for (const lt of localFill) {
-          if (selectedTracks.length >= count) break;
-          selectedTracks.push(lt);
-          excludeIds.add(lt.id);
-        }
-      }
-
-      // Emergency starter candidates to top off discovery pool, ensuring strict language match and NO library duplicates
-      if (!isLibraryOnly && selectedTracks.length < count) {
-        const starters = this.getStarterCandidates(mood, (count - selectedTracks.length) * 2, lang);
+      if (selectedTracks.length < count && !isLibraryOnly) {
+        const starters = this.getStarterCandidates(mood, count * 2, effectiveLang);
         for (const st of starters) {
           if (selectedTracks.length >= count) break;
-          if (!excludeIds.has(st.id) && !this.isSessionDuplicate(st) && !this.isLibraryTrack(st)) {
+          const art = normalizeArtist(st.artist);
+          if (!excludeIds.has(st.id) && !this.isSessionDuplicate(st) && !this.isLibraryTrack(st) && (!art || !seenArtists.has(art))) {
             selectedTracks.push(st);
             excludeIds.add(st.id);
+            if (art) seenArtists.add(art);
           }
         }
       }

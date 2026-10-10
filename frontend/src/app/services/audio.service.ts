@@ -1615,17 +1615,26 @@ export class AudioService {
     const recentArtists = new Set<string>(contextSlice.map((t) => t.artist).filter(Boolean));
 
     const source = this.recService.mixConfig().source;
-    const lang = this.recService.mixConfig().language;
     const mood = this.recService.currentMood();
     const localCandidates = this.recService.getAllLocalCandidates();
     const curTrack = q[idx] || this.currentTrack() || null;
+    const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
 
     let newTracks: Track[] = [];
 
     if (source === 'library_only') {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
+    } else if (source === 'balanced' && localCandidates.length > 0) {
+      const localCount = Math.max(1, Math.floor(needed / 2));
+      const discoveryCount = needed - localCount;
+      const localTracks = this.recService.pickNextTracks(localCount, excludeIds, curTrack, recentArtists);
+      localTracks.forEach((t) => {
+        excludeIds.add(t.id);
+        if (t.artist) recentArtists.add(t.artist);
+      });
+      const discoveryTracks = await this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists, curTrack);
+      newTracks = [...localTracks, ...discoveryTracks];
     } else {
-      // Pure 100% discovery stream: exclude ALL tracks in user's library and playlists
       for (const t of localCandidates) {
         excludeIds.add(t.id);
       }
@@ -1645,7 +1654,7 @@ export class AudioService {
     }
 
     if (newTracks.length === 0 && source !== 'library_only') {
-      const starters = this.recService.getStarterCandidates(mood, needed * 2, lang);
+      const starters = this.recService.getStarterCandidates(mood, needed * 2, effectiveLang);
       const freshStarters = starters.filter(
         (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && !this.recService.isLibraryTrack(t)
       );
@@ -1654,12 +1663,11 @@ export class AudioService {
       }
     }
 
-    // Strictly ensure no track already in queue, session history, or library (when discovery) is added
     const existingQueueIds = new Set(q.map((t) => t.id));
     const strictlyUniqueTracks = newTracks.filter(
       (t) => !existingQueueIds.has(t.id) &&
              !this.recService.isSessionDuplicate(t) &&
-             isTrackLanguageMatch(t, lang) &&
+             isTrackLanguageMatch(t, effectiveLang) &&
              (source === 'library_only' || !this.recService.isLibraryTrack(t))
     );
 
@@ -1667,7 +1675,6 @@ export class AudioService {
       this.queue.update((curQ) => [...curQ, ...strictlyUniqueTracks]);
       this.preloadNextTrack();
 
-      // Pre-warm the next upcoming track covers in browser cache
       if (typeof window !== 'undefined') {
         for (const t of strictlyUniqueTracks.slice(0, 3)) {
           const u = this.libraryService.formatCoverUrl(t.coverUrl, t.title, t.artist);
@@ -1684,15 +1691,22 @@ export class AudioService {
   async startSmartMix(mood: MixMood = this.recService.currentMood()): Promise<boolean> {
     this.recService.isMixActive.set(true);
     this.recService.setMixMood(mood);
+    this.recService.clearDiscoveryBuffer();
 
     const curTrack = this.currentTrack() || null;
     const localCandidates = this.recService.getAllLocalCandidates();
     const source = this.recService.mixConfig().source;
-    const lang = this.recService.mixConfig().language;
+    const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
 
-    // Instant Cold-Start for brand new / clean accounts:
+    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang)) {
+      this.queue.set([curTrack]);
+      this.queueIndex.set(0);
+      await this.ensureSmartQueue();
+      return true;
+    }
+
     if (localCandidates.length === 0 && mood !== 'favorites') {
-      const starterTracks = this.recService.getStarterCandidates(mood, 5, lang);
+      const starterTracks = this.recService.getStarterCandidates(mood, 5, effectiveLang);
       if (starterTracks.length > 0) {
         this.playTrack(starterTracks[0], starterTracks, true, 0);
         this.ensureSmartQueue();
@@ -1719,7 +1733,6 @@ export class AudioService {
         candidates = [...candidates, ...discovery];
       }
     } else {
-      // Pure 100% discovery stream: exclude all tracks in user's library and playlists
       const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
       if (curTrack) excludeIds.add(curTrack.id);
 
@@ -1738,7 +1751,7 @@ export class AudioService {
       } else {
         const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
         if (curTrack) excludeIds.add(curTrack.id);
-        const starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
+        const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang).filter(
           (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t)
         );
         candidates = starters;
@@ -1759,11 +1772,11 @@ export class AudioService {
   }
 
   setMixMood(mood: MixMood) {
+    this.recService.clearDiscoveryBuffer();
     this.recService.setMixMood(mood);
     if (this.recService.isMixActive()) {
       const q = this.queue();
       const idx = this.queueIndex();
-      // Keep played history up to current, discard stale upcoming, and replenish immediately with new mood
       const played = q.slice(0, idx + 1);
       this.queue.set(played);
       this.ensureSmartQueue();
@@ -1773,20 +1786,19 @@ export class AudioService {
   async applyMixFilterChange(): Promise<void> {
     if (!this.recService.isMixActive()) return;
 
-    const lang = this.recService.mixConfig().language;
-    const source = this.recService.mixConfig().source;
+    this.recService.clearDiscoveryBuffer();
     const cur = this.currentTrack();
+    const effectiveLang = this.recService.getEffectiveLanguage(cur);
+    const source = this.recService.mixConfig().source;
 
-    const curMatchesLang = !cur || isTrackLanguageMatch(cur, lang);
-    const curMatchesSource = !cur || (source === 'library_only' ? this.recService.isLibraryTrack(cur) : !this.recService.isLibraryTrack(cur));
+    const curMatchesLang = !cur || isTrackLanguageMatch(cur, effectiveLang);
+    const curMatchesSource = !cur || (source === 'library_only' ? this.recService.isLibraryTrack(cur) : true);
 
     if (!curMatchesLang || !curMatchesSource) {
-      // Current track violates newly applied filter: reset queue and restart mix smoothly
       this.queue.set([]);
       this.queueIndex.set(0);
       await this.startSmartMix(this.recService.currentMood());
     } else {
-      // Current track is compliant: preserve history up to current, discard stale upcoming, replenish queue
       const q = this.queue();
       const idx = this.queueIndex();
       const played = q.slice(0, idx + 1);
