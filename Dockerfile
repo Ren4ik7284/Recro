@@ -8,7 +8,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build Rust Axum Backend
-FROM rust:1.85-slim-bookworm AS backend-builder
+FROM rust:slim-bookworm AS backend-builder
 WORKDIR /app/backend
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY backend/ ./
