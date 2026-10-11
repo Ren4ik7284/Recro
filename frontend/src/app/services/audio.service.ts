@@ -56,6 +56,7 @@ export class AudioService {
   private isSwitchingTrack = false;
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
+  private lastMediaSessionPositionTime = 0;
   private wakeLockSentinel: any = null;
   private activeStreamAbortController: AbortController | null = null;
 
@@ -438,6 +439,12 @@ export class AudioService {
         this.hasPreloadedNextTrack = true;
         this.preloadNextTrack();
       }
+
+      // Sync lock screen / notification progress bar every 1.5s
+      if (now - this.lastMediaSessionPositionTime > 1500) {
+        this.lastMediaSessionPositionTime = now;
+        this.updateMediaSessionPosition();
+      }
     });
 
     this.audio.addEventListener('loadedmetadata', () => {
@@ -683,15 +690,13 @@ export class AudioService {
     };
 
     setAction('play', () => {
-      if (this.audio.paused) {
-        this.togglePlay();
-      }
+      this.play();
+      this.updateMediaSessionPlaybackState('playing');
     });
 
     setAction('pause', () => {
-      if (!this.audio.paused) {
-        this.togglePlay();
-      }
+      this.pause();
+      this.updateMediaSessionPlaybackState('paused');
     });
 
     setAction('previoustrack', () => {
@@ -717,9 +722,7 @@ export class AudioService {
     });
 
     setAction('stop', () => {
-      this.audio.pause();
-      this.isPlaying.set(false);
-      this.updateMediaSessionPlaybackState('none');
+      this.stopPlayback();
     });
   }
 
@@ -775,41 +778,57 @@ export class AudioService {
       const activeBase = this.libraryService.getBackendUrl();
       const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-      const getFullUrl = (url?: string | null) => {
-        if (!url) return `${origin}/icons/icon-512.png`;
-        if (isHttps && url.startsWith('http://')) {
-          return `${activeBase}/api/cover?url=${encodeURIComponent(url)}`;
+      const getFullUrl = (url?: string | null): string => {
+        if (!url || typeof url !== 'string') return `${origin}/icons/icon-512.png`;
+        const trimmed = url.trim();
+        if (!trimmed || trimmed.startsWith('blob:') || trimmed.startsWith('data:')) {
+          return `${origin}/icons/icon-512.png`;
         }
-        if (url.startsWith('https://')) return url;
-        if (url.startsWith('http://')) return url;
-        if (url.startsWith('/api/')) return `${activeBase}${url}`;
-        return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+        if (isHttps && trimmed.startsWith('http://')) {
+          return `${activeBase}/api/cover?url=${encodeURIComponent(trimmed)}`;
+        }
+        if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
+        if (trimmed.startsWith('/api/')) return `${activeBase}${trimmed}`;
+        return `${origin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
       };
 
       const cover = getFullUrl(track.coverUrl);
+      const isDefault = cover.endsWith('/icons/icon-512.png');
       const artwork: MediaImage[] = [
-        { src: cover, sizes: '96x96' },
-        { src: cover, sizes: '128x128' },
-        { src: cover, sizes: '192x192' },
-        { src: cover, sizes: '256x256' },
-        { src: cover, sizes: '384x384' },
-        { src: cover, sizes: '512x512' },
-        { src: `${origin}/icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
-        { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' },
+        { src: cover, sizes: '96x96', type: 'image/png' },
+        { src: cover, sizes: '128x128', type: 'image/png' },
+        { src: cover, sizes: '192x192', type: 'image/png' },
+        { src: cover, sizes: '256x256', type: 'image/png' },
+        { src: cover, sizes: '384x384', type: 'image/png' },
+        { src: cover, sizes: '512x512', type: 'image/png' },
       ];
+      if (!isDefault) {
+        artwork.push(
+          { src: `${origin}/icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
+          { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' },
+        );
+      }
+
+      const title = (track.title || 'Recro Track').trim();
+      const artist = (track.artist || 'Recro').trim();
+      const album = (track.album || 'Recro Music').trim();
 
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: track.title || 'Recro Track',
-        artist: track.artist || 'Recro',
-        album: track.album || 'Recro Stream',
-        artwork: artwork,
+        title,
+        artist,
+        album,
+        artwork,
       });
+
+      if (typeof document !== 'undefined') {
+        document.title = `${title} • ${artist} | Recro`;
+      }
     } catch {
       try {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: track.title || 'Recro Track',
-          artist: track.artist || 'Recro',
-          album: 'Recro Stream',
+          title: (track.title || 'Recro Track').trim(),
+          artist: (track.artist || 'Recro').trim(),
+          album: 'Recro Music',
         });
       } catch {}
     }
@@ -949,7 +968,7 @@ export class AudioService {
 
     const initialDuration = track.duration && track.duration > 0 ? track.duration : 0;
     this.duration.set(initialDuration);
-
+    this.setupMediaSession();
     this.updateMediaSessionMetadata(track);
     this.updateMediaSessionPlaybackState('playing');
 

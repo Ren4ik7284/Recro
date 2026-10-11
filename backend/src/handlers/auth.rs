@@ -188,16 +188,25 @@ pub async fn login(
         ));
     }
 
-    let row = sqlx::query("SELECT id, username, password_hash, email, avatar_url, banner_url, profile_tags FROM users WHERE LOWER(username) = LOWER(?)")
-        .bind(login)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "Ошибка базы данных" })),
-            )
-        })?;
+    let row = sqlx::query(
+        "SELECT id, username, password_hash, email, avatar_url, banner_url, profile_tags 
+         FROM users 
+         WHERE username = ? COLLATE NOCASE 
+            OR LOWER(username) = LOWER(?) 
+            OR (email IS NOT NULL AND (email = ? COLLATE NOCASE OR LOWER(email) = LOWER(?)))"
+    )
+    .bind(login)
+    .bind(login)
+    .bind(login)
+    .bind(login)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "Ошибка базы данных" })),
+        )
+    })?;
 
     let record_attempt = || {
         let mut attempts = state.login_attempts.lock().unwrap_or_else(|e| e.into_inner());
@@ -231,7 +240,7 @@ pub async fn login(
             .await;
             return Err((
                 StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "Неверное имя пользователя или пароль" })),
+                Json(json!({ "error": "Пользователь с таким логином не найден" })),
             ));
         }
     };
@@ -251,7 +260,7 @@ pub async fn login(
         record_attempt();
         return Err((
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "Неверное имя пользователя или пароль" })),
+            Json(json!({ "error": "Неверный пароль" })),
         ));
     }
 
@@ -746,91 +755,5 @@ pub async fn google_login(
             banner_url: None,
             profile_tags: None,
         },
-    }))
-}
-
-pub async fn create_sync_code(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let claims = extract_claims_from_headers(&headers).map_err(|(code, msg)| {
-        (code, Json(json!({ "error": msg })))
-    })?;
-
-    let auth_header = headers
-        .get("authorization")
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("")
-        .strip_prefix("Bearer ")
-        .unwrap_or("")
-        .to_string();
-
-    if auth_header.is_empty() {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "Токен авторизации не найден" })),
-        ));
-    }
-
-    let code = format!("{:06}", fastrand::u32(100_000..999_999));
-    let expires = Instant::now() + Duration::from_secs(600);
-
-    {
-        let mut codes = state.sync_codes.lock().unwrap_or_else(|e| e.into_inner());
-        let now = Instant::now();
-        codes.retain(|_, (_, _, exp)| *exp > now);
-        codes.insert(code.clone(), (claims.sub.clone(), auth_header, expires));
-    }
-
-    Ok(Json(json!({
-        "code": code,
-        "expires_in": 600
-    })))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ExchangeSyncCodeRequest {
-    pub code: String,
-}
-
-pub async fn exchange_sync_code(
-    State(state): State<AppState>,
-    Json(payload): Json<ExchangeSyncCodeRequest>,
-) -> Result<Json<AuthResponse>, (StatusCode, Json<Value>)> {
-    let clean_code = payload.code.trim().replace('-', "").replace(' ', "");
-
-    let (user_id, token) = {
-        let mut codes = state.sync_codes.lock().unwrap_or_else(|e| e.into_inner());
-        let now = Instant::now();
-        codes.retain(|_, (_, _, exp)| *exp > now);
-
-        match codes.remove(&clean_code) {
-            Some((uid, tok, _)) => (uid, tok),
-            None => {
-                return Err((
-                    StatusCode::NOT_FOUND,
-                    Json(json!({ "error": "Неверный или истёкший код синхронизации" })),
-                ));
-            }
-        }
-    };
-
-    let user_row = sqlx::query("SELECT id, username, email, avatar_url, banner_url, profile_tags FROM users WHERE id = ?")
-        .bind(&user_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Ошибка базы данных" }))))?
-        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(json!({ "error": "Пользователь не найден" }))))?;
-
-    let id: String = user_row.get("id");
-    let username: String = user_row.get("username");
-    let email: Option<String> = user_row.get("email");
-    let avatar_url: Option<String> = user_row.get("avatar_url");
-    let banner_url: Option<String> = user_row.get("banner_url");
-    let profile_tags: Option<String> = user_row.get("profile_tags");
-
-    Ok(Json(AuthResponse {
-        token,
-        user: UserInfo { id, username, email, avatar_url, banner_url, profile_tags },
     }))
 }

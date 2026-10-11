@@ -90,10 +90,9 @@ export class App implements OnInit {
   readonly isMixSettingsModalOpen = signal<boolean>(false);
 
   readonly isAuthModalOpen = signal<boolean>(false);
-  readonly authModalTab = signal<'login' | 'register' | 'sync'>('login');
+  readonly authModalTab = signal<'login' | 'register'>('login');
   readonly authUsernameInput = signal<string>('');
   readonly authPasswordInput = signal<string>('');
-  readonly authSyncCodeInput = signal<string>('');
   readonly showPassword = signal<boolean>(false);
   readonly isGoogleConfigOpen = signal<boolean>(false);
   readonly customGoogleClientIdInput = signal<string>('');
@@ -203,24 +202,6 @@ export class App implements OnInit {
       this.libraryService.syncWithBackendOnStartup();
     });
     this.authService.fetchAuthConfig(this.libraryService.getBackendUrl());
-
-    // Авто-синхронизация при открытии ссылки или сканировании QR-кода на телефоне
-    if (typeof window !== 'undefined') {
-      const fullUrl = window.location.href;
-      const codeMatch = fullUrl.match(/[?&]code=([0-9a-zA-Z_-]+)/);
-      if (codeMatch && codeMatch[1]) {
-        const syncCode = codeMatch[1];
-        this.authService.loginWithSyncCode(syncCode, this.libraryService.getBackendUrl()).then((ok) => {
-          if (ok) {
-            this.showToast(`Устройства синхронизированы! Добро пожаловать, ${this.authService.currentUser()?.username}!`);
-            this.libraryService.onUserLoggedIn();
-            try {
-              window.history.replaceState(null, '', window.location.pathname);
-            } catch {}
-          }
-        });
-      }
-    }
 
     this.navService.init((state) => {
       this.setView(state.tab, state.playlistId || undefined, false);
@@ -631,12 +612,11 @@ export class App implements OnInit {
     this.navService.closeOverlay('add');
   }
 
-  openAuthModal(tab: 'login' | 'register' | 'sync' = 'login', reason?: string, pushHistory = true) {
+  openAuthModal(tab: 'login' | 'register' = 'login', reason?: string, pushHistory = true) {
     this.authModalTab.set(tab);
     this.authModalReason.set(reason || null);
     this.authUsernameInput.set('');
     this.authPasswordInput.set('');
-    this.authSyncCodeInput.set('');
     this.authService.authError.set(null);
     this.isGoogleConfigOpen.set(false);
     this.customGoogleClientIdInput.set(this.authService.googleClientId() || '');
@@ -800,20 +780,6 @@ export class App implements OnInit {
       if (ok) {
         this.closeAuthModal();
         this.showToast(`Регистрация успешна! Добро пожаловать, ${username}!`);
-        this.audioService.resetSessionAudio();
-        await this.libraryService.onUserLoggedIn();
-      }
-    } else if (this.authModalTab() === 'sync') {
-      const code = this.authSyncCodeInput().trim();
-      if (!code) {
-        this.authService.authError.set('Введите 6-значный код синхронизации');
-        return;
-      }
-      const ok = await this.authService.loginWithSyncCode(code, backendUrl);
-      this.authSyncCodeInput.set('');
-      if (ok) {
-        this.closeAuthModal();
-        this.showToast(`Устройства синхронизированы! Добро пожаловать, ${this.authService.currentUser()?.username}!`);
         this.audioService.resetSessionAudio();
         await this.libraryService.onUserLoggedIn();
       }

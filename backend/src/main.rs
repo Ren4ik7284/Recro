@@ -19,10 +19,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use config::{ensure_cookies_on_start, init_cookies_from_env};
 use db::{init_db, DbPool};
-use handlers::auth::{
-    create_sync_code, exchange_sync_code, get_auth_config, get_me, google_login, login, register,
-    update_profile,
-};
+use handlers::auth::{get_auth_config, get_me, google_login, login, register, update_profile};
 use handlers::cover::{health_check, proxy_cover};
 use handlers::history::{clear_history, get_history, record_play};
 use handlers::library::{get_library, save_library};
@@ -37,7 +34,6 @@ pub type StreamCache = Arc<Mutex<HashMap<String, (String, Instant)>>>;
 pub type ActiveTranscodes = Arc<Mutex<std::collections::HashSet<String>>>;
 pub type SearchCache = Arc<Mutex<HashMap<String, (Vec<crate::models::SearchTrack>, Instant)>>>;
 pub type CoverCache = Arc<Mutex<HashMap<String, (axum::body::Bytes, axum::http::HeaderValue, Instant)>>>;
-pub type SyncCodes = Arc<Mutex<HashMap<String, (String, String, Instant)>>>;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -51,7 +47,6 @@ pub struct AppState {
     pub search_cache: SearchCache,
     pub cover_cache: CoverCache,
     pub soundcloud: Arc<SoundCloudClient>,
-    pub sync_codes: SyncCodes,
 }
 
 #[tokio::main]
@@ -80,7 +75,6 @@ async fn main() {
         search_cache: Arc::new(Mutex::new(HashMap::new())),
         cover_cache: Arc::new(Mutex::new(HashMap::new())),
         soundcloud,
-        sync_codes: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {
@@ -109,8 +103,6 @@ async fn main() {
         .route("/api/auth/profile", post(update_profile))
         .route("/api/auth/config", get(get_auth_config))
         .route("/api/auth/google", post(google_login))
-        .route("/api/auth/sync/code", post(create_sync_code))
-        .route("/api/auth/sync/exchange", post(exchange_sync_code))
         .route("/api/sync", get(get_library).post(save_library))
         .route("/api/history", get(get_history).post(record_play).delete(clear_history))
         .route("/api/stats/wrapped", get(get_wrapped))

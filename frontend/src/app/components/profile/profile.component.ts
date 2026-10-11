@@ -104,14 +104,6 @@ export class ProfileComponent {
   readonly isSavingAvatar = signal<boolean>(false);
   readonly isSavingBanner = signal<boolean>(false);
 
-  // Device Sync (Синхронизация с телефоном)
-  readonly isDeviceSyncOpen = signal<boolean>(false);
-  readonly syncCode = signal<string | null>(null);
-  readonly isGeneratingSyncCode = signal<boolean>(false);
-  readonly syncUrl = signal<string>('');
-  readonly syncCopied = signal<boolean>(false);
-  readonly encodeURIComponent = encodeURIComponent;
-
   readonly effectiveAvatar = computed<string>(() => {
     const user = this.authService.currentUser();
     if (user?.avatar_url) return user.avatar_url;
@@ -545,50 +537,6 @@ export class ProfileComponent {
       this.showProfileToast('Ошибка сохранения баннера');
     } finally {
       this.isSavingBanner.set(false);
-    }
-  }
-
-  async openDeviceSyncModal() {
-    this.isDeviceSyncOpen.set(true);
-    this.syncCopied.set(false);
-    this.isGeneratingSyncCode.set(true);
-    try {
-      const code = await this.authService.createDeviceSyncCode(this.libraryService.getBackendUrl());
-      this.syncCode.set(code);
-      if (code && typeof window !== 'undefined') {
-        const url = `${window.location.origin}/#/sync?code=${code}`;
-        this.syncUrl.set(url);
-      }
-    } catch {
-      this.syncCode.set(null);
-    } finally {
-      this.isGeneratingSyncCode.set(false);
-    }
-  }
-
-  closeDeviceSyncModal() {
-    this.isDeviceSyncOpen.set(false);
-  }
-
-  copySyncUrl() {
-    const url = this.syncUrl();
-    if (!url) return;
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(() => {
-        this.syncCopied.set(true);
-        this.showProfileToast('Ссылка синхронизации скопирована!');
-        setTimeout(() => this.syncCopied.set(false), 2500);
-      }).catch(() => {});
-    }
-  }
-
-  copySyncCode() {
-    const c = this.syncCode();
-    if (!c) return;
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(c).then(() => {
-        this.showProfileToast(`Код ${c} скопирован!`);
-      }).catch(() => {});
     }
   }
 

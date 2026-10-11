@@ -811,15 +811,6 @@
       <span>Волна</span>
     </button>
 
-    <button class="m-nav-item" [class.active]="activeTab() === 'offline'" (click)="setView('offline')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      <span>Оффлайн</span>
-    </button>
-
     <button class="m-nav-item" [class.active]="activeTab() === 'favorites'" (click)="setView('favorites')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
@@ -827,27 +818,11 @@
       <span>Любимое</span>
     </button>
 
-    <button class="m-nav-item" [class.active]="activeTab() === 'streams'" (click)="setView('streams')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-      </svg>
-      <span>Радио</span>
-    </button>
-
     <button class="m-nav-item" [class.active]="activeTab() === 'playlist'" (click)="openMobilePlaylists()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 6h16M4 12h16M4 18h7"/>
       </svg>
       <span>Плейлисты</span>
-    </button>
-
-    <button class="m-nav-item" (click)="installPwa()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      <span>Скачать</span>
     </button>
 
     <button class="m-nav-item" [class.active]="isProfileModalOpen()" (click)="openProfileModal()">
@@ -2089,19 +2064,15 @@
             <h3 class="modal-title">
               @if (authModalTab() === 'login') {
                 Вход в аккаунт
-              } @else if (authModalTab() === 'register') {
-                Регистрация в Recro
               } @else {
-                Синхронизация с ПК
+                Регистрация в Recro
               }
             </h3>
             <p class="modal-subtitle">
               @if (authModalTab() === 'login') {
-                Вход по имени пользователя
-              } @else if (authModalTab() === 'register') {
-                Создание профиля в Recro
+                Вход по имени пользователя или Email
               } @else {
-                Вход по 6-значному коду с другого устройства
+                Создание нового профиля в Recro
               }
             </p>
           </div>
@@ -2129,14 +2100,6 @@
             (click)="authModalTab.set('register'); authService.authError.set(null)"
           >
             Регистрация
-          </button>
-          <button 
-            type="button"
-            class="modal-tab-btn" 
-            [class.active]="authModalTab() === 'sync'"
-            (click)="authModalTab.set('sync'); authService.authError.set(null)"
-          >
-            📱 Код с ПК
           </button>
         </div>
 
@@ -2174,16 +2137,16 @@
 
           @if (authModalTab() === 'login') {
             <div class="input-field">
-              <label class="field-label">Логин</label>
+              <label class="field-label">Логин или Email</label>
               <input 
                 type="text" 
-                placeholder="Имя пользователя..." 
+                placeholder="Имя пользователя или Email..." 
                 [ngModel]="authUsernameInput()"
                 (ngModelChange)="authUsernameInput.set($event)"
                 (keyup.enter)="submitAuth()"
                 autocomplete="username"
                 autocorrect="off"
-                autocapitalize="off"
+                autocapitalize="none"
                 spellcheck="false"
                 class="form-text-input"
                 autofocus
@@ -2201,7 +2164,7 @@
                   (keyup.enter)="submitAuth()"
                   autocomplete="current-password"
                   autocorrect="off"
-                  autocapitalize="off"
+                  autocapitalize="none"
                   spellcheck="false"
                   class="form-text-input"
                 />
@@ -2225,7 +2188,7 @@
                 </button>
               </div>
             </div>
-          } @else if (authModalTab() === 'register') {
+          } @else {
             <div class="input-field">
               <label class="field-label">Имя пользователя (Логин)</label>
               <input 
@@ -2236,7 +2199,7 @@
                 (keyup.enter)="submitAuth()"
                 autocomplete="username"
                 autocorrect="off"
-                autocapitalize="off"
+                autocapitalize="none"
                 spellcheck="false"
                 class="form-text-input"
                 autofocus
@@ -2255,7 +2218,7 @@
                   (keyup.enter)="submitAuth()"
                   autocomplete="new-password"
                   autocorrect="off"
-                  autocapitalize="off"
+                  autocapitalize="none"
                   spellcheck="false"
                   class="form-text-input"
                 />
@@ -2280,80 +2243,56 @@
               </div>
               <span class="field-hint">Пароль для безопасного входа в аккаунт</span>
             </div>
-          } @else {
-            <div class="sync-tab-content" style="display: flex; flex-direction: column; gap: 16px; padding: 4px 0;">
-              <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.5; color: var(--text-secondary);">
-                💡 Откройте <strong style="color: var(--text-primary);">Recro на ПК</strong> &rarr; перейдите в профиль &rarr; нажмите кнопку <strong style="color: #10b981;">«Синхронизация с телефоном»</strong> и введите код ниже:
-              </div>
-
-              <div class="input-field">
-                <label class="field-label font-mono">6-значный код синхронизации</label>
-                <input 
-                  type="text" 
-                  placeholder="Например: 749201" 
-                  [ngModel]="authSyncCodeInput()"
-                  (ngModelChange)="authSyncCodeInput.set($event)"
-                  (keyup.enter)="submitAuth()"
-                  maxlength="10"
-                  class="form-text-input font-mono"
-                  style="font-size: 24px; letter-spacing: 6px; text-align: center; font-weight: 700; color: #10b981;"
-                  autofocus
-                />
-                <span class="field-hint">Код действует 10 минут с момента генерации на ПК</span>
-              </div>
-            </div>
           }
 
-          @if (authModalTab() !== 'sync') {
-            <div class="auth-divider">
-              <span class="auth-divider-line"></span>
-              <span class="auth-divider-text font-mono">или</span>
-              <span class="auth-divider-line"></span>
-            </div>
+          <div class="auth-divider">
+            <span class="auth-divider-line"></span>
+            <span class="auth-divider-text font-mono">или</span>
+            <span class="auth-divider-line"></span>
+          </div>
 
-            <div class="google-auth-section">
-              <div id="google-btn-slot" class="google-btn-wrapper" [class.hidden]="!authService.googleClientId()"></div>
+          <div class="google-auth-section">
+            <div id="google-btn-slot" class="google-btn-wrapper" [class.hidden]="!authService.googleClientId()"></div>
 
-              @if (!authService.googleClientId()) {
-                <button 
-                  type="button" 
-                  class="btn-google-auth-custom font-mono" 
-                  (click)="toggleGoogleConfig()"
-                  title="Войти через Google"
-                >
-                  <svg class="google-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
-                  </svg>
-                  <span>Войти через Google</span>
-                </button>
-              }
+            @if (!authService.googleClientId()) {
+              <button 
+                type="button" 
+                class="btn-google-auth-custom font-mono" 
+                (click)="toggleGoogleConfig()"
+                title="Войти через Google"
+              >
+                <svg class="google-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
+                </svg>
+                <span>Войти через Google</span>
+              </button>
+            }
 
-              @if (isGoogleConfigOpen()) {
-                <div class="google-config-panel font-mono">
-                  <div class="g-cfg-header">
-                    <span class="g-cfg-title">Подключение Google OAuth</span>
-                    <button type="button" class="btn-text-sm" (click)="isGoogleConfigOpen.set(false)">✕</button>
-                  </div>
-                  <p class="g-cfg-hint">
-                    Укажите Google OAuth Client ID (из Google Cloud Console) или задайте переменную <code>GOOGLE_CLIENT_ID</code>:
-                  </p>
-                  <div class="g-cfg-input-row">
-                    <input 
-                      type="text" 
-                      placeholder="xxxx.apps.googleusercontent.com" 
-                      [ngModel]="customGoogleClientIdInput()"
-                      (ngModelChange)="customGoogleClientIdInput.set($event)"
-                      (keyup.enter)="saveCustomGoogleClientId()"
-                      class="form-text-input g-cfg-input"
-                    />
-                    <button type="button" class="btn-g-cfg-save" (click)="saveCustomGoogleClientId()">
-                      Сохранить
-                    </button>
-                  </div>
+            @if (isGoogleConfigOpen()) {
+              <div class="google-config-panel font-mono">
+                <div class="g-cfg-header">
+                  <span class="g-cfg-title">Подключение Google OAuth</span>
+                  <button type="button" class="btn-text-sm" (click)="isGoogleConfigOpen.set(false)">✕</button>
                 </div>
-              }
-            </div>
-          }
+                <p class="g-cfg-hint">
+                  Укажите Google OAuth Client ID (из Google Cloud Console) или задайте переменную <code>GOOGLE_CLIENT_ID</code>:
+                </p>
+                <div class="g-cfg-input-row">
+                  <input 
+                    type="text" 
+                    placeholder="xxxx.apps.googleusercontent.com" 
+                    [ngModel]="customGoogleClientIdInput()"
+                    (ngModelChange)="customGoogleClientIdInput.set($event)"
+                    (keyup.enter)="saveCustomGoogleClientId()"
+                    class="form-text-input g-cfg-input"
+                  />
+                  <button type="button" class="btn-g-cfg-save" (click)="saveCustomGoogleClientId()">
+                    Сохранить
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
         </div>
 
         <div class="modal-footer auth-modal-footer">
@@ -2372,7 +2311,7 @@
                 <span>Войти</span>
               }
             </button>
-          } @else if (authModalTab() === 'register') {
+          } @else {
             <button 
               type="button" 
               class="btn-confirm-action" 
@@ -2383,19 +2322,6 @@
                 <span>Регистрация...</span>
               } @else {
                 <span>Зарегистрироваться</span>
-              }
-            </button>
-          } @else {
-            <button 
-              type="button" 
-              class="btn-confirm-action" 
-              [disabled]="!authSyncCodeInput().trim() || authService.isAuthLoading()"
-              (click)="submitAuth()"
-            >
-              @if (authService.isAuthLoading()) {
-                <span>Синхронизация...</span>
-              } @else {
-                <span>Синхронизировать</span>
               }
             </button>
           }

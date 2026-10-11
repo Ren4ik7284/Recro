@@ -138,34 +138,6 @@
       }
     }
 
-    .btn-profile-sync {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 8px 14px;
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.4);
-      border-radius: 20px;
-      color: #4ade80;
-      font-size: 13px;
-      font-weight: 600;
-      backdrop-filter: blur(8px);
-      cursor: pointer;
-      transition: all 0.2s ease;
-
-      &:hover {
-        background: rgba(34, 197, 94, 0.25);
-        border-color: #22c55e;
-        color: #ffffff;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 14px rgba(34, 197, 94, 0.25);
-      }
-
-      &:active {
-        transform: scale(0.96);
-      }
-    }
-
     .btn-profile-back,
     .btn-profile-settings {
       display: flex;
@@ -2091,6 +2063,31 @@
 }
 
 @media (max-width: 640px) {
+  .profile-top-bar {
+    margin-bottom: 16px;
+    gap: 8px;
+
+    .top-bar-right-actions {
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn-profile-achievements,
+    .btn-profile-banner-edit {
+      height: 32px;
+      padding: 0 10px;
+      font-size: 11px;
+      gap: 5px;
+    }
+
+    .btn-profile-back,
+    .btn-profile-settings {
+      width: 34px;
+      height: 34px;
+    }
+  }
+
   .profile-modal-backdrop {
     align-items: flex-end;
     padding: 0;
@@ -2126,9 +2123,20 @@
       }
 
       .media-upload-options-row {
-        .btn-upload-device {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        width: 100%;
+
+        .btn-upload-device,
+        .btn-save-inline,
+        .btn-download-device,
+        .btn-clear-photo {
+          width: 100%;
+          justify-content: center;
           font-size: 12px;
-          padding: 10px 12px;
+          padding: 10px 14px;
         }
       }
 
@@ -2466,166 +2474,5 @@
   }
 }
 
-// ==========================================
-// МОДАЛЬНОЕ ОКНО СИНХРОНИЗАЦИИ С ТЕЛЕФОНОМ
-// ==========================================
-.profile-modal-dialog.modal-sync-dialog {
-  max-width: 480px;
-  width: 92%;
-
-  .sync-modal-body {
-    padding: 20px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-
-    .sync-modal-desc {
-      color: #a1a1aa;
-      font-size: 13px;
-      line-height: 1.5;
-      margin: 0;
-    }
-
-    .sync-loading-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 32px 16px;
-      color: #71717a;
-      font-size: 12px;
-
-      .sync-spinner {
-        width: 24px;
-        height: 24px;
-        border: 2px solid #27272a;
-        border-top-color: #22c55e;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-      }
-    }
-
-    .sync-code-card {
-      background: #141417;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-
-      .sync-code-label {
-        font-size: 11px;
-        color: #71717a;
-        letter-spacing: 0.5px;
-      }
-
-      .sync-code-digits-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: #09090b;
-        border: 1px solid #27272a;
-        border-radius: 8px;
-        padding: 8px 14px;
-        cursor: pointer;
-        transition: border-color 0.15s ease;
-
-        &:hover {
-          border-color: #3f3f46;
-        }
-
-        .sync-code-val {
-          font-size: 24px;
-          font-weight: 700;
-          color: #22c55e;
-          letter-spacing: 4px;
-        }
-
-        .btn-copy-code {
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #e4e4e7;
-          border-radius: 6px;
-          padding: 6px 10px;
-          font-size: 11px;
-          cursor: pointer;
-          transition: all 0.15s ease;
-
-          &:hover {
-            background: rgba(255, 255, 255, 0.16);
-            color: #ffffff;
-          }
-        }
-      }
-
-      .sync-code-hint {
-        color: #71717a;
-        font-size: 11px;
-        line-height: 1.4;
-      }
-    }
-
-    .sync-qr-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      padding: 14px;
-      background: #141417;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-
-      .sync-qr-label {
-        font-size: 11px;
-        color: #71717a;
-        letter-spacing: 0.5px;
-      }
-
-      .sync-qr-frame {
-        padding: 10px;
-        background: #ffffff;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        img {
-          display: block;
-          width: 170px;
-          height: 170px;
-        }
-      }
-
-      .btn-copy-sync-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        color: #e4e4e7;
-        padding: 9px 16px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s ease;
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.16);
-          color: #ffffff;
-        }
-      }
-    }
-
-    .sync-error-box {
-      text-align: center;
-      padding: 20px;
-      color: #ef4444;
-      font-size: 13px;
-    }
-  }
-}
 
 
