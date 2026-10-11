@@ -180,15 +180,25 @@ export class AuthService {
         const user: UserInfo = await res.json();
         const cur = this.currentUser();
         const uid = user.id || 'guest';
+        const localAvatar = typeof localStorage !== 'undefined' ? (localStorage.getItem(`recro_custom_avatar_${uid}`) || localStorage.getItem('recro_custom_avatar_guest')) : null;
+        const localBanner = typeof localStorage !== 'undefined' ? (localStorage.getItem(`recro_custom_banner_${uid}`) || localStorage.getItem('recro_custom_banner_guest')) : null;
         const merged: UserInfo = {
           ...user,
-          avatar_url: user.avatar_url || cur?.avatar_url || (typeof localStorage !== 'undefined' ? localStorage.getItem(`recro_custom_avatar_${uid}`) : null) || undefined,
-          banner_url: user.banner_url || cur?.banner_url || (typeof localStorage !== 'undefined' ? localStorage.getItem(`recro_custom_banner_${uid}`) : null) || undefined,
+          avatar_url: user.avatar_url || cur?.avatar_url || localAvatar || undefined,
+          banner_url: user.banner_url || cur?.banner_url || localBanner || undefined,
         };
         this.currentUser.set(merged);
         try {
           localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(merged));
         } catch {}
+
+        // If local device has an existing avatar/banner but server doesn't have it yet, push to cloud:
+        if ((!user.avatar_url && merged.avatar_url) || (!user.banner_url && merged.banner_url)) {
+          this.updateProfile({
+            avatar_url: merged.avatar_url,
+            banner_url: merged.banner_url,
+          }, base).catch(() => {});
+        }
       } else if (res.status === 401 || res.status === 404) {
         this.clearSession();
       }
