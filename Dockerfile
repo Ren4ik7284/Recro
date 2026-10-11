@@ -6,11 +6,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     ca-certificates \
     curl \
+    xz-utils \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
     && curl -sL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o /usr/local/bin/caddy \
     && chmod +x /usr/local/bin/caddy \
-    && (curl -sL https://get.tur.so/install.sh | bash) \
+    && (curl -sL https://get.tur.so/install.sh | bash || true) \
     && (mv /root/.turso/turso /usr/local/bin/turso 2>/dev/null || true) \
     && (chmod +x /usr/local/bin/turso 2>/dev/null || true) \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
