@@ -1,21 +1,5 @@
-# Multi-stage Dockerfile for Recro (Fullstack Web Audio Player)
-# Stage 1: Build Angular Frontend
-FROM node:20-slim AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci --legacy-peer-deps
-COPY frontend/ ./
-RUN npm run build
-
-# Stage 2: Build Rust Axum Backend
-FROM rust:bookworm AS backend-builder
-WORKDIR /app/backend
-COPY backend/ ./
-ENV CARGO_BUILD_JOBS=1
-RUN cargo build --release
-
-# Stage 3: Minimal Production Runtime
-FROM debian:bookworm-slim
+# Production Runtime Dockerfile for Recro (Fast 30s Deploy on Render)
+FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -35,11 +19,10 @@ WORKDIR /app
 
 RUN mkdir -p /var/www/recro/frontend /var/www/recro/cache /app/data
 
-# Copy built frontend
-COPY --from=frontend-builder /app/frontend/dist/frontend/browser /var/www/recro/frontend
-
-# Copy built backend binary
-COPY --from=backend-builder /app/backend/target/release/signal-audio-backend /app/signal-audio-backend
+# Copy prebuilt frontend & prebuilt backend binary (zero compilation time on Render)
+COPY dist_frontend /var/www/recro/frontend
+COPY dist_bin/signal-audio-backend /app/signal-audio-backend
+RUN chmod +x /app/signal-audio-backend
 
 # Copy Caddyfile and entrypoint
 COPY Caddyfile /etc/caddy/Caddyfile
