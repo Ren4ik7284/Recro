@@ -97,7 +97,29 @@ export class AuthService {
       const savedUser = localStorage.getItem(this.USER_STORAGE_KEY);
       if (savedToken && savedUser) {
         this.token.set(savedToken);
-        this.currentUser.set(JSON.parse(savedUser));
+        const parsed: UserInfo = JSON.parse(savedUser);
+        const uid = parsed.id || 'guest';
+        parsed.avatar_url = parsed.avatar_url || localStorage.getItem(`recro_custom_avatar_${uid}`) || undefined;
+        parsed.banner_url = parsed.banner_url || localStorage.getItem(`recro_custom_banner_${uid}`) || undefined;
+        this.currentUser.set(parsed);
+      } else if (savedUser) {
+        const parsed: UserInfo = JSON.parse(savedUser);
+        const uid = parsed.id || 'guest';
+        parsed.avatar_url = parsed.avatar_url || localStorage.getItem(`recro_custom_avatar_${uid}`) || undefined;
+        parsed.banner_url = parsed.banner_url || localStorage.getItem(`recro_custom_banner_${uid}`) || undefined;
+        this.currentUser.set(parsed);
+      } else {
+        const guestAvatar = localStorage.getItem('recro_custom_avatar_guest') || '';
+        const guestBanner = localStorage.getItem('recro_custom_banner_guest') || '';
+        const guestName = localStorage.getItem('recro_custom_username_guest') || '';
+        if (guestAvatar || guestBanner || guestName) {
+          this.currentUser.set({
+            id: 'guest',
+            username: guestName || 'Nickname',
+            avatar_url: guestAvatar || undefined,
+            banner_url: guestBanner || undefined,
+          });
+        }
       }
       const savedGoogleId = localStorage.getItem(this.GOOGLE_CLIENT_ID_STORAGE_KEY);
       if (savedGoogleId) {
@@ -156,9 +178,16 @@ export class AuthService {
       });
       if (res.ok) {
         const user: UserInfo = await res.json();
-        this.currentUser.set(user);
+        const cur = this.currentUser();
+        const uid = user.id || 'guest';
+        const merged: UserInfo = {
+          ...user,
+          avatar_url: user.avatar_url || cur?.avatar_url || (typeof localStorage !== 'undefined' ? localStorage.getItem(`recro_custom_avatar_${uid}`) : null) || undefined,
+          banner_url: user.banner_url || cur?.banner_url || (typeof localStorage !== 'undefined' ? localStorage.getItem(`recro_custom_banner_${uid}`) : null) || undefined,
+        };
+        this.currentUser.set(merged);
         try {
-          localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(user));
+          localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(merged));
         } catch {}
       } else if (res.status === 401) {
         this.clearSession();
@@ -367,16 +396,31 @@ export class AuthService {
   }
 
   async updateProfile(partial: Partial<UserInfo>, backendUrl?: string): Promise<boolean> {
-    const cur = this.currentUser();
-    if (!cur) return false;
-    const updated = { ...cur, ...partial };
+    const cur = this.currentUser() || {
+      id: 'guest',
+      username: 'Nickname',
+    };
+    const updated: UserInfo = { ...cur, ...partial };
     this.currentUser.set(updated);
-    try {
-      localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+    const uid = updated.id || 'guest';
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(updated));
+        if (partial.avatar_url !== undefined) {
+          localStorage.setItem(`recro_custom_avatar_${uid}`, partial.avatar_url || '');
+        }
+        if (partial.banner_url !== undefined) {
+          localStorage.setItem(`recro_custom_banner_${uid}`, partial.banner_url || '');
+        }
+        if (partial.username !== undefined) {
+          localStorage.setItem(`recro_custom_username_${uid}`, partial.username || '');
+        }
+      } catch {}
+    }
 
     const authToken = this.token();
-    if (authToken && backendUrl) {
+    if (authToken && backendUrl && uid !== 'guest') {
       try {
         const res = await fetch(`${backendUrl}/api/auth/profile`, {
           method: 'POST',
@@ -393,7 +437,12 @@ export class AuthService {
         });
         if (res.ok) {
           const serverUser: UserInfo = await res.json();
-          const merged = { ...updated, ...serverUser };
+          const merged: UserInfo = {
+            ...updated,
+            ...serverUser,
+            avatar_url: serverUser.avatar_url || partial.avatar_url || updated.avatar_url,
+            banner_url: serverUser.banner_url || partial.banner_url || updated.banner_url,
+          };
           this.currentUser.set(merged);
           try {
             localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(merged));

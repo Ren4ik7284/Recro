@@ -1,8 +1,15 @@
 <div class="profile-view-container">
+  @if (profileToast()) {
+    <div class="profile-feedback-toast font-mono">
+      <span class="profile-toast-dot"></span>
+      <span>{{ profileToast() }}</span>
+    </div>
+  }
+
   <div 
     class="profile-header-card" 
-    [style.background]="getBannerStyle(authService.currentUser()?.banner_url)"
-    [class.has-custom-banner]="!!authService.currentUser()?.banner_url"
+    [style.background]="getBannerStyle(effectiveBanner())"
+    [class.has-custom-banner]="!!effectiveBanner()"
   >
     <div class="profile-top-bar" [class.no-back]="!showCloseButton()">
       @if (showCloseButton()) {
@@ -48,7 +55,7 @@
     <div class="profile-hero-content">
       <div class="profile-avatar-wrapper" (click)="openAvatarModal()" title="Нажмите, чтобы изменить аватар и стиль">
         <div class="profile-avatar-circle" [class]="'avatar-frame-' + selectedAvatarFrame()">
-          @if (authService.currentUser()?.avatar_url; as avatar) {
+          @if (effectiveAvatar(); as avatar) {
             <img [src]="avatar" class="profile-avatar-img" alt="avatar" referrerpolicy="no-referrer" />
           } @else {
             <svg class="profile-avatar-placeholder" viewBox="0 0 24 24" fill="currentColor">
@@ -84,7 +91,7 @@
           }
         </div>
 
-        <h1 class="profile-nickname-text">{{ authService.currentUser()?.username || 'Nickname' }}</h1>
+        <h1 class="profile-nickname-text">{{ effectiveUsername() }}</h1>
 
         <div class="profile-tags-container">
           @for (tag of userTags(); track tag.text) {
@@ -419,6 +426,20 @@
             </button>
 
             @if (editAvatarUrl()) {
+              <button 
+                type="button" 
+                class="btn-download-device font-mono" 
+                (click)="downloadMedia(editAvatarUrl(), 'recro-avatar.png')"
+                title="Скачать на телефон или ПК"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Скачать</span>
+              </button>
+
               <button type="button" class="btn-upload-remove font-mono" (click)="removeAvatar()" title="Сбросить фото">
                 Сбросить
               </button>
@@ -528,6 +549,20 @@
             </button>
 
             @if (editBannerUrl()) {
+              <button 
+                type="button" 
+                class="btn-download-device font-mono" 
+                (click)="downloadMedia(editBannerUrl(), 'recro-banner.png')"
+                title="Скачать на телефон или ПК"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Скачать</span>
+              </button>
+
               <button type="button" class="btn-upload-remove font-mono" (click)="removeBanner()" title="Сбросить баннер">
                 Сбросить
               </button>

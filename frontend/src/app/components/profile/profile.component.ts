@@ -98,6 +98,65 @@ export class ProfileComponent {
   readonly userTags = signal<ColoredTag[]>([]);
   readonly userVibe = signal<string>('');
   readonly selectedAvatarFrame = signal<string>('default');
+  readonly profileToast = signal<string | null>(null);
+  private profileToastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  readonly effectiveAvatar = computed<string>(() => {
+    const user = this.authService.currentUser();
+    if (user?.avatar_url) return user.avatar_url;
+    const uid = user?.id || 'guest';
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(`recro_custom_avatar_${uid}`) || localStorage.getItem('recro_custom_avatar_guest');
+      if (saved) return saved;
+    }
+    return '';
+  });
+
+  readonly effectiveBanner = computed<string>(() => {
+    const user = this.authService.currentUser();
+    if (user?.banner_url) return user.banner_url;
+    const uid = user?.id || 'guest';
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(`recro_custom_banner_${uid}`) || localStorage.getItem('recro_custom_banner_guest');
+      if (saved) return saved;
+    }
+    return '';
+  });
+
+  readonly effectiveUsername = computed<string>(() => {
+    const user = this.authService.currentUser();
+    if (user?.username && user.username !== 'Nickname') return user.username;
+    const uid = user?.id || 'guest';
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(`recro_custom_username_${uid}`) || localStorage.getItem('recro_custom_username_guest');
+      if (saved) return saved;
+    }
+    return user?.username || 'Nickname';
+  });
+
+  showProfileToast(msg: string) {
+    if (this.profileToastTimeout) {
+      clearTimeout(this.profileToastTimeout);
+    }
+    this.profileToast.set(msg);
+    this.profileToastTimeout = setTimeout(() => {
+      this.profileToast.set(null);
+      this.profileToastTimeout = null;
+    }, 2800);
+  }
+
+  downloadMedia(dataUrl: string, filename: string) {
+    if (!dataUrl) return;
+    try {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      this.showProfileToast('Файл сохранён на устройство!');
+    } catch {}
+  }
 
   readonly userPlaylists = computed<Playlist[]>(() => this.libraryService.playlists());
   readonly pinnedPlaylists = computed<Playlist[]>(() => {
@@ -297,8 +356,7 @@ export class ProfileComponent {
   }
 
   openSettings() {
-    const user = this.authService.currentUser();
-    this.editUsername.set(user?.username || 'Nickname');
+    this.editUsername.set(this.effectiveUsername());
     this.editVibe.set(this.userVibe());
     this.isSettingsOpen.set(true);
   }
@@ -307,23 +365,34 @@ export class ProfileComponent {
     this.isSettingsOpen.set(false);
   }
 
-  saveSettings() {
+  async saveSettings() {
     const name = this.editUsername().trim();
     const vibe = this.editVibe().trim();
+    const user = this.authService.currentUser();
+    const userId = user?.id || 'guest';
+
     this.userVibe.set(vibe);
     this.saveProfileCustomization(this.userTags(), vibe, this.selectedAvatarFrame());
 
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`recro_custom_username_${userId}`, name || 'Nickname');
+        localStorage.setItem('recro_custom_username_guest', name || 'Nickname');
+      } catch {}
+    }
+
     if (name) {
-      this.authService.updateProfile({
+      await this.authService.updateProfile({
         username: name,
       }, this.libraryService.getBackendUrl());
     }
+
+    this.showProfileToast('Настройки профиля сохранены!');
     this.closeSettings();
   }
 
   openAvatarModal() {
-    const user = this.authService.currentUser();
-    this.editAvatarUrl.set(user?.avatar_url || '');
+    this.editAvatarUrl.set(this.effectiveAvatar());
     this.editAvatarFrame.set(this.selectedAvatarFrame());
     this.isAvatarModalOpen.set(true);
   }
@@ -340,9 +409,19 @@ export class ProfileComponent {
     this.editAvatarFrame.set(frameId);
   }
 
-  saveAvatar() {
+  async saveAvatar() {
     const avatarToSave = this.editAvatarUrl().trim();
-    this.authService.updateProfile({
+    const user = this.authService.currentUser();
+    const userId = user?.id || 'guest';
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`recro_custom_avatar_${userId}`, avatarToSave);
+        localStorage.setItem('recro_custom_avatar_guest', avatarToSave);
+      } catch {}
+    }
+
+    await this.authService.updateProfile({
       avatar_url: avatarToSave ? avatarToSave : '',
     }, this.libraryService.getBackendUrl());
 
@@ -350,6 +429,7 @@ export class ProfileComponent {
     this.selectedAvatarFrame.set(newFrame);
     this.saveProfileCustomization(this.userTags(), this.userVibe(), newFrame);
 
+    this.showProfileToast('Аватар успешно сохранён!');
     this.closeAvatarModal();
   }
 
@@ -364,7 +444,7 @@ export class ProfileComponent {
     if (!file.type.startsWith('image/')) return;
 
     try {
-      const dataUrl = await this.resizeImage(file, 360, 0.88);
+      const dataUrl = await this.resizeImage(file, 280, 0.80);
       this.editAvatarUrl.set(dataUrl);
     } catch {
       // Fallback to standard reader
@@ -382,8 +462,7 @@ export class ProfileComponent {
   }
 
   openBannerModal() {
-    const user = this.authService.currentUser();
-    this.editBannerUrl.set(user?.banner_url || '');
+    this.editBannerUrl.set(this.effectiveBanner());
     this.isBannerModalOpen.set(true);
   }
 
@@ -395,11 +474,23 @@ export class ProfileComponent {
     this.editBannerUrl.set(preset.gradient);
   }
 
-  saveBanner() {
+  async saveBanner() {
     const bannerToSave = this.editBannerUrl().trim();
-    this.authService.updateProfile({
+    const user = this.authService.currentUser();
+    const userId = user?.id || 'guest';
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`recro_custom_banner_${userId}`, bannerToSave);
+        localStorage.setItem('recro_custom_banner_guest', bannerToSave);
+      } catch {}
+    }
+
+    await this.authService.updateProfile({
       banner_url: bannerToSave ? bannerToSave : '',
     }, this.libraryService.getBackendUrl());
+
+    this.showProfileToast('Баннер успешно сохранён!');
     this.closeBannerModal();
   }
 
@@ -414,7 +505,7 @@ export class ProfileComponent {
     if (!file.type.startsWith('image/')) return;
 
     try {
-      const dataUrl = await this.resizeImage(file, 1280, 0.85);
+      const dataUrl = await this.resizeImage(file, 1000, 0.78);
       this.editBannerUrl.set(dataUrl);
     } catch {
       const reader = new FileReader();
