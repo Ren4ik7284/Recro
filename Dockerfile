@@ -11,9 +11,10 @@ RUN npm run build
 FROM rust:bookworm AS backend-builder
 WORKDIR /app/backend
 COPY backend/Cargo.toml backend/Cargo.lock ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs && cargo build --release
+RUN rm -rf src target/release/signal-audio-backend* target/release/deps/signal_audio_backend*
 COPY backend/src ./src
-RUN cargo build --release
+RUN touch src/main.rs && cargo build --release
 
 # Stage 3: Minimal Production Runtime
 FROM debian:bookworm-slim

@@ -448,8 +448,8 @@ pub async fn stream_audio(
                 }
             }
 
-            // 2. Direct YouTube extraction if target is a YouTube URL and SoundCloud didn't match (local/VPS only)
-            if is_youtube_target && direct_url.is_empty() && !is_cloud_env() {
+            // 2. Direct YouTube extraction if target is a YouTube URL and SoundCloud didn't match
+            if is_youtube_target && direct_url.is_empty() {
                 let mut cmd_fast = Command::new(&yt_cmd);
                 apply_yt_dlp_common_args(&mut cmd_fast);
                 cmd_fast.args([
@@ -461,15 +461,15 @@ pub async fn stream_audio(
                     "--",
                     &target,
                 ]);
-                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(3000), cmd_fast.output()).await {
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(5000), cmd_fast.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&out) {
                         direct_url = u;
                     }
                 }
             }
 
-            // 3. YouTube search fallback only on VPS/local if SoundCloud had no hits
-            if direct_url.is_empty() && !resolved_title.is_empty() && !is_cloud_env() {
+            // 3. YouTube search fallback if SoundCloud had no hits
+            if direct_url.is_empty() && !resolved_title.is_empty() {
                 let clean_title = clean_music_title(&resolved_title);
                 let clean_uploader = clean_music_title(&resolved_uploader);
                 let yt_query = if !clean_uploader.is_empty() && !clean_title.to_lowercase().contains(&clean_uploader.to_lowercase()) {
@@ -489,7 +489,7 @@ pub async fn stream_audio(
                     "--",
                     &yt_query,
                 ]);
-                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(3000), yt_search_cmd.output()).await {
+                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(5000), yt_search_cmd.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&yt_out) {
                         direct_url = u;
                     }

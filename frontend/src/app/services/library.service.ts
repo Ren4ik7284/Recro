@@ -334,8 +334,9 @@ export class LibraryService implements OnDestroy {
       return undefined;
     }
 
-    if (coverUrl.startsWith('/api/cover')) {
-      return `${activeBase}${coverUrl}`;
+    if (coverUrl.includes('/api/cover')) {
+      const idx = coverUrl.indexOf('/api/cover');
+      return `${activeBase}${coverUrl.slice(idx)}`;
     }
 
     if (coverUrl.startsWith('/')) {

@@ -142,9 +142,23 @@ pub async fn ensure_cookies_on_start() {
 }
 
 pub fn get_base_url() -> String {
-    if let Ok(domain) = std::env::var("RAILWAY_PUBLIC_DOMAIN") {
-        return format!("https://{}", domain);
+    if let Ok(url) = std::env::var("BASE_URL") {
+        let trimmed = url.trim().trim_end_matches('/');
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
     }
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8085".to_string());
-    format!("http://localhost:{}", port)
+    if let Ok(url) = std::env::var("RENDER_EXTERNAL_URL") {
+        let trimmed = url.trim().trim_end_matches('/');
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if let Ok(domain) = std::env::var("RAILWAY_PUBLIC_DOMAIN") {
+        let trimmed = domain.trim().trim_end_matches('/');
+        if !trimmed.is_empty() {
+            return format!("https://{}", trimmed);
+        }
+    }
+    "".to_string()
 }
