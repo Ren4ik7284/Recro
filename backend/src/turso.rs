@@ -317,8 +317,8 @@ pub async fn sync_down_on_boot(pool: &DbPool) {
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         "#,
                     )
-                    .bind(id)
-                    .bind(username)
+                    .bind(&id)
+                    .bind(&username)
                     .bind(password_hash)
                     .bind(google_id)
                     .bind(email)
@@ -328,10 +328,11 @@ pub async fn sync_down_on_boot(pool: &DbPool) {
                     .bind(created_at)
                     .execute(pool)
                     .await;
+                    println!("[Turso] Restored user '{}' (id: {}) from cloud database.", username, id);
                 }
             }
             if count > 0 {
-                println!("[Turso] Restored {} user(s) from cloud database.", count);
+                println!("[Turso] Total restored users from cloud: {}", count);
             }
         }
     }
