@@ -189,7 +189,7 @@ export class AuthService {
         try {
           localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(merged));
         } catch {}
-      } else if (res.status === 401) {
+      } else if (res.status === 401 || res.status === 404) {
         this.clearSession();
       }
     } catch {}

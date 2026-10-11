@@ -11,12 +11,14 @@ pub struct Claims {
 
 #[derive(Debug, Deserialize)]
 pub struct RegisterRequest {
+    #[serde(alias = "login")]
     pub username: String,
     pub password: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
+    #[serde(alias = "username")]
     pub login: String,
     pub password: String,
 }
