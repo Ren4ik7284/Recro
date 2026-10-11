@@ -94,8 +94,6 @@ export class App implements OnInit {
   readonly authUsernameInput = signal<string>('');
   readonly authPasswordInput = signal<string>('');
   readonly showPassword = signal<boolean>(false);
-  readonly isGoogleConfigOpen = signal<boolean>(false);
-  readonly customGoogleClientIdInput = signal<string>('');
   readonly authModalReason = signal<string | null>(null);
   readonly isGuestBannerDismissed = signal<boolean>(
     typeof window !== 'undefined' && sessionStorage.getItem('signal_guest_banner_dismissed') === 'true'
@@ -617,8 +615,6 @@ export class App implements OnInit {
     this.authUsernameInput.set('');
     this.authPasswordInput.set('');
     this.authService.authError.set(null);
-    this.isGoogleConfigOpen.set(false);
-    this.customGoogleClientIdInput.set(this.authService.googleClientId() || '');
     this.isAuthModalOpen.set(true);
     if (pushHistory) {
       this.navService.pushOverlay('auth');
@@ -631,22 +627,6 @@ export class App implements OnInit {
     this.authPasswordInput.set('');
     this.isAuthModalOpen.set(false);
     this.navService.closeOverlay('auth');
-  }
-
-  toggleGoogleConfig() {
-    this.isGoogleConfigOpen.update((v) => !v);
-  }
-
-  saveCustomGoogleClientId() {
-    const val = this.customGoogleClientIdInput().trim();
-    if (!val) {
-      this.authService.authError.set('Введите Google Client ID');
-      return;
-    }
-    this.authService.setCustomGoogleClientId(val);
-    this.isGoogleConfigOpen.set(false);
-    this.showToast('Google Client ID сохранён');
-    this.renderGoogleButton();
   }
 
   async renderGoogleButton() {

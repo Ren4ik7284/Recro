@@ -21,14 +21,7 @@
       }
 
       <div class="top-bar-right-actions">
-        @if (pwaService.isMobile() && !pwaService.isStandalone()) {
-          <button class="btn-profile-install font-mono" (click)="pwaService.openInstallModal()" title="Скачать приложение на телефон">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            <span>Скачать</span>
-          </button>
-        }
+
 
         <button class="btn-profile-achievements font-mono" (click)="openAchievementsModal()" title="Испытания и значки профиля">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -155,37 +148,7 @@
 
   <div class="profile-body-sections">
 
-    @if (pwaService.isMobile() && !pwaService.isStandalone()) {
-      <!-- Блок установки приложения Recro (PWA / iOS / Android) -->
-      <div class="profile-install-banner">
-        <div class="install-banner-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </div>
-        <div class="install-banner-text">
-          <div class="install-banner-title">
-            <span>Скачать приложение Recro</span>
-            <span class="install-banner-badge font-mono">iOS &bull; Android</span>
-          </div>
-          <div class="install-banner-sub">Фоновое воспроизведение без ограничений браузера</div>
-        </div>
-        <div class="install-banner-actions">
-          <button class="btn-banner-choice ios font-mono" (click)="pwaService.openInstallModal('ios')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.66-.82 1.11-1.96.99-3.1-.96.04-2.13.65-2.82 1.45-.61.71-1.14 1.87-.99 2.98 1.08.08 2.16-.51 2.82-1.33z"/>
-            </svg>
-            <span>iPhone (iOS)</span>
-          </button>
-          <button class="btn-banner-choice android font-mono" (click)="pwaService.openInstallModal('android')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 10h16M7 10V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4M6 18v2M18 18v2M6 10v8h12v-8"/>
-            </svg>
-            <span>Android (APK)</span>
-          </button>
-        </div>
-      </div>
-    }
+
 
     <!-- 3. Полка избранных плейлистов -->
     @if (pinnedPlaylists().length > 0) {

@@ -459,7 +459,8 @@ pub async fn get_auth_config() -> Json<AuthConfigResponse> {
     let client_id = std::env::var("GOOGLE_CLIENT_ID")
         .ok()
         .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
+        .filter(|s| !s.is_empty())
+        .or_else(|| Some("248976454900-cs1ni5j4idhdgs5e8docklsruqlrio3v.apps.googleusercontent.com".to_string()));
     let enabled = client_id.is_some();
     Json(AuthConfigResponse {
         google_client_id: client_id,
@@ -513,12 +514,7 @@ pub async fn google_login(
 
     let expected_client_id = match std::env::var("GOOGLE_CLIENT_ID") {
         Ok(val) if !val.trim().is_empty() => val.trim().to_string(),
-        _ => {
-            return Err((
-                StatusCode::FORBIDDEN,
-                Json(json!({ "error": "Google авторизация отключена или не настроена на сервере" })),
-            ));
-        }
+        _ => "248976454900-cs1ni5j4idhdgs5e8docklsruqlrio3v.apps.googleusercontent.com".to_string(),
     };
 
     let cred = payload.credential.trim();

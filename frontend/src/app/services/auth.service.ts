@@ -83,8 +83,8 @@ export class AuthService {
   readonly isAuthLoading = signal<boolean>(false);
   readonly authError = signal<string | null>(null);
 
-  readonly googleClientId = signal<string | null>(null);
-  readonly isGoogleAuthEnabled = signal<boolean>(false);
+  readonly googleClientId = signal<string | null>('248976454900-cs1ni5j4idhdgs5e8docklsruqlrio3v.apps.googleusercontent.com');
+  readonly isGoogleAuthEnabled = signal<boolean>(true);
 
   constructor() {
     this.restoreSession();

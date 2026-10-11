@@ -2043,6 +2043,12 @@
               </div>
             </div>
 
+            <div style="border: 1px solid rgba(234, 179, 8, 0.3); background: rgba(234, 179, 8, 0.08); border-radius: 8px; padding: 10px 12px; margin-top: 10px; text-align: left;">
+              <div style="color: #facc15; font-size: 12px; line-height: 1.45;">
+                ⚠️ <strong>Если пишет «Приложение не установлено»:</strong> удалите старую версию Recro с телефона и установите скачанный файл заново.
+              </div>
+            </div>
+
             @if (canInstallPwa()) {
               <button class="btn-cancel-action font-mono" style="width: 100%; margin-top: 12px; font-size: 12px; padding: 10px 12px;" (click)="pwaService.promptInstall()">
                 Или установить в 1 клик через браузер (PWA)
@@ -2255,46 +2261,7 @@
           </div>
 
           <div class="google-auth-section">
-            <div id="google-btn-slot" class="google-btn-wrapper" [class.hidden]="!authService.googleClientId()"></div>
-
-            @if (!authService.googleClientId()) {
-              <button 
-                type="button" 
-                class="btn-google-auth-custom font-mono" 
-                (click)="toggleGoogleConfig()"
-                title="Войти через Google"
-              >
-                <svg class="google-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
-                </svg>
-                <span>Войти через Google</span>
-              </button>
-            }
-
-            @if (isGoogleConfigOpen()) {
-              <div class="google-config-panel font-mono">
-                <div class="g-cfg-header">
-                  <span class="g-cfg-title">Подключение Google OAuth</span>
-                  <button type="button" class="btn-text-sm" (click)="isGoogleConfigOpen.set(false)">✕</button>
-                </div>
-                <p class="g-cfg-hint">
-                  Укажите Google OAuth Client ID (из Google Cloud Console) или задайте переменную <code>GOOGLE_CLIENT_ID</code>:
-                </p>
-                <div class="g-cfg-input-row">
-                  <input 
-                    type="text" 
-                    placeholder="xxxx.apps.googleusercontent.com" 
-                    [ngModel]="customGoogleClientIdInput()"
-                    (ngModelChange)="customGoogleClientIdInput.set($event)"
-                    (keyup.enter)="saveCustomGoogleClientId()"
-                    class="form-text-input g-cfg-input"
-                  />
-                  <button type="button" class="btn-g-cfg-save" (click)="saveCustomGoogleClientId()">
-                    Сохранить
-                  </button>
-                </div>
-              </div>
-            }
+            <div id="google-btn-slot" class="google-btn-wrapper"></div>
           </div>
         </div>
 
