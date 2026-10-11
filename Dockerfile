@@ -8,12 +8,11 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build Rust Axum Backend
-FROM rust:slim-bookworm AS backend-builder
+FROM rust:bookworm AS backend-builder
 WORKDIR /app/backend
-RUN rustup update stable && rustup default stable
-RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
-COPY backend/ ./
-ENV CARGO_BUILD_JOBS=1
+COPY backend/Cargo.toml backend/Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
+COPY backend/src ./src
 RUN cargo build --release
 
 # Stage 3: Minimal Production Runtime

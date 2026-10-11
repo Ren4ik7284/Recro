@@ -67,7 +67,7 @@ pub async fn search_music(
         }
 
         let mut tracks = execute_yt_dlp_search(&yt_cmd, query, 15, &base_url).await;
-        if tracks.is_empty() && !is_cloud_env() {
+        if tracks.is_empty() && !is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
             let cloud_tracks = execute_cloud_search(query, &base_url).await;
             if !cloud_tracks.is_empty() {
                 tracks = cloud_tracks;
@@ -131,7 +131,7 @@ pub async fn search_music(
         }
     }
 
-    if combined.is_empty() && !is_cloud_env() {
+    if combined.is_empty() && !is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
         let cloud_tracks = execute_cloud_search(query, &base_url).await;
         for t in cloud_tracks {
             if seen_ids.insert(t.id.clone()) {
@@ -324,7 +324,7 @@ pub async fn extract_info(
         }
     }
 
-    if tracks.is_empty() && !is_cloud_env() {
+    if tracks.is_empty() && !is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
         let cloud_url = format!("{}/api/extract?url={}", CLOUD_FALLBACK_URL, urlencoding::encode(url));
         if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(15)).build() {
             if let Ok(resp) = client.get(&cloud_url).send().await {

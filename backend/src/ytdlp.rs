@@ -284,6 +284,9 @@ pub async fn execute_yt_dlp_search(yt_cmd: &str, search_arg: &str, timeout_sec: 
 }
 
 pub async fn execute_cloud_search(query: &str, base_url: &str) -> Vec<SearchTrack> {
+    if CLOUD_FALLBACK_URL.is_empty() {
+        return Vec::new();
+    }
     let cloud_url = format!("{}/api/search?q={}", CLOUD_FALLBACK_URL, urlencoding::encode(query));
     let client = match reqwest::Client::builder().timeout(Duration::from_secs(5)).build() {
         Ok(c) => c,

@@ -18,11 +18,11 @@ export class LibraryService implements OnDestroy {
   private activeBackendUrl =
     typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
       ? window.location.origin
-      : 'http://80.87.202.157';
+      : 'https://recro.onrender.com';
   private readonly FALLBACK_BACKEND_URL =
     typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
       ? window.location.origin
-      : 'http://80.87.202.157';
+      : 'https://recro.onrender.com';
 
   readonly offlineService = inject(OfflineService);
   readonly authService = inject(AuthService);

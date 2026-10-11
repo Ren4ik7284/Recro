@@ -548,7 +548,7 @@ pub async fn stream_audio(
             }
 
             // Fallback 3: Cloud VPS proxy when deployed on cloud environment (Render / Railway)
-            if direct_url.is_empty() && is_cloud_env() {
+            if direct_url.is_empty() && is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
                 let cloud_stream_url = format!(
                     "{}/api/stream?url={}{}{}{}",
                     CLOUD_FALLBACK_URL,

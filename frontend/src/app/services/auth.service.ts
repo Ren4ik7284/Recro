@@ -136,7 +136,7 @@ export class AuthService {
   private activeBackendUrl =
     typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
       ? window.location.origin
-      : 'http://80.87.202.157';
+      : 'https://recro.onrender.com';
 
   setActiveBackendUrl(url: string) {
     if (url) {
@@ -168,7 +168,7 @@ export class AuthService {
 
   private getEffectiveBackendUrl(backendUrl?: string): string {
     let base = (backendUrl || this.activeBackendUrl || '').trim().replace(/\/+$/, '');
-    const defaultOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://80.87.202.157';
+    const defaultOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://recro.onrender.com';
     return base || defaultOrigin;
   }
 
