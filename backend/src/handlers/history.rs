@@ -73,6 +73,23 @@ pub async fn record_play(
         )
     })?;
 
+    crate::turso::execute_write(
+        r#"
+        INSERT INTO listening_history (user_id, track_id, track_title, track_artist, track_genre, cover_url, duration, played_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+        vec![
+            crate::turso::TursoValue::text(&claims.sub),
+            crate::turso::TursoValue::text(&payload.track_id),
+            crate::turso::TursoValue::text(&payload.title),
+            crate::turso::TursoValue::text(&payload.artist),
+            crate::turso::TursoValue::text_opt(payload.genre.clone()),
+            crate::turso::TursoValue::text_opt(payload.cover_url.clone()),
+            crate::turso::TursoValue::float(payload.duration.unwrap_or(0.0)),
+            crate::turso::TursoValue::int(played_at),
+        ],
+    );
+
     let _ = sqlx::query("UPDATE tracks SET plays = plays + 1 WHERE user_id = ? AND id = ?")
         .bind(&claims.sub)
         .bind(&payload.track_id)
@@ -168,6 +185,11 @@ pub async fn clear_history(
                 Json(json!({ "error": "Не удалось очистить историю" })),
             )
         })?;
+
+    crate::turso::execute_write(
+        "DELETE FROM listening_history WHERE user_id = ?",
+        vec![crate::turso::TursoValue::text(&claims.sub)],
+    );
 
     Ok(StatusCode::OK)
 }

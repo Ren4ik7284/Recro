@@ -5,6 +5,7 @@ mod handlers;
 mod models;
 mod security;
 mod soundcloud;
+pub mod turso;
 mod ytdlp;
 
 use axum::routing::{get, post};
@@ -52,6 +53,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() {
     init_cookies_from_env();
+    turso::init_turso();
     tokio::spawn(ensure_cookies_on_start());
 
     let soundcloud = SoundCloudClient::new();
@@ -63,6 +65,8 @@ async fn main() {
             return;
         }
     };
+
+    turso::sync_down_on_boot(&pool).await;
 
     let state = AppState {
         pool,

@@ -3,16 +3,12 @@ set -e
 
 mkdir -p /app/data /var/www/recro/cache /var/www/recro/frontend
 
-# Cloud Persistence (Litestream with Cloudflare R2 / S3 / Supabase)
-LITESTREAM_PID=""
-if [ -n "$LITESTREAM_BUCKET" ] || [ -n "$LITESTREAM_REPLICA_URL" ]; then
-    REPLICA_URL="${LITESTREAM_REPLICA_URL:-s3://${LITESTREAM_BUCKET}/signal.db}"
-    echo "[Litestream] Cloud persistence enabled: $REPLICA_URL"
-    echo "[Litestream] Restoring database from cloud snapshot if exists..."
-    litestream restore -if-replica-exists "$REPLICA_URL" /app/data/signal.db || echo "[Litestream] Starting fresh database (no previous snapshot found)."
-    echo "[Litestream] Launching continuous real-time cloud replication..."
-    litestream replicate /app/data/signal.db "$REPLICA_URL" &
-    LITESTREAM_PID=$!
+# Fast Turso Cloud Database snapshot hydration on boot
+if [ -n "$TURSO_API_TOKEN" ] && [ -x /usr/local/bin/turso ]; then
+    echo "[Turso] Authorizing CLI with Turso cloud..."
+    /usr/local/bin/turso config set token "$TURSO_API_TOKEN" 2>/dev/null || true
+    echo "[Turso] Exporting cloud snapshot to /app/data/signal.db..."
+    /usr/local/bin/turso db export signal-db --output-file /app/data/signal.db --overwrite 2>/dev/null || echo "[Turso] Snapshot export skipped, syncing via Rust runtime."
 fi
 
 # Run Rust backend in background on port 8085

@@ -925,7 +925,7 @@ pub async fn save_track_meta(
     .bind(payload.duration.unwrap_or(0.0))
     .bind(payload.bpm)
     .bind(payload.lyrics_offset_ms)
-    .bind(payload.synced_lyrics)
+    .bind(&payload.synced_lyrics)
     .bind(now)
     .execute(&state.pool)
     .await
@@ -933,6 +933,31 @@ pub async fn save_track_meta(
         eprintln!("[TrackMeta] Error saving: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    crate::turso::execute_write(
+        r#"
+        INSERT INTO track_meta (track_id, title, artist, duration, bpm, lyrics_offset_ms, synced_lyrics, updated_at)
+        VALUES (?, ?, ?, ?, ?, COALESCE(?, 0), ?, ?)
+        ON CONFLICT(track_id) DO UPDATE SET
+            title = excluded.title,
+            artist = excluded.artist,
+            duration = CASE WHEN excluded.duration > 0.0 THEN excluded.duration ELSE track_meta.duration END,
+            bpm = CASE WHEN excluded.bpm IS NOT NULL THEN excluded.bpm ELSE track_meta.bpm END,
+            lyrics_offset_ms = CASE WHEN excluded.lyrics_offset_ms IS NOT NULL THEN excluded.lyrics_offset_ms ELSE track_meta.lyrics_offset_ms END,
+            synced_lyrics = CASE WHEN excluded.synced_lyrics IS NOT NULL THEN excluded.synced_lyrics ELSE track_meta.synced_lyrics END,
+            updated_at = excluded.updated_at
+        "#,
+        vec![
+            crate::turso::TursoValue::text(track_id),
+            crate::turso::TursoValue::text(payload.title.trim()),
+            crate::turso::TursoValue::text(payload.artist.trim()),
+            crate::turso::TursoValue::float(payload.duration.unwrap_or(0.0)),
+            crate::turso::TursoValue::text_opt(payload.bpm.map(|b| b.to_string())),
+            crate::turso::TursoValue::text_opt(payload.lyrics_offset_ms.map(|o| o.to_string())),
+            crate::turso::TursoValue::text_opt(payload.synced_lyrics),
+            crate::turso::TursoValue::int(now),
+        ],
+    );
 
     Ok(StatusCode::OK)
 }

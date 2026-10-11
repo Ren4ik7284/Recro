@@ -215,8 +215,8 @@ pub async fn save_library(
     )
     .bind(&user_id)
     .bind(updated_at)
-    .bind(mix_settings_str)
-    .bind(disliked_str)
+    .bind(&mix_settings_str)
+    .bind(&disliked_str)
     .execute(&mut *tx)
     .await
     .map_err(|e| {
@@ -425,6 +425,158 @@ pub async fn save_library(
             Json(json!({ "error": "Ошибка сохранения библиотеки" })),
         )
     })?;
+
+    // Replicate changes to Turso cloud
+    crate::turso::execute_write(
+        r#"
+        INSERT INTO user_sync_meta (user_id, updated_at, mix_settings, disliked_tracks)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET 
+            updated_at = excluded.updated_at,
+            mix_settings = COALESCE(excluded.mix_settings, user_sync_meta.mix_settings),
+            disliked_tracks = COALESCE(excluded.disliked_tracks, user_sync_meta.disliked_tracks)
+        "#,
+        vec![
+            crate::turso::TursoValue::text(&user_id),
+            crate::turso::TursoValue::int(updated_at),
+            crate::turso::TursoValue::text_opt(mix_settings_str),
+            crate::turso::TursoValue::text_opt(disliked_str),
+        ],
+    );
+
+    if let Some(tracks_arr) = data.get("tracks").and_then(|v| v.as_array()) {
+        let mut stmts = vec![(
+            "DELETE FROM tracks WHERE user_id = ?".to_string(),
+            vec![crate::turso::TursoValue::text(&user_id)],
+        )];
+        for item in tracks_arr {
+            let id = item.get("id").and_then(|v| v.as_str()).unwrap_or_default();
+            let title = item.get("title").and_then(|v| v.as_str()).unwrap_or_default();
+            let artist = item.get("artist").and_then(|v| v.as_str()).unwrap_or_default();
+            let album = item.get("album").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let duration = item.get("duration").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let audio_url = item.get("audioUrl").and_then(|v| v.as_str()).unwrap_or_default();
+            let cover_url = item.get("coverUrl").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let genre = item.get("genre").and_then(|v| v.as_str()).unwrap_or("Music");
+            let format = item.get("format").and_then(|v| v.as_str()).unwrap_or("mp3");
+            let bitrate = item.get("bitrate").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let plays = item.get("plays").and_then(|v| v.as_i64()).unwrap_or(0);
+            let is_fav = if item.get("isFavorite").and_then(|v| v.as_bool()).unwrap_or(false) { 1 } else { 0 };
+            let is_live = if item.get("isLiveStream").and_then(|v| v.as_bool()).unwrap_or(false) { 1 } else { 0 };
+            let is_upload = if item.get("isLocalUpload").and_then(|v| v.as_bool()).unwrap_or(false) { 1 } else { 0 };
+            let is_offline = if item.get("isOffline").and_then(|v| v.as_bool()).unwrap_or(false) { 1 } else { 0 };
+            let is_pl_only = if item.get("playlistOnly").and_then(|v| v.as_bool()).unwrap_or(false) { 1 } else { 0 };
+            let added_at = item.get("addedAt").and_then(|v| v.as_str()).unwrap_or_default();
+
+            if !id.is_empty() && !audio_url.is_empty() {
+                stmts.push((
+                    r#"
+                    INSERT OR REPLACE INTO tracks
+                    (id, user_id, title, artist, album, duration, audio_url, cover_url, genre, format, bitrate, plays, is_favorite, is_live_stream, is_local_upload, is_offline, playlist_only, added_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    "#.to_string(),
+                    vec![
+                        crate::turso::TursoValue::text(id),
+                        crate::turso::TursoValue::text(&user_id),
+                        crate::turso::TursoValue::text(title),
+                        crate::turso::TursoValue::text(artist),
+                        crate::turso::TursoValue::text_opt(album),
+                        crate::turso::TursoValue::float(duration),
+                        crate::turso::TursoValue::text(audio_url),
+                        crate::turso::TursoValue::text_opt(cover_url),
+                        crate::turso::TursoValue::text(genre),
+                        crate::turso::TursoValue::text(format),
+                        crate::turso::TursoValue::text_opt(bitrate),
+                        crate::turso::TursoValue::int(plays),
+                        crate::turso::TursoValue::int(is_fav),
+                        crate::turso::TursoValue::int(is_live),
+                        crate::turso::TursoValue::int(is_upload),
+                        crate::turso::TursoValue::int(is_offline),
+                        crate::turso::TursoValue::int(is_pl_only),
+                        crate::turso::TursoValue::text(added_at),
+                    ],
+                ));
+            }
+        }
+        crate::turso::execute_batch_writes(stmts);
+    }
+
+    if let Some(pl_arr) = data.get("playlists").and_then(|v| v.as_array()) {
+        let mut stmts = vec![(
+            "DELETE FROM playlists WHERE user_id = ?".to_string(),
+            vec![crate::turso::TursoValue::text(&user_id)],
+        )];
+        let now = chrono::Utc::now().timestamp();
+        for item in pl_arr {
+            let id = item.get("id").and_then(|v| v.as_str()).unwrap_or_default();
+            let title = item.get("title").and_then(|v| v.as_str()).unwrap_or_default();
+            let desc = item.get("description").and_then(|v| v.as_str()).unwrap_or_default();
+            let cover_text = item.get("coverText").and_then(|v| v.as_str()).unwrap_or("PL");
+            let cover_url = item.get("coverUrl")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+            let track_ids = item.get("trackIds").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string());
+
+            if !id.is_empty() {
+                stmts.push((
+                    r#"
+                    INSERT OR REPLACE INTO playlists (id, user_id, title, description, cover_text, cover_url, track_ids, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    "#.to_string(),
+                    vec![
+                        crate::turso::TursoValue::text(id),
+                        crate::turso::TursoValue::text(&user_id),
+                        crate::turso::TursoValue::text(title),
+                        crate::turso::TursoValue::text(desc),
+                        crate::turso::TursoValue::text(cover_text),
+                        crate::turso::TursoValue::text_opt(cover_url),
+                        crate::turso::TursoValue::text(track_ids),
+                        crate::turso::TursoValue::int(now),
+                    ],
+                ));
+            }
+        }
+        crate::turso::execute_batch_writes(stmts);
+    }
+
+    if let Some(st_arr) = data.get("radio_stations").and_then(|v| v.as_array()) {
+        let mut stmts = vec![(
+            "DELETE FROM radio_stations WHERE user_id = ?".to_string(),
+            vec![crate::turso::TursoValue::text(&user_id)],
+        )];
+        for item in st_arr {
+            let id = item.get("id").and_then(|v| v.as_str()).unwrap_or_default();
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or_default();
+            let stream_url = item.get("streamUrl").and_then(|v| v.as_str()).unwrap_or_default();
+            let genre = item.get("genre").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let country = item.get("country").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let bitrate = item.get("bitrate").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let favicon = item.get("favicon").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let is_custom = if item.get("isCustom").and_then(|v| v.as_bool()).unwrap_or(true) { 1 } else { 0 };
+
+            if !id.is_empty() && !stream_url.is_empty() {
+                stmts.push((
+                    r#"
+                    INSERT OR REPLACE INTO radio_stations (id, user_id, name, stream_url, genre, country, bitrate, favicon, is_custom)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    "#.to_string(),
+                    vec![
+                        crate::turso::TursoValue::text(id),
+                        crate::turso::TursoValue::text(&user_id),
+                        crate::turso::TursoValue::text(name),
+                        crate::turso::TursoValue::text(stream_url),
+                        crate::turso::TursoValue::text_opt(genre),
+                        crate::turso::TursoValue::text_opt(country),
+                        crate::turso::TursoValue::text_opt(bitrate),
+                        crate::turso::TursoValue::text_opt(favicon),
+                        crate::turso::TursoValue::int(is_custom),
+                    ],
+                ));
+            }
+        }
+        crate::turso::execute_batch_writes(stmts);
+    }
 
     Ok(StatusCode::OK)
 }

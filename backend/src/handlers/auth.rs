@@ -110,6 +110,16 @@ pub async fn register(
         )
     })?;
 
+    crate::turso::execute_write(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)",
+        vec![
+            crate::turso::TursoValue::text(&user_id),
+            crate::turso::TursoValue::text(&clean_username),
+            crate::turso::TursoValue::text(&password_hash),
+            crate::turso::TursoValue::int(now),
+        ],
+    );
+
     let token = create_jwt(&user_id, &clean_username).map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -365,36 +375,68 @@ pub async fn update_profile(
             .bind(user_id)
             .execute(&state.pool)
             .await;
+
+        crate::turso::execute_write(
+            "UPDATE users SET username = ? WHERE id = ?",
+            vec![
+                crate::turso::TursoValue::text(clean),
+                crate::turso::TursoValue::text(user_id),
+            ],
+        );
     }
 
     if let Some(ref new_avatar) = payload.avatar_url {
         let clean_avatar = new_avatar.trim();
         let val = if clean_avatar.is_empty() { None } else { Some(clean_avatar.to_string()) };
         let _ = sqlx::query("UPDATE users SET avatar_url = ? WHERE id = ?")
-            .bind(val)
+            .bind(&val)
             .bind(user_id)
             .execute(&state.pool)
             .await;
+
+        crate::turso::execute_write(
+            "UPDATE users SET avatar_url = ? WHERE id = ?",
+            vec![
+                crate::turso::TursoValue::text_opt(val),
+                crate::turso::TursoValue::text(user_id),
+            ],
+        );
     }
 
     if let Some(ref new_banner) = payload.banner_url {
         let clean_banner = new_banner.trim();
         let val = if clean_banner.is_empty() { None } else { Some(clean_banner.to_string()) };
         let _ = sqlx::query("UPDATE users SET banner_url = ? WHERE id = ?")
-            .bind(val)
+            .bind(&val)
             .bind(user_id)
             .execute(&state.pool)
             .await;
+
+        crate::turso::execute_write(
+            "UPDATE users SET banner_url = ? WHERE id = ?",
+            vec![
+                crate::turso::TursoValue::text_opt(val),
+                crate::turso::TursoValue::text(user_id),
+            ],
+        );
     }
 
     if let Some(ref new_tags) = payload.profile_tags {
         let clean_tags = new_tags.trim();
         let val = if clean_tags.is_empty() { None } else { Some(clean_tags.to_string()) };
         let _ = sqlx::query("UPDATE users SET profile_tags = ? WHERE id = ?")
-            .bind(val)
+            .bind(&val)
             .bind(user_id)
             .execute(&state.pool)
             .await;
+
+        crate::turso::execute_write(
+            "UPDATE users SET profile_tags = ? WHERE id = ?",
+            vec![
+                crate::turso::TursoValue::text_opt(val),
+                crate::turso::TursoValue::text(user_id),
+            ],
+        );
     }
 
     let updated = sqlx::query("SELECT id, username, email, avatar_url, banner_url, profile_tags FROM users WHERE id = ?")
@@ -589,6 +631,15 @@ pub async fn google_login(
                 .bind(&user_id)
                 .execute(&state.pool)
                 .await;
+
+            crate::turso::execute_write(
+                "UPDATE users SET avatar_url = COALESCE(?, avatar_url), email = COALESCE(?, email) WHERE id = ?",
+                vec![
+                    crate::turso::TursoValue::text_opt(avatar_opt.clone()),
+                    crate::turso::TursoValue::text_opt(email_opt.clone()),
+                    crate::turso::TursoValue::text(&user_id),
+                ],
+            );
         }
 
         let token = create_jwt(&user_id, &username).map_err(|_| {
@@ -638,6 +689,15 @@ pub async fn google_login(
                 .bind(&user_id)
                 .execute(&state.pool)
                 .await;
+
+            crate::turso::execute_write(
+                "UPDATE users SET google_id = ?, avatar_url = COALESCE(avatar_url, ?) WHERE id = ?",
+                vec![
+                    crate::turso::TursoValue::text(&google_id),
+                    crate::turso::TursoValue::text_opt(avatar_opt.clone()),
+                    crate::turso::TursoValue::text(&user_id),
+                ],
+            );
 
             let token = create_jwt(&user_id, &username).map_err(|_| {
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Ошибка генерации токена" })))
@@ -740,6 +800,19 @@ pub async fn google_login(
         eprintln!("Google auth user creation error: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Не удалось создать аккаунт Google" })))
     })?;
+
+    crate::turso::execute_write(
+        "INSERT INTO users (id, username, password_hash, google_id, email, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        vec![
+            crate::turso::TursoValue::text(&user_id),
+            crate::turso::TursoValue::text(&chosen_username),
+            crate::turso::TursoValue::text(&password_hash),
+            crate::turso::TursoValue::text(&google_id),
+            crate::turso::TursoValue::text_opt(email_opt.clone()),
+            crate::turso::TursoValue::text_opt(avatar_opt.clone()),
+            crate::turso::TursoValue::int(now),
+        ],
+    );
 
     let token = create_jwt(&user_id, &chosen_username).map_err(|_| {
         (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Не удалось сгенерировать токен" })))
