@@ -53,6 +53,11 @@ export class HeaderComponent {
     this.openHistoryModal.emit();
   }
 
+  handleInstallClick() {
+    this.closeUserMenu();
+    this.openInstallModal.emit();
+  }
+
   handleLogout() {
     this.closeUserMenu();
     this.audioService.resetSessionAudio();

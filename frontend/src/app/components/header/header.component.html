@@ -98,6 +98,16 @@
               </svg>
               <span>История прослушиваний</span>
             </button>
+            @if (pwaService.shouldShowInstallButton()) {
+              <button class="user-dropdown-item" (click)="handleInstallClick()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+                  <path d="M12 18h.01"/>
+                </svg>
+                <span>Установить приложение</span>
+                <span class="wrapped-badge font-mono" style="background: rgba(34, 197, 94, 0.2); color: #22c55e;">PWA</span>
+              </button>
+            }
             <div class="user-dropdown-divider"></div>
             <button class="user-dropdown-item btn-logout" (click)="handleLogout()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

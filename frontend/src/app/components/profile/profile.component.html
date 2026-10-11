@@ -21,6 +21,16 @@
       }
 
       <div class="top-bar-right-actions">
+        @if (pwaService.shouldShowInstallButton()) {
+          <button class="btn-profile-install font-mono" (click)="pwaService.openInstallModal()" title="Установить приложение на телефон">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+              <path d="M12 18h.01"/>
+            </svg>
+            <span>Приложение</span>
+          </button>
+        }
+
         <button class="btn-profile-achievements font-mono" (click)="openAchievementsModal()" title="Испытания и значки профиля">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
@@ -145,6 +155,26 @@
   </div>
 
   <div class="profile-body-sections">
+
+    <!-- Блок установки приложения Recro (PWA / iOS / Android) -->
+    @if (pwaService.shouldShowInstallButton()) {
+      <div class="profile-install-banner" (click)="pwaService.openInstallModal()">
+        <div class="install-banner-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+            <path d="M12 18h.01"/>
+          </svg>
+        </div>
+        <div class="install-banner-text">
+          <div class="install-banner-title">
+            <span>Установить приложение Recro</span>
+            <span class="install-banner-badge font-mono">iOS &bull; Android</span>
+          </div>
+          <div class="install-banner-sub">Работает на экране блокировки без ограничений браузера</div>
+        </div>
+        <button class="btn-install-banner-action font-mono">Установить</button>
+      </div>
+    }
 
     <!-- 3. Полка избранных плейлистов -->
     @if (pinnedPlaylists().length > 0) {
