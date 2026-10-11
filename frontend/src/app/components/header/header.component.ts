@@ -26,7 +26,7 @@ export class HeaderComponent {
   @Output() openWrappedModal = new EventEmitter<void>();
   @Output() openHistoryModal = new EventEmitter<void>();
   @Output() openProfileModal = new EventEmitter<void>();
-  @Output() openInstallModal = new EventEmitter<void>();
+  @Output() openInstallModal = new EventEmitter<'android' | 'ios' | void>();
 
   readonly isUserMenuOpen = signal<boolean>(false);
 
@@ -53,9 +53,9 @@ export class HeaderComponent {
     this.openHistoryModal.emit();
   }
 
-  handleInstallClick() {
+  handleInstallClick(platform?: 'android' | 'ios') {
     this.closeUserMenu();
-    this.openInstallModal.emit();
+    this.openInstallModal.emit(platform);
   }
 
   handleLogout() {

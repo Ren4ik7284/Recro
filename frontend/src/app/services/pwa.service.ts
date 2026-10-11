@@ -15,6 +15,7 @@ export class PwaService {
   readonly isInstalled = signal<boolean>(false);
   readonly canPromptInstall = signal<boolean>(false);
   readonly isInstallModalOpen = signal<boolean>(false);
+  readonly activeInstallTab = signal<'android' | 'ios'>('android');
 
   readonly shouldShowInstallButton = computed(() => {
     return !this.isStandalone();
@@ -46,31 +47,14 @@ export class PwaService {
         typeof (window as any).recroMediaAction !== 'undefined'
       ));
 
-    const isAndroidWebView =
-      /wv/i.test(ua) ||
-      (/Version\/[0-9.]+\s+Chrome\/[0-9.]+/i.test(ua) && !/Mobile Safari/i.test(ua));
-
-    const isReferrerApp =
-      typeof document !== 'undefined' && !!document.referrer && document.referrer.startsWith('android-app://');
-
-    let isStoredInstalled = false;
-    try {
-      isStoredInstalled =
-        typeof localStorage !== 'undefined' &&
-        (localStorage.getItem('recro_pwa_installed') === 'true' || localStorage.getItem('recro_installed') === 'true');
-    } catch {}
-
+    // Only real standalone PWA mode (not browser scroll fullscreen)
     const isStandaloneMode =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.matchMedia('(display-mode: fullscreen)').matches ||
-      window.matchMedia('(display-mode: minimal-ui)').matches ||
-      (navigator as any).standalone === true ||
-      isNativeApp ||
-      isAndroidWebView ||
-      isReferrerApp;
+      (typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) ||
+      (typeof navigator !== 'undefined' && (navigator as any).standalone === true) ||
+      isNativeApp;
 
     this.isStandalone.set(isStandaloneMode);
-    if (isStandaloneMode || isStoredInstalled) {
+    if (isStandaloneMode) {
       this.isInstalled.set(true);
     }
 
@@ -166,7 +150,12 @@ export class PwaService {
     return 'manual';
   }
 
-  openInstallModal() {
+  openInstallModal(platform?: 'android' | 'ios') {
+    if (platform) {
+      this.activeInstallTab.set(platform);
+    } else {
+      this.activeInstallTab.set(this.isIos() ? 'ios' : 'android');
+    }
     this.isInstallModalOpen.set(true);
   }
 

@@ -496,8 +496,12 @@ export class AudioService {
     });
 
     this.audio.addEventListener('pause', () => {
-      // If we are simply rebuffering, handling end, or switching tracks, ignore pause event
-      if (!this.isHandlingEnd && !this.isSwitchingTrack) {
+      // If we are simply rebuffering, handling end, or near end of track, ignore pause event
+      const curTime = this.audio.currentTime || 0;
+      const dur = this.audio.duration || 0;
+      const isNearEnd = dur > 0 && curTime >= dur - 1.0;
+
+      if (!this.isHandlingEnd && !this.isSwitchingTrack && !isNearEnd) {
         this.isPlaying.set(false);
         this.updateMediaSessionPlaybackState('paused');
         this.updateMediaSessionPosition();
@@ -516,28 +520,18 @@ export class AudioService {
         this.handlePlaybackFailure('live_stream_ended');
         return;
       }
-      // Проверяем реальное время воспроизведения через нативный audio элемент
+
       const played = this.audio.currentTime || 0;
       const totalPlayed = this.streamSeekOffset() + played;
-      const expectedDur = this.duration() > 0 ? this.duration() : (this.audio.duration || 0);
 
-      // 1. Если поток завершился едва начавшись (<1.5с)
+      // 1. Если поток завершился едва начавшись (<1.5с) — сбой сети
       if (totalPlayed < 1.5) {
         console.warn('[AudioService] Premature ended event (<1.5s played), treating as playback failure');
         this.handlePlaybackFailure('premature_ended');
         return;
       }
 
-      // 2. Если у трека известна длительность, но поток оборвался задолго до конца (>5с до финала)
-      if (expectedDur > 10 && totalPlayed < (expectedDur - 5.0)) {
-        console.warn(`[AudioService] Stream dropped prematurely at ${totalPlayed.toFixed(1)}s (expected ~${expectedDur.toFixed(1)}s), resuming playback from position`);
-        const cur = this.currentTrack();
-        if (cur) {
-          this.seek(totalPlayed);
-          return;
-        }
-      }
-
+      // Всегда переключаемся на следующий трек при естественном завершении трека!
       this.handleTrackEnded();
     });
 
@@ -1377,9 +1371,24 @@ export class AudioService {
           if (this.repeatMode() === 'all') {
             nextIdx = 0;
           } else {
-            this.isPlaying.set(false);
-            this.updateMediaSessionPlaybackState('paused');
-            return;
+            // Бесконечное автовоспроизведение: если очередь закончилась (например, доиграли 4 трека),
+            // бесшовно подхватываем следующие треки из медиатеки или рекомендаций, чтобы музыка никогда не затихала!
+            const recentIds = new Set<string>(q.map((t) => t.id));
+            const libraryCandidates = this.libraryService.tracks().filter((t) => !recentIds.has(t.id));
+
+            if (libraryCandidates.length > 0) {
+              const nextBatch = libraryCandidates.slice(0, 6);
+              this.queue.update((curQ) => [...curQ, ...nextBatch]);
+            } else {
+              const recentArtists = new Set<string>(q.slice(-4).map((t) => t.artist).filter(Boolean));
+              const recs = this.recService.pickNextTracks(4, recentIds, this.currentTrack() || null, recentArtists);
+              if (recs.length > 0) {
+                this.queue.update((curQ) => [...curQ, ...recs]);
+              } else {
+                // Если всё уже прослушано — плавно закольцовываем очередь с начала
+                nextIdx = 0;
+              }
+            }
           }
         }
       }
@@ -1434,6 +1443,7 @@ export class AudioService {
   private handleTrackEnded() {
     if (this.isHandlingEnd) return;
     this.isHandlingEnd = true;
+    this.isSwitchingTrack = true;
     setTimeout(() => {
       this.isHandlingEnd = false;
       this.isFadingOut = false;

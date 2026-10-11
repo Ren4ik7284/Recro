@@ -127,7 +127,7 @@ export class App implements OnInit {
   readonly canInstallPwa = this.pwaService.canPromptInstall;
   readonly isPwaModalOpen = this.pwaService.isInstallModalOpen;
   readonly isIos = this.pwaService.isIos;
-  readonly installPlatformTab = signal<'android' | 'ios'>('android');
+  readonly installPlatformTab = this.pwaService.activeInstallTab;
 
   readonly modalSearchInput = signal<string>('');
 
@@ -339,13 +339,12 @@ export class App implements OnInit {
     this.showToast('Загрузка Recro APK началась');
   }
 
-  async openPwaInstallModal(pushHistory = true) {
+  async openPwaInstallModal(platform?: 'android' | 'ios', pushHistory = true) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }
 
-    this.installPlatformTab.set(this.isIos() ? 'ios' : 'android');
-    this.pwaService.openInstallModal();
+    this.pwaService.openInstallModal(platform);
     if (pushHistory) {
       this.navService.pushOverlay('pwa');
     }
@@ -357,12 +356,12 @@ export class App implements OnInit {
     this.navService.closeOverlay('pwa');
   }
 
-  installPwa() {
+  installPwa(platform?: 'android' | 'ios') {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }
 
-    this.openPwaInstallModal();
+    this.openPwaInstallModal(platform);
   }
 
   @HostListener('wheel', ['$event'])
