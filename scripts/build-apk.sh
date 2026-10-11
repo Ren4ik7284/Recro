@@ -604,7 +604,7 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 public class MainActivity extends Activity {
-    private static final String APP_URL = "https://signal-frontend-production-a944.up.railway.app";
+    private static final String APP_URL = "https://recro.onrender.com";
     private static final int FILECHOOSER_RESULTCODE = 1;
 
     private static MainActivity sInstance;
@@ -722,7 +722,7 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 if (url == null) return false;
-                if (url.startsWith("https://signal-frontend-production-a944.up.railway.app") ||
+                if (url.startsWith("https://recro.onrender.com") ||
                     url.startsWith("https://accounts.google.com") ||
                     url.startsWith("http://localhost") ||
                     url.startsWith("blob:") ||
