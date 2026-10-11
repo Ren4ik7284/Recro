@@ -101,6 +101,17 @@ export class ProfileComponent {
   readonly profileToast = signal<string | null>(null);
   private profileToastTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  readonly isSavingAvatar = signal<boolean>(false);
+  readonly isSavingBanner = signal<boolean>(false);
+
+  // Device Sync (Синхронизация с телефоном)
+  readonly isDeviceSyncOpen = signal<boolean>(false);
+  readonly syncCode = signal<string | null>(null);
+  readonly isGeneratingSyncCode = signal<boolean>(false);
+  readonly syncUrl = signal<string>('');
+  readonly syncCopied = signal<boolean>(false);
+  readonly encodeURIComponent = encodeURIComponent;
+
   readonly effectiveAvatar = computed<string>(() => {
     const user = this.authService.currentUser();
     if (user?.avatar_url) return user.avatar_url;
@@ -410,27 +421,60 @@ export class ProfileComponent {
   }
 
   async saveAvatar() {
-    const avatarToSave = this.editAvatarUrl().trim();
-    const user = this.authService.currentUser();
-    const userId = user?.id || 'guest';
+    if (this.isSavingAvatar()) return;
+    this.isSavingAvatar.set(true);
 
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem(`recro_custom_avatar_${userId}`, avatarToSave);
-        localStorage.setItem('recro_custom_avatar_guest', avatarToSave);
-      } catch {}
+    try {
+      const avatarToSave = this.editAvatarUrl().trim();
+      const user = this.authService.currentUser();
+      const userId = user?.id || 'guest';
+
+      // 1. Save immediately to LocalStorage so it works instantly on this device
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem(`recro_custom_avatar_${userId}`, avatarToSave);
+          localStorage.setItem('recro_custom_avatar_guest', avatarToSave);
+        } catch {}
+      }
+
+      // 2. Prepare frame and meta
+      const newFrame = this.editAvatarFrame();
+      this.selectedAvatarFrame.set(newFrame);
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem(`recro_profile_frame_${userId}`, newFrame);
+        } catch {}
+      }
+
+      let existingMeta: any = {};
+      if (user?.profile_tags) {
+        try {
+          existingMeta = JSON.parse(user.profile_tags);
+        } catch {}
+      }
+
+      const payloadObj = {
+        ...existingMeta,
+        tags: this.userTags(),
+        vibe: this.userVibe(),
+        frame: newFrame,
+        pinnedPlaylists: this.statsService.pinnedPlaylistIds(),
+      };
+
+      // 3. Update profile state and server in ONE atomic update!
+      await this.authService.updateProfile({
+        avatar_url: avatarToSave ? avatarToSave : '',
+        profile_tags: JSON.stringify(payloadObj),
+      }, this.libraryService.getBackendUrl());
+
+      this.showProfileToast('Аватар успешно сохранён!');
+      this.closeAvatarModal();
+    } catch (e) {
+      console.error('[Profile] Error saving avatar:', e);
+      this.showProfileToast('Ошибка сохранения аватара');
+    } finally {
+      this.isSavingAvatar.set(false);
     }
-
-    await this.authService.updateProfile({
-      avatar_url: avatarToSave ? avatarToSave : '',
-    }, this.libraryService.getBackendUrl());
-
-    const newFrame = this.editAvatarFrame();
-    this.selectedAvatarFrame.set(newFrame);
-    this.saveProfileCustomization(this.userTags(), this.userVibe(), newFrame);
-
-    this.showProfileToast('Аватар успешно сохранён!');
-    this.closeAvatarModal();
   }
 
   triggerAvatarFile() {
@@ -475,23 +519,77 @@ export class ProfileComponent {
   }
 
   async saveBanner() {
-    const bannerToSave = this.editBannerUrl().trim();
-    const user = this.authService.currentUser();
-    const userId = user?.id || 'guest';
+    if (this.isSavingBanner()) return;
+    this.isSavingBanner.set(true);
 
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem(`recro_custom_banner_${userId}`, bannerToSave);
-        localStorage.setItem('recro_custom_banner_guest', bannerToSave);
-      } catch {}
+    try {
+      const bannerToSave = this.editBannerUrl().trim();
+      const user = this.authService.currentUser();
+      const userId = user?.id || 'guest';
+
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem(`recro_custom_banner_${userId}`, bannerToSave);
+          localStorage.setItem('recro_custom_banner_guest', bannerToSave);
+        } catch {}
+      }
+
+      await this.authService.updateProfile({
+        banner_url: bannerToSave ? bannerToSave : '',
+      }, this.libraryService.getBackendUrl());
+
+      this.showProfileToast('Баннер успешно сохранён!');
+      this.closeBannerModal();
+    } catch (e) {
+      console.error('[Profile] Error saving banner:', e);
+      this.showProfileToast('Ошибка сохранения баннера');
+    } finally {
+      this.isSavingBanner.set(false);
     }
+  }
 
-    await this.authService.updateProfile({
-      banner_url: bannerToSave ? bannerToSave : '',
-    }, this.libraryService.getBackendUrl());
+  async openDeviceSyncModal() {
+    this.isDeviceSyncOpen.set(true);
+    this.syncCopied.set(false);
+    this.isGeneratingSyncCode.set(true);
+    try {
+      const code = await this.authService.createDeviceSyncCode(this.libraryService.getBackendUrl());
+      this.syncCode.set(code);
+      if (code && typeof window !== 'undefined') {
+        const url = `${window.location.origin}/#/sync?code=${code}`;
+        this.syncUrl.set(url);
+      }
+    } catch {
+      this.syncCode.set(null);
+    } finally {
+      this.isGeneratingSyncCode.set(false);
+    }
+  }
 
-    this.showProfileToast('Баннер успешно сохранён!');
-    this.closeBannerModal();
+  closeDeviceSyncModal() {
+    this.isDeviceSyncOpen.set(false);
+  }
+
+  copySyncUrl() {
+    const url = this.syncUrl();
+    if (!url) return;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.syncCopied.set(true);
+        this.showProfileToast('Ссылка синхронизации скопирована!');
+        setTimeout(() => this.syncCopied.set(false), 2500);
+      }).catch(() => {});
+    }
+  }
+
+  copySyncCode() {
+    const c = this.syncCode();
+    if (!c) return;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(c).then(() => {
+        this.showProfileToast(`Код ${c} скопирован!`);
+      }).catch(() => {});
+    }
   }
 
   triggerBannerFile() {

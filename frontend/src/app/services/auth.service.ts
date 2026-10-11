@@ -258,6 +258,77 @@ export class AuthService {
     }
   }
 
+  async createDeviceSyncCode(backendUrl?: string): Promise<string | null> {
+    const t = this.token();
+    if (!t) return null;
+    const base = this.getEffectiveBackendUrl(backendUrl);
+    try {
+      const res = await fetch(`${base}/api/auth/sync/code`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.code;
+      }
+    } catch (e) {
+      console.error('[AuthService] createDeviceSyncCode error:', e);
+    }
+    return null;
+  }
+
+  async loginWithSyncCode(code: string, backendUrl?: string): Promise<boolean> {
+    this.isAuthLoading.set(true);
+    this.authError.set(null);
+    const cleanCode = code.trim().replace(/[-\s]/g, '');
+
+    if (!cleanCode) {
+      this.authError.set('Введите код синхронизации');
+      this.isAuthLoading.set(false);
+      return false;
+    }
+
+    const base = this.getEffectiveBackendUrl(backendUrl);
+    try {
+      const res = await fetch(`${base}/api/auth/sync/exchange`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: cleanCode }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        this.authError.set(data?.error || 'Неверный код синхронизации');
+        return false;
+      }
+
+      this.token.set(data.token);
+      this.currentUser.set(data.user);
+
+      try {
+        localStorage.setItem(this.TOKEN_STORAGE_KEY, data.token);
+        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(data.user));
+      } catch {}
+
+      return true;
+    } catch {
+      this.authError.set('Не удалось подключиться к серверу');
+      return false;
+    } finally {
+      this.isAuthLoading.set(false);
+    }
+  }
+
+  loginWithDirectToken(token: string, user: UserInfo) {
+    if (!token || !user) return;
+    this.token.set(token);
+    this.currentUser.set(user);
+    try {
+      localStorage.setItem(this.TOKEN_STORAGE_KEY, token);
+      localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(user));
+    } catch {}
+  }
+
   async register(backendUrl: string, username: string, password: string): Promise<boolean> {
     this.isAuthLoading.set(true);
     this.authError.set(null);
