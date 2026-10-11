@@ -502,6 +502,14 @@ export class AudioService {
       const isNearEnd = dur > 0 && curTime >= dur - 1.0;
 
       if (!this.isHandlingEnd && !this.isSwitchingTrack && !isNearEnd) {
+        // Если браузер временно поставил на паузу при переключении вкладки в фон (visibilityState === 'hidden'),
+        // но пользователь не нажимал кнопку паузы — сразу же возобновляем воспроизведение!
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && this.isPlaying()) {
+          console.warn('[AudioService] Background tab pause intercepted, auto-resuming...');
+          this.audio.play().catch(() => {});
+          return;
+        }
+
         this.isPlaying.set(false);
         this.updateMediaSessionPlaybackState('paused');
         this.updateMediaSessionPosition();
@@ -539,10 +547,17 @@ export class AudioService {
       console.warn('[AudioService] Audio element error:', e);
       const cur = this.currentTrack();
       if (cur && this.audio.src.startsWith('blob:')) {
-        console.warn('[AudioService] Audio element failed on blob, falling back to online stream');
-        this.offlineService.removeTrackOffline(cur.id).catch(() => {});
-        this.libraryService.updateTrackOfflineStatus(cur.id, false);
-        this.playTrack({ ...cur, isOffline: false });
+        console.warn('[AudioService] Audio element transient error on blob, re-resolving blob URL without deleting cache');
+        this.offlineService.getOfflineBlobUrl(cur.id).then((freshUrl) => {
+          if (freshUrl && this.currentTrack()?.id === cur.id) {
+            this.audio.src = freshUrl;
+            this.audio.play().catch(() => {});
+          } else {
+            this.playTrack({ ...cur, isOffline: false });
+          }
+        }).catch(() => {
+          this.playTrack({ ...cur, isOffline: false });
+        });
         return;
       }
 
@@ -567,12 +582,27 @@ export class AudioService {
     });
 
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this.isPlaying()) {
+      const onTabActive = () => {
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {});
+        }
+        if (this.isPlaying()) {
           this.requestWakeLock();
           this.updateMediaSessionPosition();
+          // Если трек должен играть, но браузер заблокировал/поставил на паузу при переключении вкладок
+          if (this.audio.paused && !this.audio.ended && this.hasAudioStartedPlaying) {
+            console.log('[AudioService] Resuming audio after tab switch/focus');
+            this.audio.play().catch(() => {});
+          }
+        }
+      };
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          onTabActive();
         }
       });
+      window.addEventListener('focus', onTabActive);
     }
   }
 
@@ -966,22 +996,18 @@ export class AudioService {
     this.updateMediaSessionMetadata(track);
     this.updateMediaSessionPlaybackState('playing');
 
-    // 1. Быстрый синхронный запуск из памяти (сохраняет жест пользователя для системной шторки Android/iOS)
+    // 1. Для оффлайн-треков получаем локальный blob URL ДО старта, исключая сброс и прерывание аудиопотока
     let playUrl = track.audioUrl;
-    const cachedBlobUrl = this.offlineService.getCachedBlobUrlSync(track.id);
-    if (cachedBlobUrl) {
-      playUrl = cachedBlobUrl;
-    } else if (this.offlineService.isTrackOffline(track.id)) {
-      this.offlineService.getOfflineBlobUrl(track.id).then((resolvedUrl) => {
-        if (resolvedUrl && this.currentTrack()?.id === track.id && playRequestId === this.currentPlayRequestId) {
-          if (this.audio.src !== resolvedUrl) {
-            const curPos = this.audio.currentTime;
-            this.audio.src = resolvedUrl;
-            this.audio.currentTime = curPos;
-            this.audio.play().catch(() => {});
-          }
+    if (this.offlineService.isTrackOffline(track.id)) {
+      const cachedBlobUrl = this.offlineService.getCachedBlobUrlSync(track.id);
+      if (cachedBlobUrl) {
+        playUrl = cachedBlobUrl;
+      } else {
+        const resolvedUrl = await this.offlineService.getOfflineBlobUrl(track.id);
+        if (resolvedUrl && playRequestId === this.currentPlayRequestId) {
+          playUrl = resolvedUrl;
         }
-      }).catch(() => {});
+      }
     }
 
     if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3'))) {
