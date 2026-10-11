@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chmod a+rx /usr/local/bin/yt-dlp \
     && curl -sL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o /usr/local/bin/caddy \
     && chmod +x /usr/local/bin/caddy \
+    && curl -sL https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.tar.gz | tar -xz -C /usr/local/bin \
+    && chmod +x /usr/local/bin/litestream \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -3,6 +3,18 @@ set -e
 
 mkdir -p /app/data /var/www/recro/cache /var/www/recro/frontend
 
+# Cloud Persistence (Litestream with Cloudflare R2 / S3 / Supabase)
+LITESTREAM_PID=""
+if [ -n "$LITESTREAM_BUCKET" ] || [ -n "$LITESTREAM_REPLICA_URL" ]; then
+    REPLICA_URL="${LITESTREAM_REPLICA_URL:-s3://${LITESTREAM_BUCKET}/signal.db}"
+    echo "[Litestream] Cloud persistence enabled: $REPLICA_URL"
+    echo "[Litestream] Restoring database from cloud snapshot if exists..."
+    litestream restore -if-replica-exists "$REPLICA_URL" /app/data/signal.db || echo "[Litestream] Starting fresh database (no previous snapshot found)."
+    echo "[Litestream] Launching continuous real-time cloud replication..."
+    litestream replicate /app/data/signal.db "$REPLICA_URL" &
+    LITESTREAM_PID=$!
+fi
+
 # Run Rust backend in background on port 8085
 echo "[Entrypoint] Starting Rust backend on port 8085..."
 PORT=8085 /app/signal-audio-backend &

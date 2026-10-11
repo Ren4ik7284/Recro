@@ -786,7 +786,15 @@ export class LibraryService implements OnDestroy {
             return;
           }
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
+          let mime = 'image/webp';
+          try {
+            if (!canvas.toDataURL('image/webp').startsWith('data:image/webp')) {
+              mime = 'image/jpeg';
+            }
+          } catch {
+            mime = 'image/jpeg';
+          }
+          resolve(canvas.toDataURL(mime, quality));
         };
         img.onerror = () => reject(new Error('Image failed to load'));
         img.src = e.target?.result as string;
