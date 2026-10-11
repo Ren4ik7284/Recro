@@ -90,25 +90,87 @@ export class AuthService {
     this.restoreSession();
   }
 
-  private restoreSession() {
-    if (typeof localStorage === 'undefined') return;
+  private setCookie(name: string, value: string, days = 365) {
+    if (typeof document === 'undefined') return;
     try {
-      const savedToken = localStorage.getItem(this.TOKEN_STORAGE_KEY);
-      const savedUser = localStorage.getItem(this.USER_STORAGE_KEY);
-      if (savedToken && savedUser) {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+    } catch {}
+  }
+
+  private getCookie(name: string): string | null {
+    if (typeof document === 'undefined') return null;
+    try {
+      const matches = document.cookie.match(new RegExp('(?:^|; )' + encodeURIComponent(name).replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+      return matches ? decodeURIComponent(matches[1]) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private deleteCookie(name: string) {
+    if (typeof document === 'undefined') return;
+    try {
+      document.cookie = `${encodeURIComponent(name)}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+    } catch {}
+  }
+
+  private persistSession(token: string, user: UserInfo) {
+    this.token.set(token);
+    this.currentUser.set(user);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(this.TOKEN_STORAGE_KEY, token);
+        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(user));
+      } catch {}
+    }
+    this.setCookie('recro_jwt_token', token, 365);
+    try {
+      this.setCookie('recro_user_data', JSON.stringify(user), 365);
+    } catch {}
+  }
+
+  private restoreSession() {
+    let savedToken: string | null = null;
+    let savedUserStr: string | null = null;
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        savedToken = localStorage.getItem(this.TOKEN_STORAGE_KEY);
+        savedUserStr = localStorage.getItem(this.USER_STORAGE_KEY);
+      } catch {}
+    }
+
+    if (!savedToken) {
+      savedToken = this.getCookie('recro_jwt_token');
+    }
+    if (!savedUserStr) {
+      savedUserStr = this.getCookie('recro_user_data');
+    }
+
+    try {
+      if (savedToken && savedUserStr) {
         this.token.set(savedToken);
-        const parsed: UserInfo = JSON.parse(savedUser);
+        const parsed: UserInfo = JSON.parse(savedUserStr);
         const uid = parsed.id || 'guest';
-        parsed.avatar_url = parsed.avatar_url || localStorage.getItem(`recro_custom_avatar_${uid}`) || undefined;
-        parsed.banner_url = parsed.banner_url || localStorage.getItem(`recro_custom_banner_${uid}`) || undefined;
+        if (typeof localStorage !== 'undefined') {
+          parsed.avatar_url = parsed.avatar_url || localStorage.getItem(`recro_custom_avatar_${uid}`) || undefined;
+          parsed.banner_url = parsed.banner_url || localStorage.getItem(`recro_custom_banner_${uid}`) || undefined;
+          try {
+            localStorage.setItem(this.TOKEN_STORAGE_KEY, savedToken);
+            localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(parsed));
+          } catch {}
+        }
         this.currentUser.set(parsed);
-      } else if (savedUser) {
-        const parsed: UserInfo = JSON.parse(savedUser);
+      } else if (savedUserStr) {
+        const parsed: UserInfo = JSON.parse(savedUserStr);
         const uid = parsed.id || 'guest';
-        parsed.avatar_url = parsed.avatar_url || localStorage.getItem(`recro_custom_avatar_${uid}`) || undefined;
-        parsed.banner_url = parsed.banner_url || localStorage.getItem(`recro_custom_banner_${uid}`) || undefined;
+        if (typeof localStorage !== 'undefined') {
+          parsed.avatar_url = parsed.avatar_url || localStorage.getItem(`recro_custom_avatar_${uid}`) || undefined;
+          parsed.banner_url = parsed.banner_url || localStorage.getItem(`recro_custom_banner_${uid}`) || undefined;
+        }
         this.currentUser.set(parsed);
-      } else {
+      } else if (typeof localStorage !== 'undefined') {
         const guestAvatar = localStorage.getItem('recro_custom_avatar_guest') || '';
         const guestBanner = localStorage.getItem('recro_custom_banner_guest') || '';
         const guestName = localStorage.getItem('recro_custom_username_guest') || '';
@@ -121,13 +183,16 @@ export class AuthService {
           });
         }
       }
-      const savedGoogleId = localStorage.getItem(this.GOOGLE_CLIENT_ID_STORAGE_KEY);
-      if (savedGoogleId) {
-        this.googleClientId.set(savedGoogleId);
-        this.isGoogleAuthEnabled.set(true);
+
+      if (typeof localStorage !== 'undefined') {
+        const savedGoogleId = localStorage.getItem(this.GOOGLE_CLIENT_ID_STORAGE_KEY);
+        if (savedGoogleId) {
+          this.googleClientId.set(savedGoogleId);
+          this.isGoogleAuthEnabled.set(true);
+        }
       }
     } catch {
-      this.clearSession();
+      // Do not destroy session on parse error
     }
   }
 
@@ -200,7 +265,7 @@ export class AuthService {
           }, base).catch(() => {});
         }
       } else if (res.status === 401) {
-        this.clearSession();
+        console.warn('[AuthService] /api/auth/me returned 401, preserving local cached session.');
       }
     } catch {}
   }
@@ -251,14 +316,7 @@ export class AuthService {
         return false;
       }
 
-      this.token.set(data.token);
-      this.currentUser.set(data.user);
-
-      try {
-        localStorage.setItem(this.TOKEN_STORAGE_KEY, data.token);
-        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(data.user));
-      } catch {}
-
+      this.persistSession(data.token, data.user);
       return true;
     } catch {
       this.authError.set('Не удалось подключиться к серверу');
@@ -314,14 +372,7 @@ export class AuthService {
         return false;
       }
 
-      this.token.set(data.token);
-      this.currentUser.set(data.user);
-
-      try {
-        localStorage.setItem(this.TOKEN_STORAGE_KEY, data.token);
-        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(data.user));
-      } catch {}
-
+      this.persistSession(data.token, data.user);
       return true;
     } catch {
       this.authError.set('Не удалось подключиться к серверу');
@@ -388,14 +439,7 @@ export class AuthService {
         return false;
       }
 
-      this.token.set(data.token);
-      this.currentUser.set(data.user);
-
-      try {
-        localStorage.setItem(this.TOKEN_STORAGE_KEY, data.token);
-        localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(data.user));
-      } catch {}
-
+      this.persistSession(data.token, data.user);
       return true;
     } catch {
       this.authError.set('Не удалось подключиться к серверу для авторизации через Google');
@@ -428,6 +472,9 @@ export class AuthService {
         }
       } catch {}
     }
+    try {
+      this.setCookie('recro_user_data', JSON.stringify(updated), 365);
+    } catch {}
 
     const authToken = this.token();
     if (authToken && backendUrl && uid !== 'guest') {
@@ -456,6 +503,7 @@ export class AuthService {
           this.currentUser.set(merged);
           try {
             localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(merged));
+            this.setCookie('recro_user_data', JSON.stringify(merged), 365);
           } catch {}
           return true;
         }
@@ -471,9 +519,13 @@ export class AuthService {
   private clearSession() {
     this.token.set(null);
     this.currentUser.set(null);
-    try {
-      localStorage.removeItem(this.TOKEN_STORAGE_KEY);
-      localStorage.removeItem(this.USER_STORAGE_KEY);
-    } catch {}
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem(this.TOKEN_STORAGE_KEY);
+        localStorage.removeItem(this.USER_STORAGE_KEY);
+      } catch {}
+    }
+    this.deleteCookie('recro_jwt_token');
+    this.deleteCookie('recro_user_data');
   }
 }

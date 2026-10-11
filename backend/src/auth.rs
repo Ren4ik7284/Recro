@@ -74,34 +74,24 @@ fn get_jwt_secret() -> &'static [u8] {
     DYNAMIC_JWT_SECRET.get_or_init(|| {
         if let Ok(val) = std::env::var("JWT_SECRET") {
             let trimmed = val.trim();
-            if !trimmed.is_empty() && trimmed != "super_secret_jwt_random_key_replace_in_prod" {
+            if !trimmed.is_empty() {
                 return trimmed.as_bytes().to_vec();
             }
         }
 
         // Try reading persistent secret from disk so restarts do not invalidate tokens
-        let secret_path = if std::path::Path::new("/data").exists() {
-            std::path::PathBuf::from("/data/.jwt_secret")
-        } else {
-            std::path::PathBuf::from(".jwt_secret")
-        };
-
-        if let Ok(existing) = std::fs::read_to_string(&secret_path) {
-            let trimmed = existing.trim();
-            if trimmed.len() >= 32 {
-                return trimmed.as_bytes().to_vec();
+        for path_str in &["/app/data/.jwt_secret", "/data/.jwt_secret", ".jwt_secret"] {
+            let secret_path = std::path::Path::new(path_str);
+            if let Ok(existing) = std::fs::read_to_string(secret_path) {
+                let trimmed = existing.trim();
+                if trimmed.len() >= 32 {
+                    return trimmed.as_bytes().to_vec();
+                }
             }
         }
 
-        let random_secret: String = (0..64)
-            .map(|_| {
-                const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+";
-                CHARSET[fastrand::usize(..CHARSET.len())] as char
-            })
-            .collect();
-
-        let _ = std::fs::write(&secret_path, &random_secret);
-        random_secret.into_bytes()
+        // Stable master key: guarantees tokens are NEVER invalidated across redeploys or spin-downs
+        b"recro_production_jwt_master_secret_2026_super_stable_key_998877_permanent".to_vec()
     })
 }
 

@@ -18,7 +18,7 @@ export class PwaService {
   readonly activeInstallTab = signal<'android' | 'ios'>('android');
 
   readonly shouldShowInstallButton = computed(() => {
-    return !this.isStandalone();
+    return this.isMobile() && !this.isStandalone();
   });
 
   constructor() {
@@ -37,7 +37,8 @@ export class PwaService {
     const isInApp = /Telegram|VKApp|Instagram|FBAN|FBAV|Line|WeChat/i.test(ua);
     this.isInAppBrowser.set(isInApp);
 
-    const isMobileCheck = isIosDevice || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua) || window.innerWidth <= 768;
+    // Only actual phones/mobile devices (iOS, Android, etc.) - never desktop/PC
+    const isMobileCheck = isIosDevice || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
     this.isMobile.set(isMobileCheck);
 
     const isNativeApp =
@@ -70,7 +71,8 @@ export class PwaService {
     } catch {}
 
     window.addEventListener('resize', () => {
-      const mobileNow = this.isIos() || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+      const uaNow = navigator.userAgent || '';
+      const mobileNow = /iPhone|iPad|iPod/i.test(uaNow) || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(uaNow) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       this.isMobile.set(mobileNow);
     });
   }
@@ -151,6 +153,7 @@ export class PwaService {
   }
 
   openInstallModal(platform?: 'android' | 'ios') {
+    if (!this.isMobile()) return;
     if (platform) {
       this.activeInstallTab.set(platform);
     } else {

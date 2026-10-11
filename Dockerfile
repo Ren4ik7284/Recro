@@ -1,5 +1,13 @@
-# Production Runtime Dockerfile for Recro (Fast 30s Deploy on Render)
-FROM ubuntu:24.04
+# Multi-stage Dockerfile for Recro (Fast Prebuilt Frontend + Native Rust Backend)
+# Stage 1: Build Rust Axum Backend
+FROM rust:bookworm AS backend-builder
+WORKDIR /app/backend
+COPY backend/ ./
+ENV CARGO_BUILD_JOBS=1
+RUN cargo build --release
+
+# Stage 2: Minimal Production Runtime
+FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -20,9 +28,11 @@ WORKDIR /app
 
 RUN mkdir -p /var/www/recro/frontend /var/www/recro/cache /app/data
 
-# Copy prebuilt frontend & prebuilt backend binary (zero compilation time on Render)
+# Copy prebuilt frontend (instant, no npm overhead)
 COPY dist_frontend /var/www/recro/frontend
-COPY dist_bin/signal-audio-backend /app/signal-audio-backend
+
+# Copy built backend binary from builder stage
+COPY --from=backend-builder /app/backend/target/release/signal-audio-backend /app/signal-audio-backend
 RUN chmod +x /app/signal-audio-backend
 
 # Copy Caddyfile and entrypoint
@@ -37,6 +47,7 @@ ENV CACHE_DIR="/var/www/recro/cache"
 ENV TURSO_DATABASE_URL="https://signal-db-ren4ik7284.aws-ap-northeast-1.turso.io"
 ENV TURSO_AUTH_TOKEN="eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTE3MzcwNTUsImlkIjoiMDFhMTJiZDktOGMwMS03ZGU4LTgwZTgtNDNlY2Q2OTgyYTRkIiwia2lkIjoiaGx5SzdZOGZGRGExV1c2cWVkUkFhbENjNzh6bjE4Wm9ZdXNodDhwZ3JxNCIsInJpZCI6IjRhNzU1NmM4LWE4YTgtNDdhYy1hMzllLWFkODgxZTU2ZGMxOSJ9.nFOhRjf8ExJnRMT1QMOsb3lxiY9LiHk4FDa0Go6mdz4OpKF0ZHQsHuNC4de8PoTmOI6mqvRBbLBL8FzGJbSbBw"
 ENV TURSO_API_TOKEN="eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDIyMkFBQSIsImtpZCI6Imluc18yYzA4R3ZNeEhYMlNCc3l0d2padm95cEdJeDUiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3OTIzNDE2MzMsImlhdCI6MTc5MTczNjgzMywiaXNzIjoiaHR0cHM6Ly9jbGVyay50dXJzby50ZWNoIiwianRpIjoiMzFmM2ViZTQxZWI5MWRkYzk2ZmMiLCJuYmYiOjE3OTE3MzY4MjgsInN1YiI6InVzZXJfM0tZWnZHYzNYZlp0R1Y3ZmoxVE8wU0NNWlcyIn0.nmelz6JEY_Ib15PpJlyrkzrB4YUsmToYUDWgXbz1XpztE-2ClglBj6BJjGSH7HGLPkElY0bOMejfi3yXfOJwX-CUf2RYRjSf0U55_dA9U2-lvTc1PLWmW7enlfjQZgboXSez-pHxGv1QvVlTSq0Zyeav_1piUPzOEj2XzbYo7IoDTm6hyikUd_qwmZzT67uGIPwX1hh6haVA6Tdc1XNWH3vaCaV2c5TohbEa4JHJ8sdhyvxb8xQtiJB9v7Q5_T7WrBgwKO02F6SD9YoB9QKKVB309b6soyCkZ4WtsUA5BSJQkVcnAb8lT52RFKYTFsDVhdXBnIrEZb2IFZxVcbWmUA"
+ENV JWT_SECRET="recro_production_jwt_master_secret_2026_super_stable_key_998877_permanent"
 
 EXPOSE 10000
 
