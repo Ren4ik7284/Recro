@@ -784,11 +784,13 @@
   </div>
 
   
-  <app-player-bar
-    (toggleQueueDrawer)="toggleQueueDrawer()"
-    (expandMobilePlayer)="expandMobilePlayer()"
-    (openAddToPlaylist)="openAddToPlaylistModal($event)"
-  ></app-player-bar>
+  @if (audioService.currentTrack()) {
+    <app-player-bar
+      (toggleQueueDrawer)="toggleQueueDrawer()"
+      (expandMobilePlayer)="expandMobilePlayer()"
+      (openAddToPlaylist)="openAddToPlaylistModal($event)"
+    ></app-player-bar>
+  }
 
   
   <nav class="mobile-bottom-nav mobile-only">

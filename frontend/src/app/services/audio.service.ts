@@ -141,7 +141,13 @@ export class AudioService {
       this.audio.setAttribute('webkit-playsinline', 'true');
       this.audio.setAttribute('x-webkit-airplay', 'allow');
       this.audio.preload = 'auto';
-      this.audio.style.display = 'none';
+      this.audio.style.position = 'fixed';
+      this.audio.style.top = '-9999px';
+      this.audio.style.left = '-9999px';
+      this.audio.style.width = '1px';
+      this.audio.style.height = '1px';
+      this.audio.style.opacity = '0.01';
+      this.audio.style.pointerEvents = 'none';
 
       if (document.body) {
         document.body.appendChild(this.audio);
@@ -748,6 +754,11 @@ export class AudioService {
       this.updateMediaSessionPlaybackState('paused');
     });
 
+    setAction('stop', () => {
+      this.pause();
+      this.updateMediaSessionPlaybackState('paused');
+    });
+
     setAction('previoustrack', () => {
       this.prev();
     });
@@ -845,20 +856,18 @@ export class AudioService {
 
       const cover = getFullUrl(track.coverUrl);
       const isDefault = cover.endsWith('/icons/icon-512.png');
-      const artwork: MediaImage[] = [
-        { src: cover, sizes: '96x96' },
-        { src: cover, sizes: '128x128' },
-        { src: cover, sizes: '192x192' },
-        { src: cover, sizes: '256x256' },
-        { src: cover, sizes: '384x384' },
-        { src: cover, sizes: '512x512' },
-      ];
+      const artwork: MediaImage[] = [];
       if (!isDefault) {
         artwork.push(
-          { src: `${origin}/icons/icon-192.png`, sizes: '192x192' },
-          { src: `${origin}/icons/icon-512.png`, sizes: '512x512' },
+          { src: cover, sizes: '512x512' },
+          { src: cover, sizes: '256x256' },
+          { src: cover, sizes: '128x128' },
         );
       }
+      artwork.push(
+        { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' },
+        { src: `${origin}/icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
+      );
 
       const title = (track.title || 'Recro Track').trim();
       const artist = (track.artist || 'Recro').trim();
@@ -1014,7 +1023,6 @@ export class AudioService {
     this.duration.set(initialDuration);
     this.setupMediaSession();
     this.updateMediaSessionMetadata(track);
-    this.updateMediaSessionPlaybackState('playing');
 
     // 1. Для оффлайн-треков получаем локальный blob URL ДО старта, исключая сброс и прерывание аудиопотока
     let playUrl = track.audioUrl;

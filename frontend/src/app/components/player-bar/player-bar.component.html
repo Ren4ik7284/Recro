@@ -1,3 +1,4 @@
+@if (audioService.currentTrack()) {
 <footer class="app-player-bar">
   <!-- Mobile Mini Scrubber Bar along top edge -->
   <div class="mobile-mini-scrubber mobile-only" [style.width.%]="audioService.progressPercent()"></div>
@@ -348,3 +349,4 @@
     </button>
   </div>
 </footer>
+}

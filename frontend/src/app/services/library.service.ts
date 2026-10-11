@@ -274,6 +274,54 @@ export class LibraryService implements OnDestroy {
       savedTracks = [];
     }
 
+    // Восстановление треков, если они были сохранены под гостевым ключом или до смены сессии
+    if (typeof localStorage !== 'undefined') {
+      const fallbackKeys = [
+        'signal_tracks_guest',
+        'signal_library_tracks',
+        'signal_tracks',
+      ];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('signal_tracks_') && k !== this.STORAGE_KEY_TRACKS) {
+            fallbackKeys.push(k);
+          }
+        }
+      } catch {}
+
+      const candidateMap = new Map<string, Track>(savedTracks.map((t) => [t.id, t]));
+      for (const key of fallbackKeys) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              for (const pt of parsed) {
+                if (pt && pt.id && !pt.id.startsWith('default-track-') && !candidateMap.has(pt.id)) {
+                  candidateMap.set(pt.id, pt);
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Восстанавливаем также сохраненные оффлайн-треки из базы
+      try {
+        const offlineList = this.offlineService.getOfflineTracks();
+        if (offlineList && offlineList.length > 0) {
+          for (const ot of offlineList) {
+            if (ot && ot.id && !candidateMap.has(ot.id)) {
+              candidateMap.set(ot.id, { ...ot, isOffline: true });
+            }
+          }
+        }
+      } catch {}
+
+      savedTracks = Array.from(candidateMap.values());
+    }
+
     let favIds: string[] = [];
     try {
       const storedFavs = localStorage.getItem(this.STORAGE_KEY_FAVORITES);
@@ -859,19 +907,46 @@ export class LibraryService implements OnDestroy {
           return;
         }
 
-        // Keep local-only files (device uploads/blobs) that have not been uploaded to cloud
-        const localUploads = localTracks.filter(
-          (lt) =>
-            (lt.isLocalUpload || lt.audioUrl.startsWith('blob:')) &&
-            !cloudTracks.some((ct) => ct.id === lt.id)
-        );
+        // Полное безопасное слияние (union merge): никогда не удалять треки, которые есть локально!
+        const cloudTrackMap = new Map<string, Track>();
+        for (const ct of cloudTracks) {
+          cloudTrackMap.set(ct.id, ct);
+        }
 
-        const mergedTracks = this.sanitizeTracks([...cloudTracks, ...localUploads]);
+        const mergedMap = new Map<string, Track>(cloudTrackMap);
+        let hasNewLocalTracks = false;
+
+        for (const lt of localTracks) {
+          if (!lt || !lt.id || lt.id.startsWith('default-track-')) continue;
+          if (!mergedMap.has(lt.id)) {
+            mergedMap.set(lt.id, lt);
+            hasNewLocalTracks = true;
+          }
+        }
+
+        const mergedTracks = this.sanitizeTracks(Array.from(mergedMap.values()));
+
+        // Также безопасно объединяем плейлисты
+        const playlistMap = new Map<string, Playlist>();
+        for (const cp of cloudPlaylists) {
+          playlistMap.set(cp.id, cp);
+        }
+        for (const lp of this.playlists()) {
+          if (!playlistMap.has(lp.id)) {
+            playlistMap.set(lp.id, lp);
+            hasNewLocalTracks = true;
+          }
+        }
 
         this.tracks.set(mergedTracks);
-        this.playlists.set(cloudPlaylists);
+        this.playlists.set(Array.from(playlistMap.values()));
         this.radioStations.set(cloudStations);
         this.saveLocalWithoutCloudSync();
+
+        // Если локально были треки, которых ещё нет в облаке, сразу синхронизируем их на сервер
+        if (hasNewLocalTracks) {
+          await this.pushLibraryToBackend();
+        }
         try {
           localStorage.setItem(this.STORAGE_KEY_UPDATED_AT, (cloudUpdatedAt || Date.now()).toString());
         } catch {}

@@ -199,7 +199,7 @@ export class AuthService {
             banner_url: merged.banner_url,
           }, base).catch(() => {});
         }
-      } else if (res.status === 401 || res.status === 404) {
+      } else if (res.status === 401) {
         this.clearSession();
       }
     } catch {}
