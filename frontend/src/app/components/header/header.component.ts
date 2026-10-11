@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, inject, signal, ViewEncapsulation } from '@angular/core';
+import { Component, EventEmitter, Output, inject, signal, ViewEncapsulation, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LibraryService } from '../../services/library.service';
@@ -36,6 +36,15 @@ export class HeaderComponent {
 
   closeUserMenu() {
     this.isUserMenuOpen.set(false);
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (!this.isUserMenuOpen()) return;
+    const target = event.target as HTMLElement | null;
+    if (target && !target.closest('.user-menu-container')) {
+      this.closeUserMenu();
+    }
   }
 
   handleProfileClick() {

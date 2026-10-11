@@ -344,7 +344,7 @@ export class AudioService {
         Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
       );
 
-      if (!this.isCrossfadeEnabled() || this.isLiveStream() || isMobile) {
+      if (!this.isCrossfadeEnabled() || this.isLiveStream() || isMobile || (!this.isSwitchingTrack && !this.isHandlingEnd)) {
         resolve();
         return;
       }
@@ -402,18 +402,42 @@ export class AudioService {
   }
 
   private setupEventListeners() {
+    let stallTimer: any = null;
+    const onStall = () => {
+      if (!this.isPlaying() || this.audio.paused || this.isHandlingEnd || this.isSwitchingTrack) return;
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
+          console.warn('[AudioService] Playback stall detected (>4s), nudging stream...');
+          if (this.audio.readyState >= 2) {
+            this.audio.play().catch(() => {});
+          } else {
+            const cur = this.currentTrack();
+            if (cur) {
+              this.playTrack(cur, undefined, this.recService.isMixActive(), this.queueIndex());
+            }
+          }
+        }
+      }, 4000);
+    };
+
+    const clearStall = () => {
+      if (stallTimer) {
+        clearTimeout(stallTimer);
+        stallTimer = null;
+      }
+    };
+
+    this.audio.addEventListener('waiting', onStall);
+    this.audio.addEventListener('stalled', onStall);
+
     this.audio.addEventListener('timeupdate', () => {
       if (!this.hasAudioStartedPlaying) return;
+      clearStall();
       const actual = this.streamSeekOffset() + this.audio.currentTime;
       this.currentTime.set(actual);
 
       const total = this.duration();
-      // Smooth fade-out 2.5s before end of track
-      if (total > 3 && actual >= total - 2.5 && !this.isFadingOut && !this.isHandlingEnd && this.isCrossfadeEnabled()) {
-        this.isFadingOut = true;
-        this.applyFadeOut(2.2);
-      }
-
       // Record track completion at 80% of playback
       const cur = this.currentTrack();
       if (cur && total > 10 && actual >= total * 0.8 && !this.hasRecordedCompletion) {
@@ -476,6 +500,7 @@ export class AudioService {
     });
 
     this.audio.addEventListener('play', () => {
+      clearStall();
       this.isPlaying.set(true);
       this.updateMediaSessionPlaybackState('playing');
       const cur = this.currentTrack();
@@ -484,6 +509,7 @@ export class AudioService {
     });
 
     this.audio.addEventListener('playing', () => {
+      clearStall();
       this.isSwitchingTrack = false;
       this.hasAudioStartedPlaying = true;
       this.consecutiveErrorCount = 0;
@@ -496,6 +522,7 @@ export class AudioService {
     });
 
     this.audio.addEventListener('pause', () => {
+      clearStall();
       // If we are simply rebuffering, handling end, or near end of track, ignore pause event
       const curTime = this.audio.currentTime || 0;
       const dur = this.audio.duration || 0;
@@ -503,10 +530,13 @@ export class AudioService {
 
       if (!this.isHandlingEnd && !this.isSwitchingTrack && !isNearEnd) {
         // Если браузер временно поставил на паузу при переключении вкладки в фон (visibilityState === 'hidden'),
-        // но пользователь не нажимал кнопку паузы — сразу же возобновляем воспроизведение!
+        // но пользователь не нажимал кнопку паузы — сразу же пробуем возобновить воспроизведение!
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && this.isPlaying()) {
           console.warn('[AudioService] Background tab pause intercepted, auto-resuming...');
-          this.audio.play().catch(() => {});
+          this.audio.play().catch(() => {
+            this.isPlaying.set(false);
+            this.updateMediaSessionPlaybackState('paused');
+          });
           return;
         }
 
@@ -515,11 +545,6 @@ export class AudioService {
         this.updateMediaSessionPosition();
         this.releaseWakeLock();
       }
-    });
-
-    this.audio.addEventListener('waiting', () => {
-      // NOTE: Do NOT set playbackState = 'paused' on waiting!
-      // Mobile Chrome drops the notification shade card if set to paused while buffering.
     });
 
     this.audio.addEventListener('ended', () => {
@@ -744,10 +769,6 @@ export class AudioService {
     setAction('seekforward', (details) => {
       this.skipBy(details.seekOffset || 10);
     });
-
-    setAction('stop', () => {
-      this.stopPlayback();
-    });
   }
 
   private notifyNativeBridge(track: Track | null, isPlaying: boolean) {
@@ -768,10 +789,13 @@ export class AudioService {
       const getFullUrl = (url?: string | null) => {
         if (!url) return `${origin}/icons/icon-512.png`;
         if (isHttps && url.startsWith('http://')) {
-          return `${activeBase}/api/cover?url=${encodeURIComponent(url)}`;
+          const apiCover = `/api/cover?url=${encodeURIComponent(url)}`;
+          return activeBase.startsWith('http') ? `${activeBase}${apiCover}` : `${origin}${apiCover}`;
         }
         if (url.startsWith('https://') || url.startsWith('http://')) return url;
-        if (url.startsWith('/api/')) return `${activeBase}${url}`;
+        if (url.startsWith('/api/')) {
+          return activeBase.startsWith('http') ? `${activeBase}${url}` : `${origin}${url}`;
+        }
         return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
       };
 
@@ -809,27 +833,30 @@ export class AudioService {
           return `${origin}/icons/icon-512.png`;
         }
         if (isHttps && trimmed.startsWith('http://')) {
-          return `${activeBase}/api/cover?url=${encodeURIComponent(trimmed)}`;
+          const apiCover = `/api/cover?url=${encodeURIComponent(trimmed)}`;
+          return activeBase.startsWith('http') ? `${activeBase}${apiCover}` : `${origin}${apiCover}`;
         }
         if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
-        if (trimmed.startsWith('/api/')) return `${activeBase}${trimmed}`;
+        if (trimmed.startsWith('/api/')) {
+          return activeBase.startsWith('http') ? `${activeBase}${trimmed}` : `${origin}${trimmed}`;
+        }
         return `${origin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
       };
 
       const cover = getFullUrl(track.coverUrl);
       const isDefault = cover.endsWith('/icons/icon-512.png');
       const artwork: MediaImage[] = [
-        { src: cover, sizes: '96x96', type: 'image/png' },
-        { src: cover, sizes: '128x128', type: 'image/png' },
-        { src: cover, sizes: '192x192', type: 'image/png' },
-        { src: cover, sizes: '256x256', type: 'image/png' },
-        { src: cover, sizes: '384x384', type: 'image/png' },
-        { src: cover, sizes: '512x512', type: 'image/png' },
+        { src: cover, sizes: '96x96' },
+        { src: cover, sizes: '128x128' },
+        { src: cover, sizes: '192x192' },
+        { src: cover, sizes: '256x256' },
+        { src: cover, sizes: '384x384' },
+        { src: cover, sizes: '512x512' },
       ];
       if (!isDefault) {
         artwork.push(
-          { src: `${origin}/icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
-          { src: `${origin}/icons/icon-512.png`, sizes: '512x512', type: 'image/png' },
+          { src: `${origin}/icons/icon-192.png`, sizes: '192x192' },
+          { src: `${origin}/icons/icon-512.png`, sizes: '512x512' },
         );
       }
 
@@ -864,13 +891,6 @@ export class AudioService {
 
     const d = this.duration();
     if (!d || d <= 0 || !isFinite(d) || this.isLiveStream()) {
-      try {
-        (navigator.mediaSession as any).setPositionState(null);
-      } catch {
-        try {
-          (navigator.mediaSession as any).setPositionState();
-        } catch {}
-      }
       return;
     }
 
@@ -1131,11 +1151,19 @@ export class AudioService {
           return;
         }
 
-        // Если попытка воспроизведения сорвалась на оффлайн blob URL: моментальный откат на сетевой поток!
+        // Если попытка воспроизведения сорвалась на оффлайн blob URL: пробуем получить свежий blob URL или стримим без удаления кэша!
         if (playUrl.startsWith('blob:')) {
-          console.warn('[AudioService] Offline blob playback failed, falling back to online stream:', err);
-          await this.offlineService.removeTrackOffline(track.id);
-          this.libraryService.updateTrackOfflineStatus(track.id, false);
+          console.warn('[AudioService] Offline blob playback transient failure, attempting fresh blob URL or online stream:', err);
+          try {
+            const freshUrl = await this.offlineService.getOfflineBlobUrl(track.id);
+            if (freshUrl && playRequestId === this.currentPlayRequestId) {
+              this.audio.src = freshUrl;
+              await this.audio.play();
+              this.isPlaying.set(true);
+              this.updateMediaSessionPlaybackState('playing');
+              return;
+            }
+          } catch {}
           this.playTrack({ ...track, isOffline: false }, undefined, fromMix, queueIndex);
           return;
         }

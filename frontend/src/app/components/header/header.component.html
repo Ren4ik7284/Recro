@@ -49,7 +49,7 @@
   <div class="header-actions">
     @if (authService.isAuthenticated(); as isAuth) {
       <div class="user-menu-container">
-        <button class="btn-user-profile font-mono" (click)="toggleUserMenu()">
+        <button class="btn-user-profile font-mono" (click)="$event.stopPropagation(); toggleUserMenu()">
           @if (authService.currentUser()?.avatar_url; as avatar) {
             <img [src]="avatar" class="user-avatar-img" alt="avatar" referrerpolicy="no-referrer" />
           } @else {

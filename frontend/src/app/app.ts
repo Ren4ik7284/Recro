@@ -339,12 +339,12 @@ export class App implements OnInit {
     this.showToast('Загрузка Recro APK началась');
   }
 
-  async openPwaInstallModal(platform?: 'android' | 'ios', pushHistory = true) {
+  async openPwaInstallModal(platform?: 'android' | 'ios' | void, pushHistory = true) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }
 
-    this.pwaService.openInstallModal(platform);
+    this.pwaService.openInstallModal(platform ? platform : undefined);
     if (pushHistory) {
       this.navService.pushOverlay('pwa');
     }
@@ -356,7 +356,7 @@ export class App implements OnInit {
     this.navService.closeOverlay('pwa');
   }
 
-  installPwa(platform?: 'android' | 'ios') {
+  installPwa(platform?: 'android' | 'ios' | void) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }
