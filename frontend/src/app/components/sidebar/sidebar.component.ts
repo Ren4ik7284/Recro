@@ -4,6 +4,7 @@ import { LibraryService } from '../../services/library.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
 import { TimerService } from '../../services/timer.service';
+import { PwaService } from '../../services/pwa.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -18,6 +19,7 @@ export class SidebarComponent {
   readonly authService = inject(AuthService);
   readonly audioService = inject(AudioService);
   readonly timerService = inject(TimerService);
+  readonly pwaService = inject(PwaService);
 
   @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' = 'all';
   @Input() isProfileOpen = false;
@@ -30,6 +32,7 @@ export class SidebarComponent {
   @Output() openTimer = new EventEmitter<void>();
   @Output() openAuth = new EventEmitter<void>();
   @Output() openProfile = new EventEmitter<void>();
+  @Output() openInstallModal = new EventEmitter<void>();
 
   onMixClick() {
     this.viewChange.emit({ view: 'all' });

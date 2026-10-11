@@ -4,6 +4,8 @@ services:
     runtime: docker
     plan: free
     region: frankfurt
+    branch: main
+    autoDeploy: true
     dockerfilePath: Dockerfile
     envVars:
       - key: PORT
