@@ -1472,7 +1472,8 @@
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.75);
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  max-height: 85vh;
+  margin: auto;
 
   &.modal-customization {
     max-width: 500px;
@@ -1489,6 +1490,7 @@
     padding: 16px 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     background: #1c1c1e;
+    flex-shrink: 0;
 
     .modal-title-with-icon {
       display: flex;
@@ -1531,10 +1533,13 @@
     padding: 20px;
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
 
     &.modal-scrollable-body {
       overflow-y: auto;
-      max-height: calc(85vh - 120px);
+      max-height: calc(85vh - 130px);
       padding-right: 16px;
 
       &::-webkit-scrollbar {
@@ -2117,6 +2122,7 @@
     padding: 14px 20px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     background: #1c1c1e;
+    flex-shrink: 0;
 
     .btn-modal-cancel {
       background: transparent;
@@ -2299,7 +2305,9 @@
 
     .modal-dialog-body {
       padding: 16px;
-      max-height: calc(88vh - 120px) !important;
+      flex: 1 1 auto;
+      overflow-y: auto;
+      max-height: calc(88vh - 110px) !important;
 
       .avatar-preview-container {
         margin-bottom: 12px;

@@ -217,6 +217,99 @@ fn cell_as_f64(cell: &RawCell) -> Option<f64> {
     }
 }
 
+pub async fn query_user_by_id(user_id: &str) -> Option<(String, String, Option<String>, Option<String>, Option<String>, Option<String>)> {
+    let cfg = match TURSO_CONFIG.get() {
+        Some(c) => c,
+        None => return None,
+    };
+
+    let body = PipelineBody {
+        requests: vec![RequestItem {
+            req_type: "execute",
+            stmt: Stmt {
+                sql: "SELECT id, username, email, avatar_url, banner_url, profile_tags FROM users WHERE id = ?".to_string(),
+                args: vec![TursoValue::text(user_id)],
+            },
+        }],
+    };
+
+    let endpoint = format!("{}/v2/pipeline", cfg.url.trim_end_matches('/'));
+    let resp = cfg
+        .client
+        .post(&endpoint)
+        .header("Authorization", format!("Bearer {}", cfg.token))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .ok()?;
+
+    let parsed: PipelineResponseBody = resp.json().await.ok()?;
+    let results = parsed.results?;
+    let item = results.get(0)?;
+    let response = item.response.as_ref()?;
+    let raw_result = response.result.as_ref()?;
+    let rows = raw_result.rows.as_ref()?;
+    let r = rows.get(0)?;
+    if r.len() >= 6 {
+        let id = cell_as_str(&r[0])?;
+        let username = cell_as_str(&r[1])?;
+        let email = cell_as_str(&r[2]);
+        let avatar_url = cell_as_str(&r[3]);
+        let banner_url = cell_as_str(&r[4]);
+        let profile_tags = cell_as_str(&r[5]);
+        return Some((id, username, email, avatar_url, banner_url, profile_tags));
+    }
+    None
+}
+
+pub async fn query_user_for_login(login: &str) -> Option<(String, String, String, Option<String>, Option<String>, Option<String>, Option<String>)> {
+    let cfg = match TURSO_CONFIG.get() {
+        Some(c) => c,
+        None => return None,
+    };
+
+    let body = PipelineBody {
+        requests: vec![RequestItem {
+            req_type: "execute",
+            stmt: Stmt {
+                sql: "SELECT id, username, password_hash, email, avatar_url, banner_url, profile_tags FROM users WHERE LOWER(username) = LOWER(?) OR (email IS NOT NULL AND LOWER(email) = LOWER(?)) LIMIT 1".to_string(),
+                args: vec![TursoValue::text(login), TursoValue::text(login)],
+            },
+        }],
+    };
+
+    let endpoint = format!("{}/v2/pipeline", cfg.url.trim_end_matches('/'));
+    let resp = cfg
+        .client
+        .post(&endpoint)
+        .header("Authorization", format!("Bearer {}", cfg.token))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .ok()?;
+
+    let parsed: PipelineResponseBody = resp.json().await.ok()?;
+    let results = parsed.results?;
+    let item = results.get(0)?;
+    let response = item.response.as_ref()?;
+    let raw_result = response.result.as_ref()?;
+    let rows = raw_result.rows.as_ref()?;
+    let r = rows.get(0)?;
+    if r.len() >= 7 {
+        let id = cell_as_str(&r[0])?;
+        let username = cell_as_str(&r[1])?;
+        let password_hash = cell_as_str(&r[2])?;
+        let email = cell_as_str(&r[3]);
+        let avatar_url = cell_as_str(&r[4]);
+        let banner_url = cell_as_str(&r[5]);
+        let profile_tags = cell_as_str(&r[6]);
+        return Some((id, username, password_hash, email, avatar_url, banner_url, profile_tags));
+    }
+    None
+}
+
 pub async fn sync_down_on_boot(pool: &DbPool) {
     let cfg = match TURSO_CONFIG.get() {
         Some(c) => c,

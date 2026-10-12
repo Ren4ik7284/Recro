@@ -17,6 +17,13 @@
         }
     }
 
+    handle /recro.apk {
+        root * /var/www/recro/frontend
+        header Content-Type application/vnd.android.package-archive
+        header Content-Disposition "attachment; filename=recro.apk"
+        file_server
+    }
+
     handle {
         root * /var/www/recro/frontend
         try_files {path} {path}/ /index.html

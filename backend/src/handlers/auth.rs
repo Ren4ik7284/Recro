@@ -240,24 +240,48 @@ pub async fn login(
         }
     };
 
-    let user_row = match row {
-        Some(r) => r,
+    let (user_id, db_username, password_hash, user_email, user_avatar, user_banner, user_tags) = match row {
+        Some(r) => {
+            let uid: String = r.get("id");
+            let uname: String = r.get("username");
+            let phash: String = r.get("password_hash");
+            let umail: Option<String> = r.get("email");
+            let uavatar: Option<String> = r.get("avatar_url");
+            let ubanner: Option<String> = r.get("banner_url");
+            let utags: Option<String> = r.get("profile_tags");
+            (uid, uname, phash, umail, uavatar, ubanner, utags)
+        }
         None => {
-            record_attempt();
-            let _ = tokio::task::spawn_blocking(|| {
-                verify_dummy_password();
-            })
-            .await;
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "Пользователь с таким логином не найден" })),
-            ));
+            // Если локальный SQLite не содержит пользователя, проверяем Turso cloud
+            if let Some((cid, cname, cpass, cmail, cavatar, cbanner, ctags)) = crate::turso::query_user_for_login(login).await {
+                let _ = sqlx::query(
+                    "INSERT OR REPLACE INTO users (id, username, password_hash, email, avatar_url, banner_url, profile_tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                )
+                .bind(&cid)
+                .bind(&cname)
+                .bind(&cpass)
+                .bind(&cmail)
+                .bind(&cavatar)
+                .bind(&cbanner)
+                .bind(&ctags)
+                .bind(chrono::Utc::now().timestamp())
+                .execute(&state.pool)
+                .await;
+
+                (cid, cname, cpass, cmail, cavatar, cbanner, ctags)
+            } else {
+                record_attempt();
+                let _ = tokio::task::spawn_blocking(|| {
+                    verify_dummy_password();
+                })
+                .await;
+                return Err((
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({ "error": "Пользователь с таким логином не найден" })),
+                ));
+            }
         }
     };
-
-    let user_id: String = user_row.get("id");
-    let db_username: String = user_row.get("username");
-    let password_hash: String = user_row.get("password_hash");
 
     let password_owned = password.to_string();
     let is_valid = tokio::task::spawn_blocking(move || {
@@ -285,11 +309,6 @@ pub async fn login(
             Json(json!({ "error": "Не удалось сгенерировать токен авторизации" })),
         )
     })?;
-
-    let user_email: Option<String> = user_row.get("email");
-    let user_avatar: Option<String> = user_row.get("avatar_url");
-    let user_banner: Option<String> = user_row.get("banner_url");
-    let user_tags: Option<String> = user_row.get("profile_tags");
 
     Ok(Json(AuthResponse {
         token,
@@ -323,7 +342,7 @@ pub async fn get_me(
             )
         })?;
 
-    match row {
+    let (id, username, email, avatar_url, banner_url, profile_tags) = match row {
         Some(r) => {
             let id: String = r.get("id");
             let username: String = r.get("username");
@@ -331,13 +350,36 @@ pub async fn get_me(
             let avatar_url: Option<String> = r.get("avatar_url");
             let banner_url: Option<String> = r.get("banner_url");
             let profile_tags: Option<String> = r.get("profile_tags");
-            Ok(Json(UserInfo { id, username, email, avatar_url, banner_url, profile_tags }))
+            (id, username, email, avatar_url, banner_url, profile_tags)
         }
-        None => Err((
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "Пользователь не найден" })),
-        )),
-    }
+        None => {
+            // Если в локальном SQLite на Render контейнере пользователь еще не появился, запрашиваем Turso напрямую
+            if let Some((cid, cname, cmail, cavatar, cbanner, ctags)) = crate::turso::query_user_by_id(&claims.sub).await {
+                // Кэшируем в локальный SQLite
+                let _ = sqlx::query(
+                    "INSERT OR REPLACE INTO users (id, username, password_hash, email, avatar_url, banner_url, profile_tags, created_at) VALUES (?, ?, '', ?, ?, ?, ?, ?)"
+                )
+                .bind(&cid)
+                .bind(&cname)
+                .bind(&cmail)
+                .bind(&cavatar)
+                .bind(&cbanner)
+                .bind(&ctags)
+                .bind(chrono::Utc::now().timestamp())
+                .execute(&state.pool)
+                .await;
+
+                (cid, cname, cmail, cavatar, cbanner, ctags)
+            } else {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(json!({ "error": "Пользователь не найден" })),
+                ));
+            }
+        }
+    };
+
+    Ok(Json(UserInfo { id, username, email, avatar_url, banner_url, profile_tags }))
 }
 
 pub async fn update_profile(

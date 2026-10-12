@@ -432,19 +432,6 @@
             @if (editAvatarUrl()) {
               <button 
                 type="button" 
-                class="btn-save-inline font-mono" 
-                (click)="saveAvatar()" 
-                [disabled]="isSavingAvatar()"
-                title="Сохранить аватар"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                <span>{{ isSavingAvatar() ? 'Сохранение...' : 'Сохранить' }}</span>
-              </button>
-
-              <button 
-                type="button" 
                 class="btn-download-device font-mono" 
                 (click)="downloadMedia(editAvatarUrl(), 'recro-avatar.png')"
                 title="Скачать на телефон или ПК"
@@ -568,19 +555,6 @@
             </button>
 
             @if (editBannerUrl()) {
-              <button 
-                type="button" 
-                class="btn-save-inline font-mono" 
-                (click)="saveBanner()" 
-                [disabled]="isSavingBanner()"
-                title="Сохранить баннер"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                <span>{{ isSavingBanner() ? 'Сохранение...' : 'Сохранить' }}</span>
-              </button>
-
               <button 
                 type="button" 
                 class="btn-download-device font-mono" 
