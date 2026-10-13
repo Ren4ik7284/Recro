@@ -464,11 +464,9 @@ public class MediaPlaybackService extends Service {
             builder = new Notification.Builder(this);
         }
 
-        int iconRes = getApplicationInfo().icon != 0 ? getApplicationInfo().icon : android.R.drawable.ic_media_play;
-
         builder.setContentTitle(currentTitle)
                .setContentText(currentArtist)
-               .setSmallIcon(iconRes)
+               .setSmallIcon(android.R.drawable.ic_media_play)
                .setContentIntent(pOpen)
                .setDeleteIntent(pStop)
                .setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -738,7 +736,26 @@ public class MainActivity extends Activity {
     private class NativeMediaBridge {
         @JavascriptInterface
         public void updateMediaSession(final String title, final String artist, final String coverUrl,
+                                       final boolean playing, final double position, final double duration) {
+            checkNotificationPermission();
+            MediaPlaybackService.updatePlayback(MainActivity.this, title, artist, coverUrl, playing, (long) position, (long) duration);
+        }
+
+        @JavascriptInterface
+        public void updateMediaSession(final String title, final String artist, final String coverUrl,
                                        final boolean playing, final long position, final long duration) {
+            checkNotificationPermission();
+            MediaPlaybackService.updatePlayback(MainActivity.this, title, artist, coverUrl, playing, position, duration);
+        }
+
+        @JavascriptInterface
+        public void updateMediaSession(final String title, final String artist, final String coverUrl,
+                                       final boolean playing) {
+            checkNotificationPermission();
+            MediaPlaybackService.updatePlayback(MainActivity.this, title, artist, coverUrl, playing, 0, 0);
+        }
+
+        private void checkNotificationPermission() {
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
                 mainHandler.post(new Runnable() {
                     @Override
@@ -749,7 +766,6 @@ public class MainActivity extends Activity {
                     }
                 });
             }
-            MediaPlaybackService.updatePlayback(MainActivity.this, title, artist, coverUrl, playing, position, duration);
         }
 
         @JavascriptInterface

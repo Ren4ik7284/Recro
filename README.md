@@ -12,8 +12,8 @@
 
 ## 🌐 Рабочие ссылки (Production)
 
-- **Веб-версия (Frontend):** [https://signal-frontend-production-a944.up.railway.app](https://signal-frontend-production-a944.up.railway.app)
-- **API Сервер (Backend):** [https://signal-audio-backend-production.up.railway.app](https://signal-audio-backend-production.up.railway.app)
+- **Веб-версия & API:** [https://recro.onrender.com](https://recro.onrender.com)
+- **Приложение Android (APK):** [https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)
 
 ---
 

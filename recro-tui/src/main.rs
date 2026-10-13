@@ -864,7 +864,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend_url = std::env::var("RECRO_BACKEND_URL")
-        .unwrap_or_else(|_| "https://signal-audio-backend-production.up.railway.app".to_string());
+        .unwrap_or_else(|_| "https://recro.onrender.com".to_string());
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

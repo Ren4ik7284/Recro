@@ -871,9 +871,9 @@ export class AudioService {
       const artwork: MediaImage[] = [];
       if (!isDefault) {
         artwork.push(
-          { src: cover, sizes: '512x512', type: 'image/png' },
-          { src: cover, sizes: '256x256', type: 'image/png' },
-          { src: cover, sizes: '128x128', type: 'image/png' },
+          { src: cover, sizes: '512x512' },
+          { src: cover, sizes: '256x256' },
+          { src: cover, sizes: '128x128' },
         );
       }
       artwork.push(
