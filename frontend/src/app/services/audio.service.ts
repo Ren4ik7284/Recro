@@ -57,6 +57,7 @@ export class AudioService {
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
   private lastMediaSessionPositionTime = 0;
+  private lastNativeBridgeSyncTime = 0;
   private wakeLockSentinel: any = null;
   private activeStreamAbortController: AbortController | null = null;
 
@@ -177,6 +178,13 @@ export class AudioService {
         } else if (action.startsWith('seekto:')) {
           const ms = parseFloat(action.split(':')[1]);
           if (!isNaN(ms)) this.seek(ms / 1000);
+        } else if (action === 'refresh_media_session') {
+          const cur = this.currentTrack();
+          if (cur) {
+            this.updateMediaSessionMetadata(cur);
+            this.updateMediaSessionPlaybackState(this.isPlaying() ? 'playing' : 'paused');
+            this.updateMediaSessionPosition();
+          }
         }
       };
     }
@@ -474,6 +482,10 @@ export class AudioService {
       if (now - this.lastMediaSessionPositionTime > 1500) {
         this.lastMediaSessionPositionTime = now;
         this.updateMediaSessionPosition();
+        if (now - this.lastNativeBridgeSyncTime > 4000) {
+          this.lastNativeBridgeSyncTime = now;
+          this.notifyNativeBridge(this.currentTrack(), this.isPlaying());
+        }
       }
     });
 
@@ -811,8 +823,8 @@ export class AudioService {
       };
 
       const coverUrl = getFullUrl(track.coverUrl);
-      const posMs = Math.round((this.currentTime() || 0) * 1000);
-      const durMs = Math.round((this.duration() || 0) * 1000);
+      const posMs = Math.max(0, Math.round((this.currentTime() || 0) * 1000));
+      const durMs = Math.max(0, Math.round((this.duration() || 0) * 1000));
       bridge.updateMediaSession(title, artist, coverUrl, isPlaying, posMs, durMs);
     } catch (e) {
       console.warn('[AudioService] AndroidMediaBridge error:', e);
@@ -859,9 +871,9 @@ export class AudioService {
       const artwork: MediaImage[] = [];
       if (!isDefault) {
         artwork.push(
-          { src: cover, sizes: '512x512' },
-          { src: cover, sizes: '256x256' },
-          { src: cover, sizes: '128x128' },
+          { src: cover, sizes: '512x512', type: 'image/png' },
+          { src: cover, sizes: '256x256', type: 'image/png' },
+          { src: cover, sizes: '128x128', type: 'image/png' },
         );
       }
       artwork.push(

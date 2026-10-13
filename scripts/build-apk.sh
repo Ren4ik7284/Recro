@@ -154,13 +154,14 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Log;
+import android.view.KeyEvent;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class MediaPlaybackService extends Service {
     private static final String TAG = "RecroService";
-    private static final String CHANNEL_ID = "recro_media_channel";
+    private static final String CHANNEL_ID = "recro_media_playback_channel_v4";
     private static final int NOTIFICATION_ID = 101;
 
     public static final String ACTION_UPDATE = "app.recro.player.ACTION_UPDATE";
@@ -195,12 +196,16 @@ public class MediaPlaybackService extends Service {
     private void initNotificationChannel() {
         if (Build.VERSION.SDK_INT >= 26 && notificationManager != null) {
             try {
+                // Delete legacy silent channel so the system updates to prominent media channel
+                notificationManager.deleteNotificationChannel("recro_media_channel");
+            } catch (Throwable ignored) {}
+            try {
                 NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Recro Playback",
-                    NotificationManager.IMPORTANCE_LOW
+                    "Recro Music Playback",
+                    NotificationManager.IMPORTANCE_DEFAULT
                 );
-                channel.setDescription("Воспроизведение музыки Recro");
+                channel.setDescription("Управление воспроизведением музыки в шторке и на экране блокировки");
                 channel.setShowBadge(false);
                 channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
                 channel.enableVibration(false);
@@ -251,7 +256,33 @@ public class MediaPlaybackService extends Service {
                 public void onSeekTo(long pos) {
                     MainActivity.sendMediaAction("seekto:" + pos);
                 }
-            });
+                @Override
+                public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                    if (mediaButtonIntent != null && Intent.ACTION_MEDIA_BUTTON.equals(mediaButtonIntent.getAction())) {
+                        KeyEvent event = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                        if (event != null && event.getAction() == KeyEvent.ACTION_DOWN) {
+                            int keyCode = event.getKeyCode();
+                            if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY) {
+                                MainActivity.sendMediaAction("play");
+                                return true;
+                            } else if (keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE) {
+                                MainActivity.sendMediaAction("pause");
+                                return true;
+                            } else if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || keyCode == KeyEvent.KEYCODE_HEADSETHOOK) {
+                                MainActivity.sendMediaAction("play_pause");
+                                return true;
+                            } else if (keyCode == KeyEvent.KEYCODE_MEDIA_NEXT) {
+                                MainActivity.sendMediaAction("next");
+                                return true;
+                            } else if (keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS) {
+                                MainActivity.sendMediaAction("prev");
+                                return true;
+                            }
+                        }
+                    }
+                    return super.onMediaButtonEvent(mediaButtonIntent);
+                }
+            }, mainHandler);
             mediaSession.setActive(true);
         } catch (Throwable t) {
             Log.e(TAG, "Failed to initialize MediaSession", t);
@@ -314,6 +345,16 @@ public class MediaPlaybackService extends Service {
         return START_STICKY;
     }
 
+    private Bitmap getDefaultCoverBitmap() {
+        try {
+            int iconRes = getApplicationInfo().icon;
+            if (iconRes != 0) {
+                return BitmapFactory.decodeResource(getResources(), iconRes);
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
     private void handleUpdate(String title, String artist, final String coverUrl,
                               boolean playing, long position, long duration) {
         currentTitle = (title != null && !title.trim().isEmpty()) ? title : "Recro Track";
@@ -332,34 +373,25 @@ public class MediaPlaybackService extends Service {
         updateSessionState();
         Notification notif = buildNotification();
 
-        if (isPlaying) {
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                startForeground(NOTIFICATION_ID, notif, 2 /* FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK */);
+            } else {
+                startForeground(NOTIFICATION_ID, notif);
+            }
+        } catch (Throwable t) {
             try {
-                if (Build.VERSION.SDK_INT >= 29) {
-                    startForeground(NOTIFICATION_ID, notif, 2 /* FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK */);
-                } else {
-                    startForeground(NOTIFICATION_ID, notif);
-                }
-            } catch (Throwable t) {
-                try {
-                    startForeground(NOTIFICATION_ID, notif);
-                } catch (Throwable t2) {
-                    if (notificationManager != null) {
-                        notificationManager.notify(NOTIFICATION_ID, notif);
-                    }
+                startForeground(NOTIFICATION_ID, notif);
+            } catch (Throwable t2) {
+                if (notificationManager != null) {
+                    notificationManager.notify(NOTIFICATION_ID, notif);
                 }
             }
+        }
+
+        if (isPlaying) {
             acquireWakeLock();
         } else {
-            try {
-                if (Build.VERSION.SDK_INT >= 24) {
-                    stopForeground(false); // Detach foreground but keep notification in shade!
-                }
-            } catch (Throwable ignored) {}
-            if (notificationManager != null) {
-                try {
-                    notificationManager.notify(NOTIFICATION_ID, notif);
-                } catch (Throwable ignored) {}
-            }
             releaseWakeLock();
         }
     }
@@ -387,9 +419,10 @@ public class MediaPlaybackService extends Service {
                 .putString(MediaMetadata.METADATA_KEY_ALBUM, "Recro")
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, currentDuration > 0 ? currentDuration : -1);
 
-            if (currentCoverBitmap != null) {
-                mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, currentCoverBitmap);
-                mb.putBitmap(MediaMetadata.METADATA_KEY_ART, currentCoverBitmap);
+            Bitmap art = currentCoverBitmap != null ? currentCoverBitmap : getDefaultCoverBitmap();
+            if (art != null) {
+                mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, art);
+                mb.putBitmap(MediaMetadata.METADATA_KEY_ART, art);
             }
             mediaSession.setMetadata(mb.build());
             mediaSession.setActive(true);
@@ -420,6 +453,10 @@ public class MediaPlaybackService extends Service {
         nextIntent.setAction(ACTION_NEXT);
         PendingIntent pNext = PendingIntent.getService(this, 3, nextIntent, pFlags);
 
+        Intent stopIntent = new Intent(this, MediaPlaybackService.class);
+        stopIntent.setAction(ACTION_STOP);
+        PendingIntent pStop = PendingIntent.getService(this, 4, stopIntent, pFlags);
+
         Notification.Builder builder;
         if (Build.VERSION.SDK_INT >= 26) {
             builder = new Notification.Builder(this, CHANNEL_ID);
@@ -427,15 +464,20 @@ public class MediaPlaybackService extends Service {
             builder = new Notification.Builder(this);
         }
 
+        int iconRes = getApplicationInfo().icon != 0 ? getApplicationInfo().icon : android.R.drawable.ic_media_play;
+
         builder.setContentTitle(currentTitle)
                .setContentText(currentArtist)
-               .setSmallIcon(android.R.drawable.ic_media_play)
+               .setSmallIcon(iconRes)
                .setContentIntent(pOpen)
+               .setDeleteIntent(pStop)
                .setVisibility(Notification.VISIBILITY_PUBLIC)
-               .setOngoing(isPlaying);
+               .setOngoing(isPlaying)
+               .setCategory(Notification.CATEGORY_TRANSPORT);
 
-        if (currentCoverBitmap != null) {
-            builder.setLargeIcon(currentCoverBitmap);
+        Bitmap largeArt = currentCoverBitmap != null ? currentCoverBitmap : getDefaultCoverBitmap();
+        if (largeArt != null) {
+            builder.setLargeIcon(largeArt);
         }
 
         builder.addAction(new Notification.Action.Builder(
@@ -465,6 +507,7 @@ public class MediaPlaybackService extends Service {
 
     private void loadCoverAsync(final String coverUrl) {
         if (coverUrl == null || coverUrl.isEmpty()) return;
+        if (!coverUrl.startsWith("http://") && !coverUrl.startsWith("https://")) return;
 
         new Thread(new Runnable() {
             @Override
@@ -472,6 +515,8 @@ public class MediaPlaybackService extends Service {
                 try {
                     URL url = new URL(coverUrl);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setInstanceFollowRedirects(true);
+                    conn.setRequestProperty("User-Agent", "RecroApp/1.2");
                     conn.setConnectTimeout(4000);
                     conn.setReadTimeout(4000);
                     conn.setDoInput(true);
@@ -554,7 +599,7 @@ public class MediaPlaybackService extends Service {
             intent.putExtra("position", position);
             intent.putExtra("duration", duration);
 
-            if (Build.VERSION.SDK_INT >= 26 && playing) {
+            if (Build.VERSION.SDK_INT >= 26) {
                 context.startForegroundService(intent);
             } else {
                 context.startService(intent);
@@ -682,10 +727,28 @@ public class MainActivity extends Activity {
         }
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 200 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            sendMediaAction("refresh_media_session");
+        }
+    }
+
     private class NativeMediaBridge {
         @JavascriptInterface
         public void updateMediaSession(final String title, final String artist, final String coverUrl,
                                        final boolean playing, final long position, final long duration) {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 200);
+                        } catch (Throwable ignored) {}
+                    }
+                });
+            }
             MediaPlaybackService.updatePlayback(MainActivity.this, title, artist, coverUrl, playing, position, duration);
         }
 
@@ -854,8 +917,11 @@ fi
 
 "$APKSIGNER" verify "$BUILD_DIR/recro.apk"
 
-# 12. Copy to frontend/public/recro.apk
+# 12. Copy to frontend/public/recro.apk and dist_frontend/recro.apk
 cp "$BUILD_DIR/recro.apk" "$FRONTEND_DIR/public/recro.apk"
+if [ -d "$ROOT_DIR/dist_frontend" ]; then
+  cp "$BUILD_DIR/recro.apk" "$ROOT_DIR/dist_frontend/recro.apk"
+fi
 if [ -d "$FRONTEND_DIR/dist/browser" ]; then
   cp "$BUILD_DIR/recro.apk" "$FRONTEND_DIR/dist/browser/recro.apk"
 fi
