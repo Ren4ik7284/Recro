@@ -1938,7 +1938,7 @@ export class AudioService {
 
   dislikeTrack(track: Track) {
     if (!track) return;
-    this.recService.dislikeTrack(track.id);
+    this.recService.dislikeTrack(track);
     this.libraryService.dislikeTrack(track);
 
     this.queue.update((q) => q.filter((t) => t.id !== track.id));

@@ -108,12 +108,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-ru-7',
-    title: 'Minor',
-    artist: 'Miyagi & Andy Panda',
-    duration: 175,
-    audioUrl: '/api/stream?title=Minor&artist=Miyagi%20%26%20Andy%20Panda',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/3be8134764b8bb279ebaaec10714c330/500x500.jpg',
-    genre: 'Hip-Hop / Reggae',
+    title: 'не надо',
+    artist: 'madk1d',
+    duration: 140,
+    audioUrl: '/api/stream?title=%D0%BD%D0%B5%20%D0%BD%D0%B0%D0%B4%D0%BE&artist=madk1d',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/4ee6246aa577ebaf16b25a388f72aa98/500x500.jpg',
+    genre: 'Alternative / Rock',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -1209,9 +1209,9 @@ export class RecommendationService {
       b.chill * b.chill
     );
 
-    if (normA <= 0 || normB <= 0) return 0.5;
+    if (normA <= 0 || normB <= 0) return 0;
     const cos = dot / (normA * normB);
-    return Math.max(0, Math.min(1, (cos + 1) / 2));
+    return Math.max(0, Math.min(1, cos));
   }
 
   /**
@@ -1295,12 +1295,12 @@ export class RecommendationService {
     this.saveTasteVector(updated);
   }
 
-  dislikeTrack(trackId: string) {
-    this.libraryService.dislikeTrack(trackId);
+  dislikeTrack(trackOrId: string | Track) {
+    this.libraryService.dislikeTrack(trackOrId);
   }
 
-  isDisliked(trackId: string): boolean {
-    return this.libraryService.isDisliked(trackId);
+  isDisliked(trackOrId: string | Track): boolean {
+    return this.libraryService.isDisliked(trackOrId);
   }
 
   getAllLocalCandidates(): Track[] {
@@ -1701,7 +1701,7 @@ export class RecommendationService {
         ? ['Король и Шут', 'DVRST', 'Три дня дождя', 'Порнофильмы']
         : mood === 'chill'
         ? ['Zivert', 'Сироткин', 'Markul', 'Хадн Дадн']
-        : ['Miyagi & Andy Panda', 'Кино', 'SALUKI', 'Скриптонит'];
+        : ['madk1d', 'cupsize', 'Три дня дождя', 'Кино'];
       const defaultEnArtists = mood === 'energetic'
         ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott']
         : mood === 'chill'
@@ -1726,7 +1726,7 @@ export class RecommendationService {
       ruQueries.push('бодрый русский рэп', 'энергичный рок', 'дрифт фонк', 'русский фонк');
       enQueries.push('energetic rap hits', 'hard rock hits', 'drift phonk', 'workout beats');
     } else if (mood === 'chill') {
-      ruQueries.push('спокойная русская музыка', 'русский лоуфай', 'русский инди поп', 'кальянный рэп');
+      ruQueries.push('спокойная русская музыка', 'русский лоуфай', 'русский инди поп', 'русский пост-панк');
       enQueries.push('chill beats lofi', 'chill indie rock', 'r&b chill vibes', 'relaxing pop');
     }
 
@@ -1813,7 +1813,7 @@ export class RecommendationService {
       const remainingBuffer: Track[] = [];
       for (const t of this.onlineDiscoveryPool) {
         if (!t || !t.id || !t.title || !t.artist) continue;
-        if (excludeIds.has(t.id) || this.isDisliked(t.id) || this.isSessionDuplicate(t)) continue;
+        if (excludeIds.has(t.id) || this.isDisliked(t) || this.isSessionDuplicate(t)) continue;
         if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
         if (!isTrackLanguageMatch(t, effectiveLang)) continue;
         const art = normalizeArtist(t.artist);
@@ -1909,7 +1909,7 @@ export class RecommendationService {
           ? ['madk1d', 'cupsize', 'Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Big Baby Tape']
           : mood === 'chill'
           ? ['zhanulka', 'Zivert', 'Сироткин', 'Markul', 'SALUKI', 'Хадн Дадн']
-          : ['madk1d', 'cupsize', 'zhanulka', 'Miyagi & Andy Panda', 'Кино', 'Скриптонит', 'SALUKI', 'Markul'];
+          : ['madk1d', 'cupsize', 'zhanulka', 'Три дня дождя', 'Кино', 'serega pirat', 'SALUKI', 'Markul'];
         const curatedEn = mood === 'energetic'
           ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott', 'Nirvana']
           : mood === 'chill'
@@ -1929,7 +1929,7 @@ export class RecommendationService {
 
       for (const t of rawCandidates) {
         if (!t || !t.id || !t.audioUrl?.trim() || !t.title?.trim() || !t.artist?.trim()) continue;
-        if (excludeIds.has(t.id) || this.isDisliked(t.id) || this.isSessionDuplicate(t)) continue;
+        if (excludeIds.has(t.id) || this.isDisliked(t) || this.isSessionDuplicate(t)) continue;
         if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
         if (!isTrackLanguageMatch(t, effectiveLang)) continue;
         if (t.duration > 0 && (t.duration < 45 || t.duration > 500)) continue;
