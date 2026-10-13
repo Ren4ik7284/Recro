@@ -1,135 +1,259 @@
-# 🎵 Recro — Minimalist Web Audio Player & Smart Wave
+<div align="center">
 
-[![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=flat-square&logo=angular)](https://angular.dev)
-[![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=flat-square&logo=rust)](https://www.rust-lang.org)
-[![FFmpeg](https://img.shields.io/badge/FFmpeg-Audio_Engine-007808.svg?style=flat-square&logo=ffmpeg)](https://ffmpeg.org)
-[![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8.svg?style=flat-square)](https://web.dev/progressive-web-apps/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+# 🎵 Recro
 
-**Recro** — современный, быстрый аудиоплеер со встроенным алгоритмом «Моя Волна», караоке-текстами песен, каталогом радиостанций, мультиплатформенным поиском и оффлайн-режимом. Без рекламы и подписок: аудиопотоки обрабатываются напрямую высокопроизводительным бэкендом на Rust и транскодируются в реальном времени.
+### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
+
+[![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=for-the-badge&logo=angular&logoColor=white)](https://angular.dev)
+[![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Turso](https://img.shields.io/badge/Turso-SQLite_Edge-00E699.svg?style=for-the-badge&logo=sqlite&logoColor=black)](https://turso.tech)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-Audio_Engine-007808.svg?style=for-the-badge&logo=ffmpeg&logoColor=white)](https://ffmpeg.org)
+[![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8.svg?style=for-the-badge&logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+
+**Recro** — быстрый, бескомпромиссный музыкальный плеер нового поколения без рекламы и платных подписок. Объединяет стриминг студийного качества из множества источников (Deezer, SoundCloud, YouTube, Радио), алгоритм персональных рекомендаций **«Моя Волна»**, живое караоке с синхронизированными текстами, умный таймер под задачи и **ежедневно обновляемый мировой чарт Spotify Top-50**.
+
+[🌐 Открыть веб-версию](https://recro.onrender.com) • [📱 Скачать Android APK](https://recro.onrender.com/recro.apk) • [✨ Возможности](#-ключевые-возможности) • [🚀 Быстрый старт](#-быстрый-запуск)
+
+</div>
 
 ---
 
-## 🌐 Рабочие ссылки (Production)
+## 📸 Галерея интерфейса
 
-- **Веб-версия & API:** [https://recro.onrender.com](https://recro.onrender.com)
-- **Приложение Android (APK):** [https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)
+### 🌟 Профиль пользователя и Ежедневный Топ-50 Spotify
+<p align="center">
+  <img src="docs/screenshots/profile_top_artists.png" alt="Recro Profile & Daily Top 50 Spotify Artists" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"/>
+</p>
 
----
+### 🎤 Синхронизированные тексты песен & ⏱️ Музыкальный таймер под задачи
+<p align="center">
+  <img src="docs/screenshots/lyrics_karaoke.png" alt="Recro Synchronized Karaoke & Lyrics" width="63%" style="border-radius: 10px; margin-right: 1%; vertical-align: top;"/>
+  <img src="docs/screenshots/music_timer.png" alt="Recro Smart Music Timer" width="34%" style="border-radius: 10px; vertical-align: top;"/>
+</p>
 
-## 📸 Интерфейс приложения
+<details>
+<summary><b>📱 Посмотреть десктопный и мобильный плеер</b></summary>
+<br>
 
-| Десктопная версия (Web / PWA) | Мобильная адаптация |
+| Десктопный плеер | Мобильная адаптация |
 | :---: | :---: |
-| <img src="docs/screenshots/desktop_preview.png" alt="Recro Desktop Player" width="550"/> | <img src="docs/screenshots/mobile_preview.png" alt="Recro Mobile Player" width="220"/> |
+| <img src="docs/screenshots/desktop_preview.png" alt="Desktop Preview" width="550"/> | <img src="docs/screenshots/mobile_preview.png" alt="Mobile Preview" width="220"/> |
+
+</details>
 
 ---
 
 ## ✨ Ключевые возможности
 
-### 🌊 Моя Волна (Smart Wave 2.0)
-- **100% изоляция языковых потоков**: при воспроизведении зарубежных композиций подбираются строго иностранные треки; при переключении на русскую музыку волна удерживает 100% русскоязычный контент.
-- **Векторная модель косинусного сходства**: обучающийся вектор предпочтений пользователя (темп, энергия, акустичность, жанровые паттерны). Релевантность проверяется строгим порогом сходства ($\ge 0.38$).
-- **Пул качественных открытий (`onlineDiscoveryPool`)**: сохранение радио артистов в буфере памяти, гарантирующее студийные треки без перехода в поисковый мусор и компиляции.
-- **Сбалансированный режим (Balanced)**: умное чередование треков из медиатеки с подходящими онлайн-находками.
+### 📊 1. Ежедневный Топ-50 Spotify (Daily Global Top Artists)
+* **Настоящие данные Spotify:** Интеграция с мировым трекером *Kworb Spotify Charts*, который обновляет позиции каждые 24 часа.
+* **Слушатели и динамика:** Отображение реального количества ежемесячных слушателей на Spotify (например, `129.8M слуш.`) и суточного прироста/падения (`▲ +41.5K` / `▼ -14.8K`).
+* **Официальные HD-обложки:** Автоматическое подтягивание оригинальных студийных фото 640×640 напрямую из CDN Spotify (`image-cdn-ak.spotifycdn.com`).
+* **Фоновый воркер и моментальный отклик:** Встроенный в Rust-бэкенд планировщик тихо обновляет чарт раз в 6 часов и кэширует его на диск — плеер отдает топ за **0.4 миллисекунды**.
+* **Быстрый запуск:** Клик по исполнителю мгновенно открывает поиск и дискографию его лучших треков.
 
-### 🎤 Синхронизированные тексты песен (Karaoke & Lyrics)
-- Автоматический поиск караоке-текстов в реальном времени через базы LRCLIB, NetEase Cloud Music и Kugou.
-- Плавная прокрутка текущей строчки под тайминг воспроизведения.
+### ⏱️ 2. Умный музыкальный таймер (Smart Task Timer)
+* **Идеальный хронометраж:** Вы задаете время (15, 25, 30, 45, 60, 90, 120 минут), а алгоритм собирает сет треков с точностью до нескольких секунд.
+* **Пресеты под контекст:**
+  * 🧠 **Фокус и учеба** — расслабляющий Lo-Fi, неоклассика и фоновый бит.
+  * ⚡ **Спорт и энергия** — бодрящий фонк, рок, EDM и мощный грув.
+  * 🌙 **Сон и релакс** — эмбиент, мягкая акустика и звуки природы.
+  * ❤️ **Только любимое** — персональная подборка из вашего «Избранного».
+  * 🎲 **Вся моя музыка** — случайный сет из медиатеки.
+* **Плавное затухание (Fade-Out):** В последние секунды громкость мягко снижается до нуля без резких обрывов звука.
 
-### ⚡ Мультиплатформенный поиск и стриминг
-- **Deezer Radio & Search**: студийное аудио и официальные релизы.
-- **SoundCloud**: быстрый поиск и стриминг инди-релизов, ремиксов и электронных треков.
-- **YouTube**: интеграция и извлечение треков без блокировок.
-- **Онлайн-радио**: каталог станций с фильтрацией и возможностью добавлять свои потоки.
+### 🎤 3. Синхронизированные тексты песен (Karaoke & Live Lyrics)
+* **Строка в строку:** Тексты песен подсвечиваются и плавно прокручиваются синхронно с голосом исполнителя.
+* **BPM-детектор:** Определение и вывод точного темпа композиции (ударов в минуту).
+* **Тонкая подстройка тайминга:** Кнопки сдвига задержки (`-5s`, `-1s`, `-0.2s`, `В такт`, `+0.2s`, `+1s`, `+5s`) для идеальной калибровки.
+* **Многоуровневый поиск:** Агрегация баз LRCLIB, NetEase Cloud Music и Kugou.
 
-### 📥 Оффлайн-режим и PWA
-- Сохранение треков в локальное хранилище браузера (IndexedDB) в один клик.
-- Полноценное воспроизведение загруженной музыки без доступа к интернету.
-- Установка на мобильные устройства и десктоп в формате Progressive Web App.
+### 🌊 4. Алгоритм «Моя Волна» (Smart Wave 2.0)
+* **100% изоляция языковых потоков:** При прослушивании зарубежной музыки волна удерживает строго иностранные треки; при переходе на русскую — моментально перестраивается на отечественный контекст.
+* **Векторная модель косинусного сходства:** Непрерывное обучение вкусового вектора (энергия, акустичность, ритм, танцевальность) с отсечением нерелевантного контента ($\ge 0.38$).
+* **Пул студийных открытий (`onlineDiscoveryPool`):** Постоянный буфер радио-рекомендаций артистов, гарантирующий качественные релизы без перехода в низкопробный мусор.
+* **Режимы настроения:** Сбалансированный, Энергичный, Чилл, Только любимое.
 
-### ☁️ Облачная синхронизация и безопасность
-- Синхронизация библиотеки, плейлистов, истории прослушиваний и настроек волны.
-- Авторизация по логину/паролю (хэширование bcrypt) или через Google OAuth.
-- Защита от SSRF, брутфорса, DoS (Rate Limiting, семафоры потоков) и строгие security-заголовки.
+### 🎧 5. Аудиофильский движок и дизайн
+* **Crossfade (Плавный переход):** Бесшовное сведение треков между собой без тишины.
+* **Нормализация громкости (EBU R128):** Автоматическое выравнивание уровней громкости разных треков.
+* **Спектральный анализатор (Visualizer):** Живая визуализация частот в реальном времени.
+* **Ambient Glow:** Фоновая подсветка интерфейса динамически адаптируется под доминирующие цвета обложки текущего трека.
+
+### 👤 6. Профиль, кастомизация и геймификация
+* **Кастомизация аватара:** Настройка стильных анимированных и неоновых рамок.
+* **Обложки и баннеры профиля:** Загрузка собственных артов или выбор из готовых пресетов.
+* **Вайб и теги:** Установка цветных бейджей статуса и музыкального настроения.
+* **Значки и достижения (Badges):** Разблокировка наград за активное прослушивание.
+* **Recro Wrapped:** Персональные итоги прослушиваний за год и месяц (любимые жанры, топовые треки, часы музыки).
+
+### 🔍 7. Мультиплатформенный поиск и оффлайн
+* **Единая строка поиска:** Поиск по всей глобальной базе Deezer, SoundCloud, YouTube и каталогу онлайн-радиостанций.
+* **Локальные файлы:** Поддержка воспроизведения собственных MP3, FLAC, WAV, M4A, OGG через перетаскивание (Drag & Drop).
+* **Оффлайн-режим:** Кэширование треков в IndexedDB браузера в один клик для прослушивания в самолёте или без связи.
+* **PWA & Android APK:** Возможность установки как полноценного приложения с управлением в шторке Android и на экране блокировки iOS.
 
 ---
 
-## 📱 Поддерживаемые платформы
+## 🏛️ Архитектура системы
 
-| Платформа | Формат работы | Особенности |
-| :--- | :--- | :--- |
-| **Android** | Браузер / PWA | Фоновое воспроизведение, управление в шторке, оффлайн |
-| **iOS / iPadOS** | Safari / PWA («На экран "Домой"») | Управление на экране блокировки, оффлайн |
-| **Windows** | Chrome, Edge, Firefox, Brave | Мультимедиа-клавиши клавиатуры, PWA-окно |
-| **macOS** | Safari, Chrome, Firefox | Touch Bar, Media Keys, Command Center |
-| **Linux** | Любой современный браузер | Управление через MPRIS / хоткеи |
+```mermaid
+flowchart TD
+    subgraph Client["Клиент (Angular 21 PWA / Android APK)"]
+        UI["UI: Плеер, Профиль, Караоке, Таймер"]
+        AudioEng["AudioEngine: Crossfade, Normalizer, Analyzer"]
+        OfflineStore[("IndexedDB (Offline Cache)")]
+        UI <--> AudioEng
+        AudioEng <--> OfflineStore
+    end
+
+    subgraph Edge["Caddy 2 Reverse Proxy & Static Server"]
+        CaddyGate["HTTPS / Gzip / Rate Limit / CORS"]
+    end
+
+    subgraph Backend["Высокопроизводительный бэкенд на Rust (Axum)"]
+        Router["Axum HTTP API"]
+        SpotifyWorker["Spotify Charts Cron Worker (6h)"]
+        StreamEng["FFmpeg Transcoder & Stream Cache"]
+        DiscCache[("Disk Cache: spotify_top_artists.json")]
+        LocalDB[("SQLite Local / WAL")]
+        
+        Router --> StreamEng
+        Router --> SpotifyWorker
+        SpotifyWorker --> DiscCache
+        Router --> LocalDB
+    end
+
+    subgraph Cloud["Внешние сервисы и облачные базы"]
+        Kworb["Kworb / Spotify Charts Data"]
+        SpotifyCDN["Spotify Official Image CDN"]
+        TursoCloud[("Turso Cloud Database (Edge Sync)")]
+        Sources["Deezer / SoundCloud / YouTube / LRCLIB"]
+    end
+
+    Client <--> Edge
+    Edge <--> Backend
+    SpotifyWorker --> Kworb
+    SpotifyWorker --> SpotifyCDN
+    Backend <--> TursoCloud
+    StreamEng <--> Sources
+```
 
 ---
 
-## 🚀 Быстрый запуск через Docker Compose
+## 💻 Технологический стек
+
+| Область | Технологии |
+| :--- | :--- |
+| **Frontend** | Angular 21, TypeScript 5.9, SCSS, Angular Signals, RxJS, PWA Service Workers |
+| **Backend** | Rust 1.80+ (2021 Edition), Axum 0.8, Tokio Async Runtime, SQLx, Reqwest, Bcrypt, JWT |
+| **Базы данных** | SQLite (WAL mode) + Turso Cloud (Edge Replication & Cloud Backup) |
+| **Медиа-движок** | FFmpeg, yt-dlp, Web Audio API, Canvas 2D (Visualizer) |
+| **Инфраструктура** | Docker Multi-stage, Caddy 2, Render, Nix Flakes |
+
+---
+
+## 🚀 Быстрый запуск
+
+### Вариант 1. Через Docker Compose (Рекомендуется)
 
 ```bash
-git clone https://github.com/Ren4ik7284/Recro.git recro
-cd recro
+# 1. Клонируйте репозиторий
+git clone https://github.com/Ren4ik7284/Recro.git
+cd Recro
 
+# 2. Запустите контейнеры
 docker compose up --build -d
 ```
 
-- **Frontend:** `http://localhost:4200`
-- **Backend:** `http://localhost:8085`
+* **Веб-интерфейс:** `http://localhost:10000` (или порт, указанный в `.env`)
+* **Бэкенд API:** `http://localhost:8085`
 
 ---
 
-## 🛠️ Запуск для разработки
+### Вариант 2. Локальная разработка
 
-### 1. Системные требования
-- **Node.js** 20+ и **npm**
-- **Rust** и **Cargo**
-- **FFmpeg** и **yt-dlp**
+#### Требования:
+* **Node.js** $\ge 20$ и **npm**
+* **Rust** $\ge 1.80$ и **Cargo**
+* Установленные в системе **FFmpeg** и **yt-dlp**
 
-### 2. Запуск бэкенда (Rust)
+#### 1. Бэкенд (Rust)
 ```bash
 cd backend
+
+# Настройка переменных окружения (опционально)
+cp ../.env.example .env
+
+# Запуск в режиме разработки
 cargo run
 ```
+*Сервер запустится на `http://localhost:8085`.*
 
-### 3. Запуск фронтенда (Angular)
+#### 2. Фронтенд (Angular)
 ```bash
 cd frontend
+
+# Установка зависимостей
 npm install
+
+# Запуск dev-сервера с hot-reload
 npm start
 ```
+*Приложение откроется на `http://localhost:4200`.*
 
 ---
 
-## ⚙️ Структура проекта
+## 🔧 Переменные окружения (`.env`)
 
-```
-recro/
-├── backend/                  # Сервер на Rust (Axum, SQLite, FFmpeg)
-│   ├── src/
-│   │   ├── handlers/         # Обработчики API (поток, поиск, караоке, библиотека)
-│   │   ├── auth.rs           # Аутентификация (Bcrypt + JWT + Google OAuth)
-│   │   ├── security.rs       # Защита от SSRF и Rate Limiting
-│   │   ├── soundcloud.rs     # Клиент интеграции SoundCloud API v2
-│   │   └── main.rs           # Сервер Axum, CORS, семафоры и middleware
-│   └── Cargo.toml            # Конфигурация зависимостей Rust
-│
-├── frontend/                 # Клиентское SPA-приложение (Angular 21)
-│   ├── src/app/
-│   │   ├── components/       # Компоненты UI (плеер, караоке, медиатека, волна)
-│   │   ├── services/         # Сервисы (аудио, рекомендации волны, оффлайн)
-│   │   ├── models/           # Модели данных
-│   │   └── app.ts            # Главный компонент приложения
-│   └── package.json          # Зависимости фронтенда
-│
-├── docker-compose.yml        # Оркестрация контейнеров
-└── README.md                 # Документация проекта
-```
+| Переменная | Описание | Значение по умолчанию | Обязательно |
+| :--- | :--- | :--- | :---: |
+| `PORT` | Порт прокси/сервера | `10000` | Нет |
+| `BACKEND_PORT` | Внутренний порт Rust-бэкенда | `8085` | Нет |
+| `JWT_SECRET` | Секретный ключ для подписи токенов | Случайная строка | **Да** |
+| `DATABASE_URL` | Путь к базе SQLite | `sqlite://signal.db?mode=rwc` | Нет |
+| `TURSO_DATABASE_URL` | URL базы данных Turso Cloud | — | Опционально |
+| `TURSO_AUTH_TOKEN` | Токен доступа к Turso Cloud | — | Опционально |
+| `GOOGLE_CLIENT_ID` | OAuth Client ID Google | — | Опционально |
+| `ALLOWED_ORIGINS` | Разрешенные CORS домены через запятую | `*` | Нет |
+
+---
+
+## 📡 Основные API Эндпоинты
+
+| Метод | Эндпоинт | Описание |
+| :--- | :--- | :--- |
+| `GET` | `/api/top-artists` | Ежедневный мировой Топ-50 артистов Spotify (`?force=true` для принудительного обновления) |
+| `GET` | `/api/search` | Универсальный поиск музыки (Deezer / SoundCloud / YouTube) |
+| `GET` | `/api/stream` | Потоковое аудио с real-time транскодированием через FFmpeg |
+| `GET` | `/api/lyrics` | Синхронизированные караоке-тексты песен |
+| `GET` | `/api/recommendations` | Треки алгоритма «Моя Волна» по вкусовому вектору |
+| `GET` | `/api/stats/wrapped` | Персональная статистика и итоги прослушиваний (Wrapped) |
+| `POST`| `/api/auth/register` | Регистрация нового пользователя |
+| `POST`| `/api/auth/login` | Вход по логину и паролю |
+| `POST`| `/api/auth/google` | Вход через Google OAuth |
+| `GET` | `/api/health` | Проверка работоспособности сервиса |
+
+---
+
+## 📱 Установка на телефон (Android & iOS)
+
+### Android (APK)
+1. Скачайте готовый APK-файл: [https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)
+2. Разрешите установку из неизвестных источников и запустите `.apk`.
+
+### iOS / iPadOS (PWA)
+1. Откройте [https://recro.onrender.com](https://recro.onrender.com) в браузере **Safari**.
+2. Нажмите кнопку **«Поделиться»** (иконка со стрелочкой вверх).
+3. Выберите **«На экран "Домой"» (Add to Home Screen)**.
 
 ---
 
 ## 📄 Лицензия
 
-Проект распространяется под лицензией **MIT**. Подробности в файле `LICENSE`.
+Проект распространяется под лицензией **MIT**. Подробности в файле [LICENSE](LICENSE).
+
+<div align="center">
+  <b>Сделано с любовью к музыке и открытому коду 🎧</b>
+</div>
