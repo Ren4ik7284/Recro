@@ -4,18 +4,28 @@
 
 ### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
 
-[![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=for-the-badge&logo=angular&logoColor=white)](https://angular.dev)
-[![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
-[![Turso](https://img.shields.io/badge/Turso-SQLite_Edge-00E699.svg?style=for-the-badge&logo=sqlite&logoColor=black)](https://turso.tech)
-[![FFmpeg](https://img.shields.io/badge/FFmpeg-Audio_Engine-007808.svg?style=for-the-badge&logo=ffmpeg&logoColor=white)](https://ffmpeg.org)
-[![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8.svg?style=for-the-badge&logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/🔥_СЛУШАТЬ_ОНЛАЙН-recro.onrender.com-1ed760?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.onrender.com)
+[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro.onrender.com/recro.apk)
+
+[![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
+[![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Turso](https://img.shields.io/badge/Turso-SQLite_Edge-00E699.svg?style=flat-square&logo=sqlite&logoColor=black)](https://turso.tech)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-Audio_Engine-007808.svg?style=flat-square&logo=ffmpeg&logoColor=white)](https://ffmpeg.org)
+[![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8.svg?style=flat-square&logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 **Recro** — быстрый, бескомпромиссный музыкальный плеер нового поколения без рекламы и платных подписок. Объединяет стриминг студийного качества из множества источников (Deezer, SoundCloud, YouTube, Радио), алгоритм персональных рекомендаций **«Моя Волна»**, живое караоке с синхронизированными текстами, умный таймер под задачи и **ежедневно обновляемый мировой чарт Spotify Top-50**.
 
-[🌐 Открыть веб-версию](https://recro.onrender.com) • [📱 Скачать Android APK](https://recro.onrender.com/recro.apk) • [✨ Возможности](#-ключевые-возможности) • [🚀 Быстрый старт](#-быстрый-запуск)
-
 </div>
+
+---
+
+> ### ⚡ **ОНЛАЙН ДЕМО (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
+>
+> 🌐 **Веб-версия плеера (Слушать онлайн):** 👉 **[https://recro.onrender.com](https://recro.onrender.com)** 👈  
+> 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)** 👈  
+>
+> *(Плеер полностью бесплатен, без рекламы, работает сразу в браузере на ПК, iPhone и Android!)*
 
 ---
 
