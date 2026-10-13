@@ -1196,84 +1196,24 @@ pub async fn get_similar_tracks(
     Ok(Json(tracks))
 }
 
-pub async fn get_top_artists() -> Result<Json<Vec<ChartArtist>>, StatusCode> {
-    static CACHE: tokio::sync::Mutex<Option<(Vec<ChartArtist>, std::time::Instant)>> =
-        tokio::sync::Mutex::const_new(None);
+#[derive(Debug, serde::Deserialize, Default)]
+pub struct TopArtistsQuery {
+    #[serde(default)]
+    pub force: Option<bool>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
 
-    {
-        let guard = CACHE.lock().await;
-        if let Some((cached_artists, cached_at)) = &*guard {
-            if cached_at.elapsed() < Duration::from_secs(86400) && !cached_artists.is_empty() {
-                return Ok(Json(cached_artists.clone()));
-            }
+pub async fn get_top_artists(
+    Query(query): Query<TopArtistsQuery>,
+) -> Result<Json<Vec<ChartArtist>>, StatusCode> {
+    let force = query.force.unwrap_or(false);
+    let mut artists = crate::spotify_charts::get_cached_spotify_top_artists(force).await;
+    if let Some(limit) = query.limit {
+        if limit > 0 && limit < artists.len() {
+            artists.truncate(limit);
         }
     }
-
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_millis(5000))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return Ok(Json(Vec::new())),
-    };
-
-    let url = "https://api.deezer.com/chart/0/artists?limit=15";
-    let mut artists = Vec::new();
-
-    if let Ok(resp) = client.get(url).send().await {
-        if resp.status().is_success() {
-            if let Ok(data) = resp.json::<serde_json::Value>().await {
-                if let Some(arr) = data["data"].as_array() {
-                    for (idx, item) in arr.iter().enumerate() {
-                        let name = item["name"].as_str().unwrap_or("").trim();
-                        if name.is_empty() {
-                            continue;
-                        }
-                        let position = item["position"].as_u64().map(|p| p as usize).unwrap_or(idx + 1);
-                        let picture = item["picture_medium"]
-                            .as_str()
-                            .or_else(|| item["picture_big"].as_str())
-                            .or_else(|| item["picture"].as_str())
-                            .map(|s| s.to_string());
-
-                        artists.push(ChartArtist {
-                            position,
-                            name: name.to_string(),
-                            picture,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    if artists.is_empty() {
-        let fallback_names = [
-            "The Weeknd",
-            "Drake",
-            "Taylor Swift",
-            "Eminem",
-            "Billie Eilish",
-            "Travis Scott",
-            "Post Malone",
-            "Kanye West",
-            "Dua Lipa",
-            "Ariana Grande",
-        ];
-        for (i, name) in fallback_names.iter().enumerate() {
-            artists.push(ChartArtist {
-                position: i + 1,
-                name: name.to_string(),
-                picture: None,
-            });
-        }
-    }
-
-    {
-        let mut guard = CACHE.lock().await;
-        *guard = Some((artists.clone(), std::time::Instant::now()));
-    }
-
     Ok(Json(artists))
 }
 

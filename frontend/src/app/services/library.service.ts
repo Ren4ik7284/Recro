@@ -1,5 +1,5 @@
 import { Injectable, signal, computed, inject, OnDestroy } from '@angular/core';
-import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG } from '../models/track.model';
+import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
 
@@ -1619,9 +1619,12 @@ export class LibraryService implements OnDestroy {
     }
   }
 
-  async getTopArtists(): Promise<{ position: number; name: string; picture?: string }[]> {
+  async getTopArtists(force = false): Promise<ChartArtist[]> {
     try {
-      const res = await fetch(`${this.getBackendUrl()}/api/top-artists`);
+      const url = force
+        ? `${this.getBackendUrl()}/api/top-artists?force=true`
+        : `${this.getBackendUrl()}/api/top-artists`;
+      const res = await fetch(url);
       if (!res.ok) return [];
       return await res.json();
     } catch {

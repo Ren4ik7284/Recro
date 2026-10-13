@@ -1,0 +1,452 @@
+[
+  {
+    "position": 1,
+    "name": "Bruno Mars",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5ebc7688aad1bf03986934d7e26",
+    "monthly_listeners": "129,781,010",
+    "daily_diff": "-34,139",
+    "peak": "1",
+    "spotify_id": "0du5cEVh5yTK9QJze8zA0C"
+  },
+  {
+    "position": 2,
+    "name": "Rihanna",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebcb565a8e684e3be458d329ac",
+    "monthly_listeners": "116,192,743",
+    "daily_diff": "15,798",
+    "peak": "2",
+    "spotify_id": "5pKCCKE2ajJHZ9KAiaK11H"
+  },
+  {
+    "position": 3,
+    "name": "The Weeknd",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebc1719ac9e6a75c1c25835018",
+    "monthly_listeners": "116,119,078",
+    "daily_diff": "17,256",
+    "peak": "1",
+    "spotify_id": "1Xyo4u8uXC1ZmMpatF05PJ"
+  },
+  {
+    "position": 4,
+    "name": "Justin Bieber",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebaf20f7db5288bce9beede034",
+    "monthly_listeners": "112,569,493",
+    "daily_diff": "-142,886",
+    "peak": "1",
+    "spotify_id": "1uNFoZAHBGtllmzznpCI3s"
+  },
+  {
+    "position": 5,
+    "name": "Taylor Swift",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb12184bdd29403de54cb9d9c7",
+    "monthly_listeners": "106,764,975",
+    "daily_diff": "41,570",
+    "peak": "1",
+    "spotify_id": "06HL4z0CvFAxyc27GXpf02"
+  },
+  {
+    "position": 6,
+    "name": "Lady Gaga",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebaadc18cac8d48124357c38e6",
+    "monthly_listeners": "100,351,565",
+    "daily_diff": "67,876",
+    "peak": "2",
+    "spotify_id": "1HY2Jd0NmPuamShAr6KMms"
+  },
+  {
+    "position": 7,
+    "name": "Drake",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb4293385d324db8558179afd9",
+    "monthly_listeners": "94,830,461",
+    "daily_diff": "-21,657",
+    "peak": "3",
+    "spotify_id": "3TVXtAsR1Inumwj472S9r4"
+  },
+  {
+    "position": 8,
+    "name": "Coldplay",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb1ba8fc5f5c73e7e9313cc6eb",
+    "monthly_listeners": "94,648,892",
+    "daily_diff": "-116,761",
+    "peak": "4",
+    "spotify_id": "4gzpq5DPGxSnKTe4SA8HAU"
+  },
+  {
+    "position": 9,
+    "name": "Ariana Grande",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb68412f2d0177a9ebc265ff58",
+    "monthly_listeners": "93,433,118",
+    "daily_diff": "-21,152",
+    "peak": "1",
+    "spotify_id": "66CXWjxzNUsdJxJ2JdwvnR"
+  },
+  {
+    "position": 10,
+    "name": "Bad Bunny",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5eb81f47f44084e0a09b5f0fa13",
+    "monthly_listeners": "92,736,570",
+    "daily_diff": "-168,738",
+    "peak": "2",
+    "spotify_id": "4q3ewBCX7sLwd24euuV69X"
+  },
+  {
+    "position": 11,
+    "name": "Shakira",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb17f15f351cba70561ad8bcac",
+    "monthly_listeners": "90,703,615",
+    "daily_diff": "-48,542",
+    "peak": "3",
+    "spotify_id": "0EmeFodog0BfCgMzAIvKQp"
+  },
+  {
+    "position": 12,
+    "name": "Katy Perry",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebcd50e745cf782f905769f482",
+    "monthly_listeners": "88,450,098",
+    "daily_diff": "-100,289",
+    "peak": "12",
+    "spotify_id": "6jJ0s89eD6GaHleKKya26X"
+  },
+  {
+    "position": 13,
+    "name": "Michael Jackson",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb997cc9a4aec335d46c9481fd",
+    "monthly_listeners": "87,128,519",
+    "daily_diff": "-115,163",
+    "peak": "4",
+    "spotify_id": "3fMbdgg4jU18AjLCKBhRSm"
+  },
+  {
+    "position": 14,
+    "name": "David Guetta",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5ebf150017ca69c8793503c2d4f",
+    "monthly_listeners": "82,869,208",
+    "daily_diff": "-4,032",
+    "peak": "4",
+    "spotify_id": "1Cs0zKBU1kc0i8ypK3B9ai"
+  },
+  {
+    "position": 15,
+    "name": "Maroon 5",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebf8349dfb619a7f842242de77",
+    "monthly_listeners": "80,455,047",
+    "daily_diff": "-28,802",
+    "peak": "14",
+    "spotify_id": "04gDigrS5kc9YWfZHwBETP"
+  },
+  {
+    "position": 16,
+    "name": "Billie Eilish",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb4a21b4760d2ecb7b0dcdc8da",
+    "monthly_listeners": "79,411,553",
+    "daily_diff": "137,166",
+    "peak": "1",
+    "spotify_id": "6qqNVTkY8uBg9cP3Jd7DAH"
+  },
+  {
+    "position": 17,
+    "name": "Ed Sheeran",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebd55c95ad400aed87da52daec",
+    "monthly_listeners": "78,939,169",
+    "daily_diff": "-106,335",
+    "peak": "2",
+    "spotify_id": "6eUKZXaKkcviH0Ku9w2n3V"
+  },
+  {
+    "position": 18,
+    "name": "Pitbull",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebe75db75543a89589514259b2",
+    "monthly_listeners": "78,861,318",
+    "daily_diff": "-88,833",
+    "peak": "13",
+    "spotify_id": "0TnOYISbd1XYRBk9myaseg"
+  },
+  {
+    "position": 19,
+    "name": "Dua Lipa",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb0c68f6c95232e716f0abee8d",
+    "monthly_listeners": "77,347,175",
+    "daily_diff": "-74,307",
+    "peak": "3",
+    "spotify_id": "6M2wZ9GZgrQXHCFfjv46we"
+  },
+  {
+    "position": 20,
+    "name": "Calvin Harris",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb8ebba5e60113b48de8c11f6b",
+    "monthly_listeners": "74,618,405",
+    "daily_diff": "-151,884",
+    "peak": "13",
+    "spotify_id": "7CajNmpbOovFoOoasH2HaY"
+  },
+  {
+    "position": 21,
+    "name": "Eminem",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eba00b11c129b27a88fc72f36b",
+    "monthly_listeners": "73,674,520",
+    "daily_diff": "-125,174",
+    "peak": "5",
+    "spotify_id": "7dGJo4pcD2V6oG8kP0tJRR"
+  },
+  {
+    "position": 22,
+    "name": "J Balvin",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb0405b03342c2e56751b9923d",
+    "monthly_listeners": "71,934,036",
+    "daily_diff": "-135,605",
+    "peak": "11",
+    "spotify_id": "1vyhD5VmyZ7KMfW5gqLgo5"
+  },
+  {
+    "position": 23,
+    "name": "Kendrick Lamar",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb39ba6dcd4355c03de0b50918",
+    "monthly_listeners": "70,662,438",
+    "daily_diff": "-61,451",
+    "peak": "4",
+    "spotify_id": "2YZyLoL8N0Wb9xBt1NhZWg"
+  },
+  {
+    "position": 24,
+    "name": "Kanye West",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb6e835a500e791bf9c27a422a",
+    "monthly_listeners": "70,539,308",
+    "daily_diff": "-9,376",
+    "peak": "6",
+    "spotify_id": "5K4W6rqBFWDnAN6FQUkS6x"
+  },
+  {
+    "position": 25,
+    "name": "KAROL G",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb3869e286c9043f85e8e4bc06",
+    "monthly_listeners": "69,180,977",
+    "daily_diff": "-7,979",
+    "peak": "21",
+    "spotify_id": "790FomKkXshlbRYZFtlgla"
+  },
+  {
+    "position": 26,
+    "name": "Sia",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebcc1806f0a2f6c9e449de9d3c",
+    "monthly_listeners": "69,142,775",
+    "daily_diff": "2,990",
+    "peak": "8",
+    "spotify_id": "5WUlDfRSoLAfcVSX1WnrxN"
+  },
+  {
+    "position": 27,
+    "name": "Olivia Rodrigo",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5ebb14eb4dcfd2f3858bed06e44",
+    "monthly_listeners": "67,459,893",
+    "daily_diff": "33,186",
+    "peak": "18",
+    "spotify_id": "1McMsnEElThX1knmY4oliG"
+  },
+  {
+    "position": 28,
+    "name": "Lana Del Rey",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebb99cacf8acd5378206767261",
+    "monthly_listeners": "67,218,514",
+    "daily_diff": "91,219",
+    "peak": "22",
+    "spotify_id": "00FQb4jTyendYWaN8pK0wa"
+  },
+  {
+    "position": 29,
+    "name": "SZA",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebfd0a9fb6c252a3ba44079acf",
+    "monthly_listeners": "66,998,466",
+    "daily_diff": "37,350",
+    "peak": "6",
+    "spotify_id": "7tYKF4w9nC0nq9CsPZTHyP"
+  },
+  {
+    "position": 30,
+    "name": "Post Malone",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5ebe17c0aa1714a03d62b5ce4e0",
+    "monthly_listeners": "65,845,025",
+    "daily_diff": "-206,738",
+    "peak": "3",
+    "spotify_id": "246dkjvS1zLTtiykXe5h60"
+  },
+  {
+    "position": 31,
+    "name": "Black Eyed Peas",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebf2200ce505d25e1d7e1561be",
+    "monthly_listeners": "63,992,698",
+    "daily_diff": "-86,481",
+    "peak": "26",
+    "spotify_id": "1yxSLGMDHlW21z4YXirZDS"
+  },
+  {
+    "position": 32,
+    "name": "Daddy Yankee",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebd6ee4b8b4fa395cb71122bcb",
+    "monthly_listeners": "63,967,368",
+    "daily_diff": "-17,965",
+    "peak": "22",
+    "spotify_id": "4VMYDCV2IEDYJArk749S6m"
+  },
+  {
+    "position": 33,
+    "name": "Beyoncé",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb7eaa373538359164b843f7c0",
+    "monthly_listeners": "63,675,305",
+    "daily_diff": "-32,812",
+    "peak": "6",
+    "spotify_id": "6vWDO969PvNqNYHIOW5v0m"
+  },
+  {
+    "position": 34,
+    "name": "Harry Styles",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebe309f8c3056a59f20d0968ca",
+    "monthly_listeners": "62,371,197",
+    "daily_diff": "-48,635",
+    "peak": "13",
+    "spotify_id": "6KImCVD70vtIoJWnq6nGn3"
+  },
+  {
+    "position": 35,
+    "name": "Travis Scott",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb19c2790744c792d05570bb71",
+    "monthly_listeners": "62,182,871",
+    "daily_diff": "6,877",
+    "peak": "6",
+    "spotify_id": "0Y5tJX1MQlPlqiwlOH1tJY"
+  },
+  {
+    "position": 36,
+    "name": "Miley Cyrus",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebe6431a229c528350779bf77e",
+    "monthly_listeners": "61,933,134",
+    "daily_diff": "-63,986",
+    "peak": "2",
+    "spotify_id": "5YGY8feqx7naU7z4HrwZM6"
+  },
+  {
+    "position": 37,
+    "name": "Tame Impala",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebe412a782245eb20d9626c601",
+    "monthly_listeners": "60,698,802",
+    "daily_diff": "-21,358",
+    "peak": "31",
+    "spotify_id": "5INjqkS1o8h1imAzPqGZBb"
+  },
+  {
+    "position": 38,
+    "name": "Sean Paul",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb60c3e9abe7327c0097738f22",
+    "monthly_listeners": "60,209,606",
+    "daily_diff": "-44,205",
+    "peak": "31",
+    "spotify_id": "3Isy6kedDrgPYoTS1dazA9"
+  },
+  {
+    "position": 39,
+    "name": "Adele",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5eb68f6e5892075d7f22615bd17",
+    "monthly_listeners": "59,723,807",
+    "daily_diff": "37,529",
+    "peak": "23",
+    "spotify_id": "4dpARuHxo51G3z768sgnrY"
+  },
+  {
+    "position": 40,
+    "name": "Justin Timberlake",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb7a5cfe2597665a3d160e805e",
+    "monthly_listeners": "59,695,584",
+    "daily_diff": "97,417",
+    "peak": "38",
+    "spotify_id": "31TPClRtHm23RisEBtV3X7"
+  },
+  {
+    "position": 41,
+    "name": "Linkin Park",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb527d95dabbe8b8b527e8136f",
+    "monthly_listeners": "57,700,875",
+    "daily_diff": "-46,067",
+    "peak": "29",
+    "spotify_id": "6XyY86QOPPrYVGvF9ch6wz"
+  },
+  {
+    "position": 42,
+    "name": "Arctic Monkeys",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb7da39dea0a72f581535fb11f",
+    "monthly_listeners": "56,756,052",
+    "daily_diff": "84,689",
+    "peak": "36",
+    "spotify_id": "7Ln80lUS6He07XvHI8qqHH"
+  },
+  {
+    "position": 43,
+    "name": "Chris Brown",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb913ab85302df0ddfb77131e9",
+    "monthly_listeners": "56,588,523",
+    "daily_diff": "-53,641",
+    "peak": "25",
+    "spotify_id": "7bXgB6jMjp9ATFy66eO08Z"
+  },
+  {
+    "position": 44,
+    "name": "Shreya Ghoshal",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebe7ce89a9f5d11e0ba26677eb",
+    "monthly_listeners": "56,206,270",
+    "daily_diff": "-44,172",
+    "peak": "44",
+    "spotify_id": "0oOet2f43PA68X5RxKobEy"
+  },
+  {
+    "position": 45,
+    "name": "Shawn Mendes",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb58b4b9419486550f6fda0535",
+    "monthly_listeners": "56,136,499",
+    "daily_diff": "-133,886",
+    "peak": "40",
+    "spotify_id": "7n2wHs1TKAczGzO7Dd2rGr"
+  },
+  {
+    "position": 46,
+    "name": "Doja Cat",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5eb8a0644455ebfa7d3976f5101",
+    "monthly_listeners": "55,647,758",
+    "daily_diff": "85,938",
+    "peak": "5",
+    "spotify_id": "5cj0lLjcoR7YOSnhnX0Po5"
+  },
+  {
+    "position": 47,
+    "name": "Marshmello",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5ebfa62d7b4d09a4ea9b4c5f05d",
+    "monthly_listeners": "54,914,697",
+    "daily_diff": "-151,719",
+    "peak": "11",
+    "spotify_id": "64KEffDW9EtZ1y2vBYgq8T"
+  },
+  {
+    "position": 48,
+    "name": "Madonna",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5ebed2208b41d49ebd24687985b",
+    "monthly_listeners": "54,836,366",
+    "daily_diff": "-70,652",
+    "peak": "43",
+    "spotify_id": "6tbjWDEIzxoDsBA1FuhfPW"
+  },
+  {
+    "position": 49,
+    "name": "Ellie Goulding",
+    "picture": "https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb5c461001b3489a0a523f63ee",
+    "monthly_listeners": "54,524,650",
+    "daily_diff": "-78,498",
+    "peak": "45",
+    "spotify_id": "0X2BH1fck6amBIoJhDVmmJ"
+  },
+  {
+    "position": 50,
+    "name": "Halsey",
+    "picture": "https://image-cdn-fa.spotifycdn.com/image/ab6761610000e5eb15136101a0f63f0b2800b9dc",
+    "monthly_listeners": "54,446,134",
+    "daily_diff": "-63,069",
+    "peak": "45",
+    "spotify_id": "26VFTg2z8YR0cCuwLzESi2"
+  }
+]

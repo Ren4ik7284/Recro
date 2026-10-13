@@ -56,3 +56,13 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
   source: 'balanced',
   language: 'all',
 };
+
+export interface ChartArtist {
+  position: number;
+  name: string;
+  picture?: string;
+  monthly_listeners?: string;
+  daily_diff?: string;
+  peak?: string;
+  spotify_id?: string;
+}

@@ -5,6 +5,7 @@ mod handlers;
 mod models;
 mod security;
 mod soundcloud;
+pub mod spotify_charts;
 pub mod turso;
 mod ytdlp;
 
@@ -55,6 +56,7 @@ async fn main() {
     init_cookies_from_env();
     turso::init_turso();
     tokio::spawn(ensure_cookies_on_start());
+    tokio::spawn(spotify_charts::start_spotify_charts_worker());
 
     let soundcloud = SoundCloudClient::new();
 

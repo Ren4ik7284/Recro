@@ -30,6 +30,10 @@ export interface ProfileArtist {
   plays: number;
   coverUrl?: string;
   rank?: number;
+  monthlyListeners?: string;
+  dailyDiff?: string;
+  peak?: string;
+  spotifyId?: string;
 }
 
 @Component({
@@ -184,6 +188,46 @@ export class ProfileComponent {
   readonly topArtists = computed<ProfileArtist[]>(() => {
     return this.worldTopArtists();
   });
+  readonly isRefreshingTopArtists = signal<boolean>(false);
+
+  formatListeners(val?: string): string {
+    if (!val) return '';
+    const cleaned = val.replace(/,/g, '').trim();
+    const num = parseFloat(cleaned);
+    if (isNaN(num)) return val;
+    if (num >= 1_000_000) {
+      return (num / 1_000_000).toFixed(1) + 'M';
+    }
+    if (num >= 1_000) {
+      return (num / 1_000).toFixed(1) + 'K';
+    }
+    return val;
+  }
+
+  formatDiff(val?: string): string {
+    if (!val) return '';
+    const cleaned = val.replace(/,/g, '').trim();
+    const num = parseFloat(cleaned);
+    if (isNaN(num)) return val;
+    const sign = num > 0 ? '+' : '';
+    if (Math.abs(num) >= 1_000_000) {
+      return `${sign}${(num / 1_000_000).toFixed(1)}M`;
+    }
+    if (Math.abs(num) >= 1_000) {
+      return `${sign}${(num / 1_000).toFixed(1)}K`;
+    }
+    return `${sign}${num}`;
+  }
+
+  isPositiveDiff(val?: string): boolean {
+    if (!val) return false;
+    return val.trim().startsWith('+');
+  }
+
+  isNegativeDiff(val?: string): boolean {
+    if (!val) return false;
+    return val.trim().startsWith('-');
+  }
 
   togglePin(playlistId: string, event: Event) {
     event.stopPropagation();
@@ -224,19 +268,30 @@ export class ProfileComponent {
     this.selectedAvatarFrame.set(meta.frame);
   }
 
-  private async fetchWorldTopArtists() {
+  async refreshWorldTopArtists(force = false) {
+    this.isRefreshingTopArtists.set(true);
     try {
-      const top = await this.libraryService.getTopArtists();
+      const top = await this.libraryService.getTopArtists(force);
       if (Array.isArray(top) && top.length > 0) {
         const mapped: ProfileArtist[] = top.map((item, idx) => ({
           name: item.name,
           plays: 0,
           coverUrl: item.picture,
           rank: item.position || idx + 1,
+          monthlyListeners: item.monthly_listeners,
+          dailyDiff: item.daily_diff,
+          peak: item.peak,
+          spotifyId: item.spotify_id,
         }));
         this.worldTopArtists.set(mapped);
       }
-    } catch {}
+    } catch {} finally {
+      this.isRefreshingTopArtists.set(false);
+    }
+  }
+
+  private async fetchWorldTopArtists() {
+    return this.refreshWorldTopArtists(false);
   }
 
   private getParsedProfileMeta(): { tags: ColoredTag[]; vibe: string; frame: string } {

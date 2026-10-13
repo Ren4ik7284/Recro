@@ -110,5 +110,13 @@ pub struct ChartArtist {
     pub position: usize,
     pub name: String,
     pub picture: Option<String>,
+    #[serde(default)]
+    pub monthly_listeners: Option<String>,
+    #[serde(default)]
+    pub daily_diff: Option<String>,
+    #[serde(default)]
+    pub peak: Option<String>,
+    #[serde(default)]
+    pub spotify_id: Option<String>,
 }
 
