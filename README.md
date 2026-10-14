@@ -4,7 +4,7 @@
 
 ### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
 
-[![Live Demo Vercel](https://img.shields.io/badge/⚡_СЛУШАТЬ_(ВЕРСЕЛЬ_БЕЗ_VPN)-recro--player.vercel.app-1ed760?style=for-the-badge&logo=vercel&logoColor=white)](https://recro-player.vercel.app/#/)
+[![Live Demo Cloudflare](https://img.shields.io/badge/⚡_СЛУШАТЬ_(БЕЗ_VPN)-Cloudflare_Tunnel-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://gilbert-focusing-hoped-static.trycloudflare.com/#/)
 [![Live Demo Host](https://img.shields.io/badge/🌐_СЕРВЕР_ХОСТ-177.3.217.64-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](http://177.3.217.64/#/)
 [![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](http://177.3.217.64/recro.apk)
 [![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](http://177.3.217.64/recro.ipa)
@@ -24,7 +24,7 @@
 
 > ### ⚡ **ОНЛАЙН ДОСТУП И СКАЧИВАНИЕ (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
 >
-> ⚡ **Быстрое зеркало (РФ без VPN, Vercel Edge):** 👉 **[https://recro-player.vercel.app/#/](https://recro-player.vercel.app/#/)** 👈  
+> ⚡ **Быстрое зеркало (РФ и мир без VPN, Cloudflare):** 👉 **[https://gilbert-focusing-hoped-static.trycloudflare.com/#/](https://gilbert-focusing-hoped-static.trycloudflare.com/#/)** 👈  
 > 🌐 **Основной веб-хост (Слушать онлайн):** 👉 **[http://177.3.217.64/#/](http://177.3.217.64/#/)** 👈  
 > ☁️ **Облачное зеркало (Render):** 👉 **[https://recro.onrender.com](https://recro.onrender.com)** 👈  
 > 📱 **Скачать приложение на Android (APK):** 👉 **[http://177.3.217.64/recro.apk](http://177.3.217.64/recro.apk)** 👈  
@@ -126,7 +126,7 @@ flowchart TD
         AudioEng <--> OfflineStore
     end
 
-    subgraph Edge["Edge Layer: Caddy 2 & Vercel"]
+    subgraph Edge["Edge Layer: Caddy 2 & Cloudflare Tunnel"]
         CaddyGate["HTTPS / Gzip / Rate Limit / CORS / Proxy"]
     end
 
@@ -268,7 +268,7 @@ npm start
 4. Приложение установится на рабочий стол со всеми нативными возможностями и фоновым звуком.
 
 ### iOS / iPadOS (Без сертификата — PWA в 1 клик)
-1. Откройте **[https://recro-player.vercel.app](https://recro-player.vercel.app)** *(или [http://177.3.217.64](http://177.3.217.64))* в браузере **Safari**.
+1. Откройте **[https://gilbert-focusing-hoped-static.trycloudflare.com](https://gilbert-focusing-hoped-static.trycloudflare.com)** *(или [http://177.3.217.64](http://177.3.217.64))* в браузере **Safari**.
 2. Нажмите кнопку **«Поделиться»** (квадрат со стрелочкой вверх ⬆).
 3. Пролистайте вниз и выберите **«На экран "Домой"» (Add to Home Screen)**.
 4. Нажмите **«Добавить»** в правом верхнем углу.

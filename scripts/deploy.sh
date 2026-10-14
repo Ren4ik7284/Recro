@@ -28,4 +28,4 @@ ssh $SERVER "systemctl reload caddy 2>/dev/null || systemctl reload nginx 2>/dev
 
 echo "✅ Деплой на хост успешно завершен! (http://177.3.217.64/#/)"
 echo "💡 Для обновления зеркала в РФ без VPN запусти: ./scripts/deploy-vercel.sh"
-echo "🌐 Зеркало в РФ (без VPN): https://recro-player.vercel.app/#/"
+echo "🌐 Зеркало в РФ (без VPN, Cloudflare): https://gilbert-focusing-hoped-static.trycloudflare.com/#/"
