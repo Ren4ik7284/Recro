@@ -153,7 +153,6 @@ export class PwaService {
   }
 
   openInstallModal(platform?: 'android' | 'ios') {
-    if (!this.isMobile()) return;
     if (platform) {
       this.activeInstallTab.set(platform);
     } else {

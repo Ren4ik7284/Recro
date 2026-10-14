@@ -309,17 +309,24 @@ pub async fn stream_audio(
     let cache_file_path = format!("{}/{}", cache_dir, cache_filename);
 
     if params.ss.unwrap_or(0) == 0 && !is_live {
-        if let Ok(meta) = std::fs::metadata(&cache_file_path) {
-            if meta.len() > 30_000 {
-                if params.prefetch.unwrap_or(false) {
-                    return Ok(StatusCode::NO_CONTENT.into_response());
+        let is_transcoding = state
+            .active_transcodes
+            .lock()
+            .map(|g| g.contains(&cache_filename))
+            .unwrap_or(false);
+        if !is_transcoding {
+            if let Ok(meta) = std::fs::metadata(&cache_file_path) {
+                if meta.len() > 100_000 {
+                    if params.prefetch.unwrap_or(false) {
+                        return Ok(StatusCode::NO_CONTENT.into_response());
+                    }
+                    let redirect_url = format!("/cache/{}", cache_filename);
+                    let mut res_headers = HeaderMap::new();
+                    res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
+                    res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
+                    res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
+                    return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
                 }
-                let redirect_url = format!("/cache/{}", cache_filename);
-                let mut res_headers = HeaderMap::new();
-                res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
-                res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
-                res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
-                return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
             }
         }
     }
@@ -617,8 +624,10 @@ pub async fn stream_audio(
                 let codec_args = if d_url.contains(".mp3") {
                     vec!["-c:a", "copy"]
                 } else {
-                    vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "2"]
+                    vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "1"]
                 };
+
+                let tmp_file_path = format!("{}.tmp.{}", cfp, std::process::id());
 
                 let mut conv_cmd = Command::new("ffmpeg");
                 conv_cmd.args([
@@ -636,23 +645,31 @@ pub async fn stream_audio(
                     "-vn",
                 ]);
                 conv_cmd.args(&codec_args);
-                conv_cmd.args(["-f", "mp3", &cfp]);
+                conv_cmd.args(["-f", "mp3", &tmp_file_path]);
                 conv_cmd.stdout(Stdio::null());
                 conv_cmd.stderr(Stdio::null());
 
-                if let Ok(mut child) = conv_cmd.spawn() {
-                    let _ = child.wait().await;
-                }
+                let exit_status = if let Ok(mut child) = conv_cmd.spawn() {
+                    child.wait().await.ok()
+                } else {
+                    None
+                };
 
                 if let Ok(mut guard) = active_transcodes.lock() {
                     guard.remove(&cfn);
                 }
 
-                if let Ok(meta) = std::fs::metadata(&cfp) {
-                    if meta.len() < 30_000 {
-                        let _ = std::fs::remove_file(&cfp);
+                if let Some(status) = exit_status {
+                    if status.success() {
+                        if let Ok(meta) = std::fs::metadata(&tmp_file_path) {
+                            if meta.len() > 100_000 {
+                                let _ = std::fs::rename(&tmp_file_path, &cfp);
+                                return;
+                            }
+                        }
                     }
                 }
+                let _ = std::fs::remove_file(&tmp_file_path);
             });
         }
 
@@ -716,7 +733,7 @@ pub async fn stream_audio(
             "-b:a".to_string(),
             "192k".to_string(),
             "-threads".to_string(),
-            "2".to_string(),
+            "1".to_string(),
             "-f".to_string(),
             "mp3".to_string(),
             "-flush_packets".to_string(),

@@ -514,7 +514,7 @@ export function resolveEffectiveLanguage(
   if (currentTrack) {
     return isRussianTrack(currentTrack) ? 'ru' : 'en';
   }
-  return 'en';
+  return 'all';
 }
 
 export function isTrackLanguageMatch(track: { title?: string; artist?: string; genre?: string }, lang: MixLanguage): boolean {
@@ -617,7 +617,6 @@ export class RecommendationService {
     const key = this.getTitleKey(track);
     if (key && this.sessionPlayedKeys.has(key)) return true;
     if (track.audioUrl && this.sessionPlayedKeys.has(track.audioUrl)) return true;
-    if (this.isRecentlyPlayed(track, 120)) return true;
     return false;
   }
 
@@ -1335,7 +1334,7 @@ export class RecommendationService {
 
   isCyrillicUserLibrary(): boolean {
     const lib = this.getAllLocalCandidates();
-    if (lib.length === 0) return true;
+    if (lib.length === 0) return false;
     const ruCount = lib.filter((t) => /[а-яё]/i.test(`${t.title} ${t.artist}`)).length;
     return (ruCount / lib.length) >= 0.20;
   }

@@ -434,17 +434,10 @@ export class AudioService {
       if (stallTimer) clearTimeout(stallTimer);
       stallTimer = setTimeout(() => {
         if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
-          console.warn('[AudioService] Playback stall detected (>4s), nudging stream...');
-          if (this.audio.readyState >= 2) {
-            this.audio.play().catch(() => {});
-          } else {
-            const cur = this.currentTrack();
-            if (cur) {
-              this.playTrack(cur, undefined, this.recService.isMixActive(), this.queueIndex());
-            }
-          }
+          console.warn('[AudioService] Playback buffer wait (>8s), nudging stream...');
+          this.audio.play().catch(() => {});
         }
-      }, 4000);
+      }, 8000);
     };
 
     const clearStall = () => {
@@ -485,7 +478,7 @@ export class AudioService {
       }
 
       // Preload next track audio stream in advance so transition is instantaneous
-      if (actual >= 4 && !this.hasPreloadedNextTrack) {
+      if (actual >= 12 && !this.hasPreloadedNextTrack) {
         this.hasPreloadedNextTrack = true;
         this.preloadNextTrack();
       }
@@ -1162,7 +1155,6 @@ export class AudioService {
         this.updateMediaSessionPosition();
         this.libraryService.recordHistoryPlay(track);
         this.requestWakeLock();
-        this.preloadNextTrack();
         if (this.recService.isMixActive()) {
           this.ensureSmartQueue();
         }
@@ -1453,13 +1445,19 @@ export class AudioService {
           // Never loop back to index 0 in Smart Mix!
           // Try to get any track from library or starters that hasn't played recently
           const cur = this.currentTrack();
-          const fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id && !this.recService.isSessionDuplicate(t));
+          let fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id && !this.recService.isSessionDuplicate(t));
+          if (fallbackCandidates.length === 0) {
+            fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id);
+          }
           if (fallbackCandidates.length > 0) {
             const randomPick = fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)];
             this.queue.update((curQ) => [...curQ, randomPick]);
             nextIdx = this.queue().length - 1;
           } else {
-            const starters = this.recService.getStarterCandidates(mood, 3, lang).filter((t) => t.id !== cur?.id);
+            let starters = this.recService.getStarterCandidates(mood, 3, lang).filter((t) => t.id !== cur?.id);
+            if (starters.length === 0) {
+              starters = this.recService.getStarterCandidates(mood, 3, lang);
+            }
             if (starters.length > 0) {
               this.queue.update((curQ) => [...curQ, starters[0]]);
               nextIdx = this.queue().length - 1;

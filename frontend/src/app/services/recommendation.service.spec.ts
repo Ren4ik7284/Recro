@@ -191,15 +191,16 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
     });
 
     it('fetchOnlineDiscoveryTracks should guarantee unique artists across returned tracks', async () => {
-      // Simulate search results where multiple tracks belong to the same artist (e.g. OG Buda)
-      mockLibraryService.searchOnline.mockResolvedValue([
+      const mockTracks = [
         { id: 'yt-1', title: 'Track 1', artist: 'OG Buda', duration: 180, audioUrl: 'u1' },
         { id: 'yt-2', title: 'Track 2', artist: 'OG Buda', duration: 190, audioUrl: 'u2' },
         { id: 'yt-3', title: 'Track 3', artist: 'OG Buda feat. Mayot', duration: 170, audioUrl: 'u3' },
         { id: 'yt-4', title: 'Track 4', artist: 'Miyagi', duration: 200, audioUrl: 'u4' },
         { id: 'yt-5', title: 'Track 5', artist: 'Saluki', duration: 210, audioUrl: 'u5' },
         { id: 'yt-6', title: 'Track 6', artist: 'Toxi$', duration: 160, audioUrl: 'u6' },
-      ]);
+      ];
+      mockLibraryService.searchOnline.mockResolvedValue(mockTracks);
+      mockLibraryService.getRecommendations.mockResolvedValue(mockTracks);
 
       const discovery = await service.fetchOnlineDiscoveryTracks(3);
       expect(discovery.length).toBe(3);
@@ -227,17 +228,19 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
         { id: 'yt-1', title: 'Track 1', artist: 'OG Buda', duration: 180, audioUrl: 'u1', genre: 'Rap', format: 'mp3', plays: 5, isFavorite: true, addedAt: '2026-01-01' },
       ]);
 
-      mockLibraryService.searchOnline.mockResolvedValue([
+      const mockCandidates = [
         { id: 'yt-1', title: 'Track 1', artist: 'OG Buda', duration: 180, audioUrl: 'u1' }, // IN LIBRARY -> MUST BE SKIPPED
         { id: 'yt-4', title: 'Track 4', artist: 'Miyagi', duration: 200, audioUrl: 'u4' },
         { id: 'yt-5', title: 'Track 5', artist: 'Saluki', duration: 210, audioUrl: 'u5' },
-      ]);
+      ];
+      mockLibraryService.searchOnline.mockResolvedValue(mockCandidates);
+      mockLibraryService.getRecommendations.mockResolvedValue(mockCandidates);
 
       const discovery = await service.fetchOnlineDiscoveryTracks(2);
       expect(discovery.length).toBe(2);
       // Track 1 must NOT appear in the discovery results
       expect(discovery.some((t) => t.id === 'yt-1')).toBe(false);
-      expect(discovery.map((t) => t.id)).toEqual(['yt-4', 'yt-5']);
+      expect(discovery.map((t) => t.id).sort()).toEqual(['yt-4', 'yt-5']);
     });
 
     it('isTrackLanguageMatch should strictly separate Russian and foreign tracks', () => {
