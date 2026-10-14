@@ -190,6 +190,60 @@ export class ProfileComponent {
   });
   readonly isRefreshingTopArtists = signal<boolean>(false);
 
+  private readonly artistColorCache = new Map<string, string>();
+
+  /**
+   * Генерирует детерминированный HEX-цвет для артиста на основе хэша его имени.
+   * Конвертируется в HSL с насыщенностью 76% и сбалансированной яркостью 60%,
+   * обеспечивая идеальную видимость на темном фоне и красивый акцент.
+   */
+  getArtistColor(name: string): string {
+    if (!name) return '#1ed760';
+    const key = name.trim().toLowerCase();
+    const cached = this.artistColorCache.get(key);
+    if (cached) return cached;
+
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+      hash = (hash << 5) - hash + key.charCodeAt(i);
+      hash |= 0;
+    }
+
+    const hue = Math.abs(hash) % 360;
+    const hex = this.hslToHex(hue, 76, 60);
+    this.artistColorCache.set(key, hex);
+    return hex;
+  }
+
+  getArtistGlow(name: string): string {
+    const hex = this.getArtistColor(name);
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, 0.38)`;
+  }
+
+  getArtistBorder(name: string): string {
+    const hex = this.getArtistColor(name);
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, 0.65)`;
+  }
+
+  private hslToHex(h: number, s: number, l: number): string {
+    const light = l / 100;
+    const a = (s * Math.min(light, 1 - light)) / 100;
+    const f = (n: number) => {
+      const k = (n + h / 30) % 12;
+      const color = light - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      return Math.round(255 * color)
+        .toString(16)
+        .padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`.toUpperCase();
+  }
+
   formatListeners(val?: string): string {
     if (!val) return '';
     const cleaned = val.replace(/,/g, '').trim();

@@ -2588,10 +2588,6 @@
     <div class="modal-backdrop" (click)="closeWrappedModal()">
       <div class="modal-dialog wrapped-dialog" (click)="$event.stopPropagation()">
         <div class="wrapped-dialog-header">
-          <div class="wrapped-badge-row">
-            <span class="wrapped-glow-tag font-mono">RECRO WRAPPED</span>
-            <span class="wrapped-year font-mono">2026</span>
-          </div>
           <h2 class="wrapped-main-title">ТВОЙ МУЗЫКАЛЬНЫЙ ИТОГ</h2>
           <p class="wrapped-user-sub font-mono">Слушатель: {{ wrappedStats()?.username || authService.currentUser()?.username }}</p>
           <button class="btn-wrapped-close" (click)="closeWrappedModal()">
@@ -2629,7 +2625,6 @@
             </div>
 
             <div class="w-personality-card">
-              <div class="w-personality-badge font-mono">{{ ws.personality.tag }}</div>
               <h3 class="w-personality-title">{{ ws.personality.title }}</h3>
               <p class="w-personality-desc">{{ ws.personality.description }}</p>
             </div>
@@ -2650,7 +2645,6 @@
                     }
                   </div>
                   <div class="w-hero-info">
-                    <span class="w-rank-pill font-mono">#1 В ВАШЕМ ТОПЕ</span>
                     <h4 class="w-hero-name">{{ ws.top_tracks[0].title }}</h4>
                     <p class="w-hero-artist">{{ ws.top_tracks[0].artist }}</p>
                     <span class="w-hero-count font-mono">{{ ws.top_tracks[0].plays }} прослушиваний</span>

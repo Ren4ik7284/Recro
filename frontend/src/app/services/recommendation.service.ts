@@ -1845,7 +1845,7 @@ export class RecommendationService {
       const topArtistsMap = new Map<string, number>();
       for (const t of candidates) {
         const arts = extractAllArtists(t.artist, t.title);
-        const weight = (t.isFavorite ? 4 : 1) + (t.plays ? 2 : 0);
+        const weight = (t.isFavorite ? 5 : 1) + (t.plays ? Math.min(5, t.plays) : 0);
         for (const a of arts) {
           const normA = normalizeArtist(a);
           if (normA && normA.length > 1) {
@@ -1869,6 +1869,7 @@ export class RecommendationService {
       const seedGenre = effectiveSeed?.genre || dominantGenre;
       const tasks: Promise<Track[]>[] = [];
 
+      // 1. Seed track queries
       if (effectiveSeed?.artist) {
         if (effectiveSeed.title) {
           tasks.push(
@@ -1889,15 +1890,19 @@ export class RecommendationService {
           return effectiveLang === 'ru' ? isRu : !isRu;
         });
 
+      // 2. Multi-artist taste expansion: query top 2-3 favorite artists from user's history
       if (langTopArtists.length > 0) {
-        const offset = this.artistSeedOffset % langTopArtists.length;
-        this.artistSeedOffset = (this.artistSeedOffset + 1) % 1000;
-        const art = langTopArtists[offset];
-        if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
-          tasks.push(
-            this.libraryService.getRecommendations(art, dominantGenre, 12, undefined, dominantGenre).catch(() => [] as Track[])
-          );
+        const takeCount = Math.min(3, langTopArtists.length);
+        for (let i = 0; i < takeCount; i++) {
+          const offset = (this.artistSeedOffset + i) % langTopArtists.length;
+          const art = langTopArtists[offset];
+          if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
+            tasks.push(
+              this.libraryService.getRecommendations(art, dominantGenre, 15, undefined, dominantGenre).catch(() => [] as Track[])
+            );
+          }
         }
+        this.artistSeedOffset = (this.artistSeedOffset + takeCount) % 1000;
       } else {
         const curatedRu = mood === 'energetic'
           ? ['madk1d', 'cupsize', 'Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Big Baby Tape']
@@ -1913,9 +1918,27 @@ export class RecommendationService {
         const art = curated[Math.floor(Math.random() * curated.length)];
         if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
           tasks.push(
-            this.libraryService.getRecommendations(art, dominantGenre, 12, undefined, dominantGenre).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(art, dominantGenre, 15, undefined, dominantGenre).catch(() => [] as Track[])
           );
         }
+      }
+
+      // 3. User favorite tracks expansion: query tracks similar to user's favorites
+      const favTracks = langFilteredCandidates.filter((t) => t.isFavorite);
+      if (favTracks.length > 0 && typeof this.libraryService.getSimilarTracks === 'function') {
+        const sampleFav = favTracks[Math.floor(Math.random() * favTracks.length)];
+        if (sampleFav.title && sampleFav.artist && (!effectiveSeed || sampleFav.id !== effectiveSeed.id)) {
+          tasks.push(
+            this.libraryService.getSimilarTracks(sampleFav.title, sampleFav.artist, 15, sampleFav.genre || dominantGenre).catch(() => [] as Track[])
+          );
+        }
+      }
+
+      // 4. Trending chart expansion matching dominant genre
+      if (typeof this.libraryService.getSoundCloudCharts === 'function') {
+        tasks.push(
+          this.libraryService.getSoundCloudCharts(dominantGenre, 15).catch(() => [] as Track[])
+        );
       }
 
       const results = await Promise.all(tasks);
@@ -1944,7 +1967,7 @@ export class RecommendationService {
         for (const [topArt, weight] of topArtistsMap.entries()) {
           if (candArtists.includes(topArt)) {
             isDirectCircleMatch = true;
-            artistAffinityBonus = Math.max(artistAffinityBonus, 0.45 + Math.min(0.35, weight * 0.05));
+            artistAffinityBonus = Math.max(artistAffinityBonus, 0.55 + Math.min(0.40, weight * 0.06));
             if (candArtists.length > 1) {
               artistAffinityBonus += 0.15;
             }
@@ -1953,24 +1976,23 @@ export class RecommendationService {
 
         const trackVec = this.extractTrackVector(t);
         let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        if (!isDirectCircleMatch && sim < 0.38) continue;
+        if (!isDirectCircleMatch && sim < 0.28) continue;
         sim += artistAffinityBonus;
 
         scoredCandidates.push({ track: t, sim });
       }
 
-      // Efraimidis-Spirakis Weighted Reservoir Sampling:
-      // Tracks with high similarity maintain highest probability, but ordering is fresh, dynamic, and non-repeating
-      const weightedCandidates = scoredCandidates.map((item) => {
-        const weight = Math.max(0.01, Math.pow(Math.max(0.1, item.sim), 2.2));
-        const r = Math.max(1e-10, Math.random());
-        const key = Math.log(r) / weight;
-        return { track: item.track, key };
-      });
-      weightedCandidates.sort((a, b) => b.key - a.key);
+      // Balanced jittered ranking: prioritizes high taste similarity and favorite artist affinity,
+      // while subtle jitter ensures fresh, non-repetitive track order
+      const rankedCandidates = scoredCandidates
+        .map((item) => {
+          const jitter = (Math.random() - 0.5) * 0.12;
+          return { track: item.track, finalScore: item.sim + jitter };
+        })
+        .sort((a, b) => b.finalScore - a.finalScore);
 
       const bufferPool: Track[] = [];
-      for (const item of weightedCandidates) {
+      for (const item of rankedCandidates) {
         const t = item.track;
         const art = normalizeArtist(t.artist);
         const title = normalizeTitle(t.title);
@@ -2002,10 +2024,10 @@ export class RecommendationService {
         }
       }
 
-      this.onlineDiscoveryPool = bufferPool.slice(0, 40);
+      this.onlineDiscoveryPool = bufferPool.slice(0, 60);
 
       if (selectedTracks.length < count && !isLibraryOnly) {
-        const starters = this.getStarterCandidates(mood, count * 2, effectiveLang);
+        const starters = this.getStarterCandidates(mood, count * 3, effectiveLang);
         for (const st of starters) {
           if (selectedTracks.length >= count) break;
           const art = normalizeArtist(st.artist);

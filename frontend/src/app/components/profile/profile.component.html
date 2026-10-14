@@ -243,6 +243,9 @@
                 [class.rank-gold]="artist.rank === 1"
                 [class.rank-silver]="artist.rank === 2"
                 [class.rank-bronze]="artist.rank === 3"
+                [style.--artist-color]="getArtistColor(artist.name)"
+                [style.--artist-glow]="getArtistGlow(artist.name)"
+                [style.--artist-border]="getArtistBorder(artist.name)"
                 (click)="onArtistClick(artist.name)"
                 [title]="'Нажмите, чтобы включить треки ' + artist.name + (artist.peak ? ' • Пик в чарте: #' + artist.peak : '')"
               >

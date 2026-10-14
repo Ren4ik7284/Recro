@@ -53,7 +53,7 @@ export interface MixConfig {
 
 export const DEFAULT_MIX_CONFIG: MixConfig = {
   mood: 'all',
-  source: 'balanced',
+  source: 'discovery_heavy',
   language: 'all',
 };
 

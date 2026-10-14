@@ -74,7 +74,7 @@ async fn main() {
         pool,
         login_attempts: Arc::new(Mutex::new(HashMap::new())),
         endpoint_rate_limits: Arc::new(Mutex::new(HashMap::new())),
-        heavy_process_semaphore: Arc::new(tokio::sync::Semaphore::new(16)),
+        heavy_process_semaphore: Arc::new(tokio::sync::Semaphore::new(32)),
         stream_cache: Arc::new(Mutex::new(HashMap::new())),
         active_transcodes: Arc::new(Mutex::new(std::collections::HashSet::new())),
         lyrics_cache: Arc::new(Mutex::new(HashMap::new())),

@@ -429,21 +429,39 @@ export class AudioService {
 
   private setupEventListeners() {
     let stallTimer: any = null;
+    let deepStallTimer: any = null;
     const onStall = () => {
       if (!this.isPlaying() || this.audio.paused || this.isHandlingEnd || this.isSwitchingTrack) return;
       if (stallTimer) clearTimeout(stallTimer);
+      if (deepStallTimer) clearTimeout(deepStallTimer);
+
+      // Fast responsive nudge at 3.5s to prevent long awkward pauses
       stallTimer = setTimeout(() => {
         if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
-          console.warn('[AudioService] Playback buffer wait (>8s), nudging stream...');
+          console.warn('[AudioService] Playback buffer wait (>3.5s), nudging stream...');
           this.audio.play().catch(() => {});
         }
-      }, 8000);
+      }, 3500);
+
+      // Auto-recover stream position without skipping if frozen for >7s
+      deepStallTimer = setTimeout(() => {
+        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
+          console.warn('[AudioService] Deep stall (>7s), auto-recovering stream position...');
+          const pos = this.currentTime();
+          this.seek(pos);
+          this.audio.play().catch(() => {});
+        }
+      }, 7000);
     };
 
     const clearStall = () => {
       if (stallTimer) {
         clearTimeout(stallTimer);
         stallTimer = null;
+      }
+      if (deepStallTimer) {
+        clearTimeout(deepStallTimer);
+        deepStallTimer = null;
       }
     };
 
@@ -579,11 +597,21 @@ export class AudioService {
 
       const played = this.audio.currentTime || 0;
       const totalPlayed = this.streamSeekOffset() + played;
+      const dur = this.duration() || this.currentTrack()?.duration || 0;
 
       // 1. Если поток завершился едва начавшись (<1.5с) — сбой сети
       if (totalPlayed < 1.5) {
         console.warn('[AudioService] Premature ended event (<1.5s played), treating as playback failure');
         this.handlePlaybackFailure('premature_ended');
+        return;
+      }
+
+      // 2. Если трек оборвался на середине (сыграно меньше duration - 3.5 сек) — это обрыв стрима!
+      // НЕ скипаем трек, а восстанавливаем воспроизведение с текущей секунды!
+      if (dur > 15 && totalPlayed < dur - 3.5) {
+        console.warn(`[AudioService] Stream cut off prematurely (${totalPlayed.toFixed(1)}s / ${dur}s), auto-recovering stream from current position without skipping...`);
+        this.seek(totalPlayed);
+        this.audio.play().catch(() => {});
         return;
       }
 
@@ -712,21 +740,21 @@ export class AudioService {
 
     if (this.recService.isMixActive()) {
       if (this.consecutiveErrorCount === 1) {
-        console.warn(`[AudioService] Transient failure in mix (attempt 1), retrying track in 800ms...`);
+        console.warn(`[AudioService] Transient failure in mix (attempt 1), retrying track in 500ms...`);
         this.errorTimeoutId = setTimeout(() => {
           const cur = this.currentTrack();
           if (cur && this.recService.isMixActive()) {
             this.playTrack(cur, undefined, true);
           }
-        }, 800);
+        }, 500);
         return;
       }
 
       if (this.consecutiveErrorCount === 2) {
-        // Attempt 2: If primary audioUrl failed, resolve fresh stream URL via backend search before giving up!
+        // Attempt 2: If primary audioUrl failed, resolve fresh stream URL via backend title/artist before giving up!
         const cur = this.currentTrack();
         if (cur && cur.title) {
-          console.warn('[AudioService] Primary stream failed in mix, attempting fresh stream query resolution...');
+          console.warn('[AudioService] Primary stream failed in mix (attempt 2), resolving fresh title/artist stream...');
           const activeBase = this.libraryService.getBackendUrl();
           const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
           const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
@@ -736,12 +764,32 @@ export class AudioService {
             if (this.recService.isMixActive()) {
               this.playTrack(updatedTrack, undefined, true);
             }
-          }, 800);
+          }, 500);
           return;
         }
       }
 
-      console.warn('[AudioService] Playback failure in mix after retries, smoothly advancing to next track');
+      if (this.consecutiveErrorCount === 3) {
+        // Attempt 3: Direct fallback via search query
+        const cur = this.currentTrack();
+        if (cur && cur.title) {
+          console.warn('[AudioService] Attempt 3: Fallback stream via direct search query...');
+          const activeBase = this.libraryService.getBackendUrl();
+          const cleanTitle = cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim();
+          const cleanArt = (cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim();
+          const searchQuery = `search:${cleanTitle} ${cleanArt}`.trim();
+          const altUrl = `${activeBase}/api/stream?url=${encodeURIComponent(searchQuery)}`;
+          const updatedTrack = { ...cur, audioUrl: altUrl };
+          this.errorTimeoutId = setTimeout(() => {
+            if (this.recService.isMixActive()) {
+              this.playTrack(updatedTrack, undefined, true);
+            }
+          }, 600);
+          return;
+        }
+      }
+
+      console.warn('[AudioService] Playback failure in mix after all 3 retries, smoothly advancing to next track');
       this.consecutiveErrorCount = 0;
       this.errorTimeoutId = setTimeout(() => {
         if (this.recService.isMixActive()) {
@@ -1155,6 +1203,7 @@ export class AudioService {
         this.updateMediaSessionPosition();
         this.libraryService.recordHistoryPlay(track);
         this.requestWakeLock();
+        setTimeout(() => this.preloadNextTrack(), 400);
         if (this.recService.isMixActive()) {
           this.ensureSmartQueue();
         }
@@ -1786,29 +1835,12 @@ export class AudioService {
 
     if (source === 'library_only') {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-    } else if (source === 'balanced' && localCandidates.length > 0) {
-      const userQuota = Math.max(1, Math.floor(needed / 2));
-      const discQuota = needed - userQuota;
-
-      const userPicks = this.recService.pickNextTracks(userQuota, excludeIds, curTrack, recentArtists);
-      userPicks.forEach((t) => excludeIds.add(t.id));
-
-      const discoveries = await this.recService.fetchOnlineDiscoveryTracks(discQuota, excludeIds, recentArtists, curTrack);
-      discoveries.forEach((t) => {
-        excludeIds.add(t.id);
-        if (t.artist) recentArtists.add(t.artist);
-      });
-
-      let uIdx = 0;
-      let dIdx = 0;
-      while (uIdx < userPicks.length || dIdx < discoveries.length) {
-        if (dIdx < discoveries.length) newTracks.push(discoveries[dIdx++]);
-        if (uIdx < userPicks.length) newTracks.push(userPicks[uIdx++]);
-      }
     } else {
+      // Pure Discovery Flow: Strictly NO tracks from user's library!
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists, curTrack);
-      newTracks.push(...discovery);
-      discovery.forEach((d) => {
+      const pureDiscovery = discovery.filter((d) => !this.recService.isLibraryTrack(d));
+      newTracks.push(...pureDiscovery);
+      pureDiscovery.forEach((d) => {
         excludeIds.add(d.id);
         if (d.artist) recentArtists.add(d.artist);
       });
@@ -1822,9 +1854,9 @@ export class AudioService {
     }
 
     if (newTracks.length === 0 && source !== 'library_only') {
-      const starters = this.recService.getStarterCandidates(mood, needed * 2, effectiveLang);
+      const starters = this.recService.getStarterCandidates(mood, needed * 3, effectiveLang);
       const freshStarters = starters.filter(
-        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t)
+        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && !this.recService.isLibraryTrack(t)
       );
       if (freshStarters.length > 0) {
         newTracks = freshStarters.slice(0, needed);
@@ -1836,7 +1868,7 @@ export class AudioService {
       (t) => !existingQueueIds.has(t.id) &&
              !this.recService.isSessionDuplicate(t) &&
              isTrackLanguageMatch(t, effectiveLang) &&
-             (source === 'library_only' || source === 'balanced' || !this.recService.isLibraryTrack(t))
+             (source === 'library_only' || !this.recService.isLibraryTrack(t))
     );
 
     if (strictlyUniqueTracks.length > 0) {
@@ -1864,40 +1896,64 @@ export class AudioService {
     const curTrack = this.currentTrack() || null;
     const localCandidates = this.recService.getAllLocalCandidates();
     const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
+    const source = this.recService.mixConfig().source;
 
-    // 1. If a track is already playing, ALWAYS use it as the starting seed of the wave!
-    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang)) {
+    // 1. Library-only mode: only play tracks from user's local catalog
+    if (source === 'library_only') {
+      let immediateTrack: Track | null = null;
+      if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && this.recService.isLibraryTrack(curTrack)) {
+        immediateTrack = curTrack;
+      } else if (localCandidates.length > 0) {
+        const favs = localCandidates.filter(
+          (t) => t.isFavorite && isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
+        );
+        const unplayed = localCandidates.filter(
+          (t) => isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
+        );
+        const pool = favs.length > 0 ? favs : (unplayed.length > 0 ? unplayed : localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang)));
+        if (pool.length > 0) {
+          immediateTrack = pool[Math.floor(Math.random() * pool.length)];
+        }
+      }
+
+      if (immediateTrack) {
+        this.playTrack(immediateTrack, [immediateTrack], true, 0);
+        this.ensureSmartQueue().catch(() => {});
+        return true;
+      }
+      this.recService.isMixActive.set(false);
+      return false;
+    }
+
+    // 2. Pure Discovery Mode (source !== 'library_only'):
+    // If a non-library discovery track is already playing and matches language, keep it as active track:
+    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && !this.recService.isLibraryTrack(curTrack)) {
       this.queue.set([curTrack]);
       this.queueIndex.set(0);
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
 
-    // 2. Otherwise pick an initial track from user's favorites / local library
-    let immediateTrack: Track | null = null;
-    if (localCandidates.length > 0) {
-      const favs = localCandidates.filter(
-        (t) => t.isFavorite && isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
-      );
-      const unplayedLocal = localCandidates.filter(
-        (t) => isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
-      );
-      const pool = favs.length > 0 ? favs : (unplayedLocal.length > 0 ? unplayedLocal : localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang)));
-      if (pool.length > 0) {
-        immediateTrack = pool[Math.floor(Math.random() * pool.length)];
-      }
-    }
+    // If current track is in library, or no track is playing, use user's favorite tracks as taste seeds,
+    // but strictly launch with a fresh online discovery track!
+    const seedTrack = (curTrack && isTrackLanguageMatch(curTrack, effectiveLang))
+      ? curTrack
+      : (localCandidates.find((t) => t.isFavorite && isTrackLanguageMatch(t, effectiveLang)) || null);
+
+    // Fetch fresh discovery tracks matching user's taste
+    const discoveries = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), seedTrack);
+    const pureDiscoveries = discoveries.filter((t) => !this.recService.isLibraryTrack(t));
+
+    let immediateTrack: Track | null = pureDiscoveries.length > 0 ? pureDiscoveries[0] : null;
 
     if (!immediateTrack) {
-      const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang);
-      if (starters.length > 0) {
-        immediateTrack = starters[0];
-      }
+      const starters = this.recService.getStarterCandidates(mood, 10, effectiveLang);
+      immediateTrack = starters.find((t) => !this.recService.isLibraryTrack(t)) || null;
     }
 
     if (immediateTrack) {
-      // Start with ONLY the seed track; ensureSmartQueue will immediately append matching tracks
-      this.playTrack(immediateTrack, [immediateTrack], true, 0);
+      const initialQueue = pureDiscoveries.length > 0 ? pureDiscoveries : [immediateTrack];
+      this.playTrack(immediateTrack, initialQueue, true, 0);
       this.ensureSmartQueue().catch(() => {});
       return true;
     }

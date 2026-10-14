@@ -27,3 +27,5 @@ recro-tui/target/
 *.docx
 *.odt
 *.pdf
+dist_frontend/
+signal-audio-backend

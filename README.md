@@ -4,9 +4,10 @@
 
 ### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
 
-[![Live Demo](https://img.shields.io/badge/🔥_СЛУШАТЬ_ОНЛАЙН-recro.onrender.com-1ed760?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.onrender.com)
-[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro.onrender.com/recro.apk)
-[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://recro.onrender.com/recro.ipa)
+[![Live Demo Vercel](https://img.shields.io/badge/⚡_СЛУШАТЬ_(ВЕРСЕЛЬ_БЕЗ_VPN)-recro--player.vercel.app-1ed760?style=for-the-badge&logo=vercel&logoColor=white)](https://recro-player.vercel.app/#/)
+[![Live Demo Host](https://img.shields.io/badge/🌐_СЕРВЕР_ХОСТ-177.3.217.64-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](http://177.3.217.64/#/)
+[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](http://177.3.217.64/recro.apk)
+[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](http://177.3.217.64/recro.ipa)
 
 [![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
 [![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
@@ -21,11 +22,13 @@
 
 ---
 
-> ### ⚡ **ОНЛАЙН ДЕМО (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
+> ### ⚡ **ОНЛАЙН ДОСТУП И СКАЧИВАНИЕ (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
 >
-> 🌐 **Веб-версия плеера (Слушать онлайн):** 👉 **[https://recro.onrender.com](https://recro.onrender.com)** 👈  
-> 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)** 👈  
-> 🍏 **Скачать приложение на iPhone (IPA для сертификата):** 👉 **[https://recro.onrender.com/recro.ipa](https://recro.onrender.com/recro.ipa)** 👈  
+> ⚡ **Быстрое зеркало (РФ без VPN, Vercel Edge):** 👉 **[https://recro-player.vercel.app/#/](https://recro-player.vercel.app/#/)** 👈  
+> 🌐 **Основной веб-хост (Слушать онлайн):** 👉 **[http://177.3.217.64/#/](http://177.3.217.64/#/)** 👈  
+> ☁️ **Облачное зеркало (Render):** 👉 **[https://recro.onrender.com](https://recro.onrender.com)** 👈  
+> 📱 **Скачать приложение на Android (APK):** 👉 **[http://177.3.217.64/recro.apk](http://177.3.217.64/recro.apk)** 👈  
+> 🍏 **Скачать приложение на iPhone (IPA для сертификата):** 👉 **[http://177.3.217.64/recro.ipa](http://177.3.217.64/recro.ipa)** 👈  
 >
 > *(Плеер полностью бесплатен, без рекламы, оптимизирован под все модели iPhone со всеми вырезами и Dynamic Island, а также Android и ПК!)*
 
@@ -83,6 +86,9 @@
 
 ### 🌊 4. Алгоритм «Моя Волна» (Smart Wave 2.0)
 * **100% изоляция языковых потоков:** При прослушивании зарубежной музыки волна удерживает строго иностранные треки; при переходе на русскую — моментально перестраивается на отечественный контекст.
+* **Фильтр медиатеки (Чистые открытия):** Треки, уже добавленные в вашу библиотеку, исключаются из режима открытий волны, расширяя музыкальный кругозор.
+* **Защита от ложных скипов и обрывов:** При нестабильном интернет-соединении плеер автоматически подхватывает позицию трека и перезапускает воспроизведение без пропуска композиции.
+* **Предиктивная буферизация:** Следующий трек очереди предварительно кэшируется, гарантируя моментальный переход без лагов и задержек.
 * **Векторная модель косинусного сходства:** Непрерывное обучение вкусового вектора (энергия, акустичность, ритм, танцевальность) с отсечением нерелевантного контента ($\ge 0.38$).
 * **Пул студийных открытий (`onlineDiscoveryPool`):** Постоянный буфер радио-рекомендаций артистов, гарантирующий качественные релизы без перехода в низкопробный мусор.
 * **Режимы настроения:** Сбалансированный, Энергичный, Чилл, Только любимое.
@@ -93,12 +99,12 @@
 * **Спектральный анализатор (Visualizer):** Живая визуализация частот в реальном времени.
 * **Ambient Glow:** Фоновая подсветка интерфейса динамически адаптируется под доминирующие цвета обложки текущего трека.
 
-### 👤 6. Профиль, кастомизация и геймификация
+### 👤 6. Профиль, кастомизация и статистика
+* **Динамический брендинг исполнителей:** При наведении на артиста в чарте вычисляется стабильный HEX/HSL-цвет и неоновое свечение на основе DJB2-хэша имени.
 * **Кастомизация аватара:** Настройка стильных анимированных и неоновых рамок.
 * **Обложки и баннеры профиля:** Загрузка собственных артов или выбор из готовых пресетов.
 * **Вайб и теги:** Установка цветных бейджей статуса и музыкального настроения.
-* **Значки и достижения (Badges):** Разблокировка наград за активное прослушивание.
-* **Recro Wrapped:** Персональные итоги прослушиваний за год и месяц (любимые жанры, топовые треки, часы музыки).
+* **Recro Wrapped:** Персональные итоги прослушиваний за год и месяц (любимые жанры, топовые треки, часы музыки) в чистом дизайне.
 
 ### 🔍 7. Мультиплатформенный поиск и оффлайн
 * **Единая строка поиска:** Поиск по всей глобальной базе Deezer, SoundCloud, YouTube и каталогу онлайн-радиостанций.
@@ -115,22 +121,22 @@ flowchart TD
     subgraph Client["Клиент (Angular 21 PWA / Android APK)"]
         UI["UI: Плеер, Профиль, Караоке, Таймер"]
         AudioEng["AudioEngine: Crossfade, Normalizer, Analyzer"]
-        OfflineStore[("IndexedDB (Offline Cache)")]
+        OfflineStore[("IndexedDB: Offline Cache")]
         UI <--> AudioEng
         AudioEng <--> OfflineStore
     end
 
-    subgraph Edge["Caddy 2 Reverse Proxy & Static Server"]
-        CaddyGate["HTTPS / Gzip / Rate Limit / CORS"]
+    subgraph Edge["Edge Layer: Caddy 2 & Vercel"]
+        CaddyGate["HTTPS / Gzip / Rate Limit / CORS / Proxy"]
     end
 
-    subgraph Backend["Высокопроизводительный бэкенд на Rust (Axum)"]
+    subgraph Backend["Rust Axum High-Performance Backend"]
         Router["Axum HTTP API"]
         SpotifyWorker["Spotify Charts Cron Worker (6h)"]
         StreamEng["FFmpeg Transcoder & Stream Cache"]
         DiscCache[("Disk Cache: spotify_top_artists.json")]
         LocalDB[("SQLite Local / WAL")]
-        
+
         Router --> StreamEng
         Router --> SpotifyWorker
         SpotifyWorker --> DiscCache
@@ -144,11 +150,11 @@ flowchart TD
         Sources["Deezer / SoundCloud / YouTube / LRCLIB"]
     end
 
-    Client <--> Edge
-    Edge <--> Backend
+    UI <--> CaddyGate
+    CaddyGate <--> Router
     SpotifyWorker --> Kworb
     SpotifyWorker --> SpotifyCDN
-    Backend <--> TursoCloud
+    Router <--> TursoCloud
     StreamEng <--> Sources
 ```
 
@@ -252,17 +258,17 @@ npm start
 ## 📱 Установка на телефон (Android & iOS)
 
 ### Android (APK)
-1. Скачайте готовый APK-файл: [https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)
+1. Скачайте готовый APK-файл: **[http://177.3.217.64/recro.apk](http://177.3.217.64/recro.apk)** *(или зеркало: [https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk))*
 2. Разрешите установку из неизвестных источников и запустите `.apk`.
 
 ### iOS / iPadOS (IPA для владельцев сертификатов)
-1. Скачайте готовый IPA-пакет: [https://recro.onrender.com/recro.ipa](https://recro.onrender.com/recro.ipa)
+1. Скачайте готовый IPA-пакет: **[http://177.3.217.64/recro.ipa](http://177.3.217.64/recro.ipa)** *(или зеркало: [https://recro.onrender.com/recro.ipa](https://recro.onrender.com/recro.ipa))*
 2. Откройте приложение для подписи на iPhone: **ESign**, **Scarlet**, **Gbox**, **SideStore**, **AltStore** или **TrollStore**.
 3. Импортируйте `recro.ipa`, подпишите вашим личным или корпоративным сертификатом и нажмите **«Установить»**.
 4. Приложение установится на рабочий стол со всеми нативными возможностями и фоновым звуком.
 
 ### iOS / iPadOS (Без сертификата — PWA в 1 клик)
-1. Откройте [https://recro.onrender.com](https://recro.onrender.com) в браузере **Safari**.
+1. Откройте **[https://recro-player.vercel.app](https://recro-player.vercel.app)** *(или [http://177.3.217.64](http://177.3.217.64))* в браузере **Safari**.
 2. Нажмите кнопку **«Поделиться»** (квадрат со стрелочкой вверх ⬆).
 3. Пролистайте вниз и выберите **«На экран "Домой"» (Add to Home Screen)**.
 4. Нажмите **«Добавить»** в правом верхнем углу.

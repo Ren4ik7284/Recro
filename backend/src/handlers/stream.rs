@@ -341,8 +341,13 @@ pub async fn stream_audio(
         }
     }
 
+    let acquire_timeout = if is_prefetch {
+        Duration::from_millis(3000)
+    } else {
+        Duration::from_millis(12000)
+    };
     let _permit = match tokio::time::timeout(
-        Duration::from_millis(2000),
+        acquire_timeout,
         state.heavy_process_semaphore.acquire(),
     )
     .await
