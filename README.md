@@ -6,6 +6,7 @@
 
 [![Live Demo](https://img.shields.io/badge/🔥_СЛУШАТЬ_ОНЛАЙН-recro.onrender.com-1ed760?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.onrender.com)
 [![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro.onrender.com/recro.apk)
+[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://recro.onrender.com/recro.ipa)
 
 [![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
 [![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
@@ -24,8 +25,9 @@
 >
 > 🌐 **Веб-версия плеера (Слушать онлайн):** 👉 **[https://recro.onrender.com](https://recro.onrender.com)** 👈  
 > 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)** 👈  
+> 🍏 **Скачать приложение на iPhone (IPA для сертификата):** 👉 **[https://recro.onrender.com/recro.ipa](https://recro.onrender.com/recro.ipa)** 👈  
 >
-> *(Плеер полностью бесплатен, без рекламы, работает сразу в браузере на ПК, iPhone и Android!)*
+> *(Плеер полностью бесплатен, без рекламы, оптимизирован под все модели iPhone со всеми вырезами и Dynamic Island, а также Android и ПК!)*
 
 ---
 
@@ -253,10 +255,17 @@ npm start
 1. Скачайте готовый APK-файл: [https://recro.onrender.com/recro.apk](https://recro.onrender.com/recro.apk)
 2. Разрешите установку из неизвестных источников и запустите `.apk`.
 
-### iOS / iPadOS (PWA)
+### iOS / iPadOS (IPA для владельцев сертификатов)
+1. Скачайте готовый IPA-пакет: [https://recro.onrender.com/recro.ipa](https://recro.onrender.com/recro.ipa)
+2. Откройте приложение для подписи на iPhone: **ESign**, **Scarlet**, **Gbox**, **SideStore**, **AltStore** или **TrollStore**.
+3. Импортируйте `recro.ipa`, подпишите вашим личным или корпоративным сертификатом и нажмите **«Установить»**.
+4. Приложение установится на рабочий стол со всеми нативными возможностями и фоновым звуком.
+
+### iOS / iPadOS (Без сертификата — PWA в 1 клик)
 1. Откройте [https://recro.onrender.com](https://recro.onrender.com) в браузере **Safari**.
-2. Нажмите кнопку **«Поделиться»** (иконка со стрелочкой вверх).
-3. Выберите **«На экран "Домой"» (Add to Home Screen)**.
+2. Нажмите кнопку **«Поделиться»** (квадрат со стрелочкой вверх ⬆).
+3. Пролистайте вниз и выберите **«На экран "Домой"» (Add to Home Screen)**.
+4. Нажмите **«Добавить»** в правом верхнем углу.
 
 ---
 

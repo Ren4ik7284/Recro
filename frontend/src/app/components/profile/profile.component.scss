@@ -2351,7 +2351,7 @@
 
 @media (max-width: 768px) {
   .profile-header-card {
-    padding: 16px 16px 24px;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px));
 
     .profile-hero-content {
       flex-direction: column;

@@ -337,6 +337,17 @@ export class App implements OnInit {
     this.showToast('Загрузка Recro APK началась');
   }
 
+  downloadIpa() {
+    if (typeof document === 'undefined') return;
+    const a = document.createElement('a');
+    a.href = '/recro.ipa';
+    a.download = 'recro.ipa';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    this.showToast('Загрузка Recro IPA началась');
+  }
+
   async openPwaInstallModal(platform?: 'android' | 'ios' | void, pushHistory = true) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();

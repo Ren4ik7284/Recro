@@ -24,6 +24,13 @@
         file_server
     }
 
+    handle /recro.ipa {
+        root * /var/www/recro/frontend
+        header Content-Type application/octet-stream
+        header Content-Disposition "attachment; filename=recro.ipa"
+        file_server
+    }
+
     handle {
         root * /var/www/recro/frontend
         try_files {path} {path}/ /index.html

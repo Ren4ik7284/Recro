@@ -1988,32 +1988,74 @@
 
         <div class="modal-body pwa-instructions-body">
           @if (installPlatformTab() === 'ios') {
-            <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
               <div style="width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; border: 1px solid var(--border-subtle);">
                 <img src="/icons/apple-touch-icon.png?v=recro3" style="width: 100%; height: 100%; object-fit: cover;" alt="Recro" />
               </div>
               <div style="flex: 1; min-width: 0;">
-                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Recro для iPhone</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Работает на весь экран без App Store и сертификатов</div>
+                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Recro для iPhone & iPad</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Установка по сертификату (.IPA) или в 1 клик (PWA)</div>
               </div>
             </div>
 
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">1</div>
-              <div class="pwa-step-text">
-                Откройте этот сайт в <strong>Safari</strong> и внизу нажмите значок <strong>«Поделиться»</strong> (квадрат со стрелкой ⬆).
+            <!-- IPA Download button for users with certificates -->
+            <a href="/recro.ipa" download="recro.ipa" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 12px; background: #22c55e; color: #000; border-radius: 10px; font-size: 14px;" (click)="showToast('Загрузка Recro IPA началась')">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Скачать Recro IPA (для сертификата)</span>
+            </a>
+
+            <!-- Certificate Guide -->
+            <div style="background: rgba(34, 197, 94, 0.06); border: 1px solid rgba(34, 197, 94, 0.22); border-radius: 10px; padding: 12px; margin-bottom: 14px; text-align: left;">
+              <div style="font-size: 12px; font-weight: 700; color: #22c55e; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                <span>Установка через сертификат (ESign, Scarlet, AltStore)</span>
+              </div>
+              <div class="pwa-step-item" style="margin-bottom: 5px;">
+                <div class="pwa-step-num font-mono">1</div>
+                <div class="pwa-step-text">
+                  Нажмите <strong>«Скачать Recro IPA»</strong> выше и сохраните файл в «Файлы».
+                </div>
+              </div>
+              <div class="pwa-step-item" style="margin-bottom: 5px;">
+                <div class="pwa-step-num font-mono">2</div>
+                <div class="pwa-step-text">
+                  Откройте <strong>ESign</strong>, <strong>Scarlet</strong>, <strong>Gbox</strong>, <strong>SideStore</strong> или <strong>AltStore</strong>.
+                </div>
+              </div>
+              <div class="pwa-step-item" style="margin-bottom: 5px;">
+                <div class="pwa-step-num font-mono">3</div>
+                <div class="pwa-step-text">
+                  Импортируйте <strong>recro.ipa</strong>, подпишите вашим сертификатом и нажмите <strong>«Установить»</strong>.
+                </div>
               </div>
             </div>
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">2</div>
-              <div class="pwa-step-text">
-                Пролистайте список действий вниз и нажмите <strong>«На экран "Домой"»</strong>.
+
+            <!-- Alternative PWA without certificate -->
+            <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
+                🌐 Или установить без сертификата через Safari (PWA):
               </div>
-            </div>
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">3</div>
-              <div class="pwa-step-text">
-                В правом верхнем углу нажмите <strong>«Добавить»</strong> — приложение появится на рабочем столе.
+              <div class="pwa-step-item">
+                <div class="pwa-step-num font-mono">1</div>
+                <div class="pwa-step-text">
+                  В <strong>Safari</strong> нажмите кнопку <strong>«Поделиться»</strong> (квадрат со стрелкой ⬆ внизу).
+                </div>
+              </div>
+              <div class="pwa-step-item">
+                <div class="pwa-step-num font-mono">2</div>
+                <div class="pwa-step-text">
+                  Пролистайте вниз и выберите <strong>«На экран "Домой"»</strong>.
+                </div>
+              </div>
+              <div class="pwa-step-item">
+                <div class="pwa-step-num font-mono">3</div>
+                <div class="pwa-step-text">
+                  Вверху справа нажмите <strong>«Добавить»</strong> — значок появится на рабочем столе.
+                </div>
               </div>
             </div>
           } @else {
