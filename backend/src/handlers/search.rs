@@ -630,14 +630,20 @@ pub async fn fetch_deezer_related_artists(artist_name: &str) -> Vec<String> {
         Err(_) => return Vec::new(),
     };
 
+    let canonical = resolve_canonical_artist_name(clean);
     let search_url = format!(
-        "https://api.deezer.com/search/artist?q={}&limit=1",
-        urlencoding::encode(clean)
+        "https://api.deezer.com/search/artist?q={}&limit=5",
+        urlencoding::encode(canonical)
     );
     let artist_id = match client.get(&search_url).send().await {
         Ok(r) if r.status().is_success() => {
             if let Ok(data) = r.json::<serde_json::Value>().await {
-                data["data"].as_array().and_then(|arr| arr.first()).and_then(|a| a["id"].as_i64())
+                data["data"].as_array().and_then(|arr| {
+                    arr.iter()
+                        .find(|a| a["name"].as_str().map(|n| n.trim().eq_ignore_ascii_case(canonical)).unwrap_or(false))
+                        .and_then(|a| a["id"].as_i64())
+                        .or_else(|| arr.first().and_then(|a| a["id"].as_i64()))
+                })
             } else {
                 None
             }
@@ -720,6 +726,11 @@ pub fn is_russian_artist(name: &str) -> bool {
         "mukka", "playingtheangel", "zivert", "serega пират", "midix", "polmateri",
         "fallen777angel", "fortuna 812", "doxxxelll", "kristiee", "bond s knopkoy",
         "villian", "v!ll!an", "aquakey", "whole lotta swag", "4jaycard",
+        "onda andar", "ivycraft", "kudokushi", "odasu", "sh0tty", "eryn martin",
+        "mapt0v", "volhey", "автоспорт", "перемотка", "буерак", "дурной вкус",
+        "увула", "ssshhhiiittt", "ssshhhiiittt!", "щенки", "свидетельство о смерти",
+        "конец солнечных дней", "горемыка", "петля пристрастия", "дарья виардо",
+        "электрофорез", "дайте танк", "дайте танк (!)", "пасош", "плохо", "союз",
     ];
     for &k in KNOWN {
         if lower == k || lower.starts_with(&format!("{} ", k)) || lower.ends_with(&format!(" {}", k)) || lower.contains(&format!(" {} ", k)) {
@@ -764,10 +775,29 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
         Ok(r) if r.status().is_success() => {
             if let Ok(data) = r.json::<serde_json::Value>().await {
                 if let Some(arr) = data["data"].as_array() {
+                    // Exact name match first to avoid picking completely wrong artists with higher fan counts
                     arr.iter()
-                        .filter(|a| a["radio"].as_bool() == Some(true))
-                        .max_by_key(|a| a["nb_fan"].as_i64().unwrap_or(0))
+                        .find(|a| {
+                            a["name"].as_str().map(|n| n.trim().eq_ignore_ascii_case(canonical)).unwrap_or(false)
+                        })
                         .and_then(|a| a["id"].as_i64())
+                        .or_else(|| {
+                            arr.iter()
+                                .find(|a| {
+                                    a["name"].as_str().map(|n| {
+                                        let ln = n.trim().to_lowercase();
+                                        let lc = canonical.to_lowercase();
+                                        ln.starts_with(&lc) || lc.starts_with(&ln)
+                                    }).unwrap_or(false)
+                                })
+                                .and_then(|a| a["id"].as_i64())
+                        })
+                        .or_else(|| {
+                            arr.iter()
+                                .filter(|a| a["radio"].as_bool() == Some(true))
+                                .max_by_key(|a| a["nb_fan"].as_i64().unwrap_or(0))
+                                .and_then(|a| a["id"].as_i64())
+                        })
                         .or_else(|| arr.first().and_then(|a| a["id"].as_i64()))
                 } else {
                     None
@@ -904,12 +934,6 @@ pub fn is_junk_track(title: &str, artist: &str, query_is_russian: bool) -> bool 
                 return true;
             }
         }
-
-        let has_cyrillic = combined.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c));
-        let is_known_ru = is_russian_artist(artist) || is_russian_artist(title);
-        if !has_cyrillic && !is_known_ru {
-            return true;
-        }
     }
 
     false
@@ -1010,14 +1034,32 @@ pub async fn get_recommendations(
 
         if tracks.len() < limit {
             let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
+            let mut first_sc_id: Option<String> = None;
             for t in sc_res {
                 if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                     && !is_noisy_compilation(&t.title)
                     && !is_junk_track(&t.title, &t.artist, is_russian)
-                    && t.plays.unwrap_or(0) >= 1000
-                    && seen_ids.insert(t.id.clone())
                 {
-                    tracks.push(t);
+                    if first_sc_id.is_none() {
+                        first_sc_id = Some(t.id.clone());
+                    }
+                    if seen_ids.insert(t.id.clone()) {
+                        tracks.push(t);
+                    }
+                }
+            }
+
+            // Query SoundCloud related tracks for the first track found for this artist
+            if let Some(sc_id) = first_sc_id {
+                let sc_related = state.soundcloud.get_related_tracks(&sc_id, limit, &base_url).await;
+                for t in sc_related {
+                    if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                        && !is_noisy_compilation(&t.title)
+                        && !is_junk_track(&t.title, &t.artist, is_russian)
+                        && seen_ids.insert(t.id.clone())
+                    {
+                        tracks.push(t);
+                    }
                 }
             }
         }
@@ -1027,14 +1069,30 @@ pub async fn get_recommendations(
     if tracks.is_empty() && !artist.is_empty() {
         let is_russian = is_russian_artist(artist);
         let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
+        let mut first_sc_id: Option<String> = None;
         for t in sc_res {
             if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                 && !is_noisy_compilation(&t.title)
                 && !is_junk_track(&t.title, &t.artist, is_russian)
-                && t.plays.unwrap_or(0) >= 1000
-                && seen_ids.insert(t.id.clone())
             {
-                tracks.push(t);
+                if first_sc_id.is_none() {
+                    first_sc_id = Some(t.id.clone());
+                }
+                if seen_ids.insert(t.id.clone()) {
+                    tracks.push(t);
+                }
+            }
+        }
+        if let Some(sc_id) = first_sc_id {
+            let sc_related = state.soundcloud.get_related_tracks(&sc_id, limit, &base_url).await;
+            for t in sc_related {
+                if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                    && !is_noisy_compilation(&t.title)
+                    && !is_junk_track(&t.title, &t.artist, is_russian)
+                    && seen_ids.insert(t.id.clone())
+                {
+                    tracks.push(t);
+                }
             }
         }
         fastrand::shuffle(&mut tracks);
@@ -1042,10 +1100,10 @@ pub async fn get_recommendations(
         let is_russian = genre.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)) || chart.contains("ru");
         let search_query = if is_russian {
             match genre.as_str() {
-                "rap" | "hiphop" | "hip-hop" => "русский рэп",
-                "rock" => "русский рок",
-                "phonk" => "фонк",
-                "pop" => "русская музыка",
+                "rap" | "hiphop" | "hip-hop" => "русский хип-хоп",
+                "rock" => "русский инди рок",
+                "phonk" => "drift phonk",
+                "pop" => "инди поп",
                 _ => &genre,
             }
         } else {
@@ -1152,15 +1210,35 @@ pub async fn get_similar_tracks(
             }
         }
         if tracks.len() < limit {
-            let sc_res = state.soundcloud.search_tracks(artist, limit, &base_url).await;
+            let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
+            let mut first_sc_id: Option<String> = None;
             for t in sc_res {
                 if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
                     && !is_noisy_compilation(&t.title)
                     && !is_junk_track(&t.title, &t.artist, is_russian)
-                    && t.plays.unwrap_or(0) >= 1000
-                    && seen_ids.insert(t.id.clone())
                 {
-                    tracks.push(t);
+                    if first_sc_id.is_none() {
+                        first_sc_id = Some(t.id.clone());
+                    }
+                    let norm_art = t.artist.to_lowercase();
+                    if seen_artists.insert(norm_art) && seen_ids.insert(t.id.clone()) {
+                        tracks.push(t);
+                    }
+                }
+            }
+
+            if let Some(sc_id) = first_sc_id {
+                let sc_related = state.soundcloud.get_related_tracks(&sc_id, limit, &base_url).await;
+                for t in sc_related {
+                    if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                        && !is_noisy_compilation(&t.title)
+                        && !is_junk_track(&t.title, &t.artist, is_russian)
+                    {
+                        let norm_art = t.artist.to_lowercase();
+                        if seen_artists.insert(norm_art) && seen_ids.insert(t.id.clone()) {
+                            tracks.push(t);
+                        }
+                    }
                 }
             }
         }
@@ -1178,6 +1256,14 @@ pub async fn get_similar_tracks(
         for t in dz_search {
             if seen_ids.insert(t.id.clone()) {
                 tracks.push(t);
+            }
+        }
+        if tracks.len() < limit {
+            let sc_search = state.soundcloud.search_tracks(&query, limit, &base_url).await;
+            for t in sc_search {
+                if !is_noisy_compilation(&t.title) && seen_ids.insert(t.id.clone()) {
+                    tracks.push(t);
+                }
             }
         }
     }

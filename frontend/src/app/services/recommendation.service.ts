@@ -452,7 +452,12 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'lyapis trubetskoy', 'brutto', 'vopli vidoplyasova', 'ramil',
   'madkid', 'madk1d', 'cupsize', 'zhanulka', 'unki', 'dakook', '13karat', 'polmateri',
   'aipfs', 'midix', 'serega pirat', 'fallen777angel', 'fortuna 812', 'doxxxelll', 'kristiee', 'bond s knopkoy',
-  'villian', 'v!ll!an', 'aquakey', 'whole lotta swag', '4jaycard'
+  'villian', 'v!ll!an', 'aquakey', 'whole lotta swag', '4jaycard',
+  'onda andar', 'ivycraft', 'kudokushi', 'odasu', 'sh0tty', 'eryn martin',
+  'mapt0v', 'volhey', 'автоспорт', 'перемотка', 'буерак', 'дурной вкус',
+  'увула', 'где фантом', 'где фантом?', 'ssshhhiiittt', 'ssshhhiiittt!',
+  'щенки', 'свидетельство о смерти', 'конец солнечных дней', 'горемыка',
+  'петля пристрастия', 'электрофорез', 'дайте танк', 'дайте танк (!)'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
@@ -1879,6 +1884,7 @@ export class RecommendationService {
         .sort((a, b) => b[1] - a[1])
         .map(([name]) => name)
         .filter((a) => {
+          if (this.isCyrillicUserLibrary()) return true;
           const isRu = isRussianArtist(a);
           return effectiveLang === 'ru' ? isRu : !isRu;
         });

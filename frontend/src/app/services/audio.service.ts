@@ -1786,10 +1786,26 @@ export class AudioService {
 
     if (source === 'library_only') {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-    } else {
-      for (const t of localCandidates) {
+    } else if (source === 'balanced' && localCandidates.length > 0) {
+      const userQuota = Math.max(1, Math.floor(needed / 2));
+      const discQuota = needed - userQuota;
+
+      const userPicks = this.recService.pickNextTracks(userQuota, excludeIds, curTrack, recentArtists);
+      userPicks.forEach((t) => excludeIds.add(t.id));
+
+      const discoveries = await this.recService.fetchOnlineDiscoveryTracks(discQuota, excludeIds, recentArtists, curTrack);
+      discoveries.forEach((t) => {
         excludeIds.add(t.id);
+        if (t.artist) recentArtists.add(t.artist);
+      });
+
+      let uIdx = 0;
+      let dIdx = 0;
+      while (uIdx < userPicks.length || dIdx < discoveries.length) {
+        if (dIdx < discoveries.length) newTracks.push(discoveries[dIdx++]);
+        if (uIdx < userPicks.length) newTracks.push(userPicks[uIdx++]);
       }
+    } else {
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists, curTrack);
       newTracks.push(...discovery);
       discovery.forEach((d) => {
@@ -1808,7 +1824,7 @@ export class AudioService {
     if (newTracks.length === 0 && source !== 'library_only') {
       const starters = this.recService.getStarterCandidates(mood, needed * 2, effectiveLang);
       const freshStarters = starters.filter(
-        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && !this.recService.isLibraryTrack(t)
+        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t)
       );
       if (freshStarters.length > 0) {
         newTracks = freshStarters.slice(0, needed);
@@ -1820,7 +1836,7 @@ export class AudioService {
       (t) => !existingQueueIds.has(t.id) &&
              !this.recService.isSessionDuplicate(t) &&
              isTrackLanguageMatch(t, effectiveLang) &&
-             (source === 'library_only' || !this.recService.isLibraryTrack(t))
+             (source === 'library_only' || source === 'balanced' || !this.recService.isLibraryTrack(t))
     );
 
     if (strictlyUniqueTracks.length > 0) {
@@ -1847,41 +1863,41 @@ export class AudioService {
 
     const curTrack = this.currentTrack() || null;
     const localCandidates = this.recService.getAllLocalCandidates();
-    const source = this.recService.mixConfig().source;
     const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
 
-    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && (source === 'library_only' || !this.recService.isLibraryTrack(curTrack))) {
+    // 1. If a track is already playing, ALWAYS use it as the starting seed of the wave!
+    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang)) {
       this.queue.set([curTrack]);
       this.queueIndex.set(0);
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
 
-    // Instant start: immediately pick an initial track from starters or local candidates
-    const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang);
+    // 2. Otherwise pick an initial track from user's favorites / local library
     let immediateTrack: Track | null = null;
-
-    if (source === 'library_only' || (source === 'balanced' && localCandidates.length > 0)) {
+    if (localCandidates.length > 0) {
+      const favs = localCandidates.filter(
+        (t) => t.isFavorite && isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
+      );
       const unplayedLocal = localCandidates.filter(
         (t) => isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
       );
-      const pool = unplayedLocal.length > 0 ? unplayedLocal : localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
+      const pool = favs.length > 0 ? favs : (unplayedLocal.length > 0 ? unplayedLocal : localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang)));
       if (pool.length > 0) {
         immediateTrack = pool[Math.floor(Math.random() * pool.length)];
       }
     }
 
-    if (!immediateTrack && starters.length > 0) {
-      immediateTrack = starters[0];
-    }
-
-    if (!immediateTrack && localCandidates.length > 0) {
-      immediateTrack = localCandidates[0];
+    if (!immediateTrack) {
+      const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang);
+      if (starters.length > 0) {
+        immediateTrack = starters[0];
+      }
     }
 
     if (immediateTrack) {
-      const initialQueue = [immediateTrack, ...starters.filter((s) => s.id !== immediateTrack!.id).slice(0, 3)];
-      this.playTrack(immediateTrack, initialQueue, true, 0);
+      // Start with ONLY the seed track; ensureSmartQueue will immediately append matching tracks
+      this.playTrack(immediateTrack, [immediateTrack], true, 0);
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
