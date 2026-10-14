@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-export type AppTab = 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile';
+export type AppTab = 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search';
 export type AppOverlay =
   | 'lyrics'
   | 'visualizer'
@@ -29,7 +29,7 @@ const KNOWN_OVERLAYS = new Set<string>([
   'playlist-new', 'playlist-add', 'history', 'mix-settings', 'auth', 'wrapped', 'pwa',
   'timer', 'timer-finish',
 ]);
-const KNOWN_TABS = new Set<string>(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline', 'profile']);
+const KNOWN_TABS = new Set<string>(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline', 'profile', 'search']);
 
 @Injectable({
   providedIn: 'root',

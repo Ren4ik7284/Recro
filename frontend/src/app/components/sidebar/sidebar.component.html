@@ -17,6 +17,18 @@
         <span class="count-badge font-mono">{{ libraryService.allTracksCount() }}</span>
       </button>
 
+      <button 
+        class="nav-item" 
+        [class.active]="activeTab === 'search'"
+        (click)="viewChange.emit({view: 'search'})"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+        <span>Поиск онлайн</span>
+      </button>
+
 
       <button 
         class="nav-item" 

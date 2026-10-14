@@ -617,6 +617,7 @@ export class RecommendationService {
     const key = this.getTitleKey(track);
     if (key && this.sessionPlayedKeys.has(key)) return true;
     if (track.audioUrl && this.sessionPlayedKeys.has(track.audioUrl)) return true;
+    if (this.isRecentlyPlayed(track, 120)) return true;
     return false;
   }
 
@@ -1964,10 +1965,18 @@ export class RecommendationService {
         scoredCandidates.push({ track: t, sim });
       }
 
-      scoredCandidates.sort((a, b) => b.sim - a.sim);
+      // Efraimidis-Spirakis Weighted Reservoir Sampling:
+      // Tracks with high similarity maintain highest probability, but ordering is fresh, dynamic, and non-repeating
+      const weightedCandidates = scoredCandidates.map((item) => {
+        const weight = Math.max(0.01, Math.pow(Math.max(0.1, item.sim), 2.2));
+        const r = Math.max(1e-10, Math.random());
+        const key = Math.log(r) / weight;
+        return { track: item.track, key };
+      });
+      weightedCandidates.sort((a, b) => b.key - a.key);
 
       const bufferPool: Track[] = [];
-      for (const item of scoredCandidates) {
+      for (const item of weightedCandidates) {
         const t = item.track;
         const art = normalizeArtist(t.artist);
         const title = normalizeTitle(t.title);
@@ -1983,6 +1992,19 @@ export class RecommendationService {
           if (title) seenTitles.add(title);
         } else {
           bufferPool.push(t);
+        }
+      }
+
+      // If strict diversity was starving the quota, fill remaining slots from buffer without immediate consecutive repeats
+      if (selectedTracks.length < count && bufferPool.length > 0) {
+        for (const t of bufferPool) {
+          if (selectedTracks.length >= count) break;
+          const art = normalizeArtist(t.artist);
+          const lastArt = selectedTracks.length > 0 ? normalizeArtist(selectedTracks[selectedTracks.length - 1].artist) : null;
+          if (!excludeIds.has(t.id) && (!art || art !== lastArt)) {
+            selectedTracks.push(t);
+            excludeIds.add(t.id);
+          }
         }
       }
 
@@ -2019,8 +2041,10 @@ export class RecommendationService {
     } else if (mood === 'chill') {
       pool = pool.filter((t) => t.genre.includes('Hip-Hop') || t.genre.includes('Pop') || t.genre.includes('Viral') || t.genre.includes('Lo-Fi'));
     }
-    pool.sort(() => 0.5 - Math.random());
-    return pool.slice(0, count).map((t) => ({ ...t }));
+    const unplayed = pool.filter((t) => !this.isSessionDuplicate(t));
+    const finalPool = unplayed.length >= count ? unplayed : (unplayed.length > 0 ? unplayed : pool);
+    finalPool.sort(() => 0.5 - Math.random());
+    return finalPool.slice(0, count).map((t) => ({ ...t }));
   }
 
   /**

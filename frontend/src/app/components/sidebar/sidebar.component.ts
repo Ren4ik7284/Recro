@@ -21,7 +21,7 @@ export class SidebarComponent {
   readonly timerService = inject(TimerService);
   readonly pwaService = inject(PwaService);
 
-  @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' = 'all';
+  @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' = 'all';
   @Input() isProfileOpen = false;
 
   @Output() viewChange = new EventEmitter<{ view: string; playlistId?: string }>();

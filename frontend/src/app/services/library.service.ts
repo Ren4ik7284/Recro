@@ -153,7 +153,7 @@ export class LibraryService implements OnDestroy {
   readonly radioStations = signal<RadioStation[]>([]);
   readonly searchQuery = signal<string>('');
   readonly selectedGenre = signal<string>('all');
-  readonly selectedView = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile'>('all');
+  readonly selectedView = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search'>('all');
   readonly activePlaylistId = signal<string | null>(null);
 
   readonly onlineSearchResults = signal<Track[]>([]);

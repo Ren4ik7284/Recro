@@ -1450,7 +1450,23 @@ export class AudioService {
         }
 
         if (nextIdx >= updatedQ.length) {
-          nextIdx = 0;
+          // Never loop back to index 0 in Smart Mix!
+          // Try to get any track from library or starters that hasn't played recently
+          const cur = this.currentTrack();
+          const fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id && !this.recService.isSessionDuplicate(t));
+          if (fallbackCandidates.length > 0) {
+            const randomPick = fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)];
+            this.queue.update((curQ) => [...curQ, randomPick]);
+            nextIdx = this.queue().length - 1;
+          } else {
+            const starters = this.recService.getStarterCandidates(mood, 3, lang).filter((t) => t.id !== cur?.id);
+            if (starters.length > 0) {
+              this.queue.update((curQ) => [...curQ, starters[0]]);
+              nextIdx = this.queue().length - 1;
+            } else {
+              nextIdx = Math.max(0, updatedQ.length - 1);
+            }
+          }
         }
       } else {
         if (nextIdx >= q.length) {
@@ -1866,10 +1882,13 @@ export class AudioService {
     let candidates: Track[] = [];
 
     if (source === 'library_only') {
-      candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
+      candidates = this.recService.pickNextTracks(6, this.recService.getSessionPlayedIds(), curTrack, recentArtists);
     } else {
       const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
       if (curTrack) excludeIds.add(curTrack.id);
+      for (const id of this.recService.getSessionPlayedIds()) {
+        excludeIds.add(id);
+      }
 
       let seedTrack: Track | null = curTrack;
       if (!seedTrack || this.recService.isLibraryTrack(seedTrack)) {
@@ -1892,7 +1911,7 @@ export class AudioService {
 
     if (candidates.length === 0) {
       if (source === 'library_only' && localCandidates.length > 0) {
-        candidates = this.recService.pickNextTracks(6, new Set(), curTrack, recentArtists);
+        candidates = this.recService.pickNextTracks(6, this.recService.getSessionPlayedIds(), curTrack, recentArtists);
       } else {
         const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
         if (curTrack) excludeIds.add(curTrack.id);

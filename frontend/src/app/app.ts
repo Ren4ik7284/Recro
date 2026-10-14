@@ -113,7 +113,7 @@ export class App implements OnInit {
   readonly addModalTab = signal<'youtube' | 'search' | 'radio' | 'url' | 'file'>('youtube');
   readonly isPlaylistModalOpen = signal<boolean>(false);
   readonly isQueueDrawerOpen = signal<boolean>(false);
-  readonly activeTab = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile'>('all');
+  readonly activeTab = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search'>('all');
   readonly toastMessage = signal<string | null>(null);
 
   readonly isMobilePlayerExpanded = signal<boolean>(false);
@@ -825,7 +825,7 @@ export class App implements OnInit {
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
-  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile', playlistId?: string, pushHistory = true) {
+  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search', playlistId?: string, pushHistory = true) {
     this.activeTab.set(view);
     this.libraryService.selectedView.set(view);
     if (playlistId) {
@@ -1094,8 +1094,11 @@ export class App implements OnInit {
   }
 
   async triggerOnlineSearch() {
-    const q = this.modalSearchInput().trim();
+    const q = (this.libraryService.searchQuery() || this.modalSearchInput()).trim();
     if (!q) return;
+    this.modalSearchInput.set(q);
+    this.libraryService.searchQuery.set(q);
+    this.setView('search');
     await this.libraryService.searchOnline(q);
   }
 
@@ -1107,7 +1110,8 @@ export class App implements OnInit {
       return;
     }
     this.modalSearchInput.set(query);
-    this.openAddModalGuarded('search');
+    this.libraryService.searchQuery.set(query);
+    this.setView('search');
     this.triggerOnlineSearch();
   }
 
