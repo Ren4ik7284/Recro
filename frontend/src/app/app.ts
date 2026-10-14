@@ -619,8 +619,6 @@ export class App implements OnInit {
     if (pushHistory) {
       this.navService.pushOverlay('auth');
     }
-
-    this.renderGoogleButton();
   }
 
   closeAuthModal() {
@@ -630,79 +628,7 @@ export class App implements OnInit {
   }
 
   async renderGoogleButton() {
-    const backendUrl = this.libraryService.getBackendUrl();
-    await this.authService.fetchAuthConfig(backendUrl);
-
-    const clientId = this.authService.googleClientId();
-    if (!clientId) return;
-
-    const loaded = await this.ensureGoogleScriptLoaded();
-    if (!loaded || !window.google?.accounts?.id) {
-      return;
-    }
-
-    try {
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response: any) => {
-          if (response && response.credential) {
-            const ok = await this.authService.loginWithGoogle(
-              this.libraryService.getBackendUrl(),
-              response.credential
-            );
-            if (ok) {
-              this.closeAuthModal();
-              const username = this.authService.currentUser()?.username || 'пользователь';
-              this.showToast(`Вход выполнен! С возвращением, ${username}!`);
-              this.audioService.resetSessionAudio();
-              await this.libraryService.onUserLoggedIn();
-            }
-          }
-        },
-        auto_select: false,
-        cancel_on_tap_outside: true,
-        ux_mode: 'popup',
-        context: 'signin',
-      });
-
-      setTimeout(() => {
-        const slot = document.getElementById('google-btn-slot');
-        if (slot && window.google?.accounts?.id) {
-          slot.innerHTML = '';
-          const buttonWidth = typeof window !== 'undefined' ? Math.min(320, window.innerWidth - 64) : 280;
-          window.google.accounts.id.renderButton(slot, {
-            type: 'standard',
-            theme: 'filled_black',
-            size: 'large',
-            text: 'signin_with',
-            shape: 'rectangular',
-            logo_alignment: 'left',
-            width: buttonWidth,
-          });
-        }
-      }, 60);
-    } catch (err) {
-      console.warn('[Recro GSI] Ошибка инициализации кнопки Google:', err);
-    }
-  }
-
-  private ensureGoogleScriptLoaded(): Promise<boolean> {
-    if (typeof window === 'undefined') return Promise.resolve(false);
-    if (window.google?.accounts?.id) return Promise.resolve(true);
-
-    return new Promise((resolve) => {
-      let attempts = 0;
-      const timer = setInterval(() => {
-        attempts++;
-        if (window.google?.accounts?.id) {
-          clearInterval(timer);
-          resolve(true);
-        } else if (attempts >= 25) {
-          clearInterval(timer);
-          resolve(false);
-        }
-      }, 100);
-    });
+    // Google auth disabled
   }
 
   async submitAuth() {
