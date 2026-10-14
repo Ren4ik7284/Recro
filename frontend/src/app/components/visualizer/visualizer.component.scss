@@ -190,7 +190,7 @@
             box-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
           }
           &.theme-mono { background: #e4e4e7; }
-          &.theme-green { background: #22c55e; }
+          &.theme-green, &.theme-blue { background: #2563eb; box-shadow: 0 0 6px rgba(59, 130, 246, 0.5); }
 
           &:hover {
             transform: scale(1.1);

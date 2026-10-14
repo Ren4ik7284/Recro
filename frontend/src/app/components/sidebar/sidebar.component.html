@@ -116,21 +116,21 @@
         <span>Музыкальный таймер</span>
         @if (timerService.isActive()) {
           <span class="count-badge font-mono" style="background: rgba(255, 255, 255, 0.08); color: #f4f4f5; border: 1px solid rgba(255, 255, 255, 0.15); font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
-            <span style="width: 5px; height: 5px; border-radius: 50%; background: #22c55e;"></span>
+            <span style="width: 5px; height: 5px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 6px #2563eb;"></span>
             {{ timerService.formattedRemaining() }}
           </span>
         }
       </button>
 
       @if (pwaService.isMobile()) {
-        <button class="nav-item" (click)="openInstallModal.emit()" style="color: #22c55e;">
+        <button class="nav-item" (click)="openInstallModal.emit()" style="color: #3b82f6;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
           <span>Приложение Recro</span>
-          <span class="count-badge font-mono" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.35); font-weight: 700;">PWA/APK</span>
+          <span class="count-badge font-mono" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); font-weight: 700;">PWA/APK</span>
         </button>
       }
     </nav>

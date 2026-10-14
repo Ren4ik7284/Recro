@@ -20,7 +20,7 @@ import { LyricsService } from '../../services/lyrics.service';
 import { Track } from '../../models/track.model';
 
 export type VisualizerType = 'bars' | 'wave' | 'circle' | 'lyrics';
-export type VisualizerTheme = 'mono' | 'green' | 'album';
+export type VisualizerTheme = 'mono' | 'blue' | 'album' | 'green';
 
 @Component({
   selector: 'app-visualizer',
@@ -287,12 +287,12 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
       };
     }
 
-    if (theme === 'green') {
+    if (theme === 'green' || theme === 'blue') {
       return {
-        primary: '#22c55e',
-        secondary: '#3f3f46',
-        glow: 'rgba(34, 197, 94, 0.4)',
-        gradient: '#22c55e',
+        primary: '#2563eb',
+        secondary: '#1d4ed8',
+        glow: 'rgba(59, 130, 246, 0.5)',
+        gradient: '#3b82f6',
         peak: '#fafafa',
       };
     }

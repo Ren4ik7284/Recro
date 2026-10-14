@@ -82,9 +82,9 @@
     .lyrics-synced-pill {
       font-size: 10px;
       font-weight: 700;
-      color: #22c55e;
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.35);
+      color: #60a5fa;
+      background: rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.35);
       padding: 3px 9px;
       border-radius: 12px;
       letter-spacing: 0.5px;
@@ -415,7 +415,7 @@
       }
 
       &.active {
-        color: #22c55e;
+        color: #3b82f6;
       }
     }
 
@@ -666,7 +666,7 @@
       width: 36px;
       height: 36px;
       border: 3px solid rgba(255, 255, 255, 0.15);
-      border-top-color: #22c55e;
+      border-top-color: #3b82f6;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -726,8 +726,8 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(34, 197, 94, 0.95);
-    color: #000;
+    background: rgba(37, 99, 235, 0.95);
+    color: #fff;
     font-size: 12px;
     font-weight: 700;
     padding: 10px 18px;
@@ -797,8 +797,8 @@
       }
 
       .btn-execute-search {
-        background: #22c55e;
-        color: #000;
+        background: #2563eb;
+        color: #fff;
         border: none;
         font-weight: 700;
         font-size: 12px;
@@ -807,7 +807,7 @@
         cursor: pointer;
 
         &:hover {
-          background: #16a34a;
+          background: #1d4ed8;
         }
       }
     }
@@ -900,8 +900,8 @@
 
           .result-synced-pill {
             font-size: 10px;
-            color: #22c55e;
-            background: rgba(34, 197, 94, 0.15);
+            color: #60a5fa;
+            background: rgba(37, 99, 235, 0.15);
             padding: 3px 7px;
             border-radius: 8px;
             font-weight: 700;
@@ -927,9 +927,9 @@
             cursor: pointer;
 
             &:hover {
-              background: #22c55e;
-              border-color: #22c55e;
-              color: #000;
+              background: #2563eb;
+              border-color: #3b82f6;
+              color: #fff;
             }
           }
         }
@@ -944,7 +944,7 @@
       line-height: 1.5;
 
       code {
-        color: #22c55e;
+        color: #60a5fa;
       }
     }
   }
@@ -1014,8 +1014,8 @@
       font-size: 13px;
 
       &.dragging {
-        border-color: #22c55e;
-        background: rgba(34, 197, 94, 0.05);
+        border-color: #3b82f6;
+        background: rgba(37, 99, 235, 0.08);
       }
 
       .btn-select-file {
@@ -1055,7 +1055,7 @@
         resize: vertical;
 
         &:focus {
-          border-color: #22c55e;
+          border-color: #3b82f6;
         }
       }
     }
@@ -1083,9 +1083,9 @@
     }
 
     .btn-import-save {
-      background: #22c55e;
+      background: #2563eb;
       border: none;
-      color: #000;
+      color: #fff;
       font-weight: 700;
       padding: 8px 20px;
       border-radius: 8px;
@@ -1093,7 +1093,7 @@
       font-size: 13px;
 
       &:hover {
-        background: #16a34a;
+        background: #1d4ed8;
       }
     }
   }

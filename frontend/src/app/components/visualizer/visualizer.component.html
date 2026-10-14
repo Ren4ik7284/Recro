@@ -90,10 +90,10 @@
             title="Тема: Монохром"
           ></button>
           <button 
-            class="vis-theme-dot theme-green" 
-            [class.active]="colorTheme() === 'green'"
-            (click)="setColorTheme('green')"
-            title="Тема: Зелёный акцент"
+            class="vis-theme-dot theme-blue" 
+            [class.active]="colorTheme() === 'blue' || colorTheme() === 'green'"
+            (click)="setColorTheme('blue')"
+            title="Тема: Тёмно-синий акцент"
           ></button>
         </div>
 
