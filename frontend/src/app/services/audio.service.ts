@@ -33,10 +33,11 @@ export class AudioService {
   readonly duration = signal<number>(0);
   readonly streamSeekOffset = signal<number>(0);
   private readonly STORAGE_KEY_VOLUME = 'signal_player_volume';
+  private readonly STORAGE_KEY_REPEAT = 'signal_player_repeat';
   readonly volume = signal<number>(this.loadSavedVolume());
   readonly isMuted = signal<boolean>(false);
   readonly isShuffle = signal<boolean>(false);
-  readonly repeatMode = signal<'off' | 'all' | 'one'>('all');
+  readonly repeatMode = signal<'off' | 'all' | 'one'>(this.loadSavedRepeatMode());
   readonly queue = signal<Track[]>([]);
   readonly queueIndex = signal<number>(-1);
   readonly preloadedNextTrack = signal<Track | null>(null);
@@ -124,6 +125,17 @@ export class AudioService {
       }
     } catch {}
     return 0.35;
+  }
+
+  private loadSavedRepeatMode(): 'off' | 'all' | 'one' {
+    if (typeof localStorage === 'undefined') return 'off';
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY_REPEAT);
+      if (saved === 'off' || saved === 'all' || saved === 'one') {
+        return saved;
+      }
+    } catch {}
+    return 'off';
   }
 
   /**
@@ -1442,11 +1454,11 @@ export class AudioService {
         }
       } else {
         if (nextIdx >= q.length) {
-          if (this.repeatMode() === 'all') {
+          if (this.repeatMode() === 'all' && q.length > 1) {
             nextIdx = 0;
           } else {
-            // Бесконечное автовоспроизведение: если очередь закончилась (например, доиграли 4 трека),
-            // бесшовно подхватываем следующие треки из медиатеки или рекомендаций, чтобы музыка никогда не затихала!
+            // Бесконечное автовоспроизведение: если очередь закончилась (например, доиграли треки или играл 1 трек),
+            // бесшовно подхватываем следующие похожие треки, чтобы музыка никогда не затихала и не крутила одно и то же!
             const recentIds = new Set<string>(q.map((t) => t.id));
             const libraryCandidates = this.libraryService.tracks().filter((t) => !recentIds.has(t.id));
 
@@ -1455,11 +1467,32 @@ export class AudioService {
               this.queue.update((curQ) => [...curQ, ...nextBatch]);
             } else {
               const recentArtists = new Set<string>(q.slice(-4).map((t) => t.artist).filter(Boolean));
-              const recs = this.recService.pickNextTracks(4, recentIds, this.currentTrack() || null, recentArtists);
+              let recs = this.recService.pickNextTracks(4, recentIds, this.currentTrack() || null, recentArtists);
+
+              if (recs.length === 0) {
+                // Если в локальной медиатеке ничего нет — ищем похожие треки онлайн (радио по треку/артисту)!
+                const cur = this.currentTrack();
+                if (cur && (cur.title || cur.artist)) {
+                  try {
+                    const similar = await this.libraryService.getSimilarTracks(cur.title, cur.artist, 8, cur.genre);
+                    recs = similar.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t));
+                  } catch (e) {
+                    console.warn('[AudioService] Failed to fetch online similar tracks for auto-advance:', e);
+                  }
+                }
+              }
+
+              if (recs.length === 0) {
+                // Fallback: подтягиваем стартовые треки или Spotify чарт
+                const mood = this.recService.currentMood();
+                const lang = this.recService.mixConfig().language;
+                const starters = this.recService.getStarterCandidates(mood, 6, lang);
+                recs = starters.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t));
+              }
+
               if (recs.length > 0) {
                 this.queue.update((curQ) => [...curQ, ...recs]);
               } else {
-                // Если всё уже прослушано — плавно закольцовываем очередь с начала
                 nextIdx = 0;
               }
             }
@@ -1569,10 +1602,13 @@ export class AudioService {
   }
 
   cycleRepeat() {
-    const modes: ('off' | 'all' | 'one')[] = ['all', 'one', 'off'];
+    const modes: ('off' | 'all' | 'one')[] = ['off', 'all', 'one'];
     const current = this.repeatMode();
     const next = modes[(modes.indexOf(current) + 1) % modes.length];
     this.repeatMode.set(next);
+    try {
+      localStorage.setItem(this.STORAGE_KEY_REPEAT, next);
+    } catch {}
   }
 
   addToQueue(track: Track) {

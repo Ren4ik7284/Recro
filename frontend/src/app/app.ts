@@ -1112,7 +1112,10 @@ export class App implements OnInit {
   }
 
   playOnlineTrack(track: Track) {
-    this.audioService.playTrack(track, [track]);
+    const results = this.libraryService.onlineSearchResults();
+    const queue = results && results.length > 0 ? results : [track];
+    const idx = queue.findIndex((t) => t.id === track.id);
+    this.audioService.playTrack(track, queue, false, idx >= 0 ? idx : 0);
     this.showToast(`Воспроизведение: ${track.title}`);
   }
 

@@ -594,70 +594,71 @@ pub async fn stream_audio(
         "https://www.youtube.com/"
     };
 
-    // Background prefetch request handling
-    if params.prefetch.unwrap_or(false) {
-        if params.ss.unwrap_or(0) == 0 && !is_live {
-            let is_already_transcoding = {
-                let mut guard = state.active_transcodes.lock().unwrap();
-                if guard.contains(&cache_filename) {
-                    true
-                } else {
-                    guard.insert(cache_filename.clone());
-                    false
-                }
-            };
-
-            if !is_already_transcoding {
-                let active_transcodes = state.active_transcodes.clone();
-                let cfn = cache_filename.clone();
-                let cfp = cache_file_path.clone();
-                let d_url = direct_url.clone();
-                let ref_hdr = referer.to_string();
-
-                tokio::spawn(async move {
-                    let codec_args = if d_url.contains(".mp3") {
-                        vec!["-c:a", "copy"]
-                    } else {
-                        vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "2"]
-                    };
-
-                    let mut conv_cmd = Command::new("ffmpeg");
-                    conv_cmd.args([
-                        "-y",
-                        "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data,hls,applehttp",
-                        "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                        "-referer", &ref_hdr,
-                        "-reconnect", "1",
-                        "-reconnect_streamed", "1",
-                        "-reconnect_on_network_error", "1",
-                        "-reconnect_delay_max", "5",
-                        "-probesize", "32768",
-                        "-analyzeduration", "100000",
-                        "-i", &d_url,
-                        "-vn",
-                    ]);
-                    conv_cmd.args(&codec_args);
-                    conv_cmd.args(["-f", "mp3", &cfp]);
-                    conv_cmd.stdout(Stdio::null());
-                    conv_cmd.stderr(Stdio::null());
-
-                    if let Ok(mut child) = conv_cmd.spawn() {
-                        let _ = child.wait().await;
-                    }
-
-                    if let Ok(mut guard) = active_transcodes.lock() {
-                        guard.remove(&cfn);
-                    }
-
-                    if let Ok(meta) = std::fs::metadata(&cfp) {
-                        if meta.len() < 30_000 {
-                            let _ = std::fs::remove_file(&cfp);
-                        }
-                    }
-                });
+    // Background cache transcoding: write complete audio file to cache
+    if params.ss.unwrap_or(0) == 0 && !is_live {
+        let is_already_transcoding = {
+            let mut guard = state.active_transcodes.lock().unwrap();
+            if guard.contains(&cache_filename) {
+                true
+            } else {
+                guard.insert(cache_filename.clone());
+                false
             }
+        };
+
+        if !is_already_transcoding {
+            let active_transcodes = state.active_transcodes.clone();
+            let cfn = cache_filename.clone();
+            let cfp = cache_file_path.clone();
+            let d_url = direct_url.clone();
+            let ref_hdr = referer.to_string();
+
+            tokio::spawn(async move {
+                let codec_args = if d_url.contains(".mp3") {
+                    vec!["-c:a", "copy"]
+                } else {
+                    vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "2"]
+                };
+
+                let mut conv_cmd = Command::new("ffmpeg");
+                conv_cmd.args([
+                    "-y",
+                    "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data,hls,applehttp",
+                    "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                    "-referer", &ref_hdr,
+                    "-reconnect", "1",
+                    "-reconnect_streamed", "1",
+                    "-reconnect_on_network_error", "1",
+                    "-reconnect_delay_max", "5",
+                    "-probesize", "32768",
+                    "-analyzeduration", "100000",
+                    "-i", &d_url,
+                    "-vn",
+                ]);
+                conv_cmd.args(&codec_args);
+                conv_cmd.args(["-f", "mp3", &cfp]);
+                conv_cmd.stdout(Stdio::null());
+                conv_cmd.stderr(Stdio::null());
+
+                if let Ok(mut child) = conv_cmd.spawn() {
+                    let _ = child.wait().await;
+                }
+
+                if let Ok(mut guard) = active_transcodes.lock() {
+                    guard.remove(&cfn);
+                }
+
+                if let Ok(meta) = std::fs::metadata(&cfp) {
+                    if meta.len() < 30_000 {
+                        let _ = std::fs::remove_file(&cfp);
+                    }
+                }
+            });
         }
-        return Ok(StatusCode::NO_CONTENT.into_response());
+
+        if params.prefetch.unwrap_or(false) {
+            return Ok(StatusCode::NO_CONTENT.into_response());
+        }
     }
 
     // Direct immediate live streaming with ultra-fast startup
