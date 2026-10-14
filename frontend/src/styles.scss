@@ -29,6 +29,18 @@
   --accent-green-subtle: rgba(37, 99, 235, 0.15);
   --accent-green-border: rgba(59, 130, 246, 0.35);
 
+  /* Discord Nitro Theme Engine Variables */
+  --theme-c1: #2563eb;
+  --theme-c2: #0f172a;
+  --theme-c1-hover: #3b82f6;
+  --theme-c1-subtle: rgba(37, 99, 235, 0.16);
+  --theme-c1-border: rgba(37, 99, 235, 0.38);
+  --theme-c1-glow: rgba(37, 99, 235, 0.35);
+  --theme-c2-subtle: rgba(15, 23, 42, 0.16);
+  --theme-c2-glow: rgba(15, 23, 42, 0.30);
+  --theme-gradient: linear-gradient(135deg, var(--theme-c1), var(--theme-c2));
+  --theme-ambient-mesh: radial-gradient(ellipse 90% 80% at 10% 15%, rgba(37, 99, 235, 0.16) 0%, transparent 65%), radial-gradient(ellipse 85% 75% at 90% 85%, rgba(15, 23, 42, 0.16) 0%, transparent 65%);
+
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
@@ -58,7 +70,8 @@ html, body {
 
 body {
   font-family: var(--font-sans);
-  background: var(--bg-canvas);
+  background: var(--theme-ambient-mesh, none), var(--bg-canvas);
+  background-attachment: fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

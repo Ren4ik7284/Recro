@@ -5,6 +5,8 @@ import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
 import { TimerService } from '../../services/timer.service';
 import { PwaService } from '../../services/pwa.service';
+import { ThemeService } from '../../services/theme.service';
+import { I18nService } from '../../services/i18n.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -20,6 +22,8 @@ export class SidebarComponent {
   readonly audioService = inject(AudioService);
   readonly timerService = inject(TimerService);
   readonly pwaService = inject(PwaService);
+  readonly themeService = inject(ThemeService);
+  readonly i18n = inject(I18nService);
 
   @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' = 'all';
   @Input() isProfileOpen = false;

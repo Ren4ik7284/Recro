@@ -5,6 +5,8 @@ import { LibraryService } from '../../services/library.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
 import { PwaService } from '../../services/pwa.service';
+import { ThemeService } from '../../services/theme.service';
+import { I18nService } from '../../services/i18n.service';
 
 @Component({
   selector: 'app-header-bar',
@@ -19,6 +21,8 @@ export class HeaderComponent {
   readonly authService = inject(AuthService);
   readonly audioService = inject(AudioService);
   readonly pwaService = inject(PwaService);
+  readonly themeService = inject(ThemeService);
+  readonly i18n = inject(I18nService);
 
   @Output() openAddModal = new EventEmitter<void>();
   @Output() openOnlineSearch = new EventEmitter<string>();

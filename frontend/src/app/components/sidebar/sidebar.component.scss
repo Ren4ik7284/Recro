@@ -125,6 +125,26 @@
           color: var(--text-primary);
         }
       }
+
+      &.theme-nav-item {
+        color: var(--text-primary);
+        .theme-dot-icon {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          border: 1px solid rgba(255, 255, 255, 0.4);
+          box-shadow: 0 0 8px var(--theme-c1-glow, rgba(37, 99, 235, 0.4));
+          flex-shrink: 0;
+          transition: transform 0.2s ease;
+        }
+        &:hover {
+          background-color: var(--theme-c1-subtle, rgba(37, 99, 235, 0.15));
+          border-color: var(--theme-c1-border, rgba(37, 99, 235, 0.35));
+          .theme-dot-icon {
+            transform: scale(1.18);
+          }
+        }
+      }
     }
   }
 

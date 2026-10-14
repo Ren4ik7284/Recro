@@ -1,4 +1,4 @@
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
@@ -125,16 +125,47 @@ pub fn verify_jwt(token: &str) -> Result<Claims, String> {
     .map_err(|e| e.to_string())
 }
 
+pub fn extract_token_from_cookie(headers: &HeaderMap) -> Option<&str> {
+    let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
+    for part in cookie_header.split(';') {
+        let part = part.trim();
+        if let Some(val) = part.strip_prefix("recro_auth_token=") {
+            return Some(val);
+        }
+        if let Some(val) = part.strip_prefix("recro_jwt_token=") {
+            return Some(val);
+        }
+    }
+    None
+}
+
+pub fn build_auth_cookie_header(token: &str, max_age_secs: i64) -> HeaderValue {
+    let cookie_str = format!(
+        "recro_auth_token={}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={}",
+        token, max_age_secs
+    );
+    HeaderValue::from_str(&cookie_str).unwrap_or_else(|_| HeaderValue::from_static(""))
+}
+
+pub fn build_logout_cookie_header() -> HeaderValue {
+    HeaderValue::from_static("recro_auth_token=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0")
+}
+
 pub fn extract_claims_from_headers(headers: &HeaderMap) -> Result<Claims, (StatusCode, &'static str)> {
     let auth_header = headers
         .get(axum::http::header::AUTHORIZATION)
-        .and_then(|h| h.to_str().ok())
-        .ok_or((StatusCode::UNAUTHORIZED, "Missing Authorization header"))?;
+        .and_then(|h| h.to_str().ok());
 
-    let token = if auth_header.starts_with("Bearer ") {
-        &auth_header[7..]
+    let token = if let Some(ah) = auth_header {
+        if ah.starts_with("Bearer ") {
+            &ah[7..]
+        } else {
+            ah
+        }
+    } else if let Some(cookie_token) = extract_token_from_cookie(headers) {
+        cookie_token
     } else {
-        auth_header
+        return Err((StatusCode::UNAUTHORIZED, "Missing Authorization header or cookie"));
     };
 
     verify_jwt(token).map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid or expired token"))
@@ -220,5 +251,30 @@ mod tests {
         let hash = hash_password(pass).expect("Hashing should succeed");
         assert!(verify_password(pass, &hash));
         assert!(!verify_password("wrong_password", &hash));
+    }
+
+    #[test]
+    fn test_extract_token_from_cookie() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::COOKIE,
+            "session=xyz; recro_auth_token=jwt_sample_token_123; other=abc".parse().unwrap(),
+        );
+        let extracted = extract_token_from_cookie(&headers);
+        assert_eq!(extracted, Some("jwt_sample_token_123"));
+
+        let empty_headers = HeaderMap::new();
+        assert_eq!(extract_token_from_cookie(&empty_headers), None);
+    }
+
+    #[test]
+    fn test_build_auth_cookie_header() {
+        let header = build_auth_cookie_header("test_jwt", 3600);
+        let val = header.to_str().unwrap();
+        assert!(val.contains("recro_auth_token=test_jwt"));
+        assert!(val.contains("HttpOnly"));
+        assert!(val.contains("Secure"));
+        assert!(val.contains("SameSite=Lax"));
+        assert!(val.contains("Max-Age=3600"));
     }
 }

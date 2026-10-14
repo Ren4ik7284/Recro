@@ -48,6 +48,8 @@ export class AudioService {
   private hasRecordedCompletion = false;
   private hasPreloadedNextTrack = false;
   private lastPreloadedTrackId: string | null = null;
+  private preloadAudio: HTMLAudioElement | null = null;
+  private preloadedAudioUrl: string | null = null;
   private isReplenishingQueue = false;
   private replenishingPromise: Promise<void> | null = null;
   private consecutiveErrorCount = 0;
@@ -1115,45 +1117,8 @@ export class AudioService {
       return;
     }
 
-    const activeBase = this.libraryService.getBackendUrl();
-
     if (!playUrl.startsWith('blob:')) {
-      if (playUrl.startsWith('/api/stream')) {
-        playUrl = `${activeBase}${playUrl}`;
-      } else if (playUrl.includes('/api/stream')) {
-        const streamIdx = playUrl.indexOf('/api/stream');
-        playUrl = `${activeBase}${playUrl.slice(streamIdx)}`;
-      } else if (
-        playUrl.includes('youtube.com') ||
-        playUrl.includes('youtu.be') ||
-        playUrl.includes('soundcloud.com')
-      ) {
-        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}`;
-      } else if (
-        track.isLiveStream ||
-        track.format === 'stream' ||
-        track.id.startsWith('radio-') ||
-        track.id.startsWith('default-') ||
-        (!playUrl.startsWith('/') && !playUrl.startsWith(activeBase))
-      ) {
-        const isLive = Boolean(track.isLiveStream || track.format === 'stream' || track.id.startsWith('radio-') || track.id.startsWith('default-'));
-        playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}${isLive ? '&is_live=true' : ''}`;
-      }
-
-      if (playUrl.includes('/api/stream')) {
-        if (track.isLiveStream && !playUrl.includes('is_live=')) {
-          const glue = playUrl.includes('?') ? '&' : '?';
-          playUrl = `${playUrl}${glue}is_live=true`;
-        }
-        if (!playUrl.includes('title=') && track.title) {
-          const glue = playUrl.includes('?') ? '&' : '?';
-          playUrl = `${playUrl}${glue}title=${encodeURIComponent(track.title)}`;
-        }
-        if (!playUrl.includes('artist=') && track.artist) {
-          const glue = playUrl.includes('?') ? '&' : '?';
-          playUrl = `${playUrl}${glue}artist=${encodeURIComponent(track.artist)}`;
-        }
-      }
+      playUrl = this.formatStreamUrl(track);
     }
 
     if (this.canUseCrossOrigin(playUrl)) {
@@ -1191,6 +1156,9 @@ export class AudioService {
     // Apply smooth fade in
     this.applyFadeIn(1.0);
 
+    // Мгновенный конвейерный предзагруз следующего трека без задержки!
+    this.preloadNextTrack();
+
     this.audio
       .play()
       .then(() => {
@@ -1203,7 +1171,7 @@ export class AudioService {
         this.updateMediaSessionPosition();
         this.libraryService.recordHistoryPlay(track);
         this.requestWakeLock();
-        setTimeout(() => this.preloadNextTrack(), 400);
+        this.preloadNextTrack();
         if (this.recService.isMixActive()) {
           this.ensureSmartQueue();
         }
@@ -1309,6 +1277,16 @@ export class AudioService {
       this.audio.currentTime = 0;
       this.audio.src = '';
     } catch {}
+    if (this.preloadAudio) {
+      try {
+        this.preloadAudio.pause();
+        this.preloadAudio.removeAttribute('src');
+        this.preloadAudio.load();
+      } catch {}
+    }
+    this.preloadedAudioUrl = null;
+    this.lastPreloadedTrackId = null;
+    this.preloadedNextTrack.set(null);
     this.isPlaying.set(false);
     this.currentTrack.set(null);
     this.queue.set([]);
@@ -1570,6 +1548,7 @@ export class AudioService {
       if (targetTrack) {
         this.queueIndex.set(nextIdx);
         await this.playTrack(targetTrack, undefined, this.recService.isMixActive(), nextIdx);
+        this.preloadNextTrack();
       }
 
       if (this.recService.isMixActive()) {
@@ -1723,6 +1702,72 @@ export class AudioService {
     this.queueIndex.set(0);
   }
 
+  private initPreloadAudio() {
+    if (this.preloadAudio || typeof document === 'undefined') return;
+    try {
+      this.preloadAudio = document.createElement('audio');
+      this.preloadAudio.preload = 'auto';
+      this.preloadAudio.muted = true;
+      this.preloadAudio.volume = 0;
+      this.preloadAudio.setAttribute('playsinline', 'true');
+      this.preloadAudio.setAttribute('webkit-playsinline', 'true');
+      this.preloadAudio.style.position = 'fixed';
+      this.preloadAudio.style.top = '-9999px';
+      this.preloadAudio.style.left = '-9999px';
+      this.preloadAudio.style.width = '1px';
+      this.preloadAudio.style.height = '1px';
+      this.preloadAudio.style.opacity = '0.01';
+      this.preloadAudio.style.pointerEvents = 'none';
+      if (document.body) {
+        document.body.appendChild(this.preloadAudio);
+      }
+    } catch {}
+  }
+
+  formatStreamUrl(track: Track): string {
+    let playUrl = track.audioUrl;
+    if (playUrl.startsWith('blob:')) return playUrl;
+    const activeBase = this.libraryService.getBackendUrl();
+
+    if (playUrl.startsWith('/api/stream')) {
+      playUrl = `${activeBase}${playUrl}`;
+    } else if (playUrl.includes('/api/stream')) {
+      const streamIdx = playUrl.indexOf('/api/stream');
+      playUrl = `${activeBase}${playUrl.slice(streamIdx)}`;
+    } else if (
+      playUrl.includes('youtube.com') ||
+      playUrl.includes('youtu.be') ||
+      playUrl.includes('soundcloud.com')
+    ) {
+      playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}`;
+    } else if (
+      track.isLiveStream ||
+      track.format === 'stream' ||
+      track.id.startsWith('radio-') ||
+      track.id.startsWith('default-') ||
+      (!playUrl.startsWith('/') && !playUrl.startsWith(activeBase))
+    ) {
+      const isLive = Boolean(track.isLiveStream || track.format === 'stream' || track.id.startsWith('radio-') || track.id.startsWith('default-'));
+      playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}${isLive ? '&is_live=true' : ''}`;
+    }
+
+    if (playUrl.includes('/api/stream')) {
+      if (track.isLiveStream && !playUrl.includes('is_live=')) {
+        const glue = playUrl.includes('?') ? '&' : '?';
+        playUrl = `${playUrl}${glue}is_live=true`;
+      }
+      if (!playUrl.includes('title=') && track.title) {
+        const glue = playUrl.includes('?') ? '&' : '?';
+        playUrl = `${playUrl}${glue}title=${encodeURIComponent(track.title)}`;
+      }
+      if (!playUrl.includes('artist=') && track.artist) {
+        const glue = playUrl.includes('?') ? '&' : '?';
+        playUrl = `${playUrl}${glue}artist=${encodeURIComponent(track.artist)}`;
+      }
+    }
+    return playUrl;
+  }
+
   preloadNextTrack() {
     const q = this.queue();
     const idx = this.queueIndex();
@@ -1732,7 +1777,7 @@ export class AudioService {
     this.lastPreloadedTrackId = nextTrack.id;
     this.preloadedNextTrack.set(nextTrack);
 
-    // Preload next track's cover image in background memory so when switched, it renders with 0ms delay!
+    // 1. Preload next track's cover image in background memory so when switched, it renders with 0ms delay!
     if (typeof window !== 'undefined') {
       const coverUrl = this.libraryService.formatCoverUrl(nextTrack.coverUrl, nextTrack.title, nextTrack.artist);
       if (coverUrl) {
@@ -1742,46 +1787,44 @@ export class AudioService {
       }
     }
 
-    // Для оффлайн-трека: заранее подготавливаем и кэшируем Blob URL в памяти
+    // 2. Для оффлайн-трека: заранее подготавливаем и кэшируем Blob URL в памяти
     if (this.offlineService.isTrackOffline(nextTrack.id)) {
-      this.offlineService.getOfflineBlobUrl(nextTrack.id).catch(() => {});
+      this.offlineService.getOfflineBlobUrl(nextTrack.id).then((blobUrl) => {
+        if (blobUrl) {
+          this.initPreloadAudio();
+          if (this.preloadAudio && this.preloadedAudioUrl !== blobUrl) {
+            this.preloadedAudioUrl = blobUrl;
+            try {
+              this.preloadAudio.src = blobUrl;
+              this.preloadAudio.load();
+            } catch {}
+          }
+        }
+      }).catch(() => {});
       return;
     }
 
     if (nextTrack.audioUrl.startsWith('blob:') || nextTrack.isLiveStream) return;
 
-    let targetUrl = nextTrack.audioUrl;
-    const activeBase = this.libraryService.getBackendUrl();
+    const targetUrl = this.formatStreamUrl(nextTrack);
 
-    if (targetUrl.startsWith('/api/stream')) {
-      targetUrl = `${activeBase}${targetUrl}`;
-    } else if (targetUrl.includes('/api/stream')) {
-      const sIdx = targetUrl.indexOf('/api/stream');
-      targetUrl = `${activeBase}${targetUrl.slice(sIdx)}`;
-    } else if (
-      targetUrl.includes('youtube.com') ||
-      targetUrl.includes('youtu.be') ||
-      targetUrl.includes('soundcloud.com')
-    ) {
-      targetUrl = `${activeBase}/api/stream?url=${encodeURIComponent(targetUrl)}`;
-    }
-
+    // 3. High priority request to warm backend yt-dlp transcoding cache
     if (targetUrl.includes('/api/stream')) {
-      if (!targetUrl.includes('title=') && nextTrack.title) {
-        const glue = targetUrl.includes('?') ? '&' : '?';
-        targetUrl = `${targetUrl}${glue}title=${encodeURIComponent(nextTrack.title)}`;
-      }
-      if (!targetUrl.includes('artist=') && nextTrack.artist) {
-        const glue = targetUrl.includes('?') ? '&' : '?';
-        targetUrl = `${targetUrl}${glue}artist=${encodeURIComponent(nextTrack.artist)}`;
-      }
-      this.lastPreloadedTrackId = nextTrack.id;
       const glue = targetUrl.includes('?') ? '&' : '?';
       const prefetchUrl = `${targetUrl}${glue}prefetch=true`;
       try {
-        // High priority + без cache: 'no-store' — браузер прогревает соединение и кэширует ответ бэкенда.
-        // Это гарантирует что следующий трек стартует мгновенно, а не ждёт yt-dlp при переключении.
+        // High priority — бэкенд прогревает yt-dlp / ffmpeg транскодирование в кэш на диске
         fetch(prefetchUrl, { priority: 'high' as any }).catch(() => {});
+      } catch {}
+    }
+
+    // 4. Preload audio stream bytes into browser media cache via secondary HTMLAudioElement
+    this.initPreloadAudio();
+    if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
+      this.preloadedAudioUrl = targetUrl;
+      try {
+        this.preloadAudio.src = targetUrl;
+        this.preloadAudio.load();
       } catch {}
     }
   }
@@ -1807,10 +1850,10 @@ export class AudioService {
 
     // Check how many upcoming tracks are queued ahead of current
     const upcomingCount = Math.max(0, q.length - 1 - idx);
-    // Keep a buffer of upcoming tracks, don't spam requests when we already have >= 3 upcoming tracks!
-    if (upcomingCount >= 3) return;
+    // Keep a buffer of upcoming tracks, don't spam requests when we already have >= 4 upcoming tracks!
+    if (upcomingCount >= 4) return;
 
-    const needed = Math.max(3, 5 - upcomingCount);
+    const needed = Math.max(4, 6 - upcomingCount);
 
     // Exclude unplayed upcoming tracks AND all tracks played during this active session
     const unplayedUpcoming = q.slice(Math.max(0, idx));
@@ -1901,8 +1944,10 @@ export class AudioService {
     // 1. Library-only mode: only play tracks from user's local catalog
     if (source === 'library_only') {
       let immediateTrack: Track | null = null;
+      let pool: Track[] = [];
       if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && this.recService.isLibraryTrack(curTrack)) {
         immediateTrack = curTrack;
+        pool = localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
       } else if (localCandidates.length > 0) {
         const favs = localCandidates.filter(
           (t) => t.isFavorite && isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
@@ -1910,14 +1955,22 @@ export class AudioService {
         const unplayed = localCandidates.filter(
           (t) => isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
         );
-        const pool = favs.length > 0 ? favs : (unplayed.length > 0 ? unplayed : localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang)));
+        pool = favs.length > 0 ? favs : (unplayed.length > 0 ? unplayed : localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang)));
         if (pool.length > 0) {
           immediateTrack = pool[Math.floor(Math.random() * pool.length)];
         }
       }
 
       if (immediateTrack) {
-        this.playTrack(immediateTrack, [immediateTrack], true, 0);
+        const initialQueue: Track[] = [immediateTrack];
+        for (const cand of pool) {
+          if (cand.id !== immediateTrack.id && !initialQueue.some((t) => t.id === cand.id)) {
+            initialQueue.push(cand);
+          }
+          if (initialQueue.length >= 6) break;
+        }
+        this.playTrack(immediateTrack, initialQueue, true, 0);
+        this.preloadNextTrack();
         this.ensureSmartQueue().catch(() => {});
         return true;
       }
@@ -1928,8 +1981,12 @@ export class AudioService {
     // 2. Pure Discovery Mode (source !== 'library_only'):
     // If a non-library discovery track is already playing and matches language, keep it as active track:
     if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && !this.recService.isLibraryTrack(curTrack)) {
-      this.queue.set([curTrack]);
+      const starters = this.recService.getStarterCandidates(mood, 10, effectiveLang)
+        .filter((t) => t.id !== curTrack.id && !this.recService.isLibraryTrack(t));
+      const initialQueue = [curTrack, ...starters.slice(0, 5)];
+      this.queue.set(initialQueue);
       this.queueIndex.set(0);
+      this.preloadNextTrack();
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
@@ -1944,16 +2001,26 @@ export class AudioService {
     const discoveries = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), seedTrack);
     const pureDiscoveries = discoveries.filter((t) => !this.recService.isLibraryTrack(t));
 
-    let immediateTrack: Track | null = pureDiscoveries.length > 0 ? pureDiscoveries[0] : null;
+    const starters = this.recService.getStarterCandidates(mood, 10, effectiveLang)
+      .filter((t) => !this.recService.isLibraryTrack(t));
 
-    if (!immediateTrack) {
-      const starters = this.recService.getStarterCandidates(mood, 10, effectiveLang);
-      immediateTrack = starters.find((t) => !this.recService.isLibraryTrack(t)) || null;
+    const queuePool: Track[] = [...pureDiscoveries];
+    for (const starter of starters) {
+      if (!queuePool.some((t) => t.id === starter.id)) {
+        queuePool.push(starter);
+      }
+      if (queuePool.length >= 6) break;
     }
 
+    if (queuePool.length === 0 && localCandidates.length > 0) {
+      queuePool.push(...localCandidates.slice(0, 6));
+    }
+
+    const immediateTrack = queuePool.length > 0 ? queuePool[0] : null;
+
     if (immediateTrack) {
-      const initialQueue = pureDiscoveries.length > 0 ? pureDiscoveries : [immediateTrack];
-      this.playTrack(immediateTrack, initialQueue, true, 0);
+      this.playTrack(immediateTrack, queuePool, true, 0);
+      this.preloadNextTrack();
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
@@ -2025,10 +2092,18 @@ export class AudioService {
     this.recService.dislikeTrack(track);
     this.libraryService.dislikeTrack(track);
 
-    this.queue.update((q) => q.filter((t) => t.id !== track.id));
-
     if (this.currentTrack()?.id === track.id) {
-      this.next();
+      this.next().then(() => {
+        this.queue.update((q) => q.filter((t) => t.id !== track.id));
+        const curIdx = this.queue().findIndex((t) => t.id === this.currentTrack()?.id);
+        if (curIdx >= 0) this.queueIndex.set(curIdx);
+      });
+    } else {
+      const dislikedIdx = this.queue().findIndex((t) => t.id === track.id);
+      this.queue.update((q) => q.filter((t) => t.id !== track.id));
+      if (dislikedIdx >= 0 && dislikedIdx < this.queueIndex()) {
+        this.queueIndex.update((idx) => Math.max(0, idx - 1));
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 use axum::extract::{ConnectInfo, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -9,19 +10,33 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::auth::{
-    create_jwt, extract_claims_from_headers, hash_password, validate_password,
-    validate_username, verify_dummy_password, verify_password, AuthConfigResponse, AuthResponse,
-    GoogleAuthRequest, LoginRequest, RegisterRequest, UpdateProfileRequest, UserInfo,
+    build_auth_cookie_header, build_logout_cookie_header, create_jwt, extract_claims_from_headers,
+    hash_password, validate_password, validate_username, verify_dummy_password, verify_password,
+    AuthConfigResponse, AuthResponse, GoogleAuthRequest, LoginRequest, RegisterRequest,
+    UpdateProfileRequest, UserInfo,
 };
 use crate::security::get_client_ip;
 use crate::AppState;
+
+fn auth_response_with_cookie(token: String, user: UserInfo) -> Response {
+    let cookie_header = build_auth_cookie_header(&token, 30 * 24 * 3600);
+    let mut resp = Json(AuthResponse { token, user }).into_response();
+    resp.headers_mut().insert(axum::http::header::SET_COOKIE, cookie_header);
+    resp
+}
+
+pub async fn logout() -> Response {
+    let mut resp = Json(json!({ "status": "ok" })).into_response();
+    resp.headers_mut().insert(axum::http::header::SET_COOKIE, build_logout_cookie_header());
+    resp
+}
 
 pub async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(payload): Json<RegisterRequest>,
-) -> Result<Json<AuthResponse>, (StatusCode, Json<Value>)> {
+) -> Result<Response, (StatusCode, Json<Value>)> {
     let ip = get_client_ip(&headers, Some(addr));
 
     {
@@ -127,9 +142,9 @@ pub async fn register(
         )
     })?;
 
-    Ok(Json(AuthResponse {
+    Ok(auth_response_with_cookie(
         token,
-        user: UserInfo {
+        UserInfo {
             id: user_id,
             username: clean_username,
             email: None,
@@ -137,7 +152,7 @@ pub async fn register(
             banner_url: None,
             profile_tags: None,
         },
-    }))
+    ))
 }
 
 pub async fn login(
@@ -145,7 +160,7 @@ pub async fn login(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
-) -> Result<Json<AuthResponse>, (StatusCode, Json<Value>)> {
+) -> Result<Response, (StatusCode, Json<Value>)> {
     let clean_login = payload.login.trim().to_lowercase();
     let ip = get_client_ip(&headers, Some(addr));
     let acct_ip_key = format!("acct_ip:{}:{}", clean_login, ip);
@@ -310,9 +325,9 @@ pub async fn login(
         )
     })?;
 
-    Ok(Json(AuthResponse {
+    Ok(auth_response_with_cookie(
         token,
-        user: UserInfo {
+        UserInfo {
             id: user_id,
             username: db_username,
             email: user_email,
@@ -320,7 +335,7 @@ pub async fn login(
             banner_url: user_banner,
             profile_tags: user_tags,
         },
-    }))
+    ))
 }
 
 pub async fn get_me(
@@ -528,7 +543,7 @@ pub async fn google_login(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(payload): Json<GoogleAuthRequest>,
-) -> Result<Json<AuthResponse>, (StatusCode, Json<Value>)> {
+) -> Result<Response, (StatusCode, Json<Value>)> {
     let ip = get_client_ip(&headers, Some(addr));
 
     {
@@ -684,9 +699,9 @@ pub async fn google_login(
             (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Ошибка генерации токена" })))
         })?;
 
-        return Ok(Json(AuthResponse {
+        return Ok(auth_response_with_cookie(
             token,
-            user: UserInfo {
+            UserInfo {
                 id: user_id,
                 username,
                 email: email_opt.or(current_email),
@@ -694,7 +709,7 @@ pub async fn google_login(
                 banner_url: None,
                 profile_tags: None,
             },
-        }));
+        ));
     }
 
     if let Some(ref email) = email_opt {
@@ -741,9 +756,9 @@ pub async fn google_login(
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Ошибка генерации токена" })))
             })?;
 
-            return Ok(Json(AuthResponse {
+            return Ok(auth_response_with_cookie(
                 token,
-                user: UserInfo {
+                UserInfo {
                     id: user_id,
                     username,
                     email: Some(email.clone()),
@@ -751,7 +766,7 @@ pub async fn google_login(
                     banner_url: None,
                     profile_tags: None,
                 },
-            }));
+            ));
         }
     }
 
@@ -856,9 +871,9 @@ pub async fn google_login(
         (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Не удалось сгенерировать токен" })))
     })?;
 
-    Ok(Json(AuthResponse {
+    Ok(auth_response_with_cookie(
         token,
-        user: UserInfo {
+        UserInfo {
             id: user_id,
             username: chosen_username,
             email: email_opt,
@@ -866,5 +881,5 @@ pub async fn google_login(
             banner_url: None,
             profile_tags: None,
         },
-    }))
+    ))
 }

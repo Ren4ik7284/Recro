@@ -5,6 +5,8 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { RecommendationService } from './recommendation.service';
 import { LibraryService } from './library.service';
+import { OfflineService } from './offline.service';
+import { NavigationService } from './navigation.service';
 import { Track } from '../models/track.model';
 
 describe('Mix and My Wave Pure Discovery Improvements', () => {
@@ -132,5 +134,88 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
     for (const t of result) {
       expect(recService.isLibraryTrack(t)).toBe(false);
     }
+  });
+
+  describe('AudioService Pipelined Preload & Stream URL formatting', () => {
+    it('formatStreamUrl properly formats /api/stream endpoints with title and artist', async () => {
+      const mockOfflineService = {
+        isTrackOffline: () => false,
+        getCachedBlobUrlSync: () => null,
+        getOfflineBlobUrl: vi.fn().mockResolvedValue(null),
+        revokePreviousBlobUrls: vi.fn(),
+      };
+      const mockNavService = {};
+
+      TestBed.resetTestingModule();
+      const testBed = TestBed.configureTestingModule({
+        providers: [
+          RecommendationService,
+          { provide: LibraryService, useValue: { ...mockLibraryService, getBackendUrl: () => 'https://example.com' } },
+          { provide: OfflineService, useValue: mockOfflineService },
+          { provide: NavigationService, useValue: mockNavService },
+        ],
+      });
+
+      const { AudioService } = await import('./audio.service');
+      const audioService = testBed.inject(AudioService);
+
+      const track: Track = {
+        id: 'track-1',
+        title: 'Numb',
+        artist: 'Linkin Park',
+        duration: 187,
+        audioUrl: 'https://youtube.com/watch?v=123',
+        genre: 'Rock',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      const url = audioService.formatStreamUrl(track);
+      expect(url).toContain('https://example.com/api/stream?url=');
+      expect(url).toContain('title=Numb');
+      expect(url).toContain('artist=Linkin%20Park');
+    });
+
+    it('preloadNextTrack populates preloadedNextTrack signal with upcoming track', async () => {
+      const mockOfflineService = {
+        isTrackOffline: () => false,
+        getCachedBlobUrlSync: () => null,
+        getOfflineBlobUrl: vi.fn().mockResolvedValue(null),
+        revokePreviousBlobUrls: vi.fn(),
+      };
+      const mockNavService = {};
+
+      TestBed.resetTestingModule();
+      const testBed = TestBed.configureTestingModule({
+        providers: [
+          RecommendationService,
+          {
+            provide: LibraryService,
+            useValue: {
+              ...mockLibraryService,
+              getBackendUrl: () => 'https://example.com',
+              formatCoverUrl: () => 'https://example.com/cover.jpg',
+            },
+          },
+          { provide: OfflineService, useValue: mockOfflineService },
+          { provide: NavigationService, useValue: mockNavService },
+        ],
+      });
+
+      const { AudioService } = await import('./audio.service');
+      const audioService = testBed.inject(AudioService);
+
+      const track1: Track = { id: 't1', title: 'T1', artist: 'A1', duration: 100, audioUrl: '/api/stream?title=T1', genre: '', format: 'mp3', plays: 0, isFavorite: false, addedAt: '' };
+      const track2: Track = { id: 't2', title: 'T2', artist: 'A2', duration: 120, audioUrl: '/api/stream?title=T2', genre: '', format: 'mp3', plays: 0, isFavorite: false, addedAt: '' };
+
+      audioService.queue.set([track1, track2]);
+      audioService.queueIndex.set(0);
+
+      audioService.preloadNextTrack();
+
+      expect(audioService.preloadedNextTrack()?.id).toBe('t2');
+    });
   });
 });

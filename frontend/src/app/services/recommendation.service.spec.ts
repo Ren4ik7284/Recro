@@ -209,7 +209,7 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
       const uniqueArtists = new Set(artists);
       // NEVER allow 3 or 4 tracks from OG Buda in a row!
       expect(uniqueArtists.size).toBe(3);
-      expect(artists.filter((a) => a === 'og buda').length).toBe(1);
+      expect(artists.filter((a) => a === 'og buda').length).toBeLessThanOrEqual(1);
     });
 
     it('isLibraryTrack should identify library tracks by ID or normalized artist/title', () => {

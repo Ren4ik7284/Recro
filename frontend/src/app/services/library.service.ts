@@ -786,6 +786,7 @@ export class LibraryService implements OnDestroy {
           'Content-Type': 'application/json',
           ...this.authService.getAuthHeaders(),
         },
+        credentials: 'same-origin',
         body: JSON.stringify(payload),
       });
 
@@ -859,6 +860,7 @@ export class LibraryService implements OnDestroy {
     try {
       const res = await fetch(`${this.getBackendUrl()}/api/sync`, {
         headers: this.authService.getAuthHeaders(),
+        credentials: 'same-origin',
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -1568,6 +1570,7 @@ export class LibraryService implements OnDestroy {
           'Content-Type': 'application/json',
           ...this.authService.getAuthHeaders(),
         },
+        credentials: 'same-origin',
         body: JSON.stringify({
           track_id: track.id,
           title: track.title,
@@ -1585,6 +1588,7 @@ export class LibraryService implements OnDestroy {
     try {
       const res = await fetch(`${this.getBackendUrl()}/api/history`, {
         headers: this.authService.getAuthHeaders(),
+        credentials: 'same-origin',
       });
       if (!res.ok) return [];
       return await res.json();
@@ -1599,6 +1603,7 @@ export class LibraryService implements OnDestroy {
       const res = await fetch(`${this.getBackendUrl()}/api/history`, {
         method: 'DELETE',
         headers: this.authService.getAuthHeaders(),
+        credentials: 'same-origin',
       });
       return res.ok;
     } catch {
@@ -1611,6 +1616,7 @@ export class LibraryService implements OnDestroy {
     try {
       const res = await fetch(`${this.getBackendUrl()}/api/stats/wrapped`, {
         headers: this.authService.getAuthHeaders(),
+        credentials: 'same-origin',
       });
       if (!res.ok) return null;
       return await res.json();

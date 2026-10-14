@@ -29,6 +29,8 @@ import { AmbientService } from './services/ambient.service';
 import { PwaService } from './services/pwa.service';
 import { TimerService, TIMER_MOODS, TimerMood } from './services/timer.service';
 import { PLAYLIST_COVER_PRESETS, PlaylistCoverPreset } from './components/profile/profile-presets';
+import { ThemeService } from './services/theme.service';
+import { I18nService } from './services/i18n.service';
 
 declare global {
   interface Window {
@@ -64,6 +66,8 @@ export class App implements OnInit {
   readonly navService = inject(NavigationService);
   readonly ambientService = inject(AmbientService);
   readonly timerService = inject(TimerService);
+  readonly themeService = inject(ThemeService);
+  readonly i18n = inject(I18nService);
   readonly timerMoods = TIMER_MOODS;
   readonly Math = Math;
 

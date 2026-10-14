@@ -1,6 +1,6 @@
 <aside class="app-sidebar">
   <div class="sidebar-section">
-    <div class="section-label">ИСТОЧНИКИ</div>
+    <div class="section-label">{{ i18n.t('nav.sources') }}</div>
     <nav class="sidebar-nav">
       <button 
         class="nav-item" 
@@ -13,7 +13,7 @@
           <rect width="7" height="7" x="14" y="14" rx="1"/>
           <rect width="7" height="7" x="3" y="14" rx="1"/>
         </svg>
-        <span>Вся музыка</span>
+        <span>{{ i18n.t('nav.allMusic') }}</span>
         <span class="count-badge font-mono">{{ libraryService.allTracksCount() }}</span>
       </button>
 
@@ -26,9 +26,8 @@
           <circle cx="11" cy="11" r="8"/>
           <path d="m21 21-4.3-4.3"/>
         </svg>
-        <span>Поиск онлайн</span>
+        <span>{{ i18n.t('nav.onlineSearch') }}</span>
       </button>
-
 
       <button 
         class="nav-item" 
@@ -40,7 +39,7 @@
           <polyline points="7 10 12 15 17 10"/>
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        <span>Оффлайн</span>
+        <span>{{ i18n.t('nav.offline') }}</span>
         <span class="count-badge font-mono">{{ libraryService.offlineTracksCount() }}</span>
       </button>
 
@@ -54,7 +53,7 @@
           <circle cx="12" cy="12" r="6"/>
           <circle cx="12" cy="12" r="2"/>
         </svg>
-        <span>Онлайн-потоки &amp; Радио</span>
+        <span>{{ i18n.t('nav.streamsRadio') }}</span>
       </button>
 
       <button 
@@ -65,7 +64,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
         </svg>
-        <span>Избранное</span>
+        <span>{{ i18n.t('nav.favorites') }}</span>
       </button>
 
       <button 
@@ -78,20 +77,20 @@
           <path d="M12 12v9"/>
           <path d="m16 16-4-4-4 4"/>
         </svg>
-        <span>Локальные файлы</span>
+        <span>{{ i18n.t('nav.localFiles') }}</span>
       </button>
     </nav>
   </div>
 
   <div class="sidebar-section">
-    <div class="section-label">СТАТИСТИКА &amp; ПРОФИЛЬ</div>
+    <div class="section-label">{{ i18n.t('nav.statsProfile') }}</div>
     <nav class="sidebar-nav">
       <button class="nav-item" [class.active]="activeTab === 'profile'" (click)="viewChange.emit({view: 'profile'})">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
           <circle cx="12" cy="7" r="4"/>
         </svg>
-        <span>Профиль</span>
+        <span>{{ i18n.t('nav.profile') }}</span>
       </button>
 
       <button class="nav-item wrapped-nav-item" (click)="openWrapped.emit()">
@@ -105,7 +104,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
         </svg>
-        <span>История</span>
+        <span>{{ i18n.t('nav.history') }}</span>
       </button>
 
       <button class="nav-item timer-sidebar-btn" (click)="openTimer.emit()">
@@ -113,13 +112,18 @@
           <circle cx="12" cy="12" r="10"/>
           <polyline points="12 6 12 12 16 14"/>
         </svg>
-        <span>Музыкальный таймер</span>
+        <span>{{ i18n.t('nav.timer') }}</span>
         @if (timerService.isActive()) {
           <span class="count-badge font-mono" style="background: rgba(255, 255, 255, 0.08); color: #f4f4f5; border: 1px solid rgba(255, 255, 255, 0.15); font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
             <span style="width: 5px; height: 5px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 6px #2563eb;"></span>
             {{ timerService.formattedRemaining() }}
           </span>
         }
+      </button>
+
+      <button class="nav-item theme-nav-item" (click)="themeService.openModal()">
+        <span class="theme-dot-icon" [style.background]="'linear-gradient(135deg, ' + themeService.currentTheme().color1 + ', ' + themeService.currentTheme().color2 + ')'"></span>
+        <span>{{ i18n.t('nav.themes') }}</span>
       </button>
 
       @if (pwaService.isMobile()) {
@@ -129,7 +133,7 @@
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          <span>Приложение Recro</span>
+          <span>{{ i18n.t('nav.app') }}</span>
           <span class="count-badge font-mono" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); font-weight: 700;">PWA/APK</span>
         </button>
       }
@@ -138,8 +142,8 @@
 
   <div class="sidebar-section playlists-section">
     <div class="section-label-row">
-      <span class="section-label">ПЛЕЙЛИСТЫ</span>
-      <button class="btn-create-pl-mini" (click)="createPlaylist.emit()" title="Создать плейлист">
+      <span class="section-label">{{ i18n.t('nav.playlists') }}</span>
+      <button class="btn-create-pl-mini" (click)="createPlaylist.emit()" [title]="i18n.t('nav.createPlaylist')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
@@ -160,11 +164,11 @@
           }
           <div class="pl-meta">
             <span class="pl-name">{{ pl.title }}</span>
-            <span class="pl-count font-mono">{{ pl.trackIds.length }} трека</span>
+            <span class="pl-count font-mono">{{ pl.trackIds.length }} {{ i18n.t('common.tracks') }}</span>
           </div>
         </div>
       } @empty {
-        <div class="empty-sidebar-note">Нет плейлистов</div>
+        <div class="empty-sidebar-note">{{ i18n.currentLang() === 'ru' ? 'Нет плейлистов' : 'No playlists yet' }}</div>
       }
     </div>
   </div>
@@ -182,7 +186,7 @@
           <polyline points="10 17 15 12 10 7"/>
           <line x1="15" y1="12" x2="3" y2="12"/>
         </svg>
-        <span>Войти в аккаунт</span>
+        <span>{{ i18n.t('header.login') }}</span>
       </button>
     }
   </div>

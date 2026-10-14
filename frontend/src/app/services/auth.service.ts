@@ -79,7 +79,7 @@ export class AuthService {
 
   readonly token = signal<string | null>(null);
   readonly currentUser = signal<UserInfo | null>(null);
-  readonly isAuthenticated = computed(() => !!this.token() && !!this.currentUser());
+  readonly isAuthenticated = computed(() => !!this.currentUser() && this.currentUser()?.id !== 'guest');
   readonly isAuthLoading = signal<boolean>(false);
   readonly authError = signal<string | null>(null);
 
@@ -120,49 +120,36 @@ export class AuthService {
     this.currentUser.set(user);
     if (typeof localStorage !== 'undefined') {
       try {
-        localStorage.setItem(this.TOKEN_STORAGE_KEY, token);
+        // Токен больше не сохраняется в LocalStorage ради безопасности против XSS
+        localStorage.removeItem(this.TOKEN_STORAGE_KEY);
         localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(user));
       } catch {}
     }
-    this.setCookie('recro_jwt_token', token, 365);
+    // Удаляем небезопасную JS-куку (токен защищен на уровне HttpOnly куки бэкенда)
+    this.deleteCookie('recro_jwt_token');
     try {
       this.setCookie('recro_user_data', JSON.stringify(user), 365);
     } catch {}
   }
 
   private restoreSession() {
-    let savedToken: string | null = null;
     let savedUserStr: string | null = null;
 
     if (typeof localStorage !== 'undefined') {
       try {
-        savedToken = localStorage.getItem(this.TOKEN_STORAGE_KEY);
+        // Очищаем старые токены из LocalStorage при миграции
+        localStorage.removeItem(this.TOKEN_STORAGE_KEY);
         savedUserStr = localStorage.getItem(this.USER_STORAGE_KEY);
       } catch {}
     }
+    this.deleteCookie('recro_jwt_token');
 
-    if (!savedToken) {
-      savedToken = this.getCookie('recro_jwt_token');
-    }
     if (!savedUserStr) {
       savedUserStr = this.getCookie('recro_user_data');
     }
 
     try {
-      if (savedToken && savedUserStr) {
-        this.token.set(savedToken);
-        const parsed: UserInfo = JSON.parse(savedUserStr);
-        const uid = parsed.id || 'guest';
-        if (typeof localStorage !== 'undefined') {
-          parsed.avatar_url = parsed.avatar_url || localStorage.getItem(`recro_custom_avatar_${uid}`) || undefined;
-          parsed.banner_url = parsed.banner_url || localStorage.getItem(`recro_custom_banner_${uid}`) || undefined;
-          try {
-            localStorage.setItem(this.TOKEN_STORAGE_KEY, savedToken);
-            localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(parsed));
-          } catch {}
-        }
-        this.currentUser.set(parsed);
-      } else if (savedUserStr) {
+      if (savedUserStr) {
         const parsed: UserInfo = JSON.parse(savedUserStr);
         const uid = parsed.id || 'guest';
         if (typeof localStorage !== 'undefined') {
@@ -193,6 +180,11 @@ export class AuthService {
       }
     } catch {
       // Do not destroy session on parse error
+    }
+
+    // Фоновая проверка HttpOnly сессии на бэкенде
+    if (typeof window !== 'undefined') {
+      setTimeout(() => this.verifyRemoteSession(), 50);
     }
   }
 
@@ -231,15 +223,13 @@ export class AuthService {
     }
   }
 
-  async verifyRemoteSession(backendUrl: string) {
-    this.setActiveBackendUrl(backendUrl);
-    const t = this.token();
-    if (!t) return;
-
+  async verifyRemoteSession(backendUrl?: string) {
+    if (backendUrl) this.setActiveBackendUrl(backendUrl);
     const base = this.getEffectiveBackendUrl(backendUrl);
     try {
       const res = await fetch(`${base}/api/auth/me`, {
         headers: this.getAuthHeaders(),
+        credentials: 'same-origin',
       });
       if (res.ok) {
         const user: UserInfo = await res.json();
@@ -307,6 +297,7 @@ export class AuthService {
       const res = await fetch(`${base}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ login: cleanLogin, password: cleanPass }),
       });
 
@@ -363,6 +354,7 @@ export class AuthService {
       const res = await fetch(`${base}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ username: cleanUser, password: cleanPass }),
       });
 
@@ -430,6 +422,7 @@ export class AuthService {
       const res = await fetch(`${base}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ credential }),
       });
 
@@ -476,15 +469,16 @@ export class AuthService {
       this.setCookie('recro_user_data', JSON.stringify(updated), 365);
     } catch {}
 
-    const authToken = this.token();
-    if (authToken && backendUrl && uid !== 'guest') {
+    const targetBackend = backendUrl || this.activeBackendUrl;
+    if (targetBackend && uid !== 'guest') {
       try {
-        const res = await fetch(`${backendUrl}/api/auth/profile`, {
+        const res = await fetch(`${targetBackend}/api/auth/profile`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
+            ...this.getAuthHeaders(),
           },
+          credentials: 'same-origin',
           body: JSON.stringify({
             username: partial.username,
             avatar_url: partial.avatar_url,
@@ -527,5 +521,11 @@ export class AuthService {
     }
     this.deleteCookie('recro_jwt_token');
     this.deleteCookie('recro_user_data');
+    if (typeof window !== 'undefined') {
+      fetch(`${this.getEffectiveBackendUrl()}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      }).catch(() => {});
+    }
   }
 }

@@ -21,7 +21,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use config::{ensure_cookies_on_start, init_cookies_from_env};
 use db::{init_db, DbPool};
-use handlers::auth::{get_auth_config, get_me, google_login, login, register, update_profile};
+use handlers::auth::{get_auth_config, get_me, google_login, login, logout, register, update_profile};
 use handlers::cover::{health_check, proxy_cover};
 use handlers::history::{clear_history, get_history, record_play};
 use handlers::library::{get_library, save_library};
@@ -105,6 +105,7 @@ async fn main() {
         .route("/api/health", get(health_check))
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(login))
+        .route("/api/auth/logout", post(logout))
         .route("/api/auth/me", get(get_me))
         .route("/api/auth/profile", post(update_profile))
         .route("/api/auth/config", get(get_auth_config))
