@@ -1873,13 +1873,6 @@ export class RecommendationService {
         tasks.push(
           this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 15, undefined, seedGenre).catch(() => [] as Track[])
         );
-        const seedParts = extractAllArtists(effectiveSeed.artist, effectiveSeed.title);
-        if (seedParts.length > 1) {
-          const extraArt = seedParts[1];
-          tasks.push(
-            this.libraryService.getRecommendations(extraArt, dominantGenre, 10, undefined, seedGenre).catch(() => [] as Track[])
-          );
-        }
       }
 
       const langTopArtists = Array.from(topArtistsMap.entries())
@@ -1892,17 +1885,12 @@ export class RecommendationService {
 
       if (langTopArtists.length > 0) {
         const offset = this.artistSeedOffset % langTopArtists.length;
-        this.artistSeedOffset = (this.artistSeedOffset + 2) % 1000;
-        const rotated = [
-          ...langTopArtists.slice(offset),
-          ...langTopArtists.slice(0, offset),
-        ];
-        for (const art of rotated.slice(0, 3)) {
-          if (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist)) {
-            tasks.push(
-              this.libraryService.getRecommendations(art, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
-            );
-          }
+        this.artistSeedOffset = (this.artistSeedOffset + 1) % 1000;
+        const art = langTopArtists[offset];
+        if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
+          tasks.push(
+            this.libraryService.getRecommendations(art, dominantGenre, 12, undefined, dominantGenre).catch(() => [] as Track[])
+          );
         }
       } else {
         const curatedRu = mood === 'energetic'
@@ -1916,9 +1904,10 @@ export class RecommendationService {
           ? ['Joji', 'Frank Ocean', 'Billie Eilish', 'Lorde', 'Mac Miller']
           : ['Queen', 'Daft Punk', 'Arctic Monkeys', 'The Weeknd', 'Imagine Dragons'];
         const curated = effectiveLang === 'ru' ? curatedRu : curatedEn;
-        for (const art of curated.slice(0, 3)) {
+        const art = curated[Math.floor(Math.random() * curated.length)];
+        if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
           tasks.push(
-            this.libraryService.getRecommendations(art, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
+            this.libraryService.getRecommendations(art, dominantGenre, 12, undefined, dominantGenre).catch(() => [] as Track[])
           );
         }
       }

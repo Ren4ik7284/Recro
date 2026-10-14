@@ -478,7 +478,7 @@ export class AudioService {
       }
 
       // Preload next track audio stream in advance so transition is instantaneous
-      if (actual >= 12 && !this.hasPreloadedNextTrack) {
+      if (actual >= 3 && !this.hasPreloadedNextTrack) {
         this.hasPreloadedNextTrack = true;
         this.preloadNextTrack();
       }
@@ -1407,9 +1407,9 @@ export class AudioService {
         const lang = this.recService.mixConfig().language;
         const mood = this.recService.currentMood();
 
-        // Proactively ensure queue has enough upcoming buffer
-        if (nextIdx >= this.queue().length - 3) {
-          this.ensureSmartQueue();
+        // Proactively replenish queue in background
+        if (nextIdx >= this.queue().length - 4) {
+          this.ensureSmartQueue().catch(() => {});
         }
 
         let updatedQ = this.queue();
@@ -1423,20 +1423,15 @@ export class AudioService {
               this.queue.update((curQ) => [...curQ, ...fallbacks]);
             }
           } else {
-            // In discovery mode: NEVER insert user's library tracks!
-            await this.ensureSmartQueue();
-            updatedQ = this.queue();
-
-            // If still starved (e.g. offline), use fresh starter candidates strictly matching language and not in library
-            if (nextIdx >= updatedQ.length) {
-              const excludeIds = new Set<string>(updatedQ.map((t) => t.id));
-              const starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
-                (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t)
-              );
-              if (starters.length > 0) {
-                this.queue.update((curQ) => [...curQ, ...starters]);
-              }
+            // Instant fallback without blocking on network: add starters immediately and replenish in background
+            const excludeIds = new Set<string>(updatedQ.map((t) => t.id));
+            const starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
+              (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t)
+            );
+            if (starters.length > 0) {
+              this.queue.update((curQ) => [...curQ, ...starters]);
             }
+            this.ensureSmartQueue().catch(() => {});
           }
           updatedQ = this.queue();
         }
@@ -1858,77 +1853,41 @@ export class AudioService {
     if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && (source === 'library_only' || !this.recService.isLibraryTrack(curTrack))) {
       this.queue.set([curTrack]);
       this.queueIndex.set(0);
-      await this.ensureSmartQueue();
-      this.preloadNextTrack();
+      this.ensureSmartQueue().catch(() => {});
       return true;
     }
 
-    if (localCandidates.length === 0 && mood !== 'favorites') {
-      const starterTracks = this.recService.getStarterCandidates(mood, 5, effectiveLang);
-      if (starterTracks.length > 0) {
-        this.playTrack(starterTracks[0], starterTracks, true, 0);
-        this.ensureSmartQueue();
-        return true;
-      }
-    }
+    // Instant start: immediately pick an initial track from starters or local candidates
+    const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang);
+    let immediateTrack: Track | null = null;
 
-    const recentArtists = new Set<string>();
-    if (curTrack?.artist) {
-      recentArtists.add(curTrack.artist);
-    }
-
-    let candidates: Track[] = [];
-
-    if (source === 'library_only') {
-      candidates = this.recService.pickNextTracks(6, this.recService.getSessionPlayedIds(), curTrack, recentArtists);
-    } else {
-      const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
-      if (curTrack) excludeIds.add(curTrack.id);
-      for (const id of this.recService.getSessionPlayedIds()) {
-        excludeIds.add(id);
-      }
-
-      let seedTrack: Track | null = curTrack;
-      if (!seedTrack || this.recService.isLibraryTrack(seedTrack)) {
-        const langMatches = localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
-        if (langMatches.length > 0) {
-          const favs = langMatches.filter((t) => t.isFavorite);
-          const pool = favs.length > 0 ? favs : langMatches;
-          seedTrack = pool[Math.floor(Math.random() * pool.length)];
-        }
-      }
-
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(
-        6,
-        excludeIds,
-        recentArtists,
-        seedTrack
+    if (source === 'library_only' || (source === 'balanced' && localCandidates.length > 0)) {
+      const unplayedLocal = localCandidates.filter(
+        (t) => isTrackLanguageMatch(t, effectiveLang) && !this.recService.isSessionDuplicate(t)
       );
-      candidates = discovery;
-    }
-
-    if (candidates.length === 0) {
-      if (source === 'library_only' && localCandidates.length > 0) {
-        candidates = this.recService.pickNextTracks(6, this.recService.getSessionPlayedIds(), curTrack, recentArtists);
-      } else {
-        const excludeIds = new Set<string>(localCandidates.map((t) => t.id));
-        if (curTrack) excludeIds.add(curTrack.id);
-        const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang).filter(
-          (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t)
-        );
-        candidates = starters;
+      const pool = unplayedLocal.length > 0 ? unplayedLocal : localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
+      if (pool.length > 0) {
+        immediateTrack = pool[Math.floor(Math.random() * pool.length)];
       }
     }
 
-    if (candidates.length === 0) {
-      this.recService.isMixActive.set(false);
-      return false;
+    if (!immediateTrack && starters.length > 0) {
+      immediateTrack = starters[0];
     }
 
-    this.playTrack(candidates[0], candidates, true, 0);
-    this.preloadNextTrack();
-    this.ensureSmartQueue();
-    return true;
+    if (!immediateTrack && localCandidates.length > 0) {
+      immediateTrack = localCandidates[0];
+    }
+
+    if (immediateTrack) {
+      const initialQueue = [immediateTrack, ...starters.filter((s) => s.id !== immediateTrack!.id).slice(0, 3)];
+      this.playTrack(immediateTrack, initialQueue, true, 0);
+      this.ensureSmartQueue().catch(() => {});
+      return true;
+    }
+
+    this.recService.isMixActive.set(false);
+    return false;
   }
 
   stopSmartMix() {
