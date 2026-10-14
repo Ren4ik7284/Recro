@@ -121,11 +121,6 @@
         }
       </button>
 
-      <button class="nav-item theme-nav-item" (click)="themeService.openModal()">
-        <span class="theme-dot-icon" [style.background]="'linear-gradient(135deg, ' + themeService.currentTheme().color1 + ', ' + themeService.currentTheme().color2 + ')'"></span>
-        <span>{{ i18n.t('nav.themes') }}</span>
-      </button>
-
       @if (pwaService.isMobile()) {
         <button class="nav-item" (click)="openInstallModal.emit()" style="color: #3b82f6;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

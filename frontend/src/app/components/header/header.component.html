@@ -47,17 +47,9 @@
   </div>
 
   <div class="header-actions">
-    <!-- Quick Language Toggle -->
-    <button class="btn-lang-toggle font-mono" (click)="i18n.toggleLanguage()" [title]="i18n.t('header.langBtn')">
-      <span class="lang-tag" [class.active]="i18n.currentLang() === 'ru'">RU</span>
-      <span class="lang-sep">|</span>
-      <span class="lang-tag" [class.active]="i18n.currentLang() === 'en'">EN</span>
-    </button>
-
-    <!-- Theme Customizer Trigger Button -->
-    <button class="btn-theme-trigger font-mono" (click)="themeService.openModal()" [title]="i18n.t('header.themeBtn')">
-      <span class="theme-icon-swatch" [style.background]="'linear-gradient(135deg, ' + themeService.currentTheme().color1 + ', ' + themeService.currentTheme().color2 + ')'"></span>
-      <span class="theme-label-text">{{ i18n.t('header.themeBtn') }}</span>
+    <!-- Minimalist Language Toggle -->
+    <button class="btn-lang-toggle font-mono" (click)="i18n.toggleLanguage()" [title]="i18n.currentLang() === 'ru' ? 'Switch to English' : 'Переключить на русский'">
+      {{ i18n.currentLang() === 'ru' ? 'RU' : 'EN' }}
     </button>
 
     @if (authService.isAuthenticated(); as isAuth) {
@@ -109,10 +101,6 @@
                 <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
               </svg>
               <span>{{ i18n.t('header.listeningHistory') }}</span>
-            </button>
-            <button class="user-dropdown-item" (click)="closeUserMenu(); themeService.openModal()">
-              <span class="theme-icon-swatch mini" [style.background]="'linear-gradient(135deg, ' + themeService.currentTheme().color1 + ', ' + themeService.currentTheme().color2 + ')'"></span>
-              <span>{{ i18n.t('header.themeBtn') }}</span>
             </button>
             @if (pwaService.isMobile()) {
               <div class="user-dropdown-divider"></div>

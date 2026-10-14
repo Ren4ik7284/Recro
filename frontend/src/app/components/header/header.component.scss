@@ -128,84 +128,33 @@
   .header-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 
     .btn-lang-toggle {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      height: 34px;
-      padding: 0 10px;
+      justify-content: center;
+      height: 30px;
+      min-width: 34px;
+      padding: 0 8px;
       border-radius: var(--radius-sm);
       background-color: var(--bg-card);
       border: 1px solid var(--border-subtle);
       font-size: 11px;
       font-weight: 700;
-      color: var(--text-muted);
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
       cursor: pointer;
       transition: all 0.15s ease;
-
-      .lang-tag {
-        transition: color 0.15s ease;
-        &.active {
-          color: #ffffff;
-          font-weight: 800;
-          text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
-        }
-      }
-
-      .lang-sep {
-        opacity: 0.35;
-        font-size: 10px;
-      }
 
       &:hover {
         background-color: var(--bg-card-hover);
         border-color: var(--border-focus);
-      }
-    }
-
-    .btn-theme-trigger {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      height: 34px;
-      padding: 0 12px;
-      border-radius: var(--radius-sm);
-      background-color: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-primary);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-
-      .theme-icon-swatch {
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        box-shadow: 0 0 8px var(--theme-c1-glow, rgba(37, 99, 235, 0.4));
-        flex-shrink: 0;
-        transition: transform 0.2s ease;
+        color: var(--text-primary);
       }
 
-      &:hover {
-        background-color: var(--bg-card-hover);
-        border-color: var(--theme-c1-border, var(--border-focus));
-        box-shadow: 0 0 12px var(--theme-c1-subtle, rgba(37, 99, 235, 0.2));
-
-        .theme-icon-swatch {
-          transform: scale(1.15) rotate(15deg);
-        }
-      }
-
-      @media (max-width: 680px) {
-        padding: 0 8px;
-        .theme-label-text {
-          display: none;
-        }
+      &:active {
+        transform: scale(0.96);
       }
     }
 

@@ -81,11 +81,11 @@ describe('I18nService Translation Engine', () => {
   it('should translate keys in Russian and English', () => {
     i18n.setLanguage('ru');
     expect(i18n.t('nav.allMusic')).toBe('Вся музыка');
-    expect(i18n.t('theme.modalTitle')).toBe('Темы оформления');
+    expect(i18n.t('theme.sectionTitle')).toBe('ЦВЕТОВАЯ СХЕМА ПЛЕЕРА');
 
     i18n.setLanguage('en');
     expect(i18n.t('nav.allMusic')).toBe('All Music');
-    expect(i18n.t('theme.modalTitle')).toBe('Appearance & Themes');
+    expect(i18n.t('theme.sectionTitle')).toBe('PLAYER COLOR THEME');
   });
 
   it('should toggle language between ru and en', () => {

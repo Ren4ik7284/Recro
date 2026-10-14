@@ -381,6 +381,96 @@
         </div>
       }
     </section>
+
+    <!-- Цветовая схема плеера (Только ПК) -->
+    <section class="profile-section theme-settings-section desktop-only">
+      <div class="section-header-compact">
+        <div class="section-title-wrap">
+          <h2 class="profile-section-title font-mono">{{ i18n.t('theme.sectionTitle') }}</h2>
+          <span class="section-subtitle-tag font-mono">{{ i18n.t('theme.sectionSubtitle') }}</span>
+        </div>
+        <button 
+          type="button" 
+          class="btn-reset-theme-profile font-mono" 
+          (click)="themeService.resetToDefault()"
+        >
+          {{ i18n.t('theme.btnReset') }}
+        </button>
+      </div>
+
+      <div class="profile-theme-box">
+        <!-- Dual Color Pickers: Color 1 & Color 2 -->
+        <div class="dual-pickers-row">
+          <!-- Color 1 -->
+          <div class="color-picker-item">
+            <div class="picker-label-row font-mono">
+              <span class="p-num">1</span>
+              <span class="p-name">{{ i18n.t('theme.color1Short') }}</span>
+            </div>
+            <div class="picker-input-wrap">
+              <label class="color-circle" [style.background]="themeService.currentTheme().color1">
+                <input 
+                  type="color" 
+                  [value]="themeService.currentTheme().color1" 
+                  (input)="themeService.updateColor1($any($event.target).value)" 
+                  class="sr-color-input" 
+                />
+              </label>
+              <input 
+                type="text" 
+                class="color-hex-field font-mono" 
+                [value]="themeService.currentTheme().color1" 
+                (change)="themeService.updateColor1($any($event.target).value)" 
+                maxlength="7" 
+              />
+            </div>
+          </div>
+
+          <!-- Color 2 -->
+          <div class="color-picker-item">
+            <div class="picker-label-row font-mono">
+              <span class="p-num">2</span>
+              <span class="p-name">{{ i18n.t('theme.color2Short') }}</span>
+            </div>
+            <div class="picker-input-wrap">
+              <label class="color-circle" [style.background]="themeService.currentTheme().color2">
+                <input 
+                  type="color" 
+                  [value]="themeService.currentTheme().color2" 
+                  (input)="themeService.updateColor2($any($event.target).value)" 
+                  class="sr-color-input" 
+                />
+              </label>
+              <input 
+                type="text" 
+                class="color-hex-field font-mono" 
+                [value]="themeService.currentTheme().color2" 
+                (change)="themeService.updateColor2($any($event.target).value)" 
+                maxlength="7" 
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Minimalist Presets List -->
+        <div class="theme-presets-wrap">
+          <span class="presets-caption font-mono">ПРЕСЕТЫ:</span>
+          <div class="presets-flex-row">
+            @for (preset of themeService.presets; track preset.id) {
+              <button 
+                type="button" 
+                class="preset-chip font-mono" 
+                [class.active]="themeService.currentTheme().presetId === preset.id"
+                (click)="themeService.setPreset(preset.id)"
+              >
+                <span class="chip-dot" [style.background]="'linear-gradient(135deg, ' + preset.color1 + ', ' + preset.color2 + ')'"></span>
+                <span>{{ i18n.currentLang() === 'ru' ? preset.nameRu : preset.nameEn }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
   @if (isAddTagOpen()) {

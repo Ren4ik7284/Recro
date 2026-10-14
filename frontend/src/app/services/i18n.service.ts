@@ -72,19 +72,14 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'wave.focus': 'Концентрация',
     'wave.favorites': 'Только любимое',
 
-    // Themes Modal
-    'theme.modalTitle': 'Темы оформления',
-    'theme.modalSubtitle': 'Настройте градиентную атмосферу плеера в стиле Discord Nitro',
-    'theme.presetsTitle': 'Готовые градиенты (Nitro Presets)',
-    'theme.customTitle': 'Своя комбинация из двух цветов',
+    // Profile Theme Section
+    'theme.sectionTitle': 'ЦВЕТОВАЯ СХЕМА ПЛЕЕРА',
+    'theme.sectionSubtitle': 'ДВА ЦВЕТА ИЛИ ПРЕСЕТЫ (ПК)',
     'theme.color1': 'Цвет 1 (Основной акцент)',
     'theme.color2': 'Цвет 2 (Фоновый оттенок)',
-    'theme.previewTitle': 'Предпросмотр темы',
-    'theme.previewTrack': 'Космическая мелодия',
-    'theme.previewArtist': 'Recro Player Demo',
-    'theme.btnReset': 'По умолчанию',
-    'theme.btnClose': 'Закрыть',
-    'theme.langTitle': 'Язык интерфейса',
+    'theme.color1Short': 'Основной акцент',
+    'theme.color2Short': 'Фоновый оттенок',
+    'theme.btnReset': 'Сбросить',
 
     // Modals & General
     'common.save': 'Сохранить',
@@ -112,7 +107,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'nav.app': 'Recro App',
     'nav.playlists': 'PLAYLISTS',
     'nav.createPlaylist': 'Create Playlist',
-    'nav.themes': 'Themes & Colors',
+    'nav.themes': 'Themes',
     'nav.wave': 'My Wave',
 
     // Header
@@ -164,19 +159,14 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'wave.focus': 'Focus',
     'wave.favorites': 'Favorites Only',
 
-    // Themes Modal
-    'theme.modalTitle': 'Appearance & Themes',
-    'theme.modalSubtitle': 'Customize player gradient atmosphere in Discord Nitro style',
-    'theme.presetsTitle': 'Nitro Gradient Presets',
-    'theme.customTitle': 'Custom 2-Color Combination',
+    // Profile Theme Section
+    'theme.sectionTitle': 'PLAYER COLOR THEME',
+    'theme.sectionSubtitle': 'DUAL COLORS OR PRESETS (PC)',
     'theme.color1': 'Color 1 (Primary Accent)',
     'theme.color2': 'Color 2 (Atmospheric Tint)',
-    'theme.previewTitle': 'Theme Live Preview',
-    'theme.previewTrack': 'Cosmic Horizon',
-    'theme.previewArtist': 'Recro Player Demo',
-    'theme.btnReset': 'Reset Default',
-    'theme.btnClose': 'Close',
-    'theme.langTitle': 'Interface Language',
+    'theme.color1Short': 'Primary Accent',
+    'theme.color2Short': 'Atmospheric Tint',
+    'theme.btnReset': 'Reset',
 
     // Modals & General
     'common.save': 'Save',

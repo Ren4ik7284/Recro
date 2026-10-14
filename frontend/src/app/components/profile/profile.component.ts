@@ -7,6 +7,8 @@ import { AudioService } from '../../services/audio.service';
 import { NavigationService } from '../../services/navigation.service';
 import { ProfileStatsService, BadgeItem } from '../../services/profile-stats.service';
 import { PwaService } from '../../services/pwa.service';
+import { ThemeService } from '../../services/theme.service';
+import { I18nService } from '../../services/i18n.service';
 import { Playlist } from '../../models/track.model';
 import { 
   AVATAR_PRESETS, 
@@ -50,6 +52,8 @@ export class ProfileComponent {
   readonly navService = inject(NavigationService);
   readonly statsService = inject(ProfileStatsService);
   readonly pwaService = inject(PwaService);
+  readonly themeService = inject(ThemeService);
+  readonly i18n = inject(I18nService);
 
   @ViewChild('carouselRef') carouselRef!: ElementRef<HTMLDivElement>;
   @ViewChild('avatarFileInput') avatarFileInput?: ElementRef<HTMLInputElement>;
