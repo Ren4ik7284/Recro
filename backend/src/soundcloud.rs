@@ -279,23 +279,34 @@ impl SoundCloudClient {
         client_id: &str,
     ) -> Option<String> {
         let transcodings = track_json["media"]["transcodings"].as_array()?;
-        let chosen = transcodings
+        
+        let mut candidates: Vec<&serde_json::Value> = transcodings
             .iter()
-            .find(|t| t["format"]["protocol"].as_str() == Some("progressive"))
-            .or_else(|| {
-                transcodings
-                    .iter()
-                    .find(|t| t["format"]["protocol"].as_str() == Some("hls"))
-            })
-            .or_else(|| transcodings.first())?;
+            .filter(|t| t["format"]["protocol"].as_str() == Some("progressive"))
+            .collect();
+        candidates.extend(
+            transcodings
+                .iter()
+                .filter(|t| t["format"]["protocol"].as_str() == Some("hls")),
+        );
 
-        let stream_info_url = chosen["url"].as_str()?;
-        let sep = if stream_info_url.contains('?') { "&" } else { "?" };
-        let final_fetch = format!("{}{}client_id={}", stream_info_url, sep, client_id);
+        for chosen in candidates {
+            if let Some(stream_info_url) = chosen["url"].as_str() {
+                let sep = if stream_info_url.contains('?') { "&" } else { "?" };
+                let final_fetch = format!("{}{}client_id={}", stream_info_url, sep, client_id);
 
-        let media_resp = http.get(&final_fetch).send().await.ok()?;
-        let media_json: serde_json::Value = media_resp.json().await.ok()?;
-        media_json["url"].as_str().map(|s| s.to_string())
+                if let Ok(media_resp) = http.get(&final_fetch).send().await {
+                    if let Ok(media_json) = media_resp.json::<serde_json::Value>().await {
+                        if let Some(u) = media_json["url"].as_str() {
+                            if !u.contains("/cbcs/") {
+                                return Some(u.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn parse_collection(data: &serde_json::Value, base_url: &str) -> Vec<SearchTrack> {

@@ -606,8 +606,8 @@ pub async fn stream_audio(
         "https://www.youtube.com/"
     };
 
-    // Background cache transcoding: write complete audio file to cache
-    if params.ss.unwrap_or(0) == 0 && !is_live {
+    // Background cache transcoding: write complete audio file to cache on non-cloud (VPS)
+    if !is_cloud_env() && params.ss.unwrap_or(0) == 0 && !is_live {
         let is_already_transcoding = {
             let mut guard = state.active_transcodes.lock().unwrap();
             if guard.contains(&cache_filename) {
@@ -629,7 +629,7 @@ pub async fn stream_audio(
                 let codec_args = if d_url.contains(".mp3") {
                     vec!["-c:a", "copy"]
                 } else {
-                    vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "1"]
+                    vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "0"]
                 };
 
                 let tmp_file_path = format!("{}.tmp.{}", cfp, std::process::id());
@@ -644,8 +644,6 @@ pub async fn stream_audio(
                     "-reconnect_streamed", "1",
                     "-reconnect_on_network_error", "1",
                     "-reconnect_delay_max", "5",
-                    "-probesize", "32768",
-                    "-analyzeduration", "100000",
                     "-i", &d_url,
                     "-vn",
                 ]);
@@ -701,12 +699,6 @@ pub async fn stream_audio(
         "4xx,5xx".to_string(),
         "-reconnect_delay_max".to_string(),
         "5".to_string(),
-        "-fflags".to_string(),
-        "+nobuffer+fastseek".to_string(),
-        "-probesize".to_string(),
-        "32768".to_string(),
-        "-analyzeduration".to_string(),
-        "100000".to_string(),
         "-i".to_string(),
         direct_url.clone(),
     ];
@@ -738,7 +730,7 @@ pub async fn stream_audio(
             "-b:a".to_string(),
             "192k".to_string(),
             "-threads".to_string(),
-            "1".to_string(),
+            "0".to_string(),
             "-f".to_string(),
             "mp3".to_string(),
             "-flush_packets".to_string(),
