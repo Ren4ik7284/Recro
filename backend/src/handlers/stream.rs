@@ -658,21 +658,23 @@ pub async fn stream_audio(
                     None
                 };
 
-                if let Ok(mut guard) = active_transcodes.lock() {
-                    guard.remove(&cfn);
-                }
-
                 if let Some(status) = exit_status {
                     if status.success() {
                         if let Ok(meta) = std::fs::metadata(&tmp_file_path) {
                             if meta.len() > 100_000 {
                                 let _ = std::fs::rename(&tmp_file_path, &cfp);
+                                if let Ok(mut guard) = active_transcodes.lock() {
+                                    guard.remove(&cfn);
+                                }
                                 return;
                             }
                         }
                     }
                 }
                 let _ = std::fs::remove_file(&tmp_file_path);
+                if let Ok(mut guard) = active_transcodes.lock() {
+                    guard.remove(&cfn);
+                }
             });
         }
 

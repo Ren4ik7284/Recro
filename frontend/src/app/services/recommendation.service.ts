@@ -608,6 +608,17 @@ export class RecommendationService {
     this.onlineDiscoveryPool = [];
   }
 
+  getBufferedDiscoveries(lang?: MixLanguage): Track[] {
+    if (this.onlineDiscoveryPool.length === 0) return [];
+    let pool = this.onlineDiscoveryPool.filter(
+      (t) => !this.isSessionDuplicate(t) && !this.isDisliked(t) && !this.isLibraryTrack(t)
+    );
+    if (lang && lang !== 'all') {
+      pool = pool.filter((t) => isTrackLanguageMatch(t, lang));
+    }
+    return pool;
+  }
+
   getEffectiveLanguage(currentTrack?: Track | null): MixLanguage {
     return resolveEffectiveLanguage(
       this.libraryService.mixConfig().language,

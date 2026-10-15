@@ -1816,16 +1816,16 @@ export class AudioService {
         // High priority — бэкенд прогревает yt-dlp / ffmpeg транскодирование в кэш на диске
         fetch(prefetchUrl, { priority: 'high' as any }).catch(() => {});
       } catch {}
-    }
-
-    // 4. Preload audio stream bytes into browser media cache via secondary HTMLAudioElement
-    this.initPreloadAudio();
-    if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
-      this.preloadedAudioUrl = targetUrl;
-      try {
-        this.preloadAudio.src = targetUrl;
-        this.preloadAudio.load();
-      } catch {}
+    } else {
+      // 4. Preload direct static audio stream bytes into browser media cache via secondary HTMLAudioElement
+      this.initPreloadAudio();
+      if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
+        this.preloadedAudioUrl = targetUrl;
+        try {
+          this.preloadAudio.src = targetUrl;
+          this.preloadAudio.load();
+        } catch {}
+      }
     }
   }
 
@@ -1983,7 +1983,7 @@ export class AudioService {
     if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && !this.recService.isLibraryTrack(curTrack)) {
       const starters = this.recService.getStarterCandidates(mood, 10, effectiveLang)
         .filter((t) => t.id !== curTrack.id && !this.recService.isLibraryTrack(t));
-      const initialQueue = [curTrack, ...starters.slice(0, 5)];
+      const initialQueue = [curTrack, ...starters.slice(0, 3)];
       this.queue.set(initialQueue);
       this.queueIndex.set(0);
       this.preloadNextTrack();
@@ -1991,36 +1991,36 @@ export class AudioService {
       return true;
     }
 
-    // If current track is in library, or no track is playing, use user's favorite tracks as taste seeds,
-    // but strictly launch with a fresh online discovery track!
-    const seedTrack = (curTrack && isTrackLanguageMatch(curTrack, effectiveLang))
-      ? curTrack
-      : (localCandidates.find((t) => t.isFavorite && isTrackLanguageMatch(t, effectiveLang)) || null);
-
-    // Fetch fresh discovery tracks matching user's taste
-    const discoveries = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), seedTrack);
-    const pureDiscoveries = discoveries.filter((t) => !this.recService.isLibraryTrack(t));
-
+    // Launch IMMEDIATELY with 0ms delay: pick immediate starter candidate in memory
     const starters = this.recService.getStarterCandidates(mood, 10, effectiveLang)
       .filter((t) => !this.recService.isLibraryTrack(t));
 
-    const queuePool: Track[] = [...pureDiscoveries];
-    for (const starter of starters) {
-      if (!queuePool.some((t) => t.id === starter.id)) {
-        queuePool.push(starter);
+    let immediateTrack: Track | null = null;
+    let initialQueue: Track[] = [];
+
+    // If we have buffered online discoveries in memory, use the first one:
+    const bufferedDiscoveries = this.recService.getBufferedDiscoveries(effectiveLang);
+    if (bufferedDiscoveries.length > 0) {
+      immediateTrack = bufferedDiscoveries[0];
+      initialQueue = bufferedDiscoveries.slice(0, 3);
+      for (const starter of starters) {
+        if (!initialQueue.some((t) => t.id === starter.id)) {
+          initialQueue.push(starter);
+        }
+        if (initialQueue.length >= 3) break;
       }
-      if (queuePool.length >= 6) break;
+    } else if (starters.length > 0) {
+      immediateTrack = starters[0];
+      initialQueue = starters.slice(0, 3);
+    } else if (localCandidates.length > 0) {
+      immediateTrack = localCandidates[0];
+      initialQueue = localCandidates.slice(0, 3);
     }
-
-    if (queuePool.length === 0 && localCandidates.length > 0) {
-      queuePool.push(...localCandidates.slice(0, 6));
-    }
-
-    const immediateTrack = queuePool.length > 0 ? queuePool[0] : null;
 
     if (immediateTrack) {
-      this.playTrack(immediateTrack, queuePool, true, 0);
+      this.playTrack(immediateTrack, initialQueue, true, 0);
       this.preloadNextTrack();
+      // Fetch fresh personalized discovery tracks matching user's taste in the background without blocking playback!
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
