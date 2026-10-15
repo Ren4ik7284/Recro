@@ -19,13 +19,17 @@ echo "📤 [3/4] Загрузка файлов на сервер $SERVER..."
 ssh $SERVER "mkdir -p $REMOTE_PATH/frontend"
 tar -C "$DIR/frontend/dist/frontend/browser" -cf - . | ssh $SERVER "tar -C $REMOTE_PATH/frontend -xf -"
 
+# Синхронизация Caddyfile
+scp "$DIR/Caddyfile" $SERVER:/etc/caddy/Caddyfile
+
 # Загрузка бинарника бэкенда с атомарной заменой
 scp target/release/signal-audio-backend $SERVER:$REMOTE_PATH/backend/signal-audio-backend.new
 ssh $SERVER "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
 
 echo "🔄 [4/4] Перезагрузка веб-сервера..."
-ssh $SERVER "systemctl reload caddy 2>/dev/null || systemctl reload nginx 2>/dev/null || true"
+ssh $SERVER "systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
 
-echo "✅ Деплой на хост успешно завершен! (http://177.3.217.64/#/)"
-echo "💡 Для обновления зеркала в РФ без VPN запусти: ./scripts/deploy-vercel.sh"
-echo "🌐 Зеркало в РФ (без VPN, Cloudflare): https://gilbert-focusing-hoped-static.trycloudflare.com/#/"
+echo "✅ Деплой на хост успешно завершен!"
+echo "🌐 Основной HTTPS домен (РФ и мир БЕЗ VPN): https://recro.177.3.217.64.sslip.io/#/"
+echo "🌐 Зеркало Cloudflare Tunnel: https://gilbert-focusing-hoped-static.trycloudflare.com/#/"
+echo "🌐 Прямой HTTP хост: http://177.3.217.64/#/"
