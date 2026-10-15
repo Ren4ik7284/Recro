@@ -4,10 +4,9 @@
 
 ### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
 
-[![Live Demo Without VPN](https://img.shields.io/badge/🇷🇺_СЛУШАТЬ_БЕЗ_VPN_(РФ)-Москва_HTTPS-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.80.87.202.157.sslip.io/#/)
-[![Live Demo With VPN](https://img.shields.io/badge/🛡️_СЛУШАТЬ_С_VPN_(МИР)-Европа_HTTPS-34C759?style=for-the-badge&logo=cloudflare&logoColor=white)](https://recro.177.3.217.64.sslip.io/#/)
-[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro.80.87.202.157.sslip.io/recro.apk)
-[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](https://recro.80.87.202.157.sslip.io/recro.ipa)
+[![Live Demo](https://img.shields.io/badge/⚡_СЛУШАТЬ_ОНЛАЙН_(РФ_И_МИР,_С_VPN_И_БЕЗ)-HTTPS_Let's_Encrypt-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.177.3.217.64.sslip.io/#/)
+[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro.177.3.217.64.sslip.io/recro.apk)
+[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](https://recro.177.3.217.64.sslip.io/recro.ipa)
 
 [![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
 [![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
@@ -24,12 +23,12 @@
 
 > ### ⚡ **ОНЛАЙН ДОСТУП И СКАЧИВАНИЕ (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
 >
-> 🇷🇺 **Без VPN в РФ (Московский сервер, HTTPS):** 👉 **[https://recro.80.87.202.157.sslip.io/#/](https://recro.80.87.202.157.sslip.io/#/)** 👈  
-> 🛡️ **С VPN и для всего мира (Европейский сервер, HTTPS):** 👉 **[https://recro.177.3.217.64.sslip.io/#/](https://recro.177.3.217.64.sslip.io/#/)** 👈  
-> ☁️ **Зеркало Vercel (С VPN / альтернатива):** 👉 **[https://recro-player.vercel.app/#/](https://recro-player.vercel.app/#/)** 👈  
-> 🌐 **Прямой IP хост (без DNS):** 👉 **[http://80.87.202.157/#/](http://80.87.202.157/#/)** *(РФ)* / 👉 **[http://177.3.217.64/#/](http://177.3.217.64/#/)** *(Европа)*  
-> 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro.80.87.202.157.sslip.io/recro.apk](https://recro.80.87.202.157.sslip.io/recro.apk)** 👈  
-> 🍏 **Скачать приложение на iPhone (IPA):** 👉 **[https://recro.80.87.202.157.sslip.io/recro.ipa](https://recro.80.87.202.157.sslip.io/recro.ipa)** 👈  
+> 🌐 **Единый веб-плеер (работает ОДНОВРЕМЕННО и без VPN в РФ, и с любым VPN, HTTPS):**  
+> 👉 **[https://recro.177.3.217.64.sslip.io/#/](https://recro.177.3.217.64.sslip.io/#/)** 👈  
+>
+> 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro.177.3.217.64.sslip.io/recro.apk](https://recro.177.3.217.64.sslip.io/recro.apk)** 👈  
+> 🍏 **Скачать приложение на iPhone (IPA):** 👉 **[https://recro.177.3.217.64.sslip.io/recro.ipa](https://recro.177.3.217.64.sslip.io/recro.ipa)** 👈  
+> 🌐 **Прямой IP хост (без DNS):** 👉 **[http://177.3.217.64/#/](http://177.3.217.64/#/)**  
 >
 > *(Плеер полностью бесплатен, без рекламы, оптимизирован под все модели iPhone со всеми вырезами и Dynamic Island, а также Android и ПК!)*
 
@@ -259,17 +258,17 @@ npm start
 ## 📱 Установка на телефон (Android & iOS)
 
 ### Android (APK)
-1. Скачайте готовый APK-файл: **[https://recro.80.87.202.157.sslip.io/recro.apk](https://recro.80.87.202.157.sslip.io/recro.apk)** *(или зеркало [http://80.87.202.157/recro.apk](http://80.87.202.157/recro.apk))*
+1. Скачайте готовый APK-файл: **[https://recro.177.3.217.64.sslip.io/recro.apk](https://recro.177.3.217.64.sslip.io/recro.apk)** *(или [http://177.3.217.64/recro.apk](http://177.3.217.64/recro.apk))*
 2. Разрешите установку из неизвестных источников и запустите `.apk`.
 
 ### iOS / iPadOS (IPA для владельцев сертификатов)
-1. Скачайте готовый IPA-пакет: **[https://recro.80.87.202.157.sslip.io/recro.ipa](https://recro.80.87.202.157.sslip.io/recro.ipa)** *(или зеркало [http://80.87.202.157/recro.ipa](http://80.87.202.157/recro.ipa))*
+1. Скачайте готовый IPA-пакет: **[https://recro.177.3.217.64.sslip.io/recro.ipa](https://recro.177.3.217.64.sslip.io/recro.ipa)** *(или [http://177.3.217.64/recro.ipa](http://177.3.217.64/recro.ipa))*
 2. Откройте приложение для подписи на iPhone: **ESign**, **Scarlet**, **Gbox**, **SideStore**, **AltStore** или **TrollStore**.
 3. Импортируйте `recro.ipa`, подпишите вашим личным или корпоративным сертификатом и нажмите **«Установить»**.
 4. Приложение установится на рабочий стол со всеми нативными возможностями и фоновым звуком.
 
 ### iOS / iPadOS (Без сертификата — PWA в 1 клик)
-1. Откройте **[https://recro.80.87.202.157.sslip.io](https://recro.80.87.202.157.sslip.io)** *(или [http://80.87.202.157](http://80.87.202.157))* в браузере **Safari**.
+1. Откройте **[https://recro.177.3.217.64.sslip.io](https://recro.177.3.217.64.sslip.io)** *(или [http://177.3.217.64](http://177.3.217.64))* в браузере **Safari**.
 2. Нажмите кнопку **«Поделиться»** (квадрат со стрелочкой вверх ⬆).
 3. Пролистайте вниз и выберите **«На экран "Домой"» (Add to Home Screen)**.
 4. Нажмите **«Добавить»** в правом верхнем углу.
