@@ -270,7 +270,7 @@
                   #{{ artist.rank || ($index + 1) }}
                 </div>
 
-                <span class="artist-name-label font-mono" [title]="artist.name">{{ artist.name }}</span>
+                <span class="artist-name-label font-mono notranslate" translate="no" [title]="artist.name">{{ artist.name }}</span>
 
                 @if (artist.monthlyListeners) {
                   <span class="artist-listeners-metric font-mono" [title]="artist.monthlyListeners + ' слушателей за месяц'">

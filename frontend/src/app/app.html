@@ -259,10 +259,10 @@
                     </div>
 
                     <div class="wave-track-details">
-                      <div class="wave-track-title" [title]="audioService.currentTrack()!.title">
+                      <div class="wave-track-title notranslate" translate="no" [title]="audioService.currentTrack()!.title">
                         {{ audioService.currentTrack()!.title }}
                       </div>
-                      <div class="wave-track-artist" [title]="audioService.currentTrack()!.artist">
+                      <div class="wave-track-artist notranslate" translate="no" [title]="audioService.currentTrack()!.artist">
                         {{ audioService.currentTrack()!.artist }}
                       </div>
                     </div>
@@ -588,13 +588,13 @@
                                 </div>
                               }
                               <div class="track-title-details">
-                                <span class="track-title-text" [title]="track.title">{{ track.title }}</span>
+                                <span class="track-title-text notranslate" translate="no" [title]="track.title">{{ track.title }}</span>
                               </div>
                             </div>
                           </td>
 
                           <td class="cell-artist">
-                            <span class="track-artist-text" [title]="track.artist">{{ track.artist }}</span>
+                            <span class="track-artist-text notranslate" translate="no" [title]="track.artist">{{ track.artist }}</span>
                           </td>
 
                           <td class="cell-duration">
@@ -662,8 +662,8 @@
                       </div>
 
                       <div class="mobile-track-meta">
-                        <span class="m-track-title">{{ track.title }}</span>
-                        <span class="m-track-artist">{{ track.artist }} • <span class="font-mono text-muted">{{ formatTime(track.duration) }}</span></span>
+                        <span class="m-track-title notranslate" translate="no">{{ track.title }}</span>
+                        <span class="m-track-artist"><span class="notranslate" translate="no">{{ track.artist }}</span> • <span class="font-mono text-muted">{{ formatTime(track.duration) }}</span></span>
                       </div>
 
                       <div class="mobile-track-actions" (click)="$event.stopPropagation()">
@@ -750,7 +750,7 @@
                         @if (track.coverUrl) {
                           <img [src]="track.coverUrl" alt="" class="row-cover-thumb" />
                         }
-                        <span class="track-title-text">{{ track.title }}</span>
+                        <span class="track-title-text notranslate" translate="no">{{ track.title }}</span>
                         @if (offlineService.isTrackOffline(track.id)) {
                           <span class="badge-tag" style="color: #60a5fa; border-color: rgba(59, 130, 246, 0.4);" title="Доступен оффлайн">OFFLINE</span>
                         }
@@ -762,7 +762,7 @@
                       </div>
                     </td>
 
-                    <td class="cell-artist text-secondary">{{ track.artist }}</td>
+                    <td class="cell-artist text-secondary notranslate" translate="no">{{ track.artist }}</td>
                     <td class="cell-genre"><span class="genre-badge">{{ track.genre }}</span></td>
                     <td class="cell-format text-center font-mono text-muted">{{ track.format | uppercase }}</td>
                     <td class="cell-duration font-mono text-muted text-right">
@@ -882,9 +882,9 @@
                 </div>
 
                 <div class="card-content">
-                  <div class="card-title">{{ track.title }}</div>
+                  <div class="card-title notranslate" translate="no">{{ track.title }}</div>
                   <div class="card-subtitle">
-                    <span class="card-artist">{{ track.artist }}</span>
+                    <span class="card-artist notranslate" translate="no">{{ track.artist }}</span>
                     <span class="dot-sep">•</span>
                     <span class="card-duration font-mono">{{ track.isLiveStream ? 'LIVE' : formatTime(track.duration) }}</span>
                     @if (offlineService.isTrackOffline(track.id)) {
@@ -1119,8 +1119,8 @@
 
       <div class="sheet-meta-wrap">
         <div class="sheet-track-info">
-          <h2 class="sheet-track-title">{{ cur.title }}</h2>
-          <p class="sheet-track-artist">{{ cur.artist }}</p>
+          <h2 class="sheet-track-title notranslate" translate="no">{{ cur.title }}</h2>
+          <p class="sheet-track-artist notranslate" translate="no">{{ cur.artist }}</p>
         </div>
         <button 
           class="sheet-fav-btn" 
@@ -1426,8 +1426,8 @@
               </div>
               <span class="queue-idx font-mono">{{ i + 1 }}</span>
               <div class="queue-item-meta">
-                <span class="q-title">{{ track.title }}</span>
-                <span class="q-artist">{{ track.artist }}</span>
+                <span class="q-title notranslate" translate="no">{{ track.title }}</span>
+                <span class="q-artist notranslate" translate="no">{{ track.artist }}</span>
               </div>
               <span class="q-duration font-mono text-muted">
                 @if (track.isLiveStream) { LIVE } @else { {{ formatTime(track.duration) }} }
@@ -1629,8 +1629,8 @@
                         <span class="mix-badge font-mono">
                           {{ (res.mainVideo?.duration || 0) > 600 ? 'ЦЕЛЬНЫЙ МИКС / СБОРНИК' : 'АУДИОТРЕК' }}
                         </span>
-                        <h4 class="mix-title">{{ res.mainVideo?.title || res.tracks[0]?.title }}</h4>
-                        <p class="mix-artist">{{ res.mainVideo?.artist || res.tracks[0]?.artist }} • <span class="font-mono">{{ formatTime(res.mainVideo?.duration || res.tracks[0]?.duration || 0) }}</span></p>
+                        <h4 class="mix-title notranslate" translate="no">{{ res.mainVideo?.title || res.tracks[0]?.title }}</h4>
+                        <p class="mix-artist"><span class="notranslate" translate="no">{{ res.mainVideo?.artist || res.tracks[0]?.artist }}</span> • <span class="font-mono">{{ formatTime(res.mainVideo?.duration || res.tracks[0]?.duration || 0) }}</span></p>
                       </div>
                       <div class="mix-actions">
                         <button type="button" class="btn-mix-primary" (click)="addExtractedSingleTrack(false)">
@@ -1691,8 +1691,8 @@
                               <img [src]="t.coverUrl" alt="" class="ext-thumb" />
                             }
                             <div class="ext-meta">
-                              <span class="ext-name">{{ t.title }}</span>
-                              <span class="ext-artist">{{ t.artist }} • <span class="font-mono">{{ formatTime(t.duration) }}</span></span>
+                              <span class="ext-name notranslate" translate="no">{{ t.title }}</span>
+                              <span class="ext-artist"><span class="notranslate" translate="no">{{ t.artist }}</span> • <span class="font-mono">{{ formatTime(t.duration) }}</span></span>
                             </div>
                             <button type="button" class="btn-ext-play" (click)="$event.stopPropagation(); playExtractedTrackNow(t)">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -1758,8 +1758,8 @@
                         </div>
 
                         <div class="res-meta">
-                          <span class="res-title">{{ item.title }}</span>
-                          <span class="res-artist">{{ item.artist }} • <span class="font-mono text-muted">{{ formatTime(item.duration) }}</span></span>
+                          <span class="res-title notranslate" translate="no">{{ item.title }}</span>
+                          <span class="res-artist"><span class="notranslate" translate="no">{{ item.artist }}</span> • <span class="font-mono text-muted">{{ formatTime(item.duration) }}</span></span>
                         </div>
 
                         <div class="res-actions">
@@ -2124,7 +2124,7 @@
         <div class="modal-header">
           <div>
             <h3 class="modal-title">Добавить в плейлист</h3>
-            <p class="modal-subtitle">{{ targetTrackForPlaylist()?.title }} — {{ targetTrackForPlaylist()?.artist }}</p>
+            <p class="modal-subtitle notranslate" translate="no">{{ targetTrackForPlaylist()?.title }} — {{ targetTrackForPlaylist()?.artist }}</p>
           </div>
           <button class="btn-close-sm" (click)="closeAddToPlaylistModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2645,8 +2645,8 @@
                     }
                   </div>
                   <div class="w-hero-info">
-                    <h4 class="w-hero-name">{{ ws.top_tracks[0].title }}</h4>
-                    <p class="w-hero-artist">{{ ws.top_tracks[0].artist }}</p>
+                    <h4 class="w-hero-name notranslate" translate="no">{{ ws.top_tracks[0].title }}</h4>
+                    <p class="w-hero-artist notranslate" translate="no">{{ ws.top_tracks[0].artist }}</p>
                     <span class="w-hero-count font-mono">{{ ws.top_tracks[0].plays }} прослушиваний</span>
                   </div>
                 </div>
@@ -2663,8 +2663,8 @@
                           <img [src]="tr.cover_url" alt="" class="w-row-thumb" />
                         }
                         <div class="w-row-info">
-                          <span class="w-row-name">{{ tr.title }}</span>
-                          <span class="w-row-sub">{{ tr.artist }}</span>
+                          <span class="w-row-name notranslate" translate="no">{{ tr.title }}</span>
+                          <span class="w-row-sub notranslate" translate="no">{{ tr.artist }}</span>
                         </div>
                         <span class="w-row-count font-mono">{{ tr.plays }}x</span>
                       </div>
@@ -2681,7 +2681,7 @@
                   @for (ar of ws.top_artists; track ar.artist; let i = $index) {
                     <div class="w-artist-pill">
                       <span class="w-artist-rank font-mono">#{{ i + 1 }}</span>
-                      <span class="w-artist-name">{{ ar.artist }}</span>
+                      <span class="w-artist-name notranslate" translate="no">{{ ar.artist }}</span>
                       <span class="w-artist-count font-mono">{{ ar.plays }}x</span>
                     </div>
                   }
@@ -2767,8 +2767,8 @@
                     }
                   </div>
                   <div class="h-meta">
-                    <span class="h-title">{{ item.track_title }}</span>
-                    <span class="h-artist">{{ item.track_artist }} • <span class="font-mono text-muted">{{ item.track_genre || 'Music' }}</span></span>
+                    <span class="h-title notranslate" translate="no">{{ item.track_title }}</span>
+                    <span class="h-artist"><span class="notranslate" translate="no">{{ item.track_artist }}</span> • <span class="font-mono text-muted">{{ item.track_genre || 'Music' }}</span></span>
                   </div>
                   <span class="h-date font-mono text-muted">{{ formatHistoryDate(item.played_at) }}</span>
                   <button class="btn-h-play" (click)="$event.stopPropagation(); playFromHistory(item)" title="Воспроизвести">
@@ -3426,8 +3426,8 @@
                         }
                       </div>
                       <div class="preview-info">
-                        <span class="preview-title">{{ t.title }}</span>
-                        <span class="preview-artist">{{ t.artist }}</span>
+                        <span class="preview-title notranslate" translate="no">{{ t.title }}</span>
+                        <span class="preview-artist notranslate" translate="no">{{ t.artist }}</span>
                       </div>
                       <span class="preview-dur font-mono text-muted">{{ formatTime(t.duration || 180) }}</span>
                     </div>

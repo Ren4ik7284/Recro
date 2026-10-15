@@ -87,10 +87,10 @@
       </div>
 
       <div class="lyrics-track-info">
-        <h2 class="lyrics-song-title" [title]="audioService.currentTrack()?.title || ''">
+        <h2 class="lyrics-song-title notranslate" translate="no" [title]="audioService.currentTrack()?.title || ''">
           {{ audioService.currentTrack()?.title || 'Без названия' }}
         </h2>
-        <p class="lyrics-song-artist" [title]="audioService.currentTrack()?.artist || ''">
+        <p class="lyrics-song-artist notranslate" translate="no" [title]="audioService.currentTrack()?.artist || ''">
           {{ audioService.currentTrack()?.artist || 'Неизвестный исполнитель' }}
         </p>
       </div>

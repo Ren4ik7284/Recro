@@ -187,6 +187,10 @@ export class I18nService {
 
   readonly currentLang = signal<SupportedLanguage>(this.loadInitialLang());
 
+  constructor() {
+    this.syncHtmlLang(this.currentLang());
+  }
+
   t(key: string, defaultText?: string): string {
     const lang = this.currentLang();
     const dictionary = TRANSLATIONS[lang] || TRANSLATIONS.ru;
@@ -195,6 +199,7 @@ export class I18nService {
 
   setLanguage(lang: SupportedLanguage) {
     this.currentLang.set(lang);
+    this.syncHtmlLang(lang);
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(this.STORAGE_KEY, lang);
@@ -205,6 +210,12 @@ export class I18nService {
   toggleLanguage() {
     const next = this.currentLang() === 'ru' ? 'en' : 'ru';
     this.setLanguage(next);
+  }
+
+  private syncHtmlLang(lang: SupportedLanguage) {
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.lang = lang;
+    }
   }
 
   private loadInitialLang(): SupportedLanguage {

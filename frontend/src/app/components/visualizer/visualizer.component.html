@@ -24,7 +24,7 @@
         }
         <div class="vis-track-meta">
           <div class="vis-meta-top">
-            <span class="vis-title">{{ audioService.currentTrack()?.title || 'Нет активного трека' }}</span>
+            <span class="vis-title notranslate" translate="no">{{ audioService.currentTrack()?.title || 'Нет активного трека' }}</span>
             @if (audioService.currentTrack()?.format) {
               <span class="vis-badge font-mono">{{ audioService.currentTrack()?.format | uppercase }}</span>
             }
@@ -32,7 +32,7 @@
               <span class="vis-badge vis-badge-live font-mono">LIVE</span>
             }
           </div>
-          <span class="vis-artist">{{ audioService.currentTrack()?.artist || 'Неизвестный исполнитель' }}</span>
+          <span class="vis-artist notranslate" translate="no">{{ audioService.currentTrack()?.artist || 'Неизвестный исполнитель' }}</span>
         </div>
       </div>
 
