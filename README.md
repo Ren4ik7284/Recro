@@ -4,8 +4,8 @@
 
 ### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
 
-[![Live Demo HTTPS](https://img.shields.io/badge/⚡_СЛУШАТЬ_(РФ_И_МИР_БЕЗ_VPN)-HTTPS_Let's_Encrypt-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.80.87.202.157.sslip.io/#/)
-[![Live Demo Direct](https://img.shields.io/badge/🌐_ПРЯМОЙ_IP_ХОСТ-80.87.202.157-grey?style=for-the-badge&logo=caddy&logoColor=white)](http://80.87.202.157/#/)
+[![Live Demo Without VPN](https://img.shields.io/badge/🇷🇺_СЛУШАТЬ_БЕЗ_VPN_(РФ)-Москва_HTTPS-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.80.87.202.157.sslip.io/#/)
+[![Live Demo With VPN](https://img.shields.io/badge/🛡️_СЛУШАТЬ_С_VPN_(МИР)-Европа_HTTPS-34C759?style=for-the-badge&logo=cloudflare&logoColor=white)](https://recro.177.3.217.64.sslip.io/#/)
 [![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro.80.87.202.157.sslip.io/recro.apk)
 [![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](https://recro.80.87.202.157.sslip.io/recro.ipa)
 
@@ -24,9 +24,10 @@
 
 > ### ⚡ **ОНЛАЙН ДОСТУП И СКАЧИВАНИЕ (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
 >
-> ⚡ **Основной веб-хост (РФ и весь мир БЕЗ VPN и с VPN, HTTPS):** 👉 **[https://recro.80.87.202.157.sslip.io/#/](https://recro.80.87.202.157.sslip.io/#/)** 👈  
-> 🌐 **Прямой IP хост (без зависимости от DNS, HTTP):** 👉 **[http://80.87.202.157/#/](http://80.87.202.157/#/)** 👈  
-> ☁️ **Зеркало Vercel (альтернатива / с VPN):** 👉 **[https://recro-player.vercel.app/#/](https://recro-player.vercel.app/#/)** 👈  
+> 🇷🇺 **Без VPN в РФ (Московский сервер, HTTPS):** 👉 **[https://recro.80.87.202.157.sslip.io/#/](https://recro.80.87.202.157.sslip.io/#/)** 👈  
+> 🛡️ **С VPN и для всего мира (Европейский сервер, HTTPS):** 👉 **[https://recro.177.3.217.64.sslip.io/#/](https://recro.177.3.217.64.sslip.io/#/)** 👈  
+> ☁️ **Зеркало Vercel (С VPN / альтернатива):** 👉 **[https://recro-player.vercel.app/#/](https://recro-player.vercel.app/#/)** 👈  
+> 🌐 **Прямой IP хост (без DNS):** 👉 **[http://80.87.202.157/#/](http://80.87.202.157/#/)** *(РФ)* / 👉 **[http://177.3.217.64/#/](http://177.3.217.64/#/)** *(Европа)*  
 > 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro.80.87.202.157.sslip.io/recro.apk](https://recro.80.87.202.157.sslip.io/recro.apk)** 👈  
 > 🍏 **Скачать приложение на iPhone (IPA):** 👉 **[https://recro.80.87.202.157.sslip.io/recro.ipa](https://recro.80.87.202.157.sslip.io/recro.ipa)** 👈  
 >
