@@ -24,7 +24,9 @@ if [ "$MODE" = "frontend" ] || [ "$MODE" = "all" ]; then
     cd "$DIR/frontend"
     npm run build
 
-    echo "📦 [2/2] Упаковка фронтенда..."
+    echo "📦 [2/2] Синхронизация dist_frontend и упаковка..."
+    mkdir -p "$DIR/dist_frontend"
+    cp -rf "$DIR/frontend/dist/frontend/browser/"* "$DIR/dist_frontend/"
     TAR_TMP="/tmp/recro-frontend-deploy.tar.gz"
     tar -czf "$TAR_TMP" -C "$DIR/frontend/dist/frontend/browser" .
 
@@ -67,15 +69,16 @@ fi
 
 echo ""
 echo "=================================================="
-echo "✅ ДЕПЛОЙ УСПЕШНО ЗАВЕРШЕН НА ВСЕ ХОСТЫ!"
+echo "✅ ДЕПЛОЙ УСПЕШНО ЗАВЕРШЕН!"
 echo "=================================================="
-echo "🛡️ ДЛЯ СЛУШАТЕЛЕЙ С VPN (Европа/Германия, HTTPS):"
-echo "   👉 https://recro.177.3.217.64.sslip.io/#/"
+echo "🌍 ЕДИНАЯ ССЫЛКА (РАБОТАЕТ И С VPN, И БЕЗ VPN В РФ):"
+echo "   👉 https://recro.onrender.com/#/"
 echo ""
-echo "🇷🇺 ДЛЯ СЛУШАТЕЛЕЙ БЕЗ VPN В РФ (Москва, HTTPS):"
-echo "   👉 https://recro.80.87.202.157.sslip.io/#/"
+echo "📱 ПРЯМЫЕ ССЫЛКИ НА ПРИЛОЖЕНИЯ:"
+echo "   APK: https://recro.onrender.com/recro.apk"
+echo "   IPA: https://recro.onrender.com/recro.ipa"
 echo ""
-echo "🌐 Прямой HTTP хост (без DNS):"
-echo "   👉 http://177.3.217.64/#/ (Европа / с VPN)"
-echo "   👉 http://80.87.202.157/#/ (РФ / без VPN)"
+echo "🌐 Прямые хосты (VPS):"
+echo "   👉 http://80.87.202.157/#/ (Москва, РФ)"
+echo "   👉 http://177.3.217.64/#/ (Франкфурт, с VPN)"
 echo "=================================================="
