@@ -106,7 +106,7 @@
         // 1. Instant Boot from Browser Cache if previously downloaded
         if ('caches' in window) {
           try {
-            const cache = await caches.open('recro-bundle-v1');
+            const cache = await caches.open('recro-bundle-v2');
             const cachedRes = await cache.match(bundleName);
             if (cachedRes) {
               updateUI('Запуск из кэша...', 100);
@@ -188,7 +188,7 @@
 
         // Cache assembled JS for instant boot on subsequent visits
         if ('caches' in window) {
-          caches.open('recro-bundle-v1')
+          caches.open('recro-bundle-v2')
             .then(cache => cache.put(bundleName, new Response(jsCode, { headers: { 'Content-Type': 'text/javascript' } })))
             .catch(() => {});
         }

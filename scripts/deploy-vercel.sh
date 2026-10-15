@@ -29,6 +29,15 @@ cat << 'EOF' > "$DEPLOY_DIR/vercel.json"
   ],
   "headers": [
     {
+      "source": "/(index.html|sw.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
@@ -51,5 +60,6 @@ EOF
 
 echo "🚀 Деплой на Vercel..."
 vercel "$DEPLOY_DIR" --prod --yes
+vercel alias set vercel-deploy-two-sigma-75.vercel.app recro-player.vercel.app || true
 
 echo "✅ Готово! Плеер доступен: https://recro-player.vercel.app/#/"
