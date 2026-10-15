@@ -385,19 +385,34 @@ pub async fn stream_audio(
             .lock()
             .map(|g| g.contains(&cache_filename))
             .unwrap_or(false);
-        if !is_transcoding {
-            if let Ok(meta) = std::fs::metadata(&cache_file_path) {
-                if meta.len() > 100_000 {
-                    if params.prefetch.unwrap_or(false) {
-                        return Ok(StatusCode::NO_CONTENT.into_response());
-                    }
-                    let redirect_url = format!("/cache/{}", cache_filename);
-                    let mut res_headers = HeaderMap::new();
-                    res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
-                    res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
-                    res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
-                    return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
+        if is_transcoding {
+            // If background transcoding is currently in progress, wait up to 2.5s for it to finish
+            // so we serve the static cached file directly rather than spawning duplicate ffmpegs!
+            for _ in 0..25 {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                let still_transcoding = state
+                    .active_transcodes
+                    .lock()
+                    .map(|g| g.contains(&cache_filename))
+                    .unwrap_or(false);
+                if !still_transcoding {
+                    break;
                 }
+            }
+        }
+
+        if let Ok(meta) = std::fs::metadata(&cache_file_path) {
+            if meta.len() > 100_000 {
+                if params.prefetch.unwrap_or(false) {
+                    return Ok(StatusCode::NO_CONTENT.into_response());
+                }
+                let redirect_url = format!("/cache/{}", cache_filename);
+                let mut res_headers = HeaderMap::new();
+                res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
+                res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=86400"));
+                res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
+                res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
+                return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
             }
         }
     }

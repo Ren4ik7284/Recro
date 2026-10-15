@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { Track } from '../models/track.model';
 import { LibraryService } from './library.service';
 import { OfflineService } from './offline.service';
@@ -205,6 +205,14 @@ export class AudioService {
 
     this.setupEventListeners();
     this.setupMediaSession();
+
+    // Авто-прогрев серверного кэша для первых треков из медиатеки при загрузке приложения
+    effect(() => {
+      const tracks = this.libraryService.tracks();
+      if (tracks && tracks.length > 0) {
+        this.prewarmTracks(tracks);
+      }
+    });
   }
 
   /**
@@ -311,7 +319,7 @@ export class AudioService {
     }
   }
 
-  private applyFadeIn(durationSec = 1.6) {
+  private applyFadeIn(durationSec = 0.12) {
     if (this.fadeIntervalId) {
       clearInterval(this.fadeIntervalId);
       this.fadeIntervalId = null;
@@ -334,7 +342,7 @@ export class AudioService {
       try {
         const now = this.audioCtx.currentTime;
         this.gainNode.gain.cancelScheduledValues(now);
-        this.gainNode.gain.setValueAtTime(0.02, now);
+        this.gainNode.gain.setValueAtTime(0.7, now);
         this.gainNode.gain.linearRampToValueAtTime(1.0, now + durationSec);
         return;
       } catch {}
@@ -342,10 +350,10 @@ export class AudioService {
 
     // HTML5 Audio volume fallback for non-web-audio desktop
     const targetVol = this.effectiveVolume(this.volume());
-    const startVol = Math.max(0.01, targetVol * 0.05);
+    const startVol = Math.max(0.01, targetVol * 0.7);
     this.audio.volume = startVol;
-    const steps = 16;
-    const stepTime = Math.max(20, (durationSec * 1000) / steps);
+    const steps = 6;
+    const stepTime = Math.max(15, (durationSec * 1000) / steps);
     let currentStep = 0;
     this.fadeIntervalId = setInterval(() => {
       currentStep++;
@@ -1153,8 +1161,8 @@ export class AudioService {
       } catch {}
     }
 
-    // Apply smooth fade in
-    this.applyFadeIn(1.0);
+    // Apply smooth immediate fade in
+    this.applyFadeIn(0.12);
 
     // Мгновенный конвейерный предзагруз следующего трека без задержки!
     this.preloadNextTrack();
@@ -1237,7 +1245,7 @@ export class AudioService {
 
       this.updateMediaSessionMetadata(cur);
       this.updateMediaSessionPlaybackState('playing');
-      this.applyFadeIn(0.5);
+      this.applyFadeIn(0.1);
       this.audio
         .play()
         .then(() => {
@@ -1813,19 +1821,56 @@ export class AudioService {
       const glue = targetUrl.includes('?') ? '&' : '?';
       const prefetchUrl = `${targetUrl}${glue}prefetch=true`;
       try {
-        // High priority — бэкенд прогревает yt-dlp / ffmpeg транскодирование в кэш на диске
-        fetch(prefetchUrl, { priority: 'high' as any }).catch(() => {});
-      } catch {}
-    } else {
-      // 4. Preload direct static audio stream bytes into browser media cache via secondary HTMLAudioElement
-      this.initPreloadAudio();
-      if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
-        this.preloadedAudioUrl = targetUrl;
-        try {
-          this.preloadAudio.src = targetUrl;
-          this.preloadAudio.load();
-        } catch {}
+        fetch(prefetchUrl, { priority: 'high' as any })
+          .then(() => {
+            // Buffer into browser secondary audio element 300ms after backend starts transcoding
+            setTimeout(() => {
+              this.bufferIntoPreloadAudio(targetUrl);
+            }, 300);
+          })
+          .catch(() => {
+            this.bufferIntoPreloadAudio(targetUrl);
+          });
+      } catch {
+        this.bufferIntoPreloadAudio(targetUrl);
       }
+    } else {
+      this.bufferIntoPreloadAudio(targetUrl);
+    }
+  }
+
+  private bufferIntoPreloadAudio(targetUrl: string) {
+    if (typeof window === 'undefined') return;
+    this.initPreloadAudio();
+    if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
+      this.preloadedAudioUrl = targetUrl;
+      try {
+        this.preloadAudio.src = targetUrl;
+        this.preloadAudio.preload = 'auto';
+        this.preloadAudio.load();
+      } catch {}
+    }
+  }
+
+  /**
+   * Staggered pre-warming of top library tracks so they are cached on the server SSD before click
+   */
+  prewarmTracks(tracks: Track[]) {
+    if (typeof window === 'undefined' || !tracks || tracks.length === 0) return;
+    const candidates = tracks
+      .filter((t) => t && !t.isLiveStream && !t.audioUrl.startsWith('blob:') && t.audioUrl)
+      .slice(0, 10);
+
+    let delay = 500;
+    for (const track of candidates) {
+      setTimeout(() => {
+        const streamUrl = this.formatStreamUrl(track);
+        if (streamUrl.includes('/api/stream')) {
+          const glue = streamUrl.includes('?') ? '&' : '?';
+          fetch(`${streamUrl}${glue}prefetch=true`, { priority: 'low' as any }).catch(() => {});
+        }
+      }, delay);
+      delay += 500;
     }
   }
 
@@ -1998,20 +2043,17 @@ export class AudioService {
     let immediateTrack: Track | null = null;
     let initialQueue: Track[] = [];
 
-    // If we have buffered online discoveries in memory, use the first one:
-    const bufferedDiscoveries = this.recService.getBufferedDiscoveries(effectiveLang);
-    if (bufferedDiscoveries.length > 0) {
-      immediateTrack = bufferedDiscoveries[0];
-      initialQueue = bufferedDiscoveries.slice(0, 3);
-      for (const starter of starters) {
+    // Prioritize instant pre-cached starter track so Smart Mix starts playing with 0ms delay:
+    if (starters.length > 0) {
+      immediateTrack = starters[0];
+      const bufferedDiscoveries = this.recService.getBufferedDiscoveries(effectiveLang);
+      initialQueue = [starters[0], ...bufferedDiscoveries.slice(0, 3)];
+      for (const starter of starters.slice(1)) {
         if (!initialQueue.some((t) => t.id === starter.id)) {
           initialQueue.push(starter);
         }
-        if (initialQueue.length >= 3) break;
+        if (initialQueue.length >= 4) break;
       }
-    } else if (starters.length > 0) {
-      immediateTrack = starters[0];
-      initialQueue = starters.slice(0, 3);
     } else if (localCandidates.length > 0) {
       immediateTrack = localCandidates[0];
       initialQueue = localCandidates.slice(0, 3);
