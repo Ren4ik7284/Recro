@@ -4,9 +4,10 @@
 
 ### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
 
-[![Live Demo](https://img.shields.io/badge/⚡_СЛУШАТЬ_ОНЛАЙН-recro--player.vercel.app-007AFF?style=for-the-badge&logo=vercel&logoColor=white)](https://recro-player.vercel.app/#/)
-[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro-player.vercel.app/recro.apk)
-[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](https://recro-player.vercel.app/recro.ipa)
+[![Live Demo HTTPS](https://img.shields.io/badge/⚡_СЛУШАТЬ_(РФ_И_МИР_БЕЗ_VPN)-HTTPS_Let's_Encrypt-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro.80.87.202.157.sslip.io/#/)
+[![Live Demo Direct](https://img.shields.io/badge/🌐_ПРЯМОЙ_IP_ХОСТ-80.87.202.157-grey?style=for-the-badge&logo=caddy&logoColor=white)](http://80.87.202.157/#/)
+[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro.80.87.202.157.sslip.io/recro.apk)
+[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](https://recro.80.87.202.157.sslip.io/recro.ipa)
 
 [![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
 [![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
@@ -21,11 +22,13 @@
 
 ---
 
-> ### ⚡ **ОНЛАЙН ДОСТУП И СКАЧИВАНИЕ:**
+> ### ⚡ **ОНЛАЙН ДОСТУП И СКАЧИВАНИЕ (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
 >
-> 🌐 **Слушать онлайн (РФ и весь мир, с VPN и без):** 👉 **[https://recro-player.vercel.app/#/](https://recro-player.vercel.app/#/)** 👈  
-> 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro-player.vercel.app/recro.apk](https://recro-player.vercel.app/recro.apk)** 👈  
-> 🍏 **Скачать приложение на iPhone (IPA):** 👉 **[https://recro-player.vercel.app/recro.ipa](https://recro-player.vercel.app/recro.ipa)** 👈  
+> ⚡ **Основной веб-хост (РФ и весь мир БЕЗ VPN и с VPN, HTTPS):** 👉 **[https://recro.80.87.202.157.sslip.io/#/](https://recro.80.87.202.157.sslip.io/#/)** 👈  
+> 🌐 **Прямой IP хост (без зависимости от DNS, HTTP):** 👉 **[http://80.87.202.157/#/](http://80.87.202.157/#/)** 👈  
+> ☁️ **Зеркало Vercel (альтернатива / с VPN):** 👉 **[https://recro-player.vercel.app/#/](https://recro-player.vercel.app/#/)** 👈  
+> 📱 **Скачать приложение на Android (APK):** 👉 **[https://recro.80.87.202.157.sslip.io/recro.apk](https://recro.80.87.202.157.sslip.io/recro.apk)** 👈  
+> 🍏 **Скачать приложение на iPhone (IPA):** 👉 **[https://recro.80.87.202.157.sslip.io/recro.ipa](https://recro.80.87.202.157.sslip.io/recro.ipa)** 👈  
 >
 > *(Плеер полностью бесплатен, без рекламы, оптимизирован под все модели iPhone со всеми вырезами и Dynamic Island, а также Android и ПК!)*
 
@@ -255,20 +258,38 @@ npm start
 ## 📱 Установка на телефон (Android & iOS)
 
 ### Android (APK)
-1. Скачайте готовый APK-файл: **[https://recro-player.vercel.app/recro.apk](https://recro-player.vercel.app/recro.apk)**
+1. Скачайте готовый APK-файл: **[https://recro.80.87.202.157.sslip.io/recro.apk](https://recro.80.87.202.157.sslip.io/recro.apk)** *(или зеркало [http://80.87.202.157/recro.apk](http://80.87.202.157/recro.apk))*
 2. Разрешите установку из неизвестных источников и запустите `.apk`.
 
 ### iOS / iPadOS (IPA для владельцев сертификатов)
-1. Скачайте готовый IPA-пакет: **[https://recro-player.vercel.app/recro.ipa](https://recro-player.vercel.app/recro.ipa)**
+1. Скачайте готовый IPA-пакет: **[https://recro.80.87.202.157.sslip.io/recro.ipa](https://recro.80.87.202.157.sslip.io/recro.ipa)** *(или зеркало [http://80.87.202.157/recro.ipa](http://80.87.202.157/recro.ipa))*
 2. Откройте приложение для подписи на iPhone: **ESign**, **Scarlet**, **Gbox**, **SideStore**, **AltStore** или **TrollStore**.
 3. Импортируйте `recro.ipa`, подпишите вашим личным или корпоративным сертификатом и нажмите **«Установить»**.
 4. Приложение установится на рабочий стол со всеми нативными возможностями и фоновым звуком.
 
 ### iOS / iPadOS (Без сертификата — PWA в 1 клик)
-1. Откройте **[https://recro-player.vercel.app](https://recro-player.vercel.app)** в браузере **Safari**.
+1. Откройте **[https://recro.80.87.202.157.sslip.io](https://recro.80.87.202.157.sslip.io)** *(или [http://80.87.202.157](http://80.87.202.157))* в браузере **Safari**.
 2. Нажмите кнопку **«Поделиться»** (квадрат со стрелочкой вверх ⬆).
 3. Пролистайте вниз и выберите **«На экран "Домой"» (Add to Home Screen)**.
 4. Нажмите **«Добавить»** в правом верхнем углу.
+
+---
+
+## 🚀 Деплой обновлений на сервер
+
+Чтобы быстро залить любые новые обновления фронтенда или бэкенда на сервер:
+
+```bash
+# 1. Быстрый деплой обновлений фронтенда (~10 сек)
+bash scripts/deploy.sh
+# или из папки frontend:
+npm run deploy
+
+# 2. Полный деплой (фронтенд + сборка Rust-бэкенда)
+bash scripts/deploy.sh all
+# или из папки frontend:
+npm run deploy:all
+```
 
 
 ---

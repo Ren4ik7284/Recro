@@ -2,34 +2,56 @@
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER="${1:-bebragnom89}"
+SERVER="${2:-bebragnom89}"
 REMOTE_PATH="/var/www/recro"
+MODE="${1:-frontend}"
 
-echo "🚀 [1/4] Сборка фронтенда..."
-cd "$DIR/frontend"
-npm run build
+echo "=================================================="
+echo "🎵 Recro Deploy: Режим [${MODE}] -> Сервер [${SERVER}]"
+echo "=================================================="
 
-echo "⚙️ [2/4] Сборка бэкенда (Rust release)..."
-cd "$DIR/backend"
-cargo build --release
-nix-shell -p patchelf --run "patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 target/release/signal-audio-backend" || patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 target/release/signal-audio-backend || true
+# 1. Сборка и деплой фронтенда
+if [ "$MODE" = "frontend" ] || [ "$MODE" = "all" ]; then
+    echo "📦 [1/3] Сборка фронтенда (Angular 21 + inline chunk loader)..."
+    cd "$DIR/frontend"
+    npm run build
 
-echo "📤 [3/4] Загрузка файлов на сервер $SERVER..."
-# Быстрая передача файлов фронтенда через tar
-ssh $SERVER "mkdir -p $REMOTE_PATH/frontend"
-tar -C "$DIR/frontend/dist/frontend/browser" -cf - . | ssh $SERVER "tar -C $REMOTE_PATH/frontend -xf -"
+    echo "📦 [2/3] Упаковка и загрузка фронтенда на сервер $SERVER..."
+    TAR_TMP="/tmp/recro-frontend-deploy.tar.gz"
+    tar -czf "$TAR_TMP" -C "$DIR/frontend/dist/frontend/browser" .
 
-# Синхронизация Caddyfile
-scp "$DIR/Caddyfile" $SERVER:/etc/caddy/Caddyfile
+    echo "📤 Передача файлов на сервер..."
+    scp -o ConnectTimeout=10 "$TAR_TMP" "$DIR/Caddyfile" $SERVER:/tmp/
+    rm -f "$TAR_TMP"
 
-# Загрузка бинарника бэкенда с атомарной заменой
-scp target/release/signal-audio-backend $SERVER:$REMOTE_PATH/backend/signal-audio-backend.new
-ssh $SERVER "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
+    echo "⚙️ Распаковка и обновление Caddy..."
+    ssh -o ConnectTimeout=10 $SERVER "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz && mv -f /tmp/Caddyfile /etc/caddy/Caddyfile && systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
+fi
 
-echo "🔄 [4/4] Перезагрузка веб-сервера..."
-ssh $SERVER "systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
+# 2. Сборка и деплой бэкенда
+if [ "$MODE" = "backend" ] || [ "$MODE" = "all" ]; then
+    echo "⚙️ Сборка Rust бэкенда (release)..."
+    cd "$DIR/backend"
+    cargo build --release
+    nix-shell -p patchelf --run "patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 target/release/signal-audio-backend" 2>/dev/null || patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 target/release/signal-audio-backend 2>/dev/null || true
 
-echo "✅ Деплой на хост успешно завершен!"
-echo "🌐 Основной HTTPS домен (РФ БЕЗ VPN): https://recro.80.87.202.157.sslip.io/#/"
-echo "🌐 Прямой HTTP хост: http://80.87.202.157/#/"
+    echo "📤 Загрузка бинарника бэкенда..."
+    scp -o ConnectTimeout=10 target/release/signal-audio-backend $SERVER:$REMOTE_PATH/backend/signal-audio-backend.new
+    ssh -o ConnectTimeout=10 $SERVER "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
+fi
 
+# 3. Деплой зеркала Vercel (опционально)
+if [ "$MODE" = "vercel" ]; then
+    echo "☁️ Деплой на Vercel..."
+    bash "$DIR/scripts/deploy-vercel.sh"
+fi
+
+echo ""
+echo "=================================================="
+echo "✅ ДЕПЛОЙ УСПЕШНО ЗАВЕРШЕН!"
+echo "=================================================="
+echo "🌐 Основной HTTPS (РФ БЕЗ VPN и с VPN): https://recro.80.87.202.157.sslip.io/#/"
+echo "🌐 Прямой HTTP (без зависимости от DNS): http://80.87.202.157/#/"
+echo "📱 Скачать APK: https://recro.80.87.202.157.sslip.io/recro.apk"
+echo "🍏 Скачать IPA: https://recro.80.87.202.157.sslip.io/recro.ipa"
+echo "=================================================="
