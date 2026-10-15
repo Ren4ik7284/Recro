@@ -178,13 +178,22 @@ const chunkedLoaderScript = `
 
         bootScript(jsCode);
       } catch (err) {
-        console.error('Chunked loader failure, attempting fallback:', err);
-        updateUI('Ошибка загрузки: ' + (err.message || 'сеть'), 0, true);
-        setTimeout(() => {
-          import('./' + bundleName).catch(e => {
-            console.error('Direct fallback failed:', e);
-          });
-        }, 1000);
+        console.error('Chunked loader failure, attempting direct fallback:', err);
+        updateUI('Загрузка (резервный канал)...', 50);
+        try {
+          const directRes = await fetch(bundleName + '?t=' + Date.now());
+          if (directRes.ok) {
+            const jsCode = await directRes.text();
+            bootScript(jsCode);
+            return;
+          }
+        } catch (e2) {}
+
+        const sFallback = document.createElement('script');
+        sFallback.type = 'module';
+        sFallback.src = bundleName;
+        sFallback.onerror = () => updateUI('Ошибка загрузки: сеть', 0, true);
+        document.head.appendChild(sFallback);
       }
     })();
   </script>`;
