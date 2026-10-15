@@ -47,10 +47,11 @@
     }
 }
 
-recro.177.3.217.64.sslip.io, 177-3-217-64.sslip.io, 177.3.217.64.sslip.io {
+recro.80.87.202.157.sslip.io, 80-87-202-157.sslip.io, recro.177.3.217.64.sslip.io, 177-3-217-64.sslip.io {
     import common
 }
 
-http://177.3.217.64, :80 {
+http://80.87.202.157, http://177.3.217.64, :80 {
     import common
 }
+

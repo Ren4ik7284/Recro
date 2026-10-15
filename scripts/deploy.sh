@@ -2,7 +2,7 @@
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER="recroz"
+SERVER="${1:-bebragnom89}"
 REMOTE_PATH="/var/www/recro"
 
 echo "🚀 [1/4] Сборка фронтенда..."
@@ -30,6 +30,6 @@ echo "🔄 [4/4] Перезагрузка веб-сервера..."
 ssh $SERVER "systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
 
 echo "✅ Деплой на хост успешно завершен!"
-echo "🌐 Основной HTTPS домен (РФ и мир БЕЗ VPN): https://recro.177.3.217.64.sslip.io/#/"
-echo "🌐 Зеркало Cloudflare Tunnel: https://gilbert-focusing-hoped-static.trycloudflare.com/#/"
-echo "🌐 Прямой HTTP хост: http://177.3.217.64/#/"
+echo "🌐 Основной HTTPS домен (РФ БЕЗ VPN): https://recro.80.87.202.157.sslip.io/#/"
+echo "🌐 Прямой HTTP хост: http://80.87.202.157/#/"
+
