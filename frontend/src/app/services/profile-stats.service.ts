@@ -28,6 +28,8 @@ export interface ProfileStatsSummary {
   uniqueArtists: number;
 }
 
+import { I18nService } from './i18n.service';
+
 @Injectable({
   providedIn: 'root',
 })
@@ -35,6 +37,7 @@ export class ProfileStatsService {
   private audioService = inject(AudioService);
   private libraryService = inject(LibraryService);
   private authService = inject(AuthService);
+  readonly i18n = inject(I18nService);
 
   // v2: Честная IRL телеметрия со сбросом старых моковых данных в 0
   private readonly STORAGE_STATS_KEY = 'recro_stats_v2_irl_';
@@ -290,51 +293,54 @@ export class ProfileStatsService {
     const claimed = this.claimedBadges();
     const equipped = this.equippedBadges();
 
+    const hoursUnit = this.i18n.t('badge.unit.hours', 'ч.');
+    const tracksUnit = this.i18n.t('badge.unit.tracks', 'тр.');
+
     const defs = [
       {
         id: 'endurance',
-        name: 'Марафонец',
-        desc: '100 часов суммарного времени в эфире',
+        name: this.i18n.t('badge.endurance.name', 'Марафонец'),
+        desc: this.i18n.t('badge.endurance.desc', '100 часов суммарного времени в эфире'),
         code: '100H',
         target: 100,
         current: Math.min(100, hours),
-        unit: 'ч.',
+        unit: hoursUnit,
       },
       {
         id: 'midnight',
-        name: 'Ночной эфир',
-        desc: '50 треков в промежутке 01:00 — 05:00',
+        name: this.i18n.t('badge.midnight.name', 'Ночной эфир'),
+        desc: this.i18n.t('badge.midnight.desc', '50 треков в промежутке 01:00 — 05:00'),
         code: '01-05',
         target: 50,
         current: Math.min(50, night),
-        unit: 'тр.',
+        unit: tracksUnit,
       },
       {
         id: 'perfectionist',
-        name: 'Перфекционист',
-        desc: '30 треков подряд от начала и до конца без скипов',
+        name: this.i18n.t('badge.perfectionist.name', 'Перфекционист'),
+        desc: this.i18n.t('badge.perfectionist.desc', '30 треков подряд от начала и до конца без скипов'),
         code: '30X',
         target: 30,
         current: Math.min(30, streak),
-        unit: 'тр.',
+        unit: tracksUnit,
       },
       {
         id: 'archivist',
-        name: 'Архивариус',
-        desc: 'Собрать коллекцию из 200+ треков в медиатеке',
+        name: this.i18n.t('badge.archivist.name', 'Архивариус'),
+        desc: this.i18n.t('badge.archivist.desc', 'Собрать коллекцию из 200+ треков в медиатеке'),
         code: '200+',
         target: 200,
         current: Math.min(200, libraryTracks),
-        unit: 'тр.',
+        unit: tracksUnit,
       },
       {
         id: 'audiophile',
-        name: 'Аудиофил',
-        desc: '1 000 полностью завершенных прослушиваний',
+        name: this.i18n.t('badge.audiophile.name', 'Аудиофил'),
+        desc: this.i18n.t('badge.audiophile.desc', '1 000 полностью завершенных прослушиваний'),
         code: '1000',
         target: 1000,
         current: Math.min(1000, completed),
-        unit: 'тр.',
+        unit: tracksUnit,
       },
     ];
 

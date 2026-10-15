@@ -96,22 +96,22 @@
                   <h1 class="view-title">{{ pl.title }}</h1>
                   <p class="view-subtitle">{{ pl.description || 'Пользовательский плейлист' }} • {{ pl.trackIds.length }} треков</p>
                 </div>
-                <div class="playlist-header-actions">
-                  <button class="btn-header-action" (click)="refreshLibrary()" [disabled]="isRefreshingLibrary()" title="Обновить плейлист">
+                  <div class="playlist-header-actions">
+                  <button class="btn-header-action" (click)="refreshLibrary()" [disabled]="isRefreshingLibrary()" [title]="i18n.t('catalog.refresh')">
                     <svg [class.spin-icon]="isRefreshingLibrary()" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                       <path d="M3 3v5h5"/>
                       <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
                       <path d="M16 21h5v-5"/>
                     </svg>
-                    <span>Обновить</span>
+                    <span>{{ i18n.t('catalog.refresh') }}</span>
                   </button>
-                  <button class="btn-delete-pl" (click)="deleteCurrentPlaylist()" title="Удалить плейлист">
+                  <button class="btn-delete-pl" (click)="deleteCurrentPlaylist()" [title]="i18n.t('catalog.deletePlaylist')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                     </svg>
-                    <span>Удалить плейлист</span>
+                    <span>{{ i18n.t('catalog.deletePlaylist') }}</span>
                   </button>
                 </div>
               </div>
@@ -119,25 +119,25 @@
               <div class="catalog-header-layout">
                 <div>
                   <h1 class="view-title">
-                    @if (activeTab() === 'all') { Каталог музыки }
-                    @else if (activeTab() === 'search') { Поиск музыки }
-                    @else if (activeTab() === 'offline') { Оффлайн музыка }
-                    @else if (activeTab() === 'streams') { Онлайн-радио }
-                    @else if (activeTab() === 'favorites') { Избранная музыка }
-                    @else if (activeTab() === 'uploads') { Локальные файлы }
-                    @else { Плейлист }
+                    @if (activeTab() === 'all') { {{ i18n.t('catalog.all') }} }
+                    @else if (activeTab() === 'search') { {{ i18n.t('catalog.search') }} }
+                    @else if (activeTab() === 'offline') { {{ i18n.t('catalog.offline') }} }
+                    @else if (activeTab() === 'streams') { {{ i18n.t('catalog.streams') }} }
+                    @else if (activeTab() === 'favorites') { {{ i18n.t('catalog.favorites') }} }
+                    @else if (activeTab() === 'uploads') { {{ i18n.t('catalog.uploads') }} }
+                    @else { {{ i18n.t('catalog.playlist') }} }
                   </h1>
                   <p class="view-subtitle">
                     @if (activeTab() === 'search') {
-                      Глобальный онлайн-каталог треков без скачивания
+                      {{ i18n.currentLang() === 'ru' ? 'Глобальный онлайн-каталог треков без скачивания' : 'Global online track catalog without downloading' }}
                     } @else if (activeTab() === 'streams') {
-                      {{ libraryService.radioStations().length }} станций доступно для онлайн-вещания
+                      {{ libraryService.radioStations().length }} {{ i18n.currentLang() === 'ru' ? 'станций доступно для онлайн-вещания' : 'live stations available for streaming' }}
                     } @else if (activeTab() === 'offline') {
-                      {{ libraryService.filteredTracks().length }} треков сохранено на устройстве (доступно без интернета)
+                      {{ libraryService.filteredTracks().length }} {{ i18n.currentLang() === 'ru' ? 'треков сохранено на устройстве (доступно без интернета)' : 'tracks saved on device (available offline)' }}
                     } @else if (libraryService.filteredTracks().length > 0) {
-                      {{ libraryService.filteredTracks().length }} треков доступно для воспроизведения
+                      {{ libraryService.filteredTracks().length }} {{ i18n.currentLang() === 'ru' ? 'треков доступно для воспроизведения' : 'tracks ready to play' }}
                     } @else {
-                      В этом разделе пока нет треков
+                      {{ i18n.currentLang() === 'ru' ? 'В этом разделе пока нет треков' : 'No tracks in this section yet' }}
                     }
                   </p>
                 </div>
@@ -147,7 +147,7 @@
                     class="btn-header-action" 
                     (click)="refreshLibrary()" 
                     [disabled]="isRefreshingLibrary()" 
-                    title="Обновить и синхронизировать медиатеку"
+                    [title]="i18n.t('catalog.refresh')"
                   >
                     <svg [class.spin-icon]="isRefreshingLibrary()" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -155,20 +155,20 @@
                       <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
                       <path d="M16 21h5v-5"/>
                     </svg>
-                    <span>Обновить</span>
+                    <span>{{ i18n.t('catalog.refresh') }}</span>
                   </button>
 
                   @if (activeTab() === 'all' && libraryService.allTracksCount() > 0) {
                     <button 
                       class="btn-header-action btn-danger-soft" 
                       (click)="clearAllLibraryTracks()" 
-                      title="Очистить каталог музыки"
+                      [title]="i18n.t('catalog.clearAll')"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       </svg>
-                      <span>Очистить всё</span>
+                      <span>{{ i18n.t('catalog.clearAll') }}</span>
                     </button>
                   }
                 </div>
@@ -185,7 +185,7 @@
                   [class.active]="libraryService.selectedGenre() === g"
                   (click)="selectGenre(g)"
                 >
-                  {{ g === 'all' ? 'Все жанры' : g }}
+                  {{ g === 'all' ? i18n.t('catalog.allGenres') : g }}
                 </button>
               }
             </div>
@@ -2588,9 +2588,9 @@
     <div class="modal-backdrop" (click)="closeWrappedModal()">
       <div class="modal-dialog wrapped-dialog" (click)="$event.stopPropagation()">
         <div class="wrapped-dialog-header">
-          <h2 class="wrapped-main-title">ТВОЙ МУЗЫКАЛЬНЫЙ ИТОГ</h2>
-          <p class="wrapped-user-sub font-mono">Слушатель: {{ wrappedStats()?.username || authService.currentUser()?.username }}</p>
-          <button class="btn-wrapped-close" (click)="closeWrappedModal()">
+          <h2 class="wrapped-main-title">{{ i18n.t('wrapped.title') }}</h2>
+          <p class="wrapped-user-sub font-mono">{{ i18n.t('wrapped.listener') }} {{ wrappedStats()?.username || authService.currentUser()?.username || (i18n.currentLang() === 'ru' ? 'Слушатель' : 'Listener') }}</p>
+          <button class="btn-wrapped-close" (click)="closeWrappedModal()" [title]="i18n.t('common.close')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -2602,25 +2602,25 @@
           @if (isLoadingWrapped()) {
             <div class="wrapped-loading-state font-mono">
               <div class="wrapped-spinner"></div>
-              <span>Анализ частот и треков...</span>
+              <span>{{ i18n.t('wrapped.loading') }}</span>
             </div>
           } @else if (wrappedStats(); as ws) {
             <div class="wrapped-stats-grid">
               <div class="w-stat-card">
                 <span class="w-stat-val font-mono">{{ ws.total_plays }}</span>
-                <span class="w-stat-lbl">Всего воспроизведений</span>
+                <span class="w-stat-lbl">{{ i18n.t('wrapped.totalPlays') }}</span>
               </div>
               <div class="w-stat-card highlight">
                 <span class="w-stat-val font-mono">{{ ws.total_minutes }}</span>
-                <span class="w-stat-lbl">Минут музыки</span>
+                <span class="w-stat-lbl">{{ i18n.t('wrapped.totalMinutes') }}</span>
               </div>
               <div class="w-stat-card">
                 <span class="w-stat-val font-mono">{{ ws.unique_tracks }}</span>
-                <span class="w-stat-lbl">Уникальных композиций</span>
+                <span class="w-stat-lbl">{{ i18n.t('wrapped.uniqueTracks') }}</span>
               </div>
               <div class="w-stat-card">
                 <span class="w-stat-val font-mono">{{ ws.unique_artists }}</span>
-                <span class="w-stat-lbl">Исполнителей</span>
+                <span class="w-stat-lbl">{{ i18n.t('wrapped.uniqueArtists') }}</span>
               </div>
             </div>
 
@@ -2631,7 +2631,7 @@
 
             @if (ws.top_tracks.length > 0) {
               <div class="w-section-block">
-                <div class="w-block-title font-mono">САМЫЙ ПРОСЛУШИВАЕМЫЙ ТРЕК</div>
+                <div class="w-block-title font-mono">{{ i18n.currentLang() === 'ru' ? 'САМЫЙ ПРОСЛУШИВАЕМЫЙ ТРЕК' : 'MOST PLAYED TRACK' }}</div>
                 <div class="w-hero-track-card">
                   <div class="w-hero-cover">
                     @if (ws.top_tracks[0].cover_url) {
@@ -2647,14 +2647,14 @@
                   <div class="w-hero-info">
                     <h4 class="w-hero-name notranslate" translate="no">{{ ws.top_tracks[0].title }}</h4>
                     <p class="w-hero-artist notranslate" translate="no">{{ ws.top_tracks[0].artist }}</p>
-                    <span class="w-hero-count font-mono">{{ ws.top_tracks[0].plays }} прослушиваний</span>
+                    <span class="w-hero-count font-mono">{{ ws.top_tracks[0].plays }} {{ i18n.currentLang() === 'ru' ? 'прослушиваний' : 'plays' }}</span>
                   </div>
                 </div>
               </div>
 
               @if (ws.top_tracks.length > 1) {
                 <div class="w-section-block">
-                  <div class="w-block-title font-mono">ТОП ТРЕКОВ</div>
+                  <div class="w-block-title font-mono">{{ i18n.t('wrapped.topTracks') }}</div>
                   <div class="w-ranked-list">
                     @for (tr of ws.top_tracks.slice(1); track tr.track_id; let i = $index) {
                       <div class="w-ranked-row">
@@ -2676,7 +2676,7 @@
 
             @if (ws.top_artists.length > 0) {
               <div class="w-section-block">
-                <div class="w-block-title font-mono">ЛЮБИМЫЕ АРТИСТЫ</div>
+                <div class="w-block-title font-mono">{{ i18n.t('wrapped.topArtists') }}</div>
                 <div class="w-artists-pills">
                   @for (ar of ws.top_artists; track ar.artist; let i = $index) {
                     <div class="w-artist-pill">
@@ -2691,7 +2691,7 @@
 
             @if (ws.top_genres.length > 0) {
               <div class="w-section-block">
-                <div class="w-block-title font-mono">ЖАНРОВАЯ КАРТА</div>
+                <div class="w-block-title font-mono">{{ i18n.t('wrapped.topGenres') }}</div>
                 <div class="w-genres-bars">
                   @for (g of ws.top_genres; track g.genre) {
                     <div class="w-genre-bar-item">
@@ -2710,7 +2710,7 @@
 
             @if (ws.total_plays === 0) {
               <div class="w-empty-state">
-                <p class="w-empty-msg">В вашей истории пока нет записей. Включайте любимые треки, и они появятся в вашем персональном Recro Wrapped!</p>
+                <p class="w-empty-msg">{{ i18n.t('wrapped.emptyMsg') }}</p>
               </div>
             }
           }
@@ -2718,7 +2718,7 @@
 
         <div class="wrapped-dialog-footer">
           <button class="btn-confirm-action" style="width: 100%; text-align: center;" (click)="closeWrappedModal()">
-            Закрыть
+            {{ i18n.t('common.close') }}
           </button>
         </div>
       </div>
@@ -2730,14 +2730,14 @@
       <div class="modal-dialog history-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
-            <h3 class="modal-title">История прослушиваний</h3>
-            <p class="modal-subtitle">Последние воспроизведённые композиции</p>
+            <h3 class="modal-title">{{ i18n.t('history.title') }}</h3>
+            <p class="modal-subtitle">{{ i18n.currentLang() === 'ru' ? 'Последние воспроизведённые композиции' : 'Recently played tracks' }}</p>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
             @if (historyList().length > 0) {
-              <button class="btn-text-sm btn-danger-soft" (click)="clearListeningHistory()">Очистить</button>
+              <button class="btn-text-sm btn-danger-soft" (click)="clearListeningHistory()">{{ i18n.t('history.clear') }}</button>
             }
-            <button class="btn-close-sm" (click)="closeHistoryModal()">
+            <button class="btn-close-sm" (click)="closeHistoryModal()" [title]="i18n.t('common.close')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
@@ -2749,7 +2749,7 @@
         <div class="modal-body history-modal-body">
           @if (isLoadingHistory()) {
             <div class="history-loading font-mono">
-              <span class="loading-pulse"></span> Загрузка истории...
+              <span class="loading-pulse"></span> {{ i18n.t('history.loading') }}
             </div>
           } @else if (historyList().length > 0) {
             <div class="history-list">
@@ -2771,7 +2771,7 @@
                     <span class="h-artist"><span class="notranslate" translate="no">{{ item.track_artist }}</span> • <span class="font-mono text-muted">{{ item.track_genre || 'Music' }}</span></span>
                   </div>
                   <span class="h-date font-mono text-muted">{{ formatHistoryDate(item.played_at) }}</span>
-                  <button class="btn-h-play" (click)="$event.stopPropagation(); playFromHistory(item)" title="Воспроизвести">
+                  <button class="btn-h-play" (click)="$event.stopPropagation(); playFromHistory(item)" [title]="i18n.t('player.play')">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                       <polygon points="6 3 20 12 6 21 6 3"/>
                     </svg>
@@ -2781,14 +2781,14 @@
             </div>
           } @else {
             <div class="empty-history-box">
-              <p>История пуста. Включите любой трек для записи.</p>
+              <p>{{ i18n.t('history.empty') }}. {{ i18n.t('history.emptySub') }}.</p>
             </div>
           }
         </div>
 
         <div class="modal-footer">
           <button class="btn-cancel" style="width: 100%; text-align: center;" (click)="closeHistoryModal()">
-            Закрыть
+            {{ i18n.t('common.close') }}
           </button>
         </div>
       </div>
@@ -3224,11 +3224,11 @@
         <!-- Header -->
         <div class="modal-header timer-header">
           <div class="modal-title-group">
-            <span class="modal-tag font-mono">МУЗЫКАЛЬНЫЙ ТАЙМЕР</span>
-            <h3 class="modal-title">Таймер под ваши дела</h3>
-            <p class="modal-subtitle">Подбирает идеальный плейлист ровно под нужное вам время</p>
+            <span class="modal-tag font-mono">{{ i18n.t('timer.title') }}</span>
+            <h3 class="modal-title">{{ i18n.currentLang() === 'ru' ? 'Таймер под ваши дела' : 'Timer for Your Tasks' }}</h3>
+            <p class="modal-subtitle">{{ i18n.t('timer.subtitle') }}</p>
           </div>
-          <button class="btn-close-modal" (click)="timerService.closeTimerModal()" title="Закрыть (Esc)">
+          <button class="btn-close-modal" (click)="timerService.closeTimerModal()" [title]="i18n.t('common.close')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -3242,16 +3242,16 @@
               <div class="active-banner-left">
                 <span class="pulse-indicator"></span>
                 <div class="active-banner-text">
-                  <span class="banner-title">Таймер сейчас запущен!</span>
-                  <span class="banner-time font-mono">Осталось: {{ timerService.formattedRemaining() }}</span>
+                  <span class="banner-title">{{ i18n.currentLang() === 'ru' ? 'Таймер сейчас запущен!' : 'Timer is currently running!' }}</span>
+                  <span class="banner-time font-mono">{{ i18n.currentLang() === 'ru' ? 'Осталось: ' : 'Remaining: ' }}{{ timerService.formattedRemaining() }}</span>
                 </div>
               </div>
               <div class="active-banner-actions">
                 <button type="button" class="btn-banner-action" (click)="timerService.togglePause()">
-                  {{ timerService.isPaused() ? 'Возобновить' : 'Пауза' }}
+                  {{ timerService.isPaused() ? (i18n.currentLang() === 'ru' ? 'Возобновить' : 'Resume') : (i18n.currentLang() === 'ru' ? 'Пауза' : 'Pause') }}
                 </button>
                 <button type="button" class="btn-banner-action btn-stop" (click)="timerService.cancelTimer(false)">
-                  Остановить
+                  {{ i18n.currentLang() === 'ru' ? 'Остановить' : 'Stop' }}
                 </button>
               </div>
             </div>
@@ -3259,8 +3259,8 @@
 
           <div class="timer-section">
             <div class="timer-section-header">
-              <span class="timer-section-title">1. Сколько времени вам нужно?</span>
-              <span class="timer-target-display font-mono">{{ timerService.targetMinutes() }} минут</span>
+              <span class="timer-section-title">{{ i18n.t('timer.step1') }}</span>
+              <span class="timer-target-display font-mono">{{ timerService.targetMinutes() }} {{ i18n.t('timer.min') }}</span>
             </div>
 
             <div class="timer-presets-grid">
@@ -3270,7 +3270,7 @@
                 [class.active]="timerService.targetMinutes() === 15"
                 (click)="timerService.setTargetMinutes(15)"
               >
-                15 мин
+                15 {{ i18n.t('timer.min') }}
               </button>
               <button 
                 type="button" 
@@ -3278,7 +3278,7 @@
                 [class.active]="timerService.targetMinutes() === 25"
                 (click)="timerService.setTargetMinutes(25)"
               >
-                25 мин
+                25 {{ i18n.t('timer.min') }}
               </button>
               <button 
                 type="button" 
@@ -3286,7 +3286,7 @@
                 [class.active]="timerService.targetMinutes() === 30"
                 (click)="timerService.setTargetMinutes(30)"
               >
-                30 мин
+                30 {{ i18n.t('timer.min') }}
               </button>
               <button 
                 type="button" 
@@ -3294,7 +3294,7 @@
                 [class.active]="timerService.targetMinutes() === 45"
                 (click)="timerService.setTargetMinutes(45)"
               >
-                45 мин
+                45 {{ i18n.t('timer.min') }}
               </button>
               <button 
                 type="button" 
@@ -3302,7 +3302,7 @@
                 [class.active]="timerService.targetMinutes() === 60"
                 (click)="timerService.setTargetMinutes(60)"
               >
-                60 мин
+                60 {{ i18n.t('timer.min') }}
               </button>
             </div>
 
@@ -3317,18 +3317,18 @@
                 class="mono-slider timer-range-slider"
               />
               <div class="slider-labels font-mono text-muted">
-                <span>5 мин</span>
-                <span>30 мин</span>
-                <span>60 мин</span>
-                <span>90 мин</span>
-                <span>120 мин</span>
+                <span>5 {{ i18n.t('timer.min') }}</span>
+                <span>30 {{ i18n.t('timer.min') }}</span>
+                <span>60 {{ i18n.t('timer.min') }}</span>
+                <span>90 {{ i18n.t('timer.min') }}</span>
+                <span>120 {{ i18n.t('timer.min') }}</span>
               </div>
             </div>
           </div>
 
           <div class="timer-section">
             <div class="timer-section-header">
-              <span class="timer-section-title">2. Настроение и музыка</span>
+              <span class="timer-section-title">{{ i18n.t('timer.step2') }}</span>
             </div>
 
             <div class="timer-moods-grid">
@@ -3352,15 +3352,15 @@
 
             @if (libraryService.playlists().length > 0) {
               <div class="timer-playlist-select-wrap">
-                <span class="sub-label">Или выберите свой плейлист:</span>
+                <span class="sub-label">{{ i18n.t('timer.customPlaylist') }}</span>
                 <select 
                   class="timer-select-dropdown font-mono"
                   [value]="timerService.selectedPlaylistId() || ''"
                   (change)="timerService.setPlaylist($any($event.target).value)"
                 >
-                  <option value="">-- Выбрать плейлист --</option>
+                  <option value="">{{ i18n.t('timer.selectPlaylist') }}</option>
                   @for (pl of libraryService.playlists(); track pl.id) {
-                    <option [value]="pl.id">{{ pl.title }} ({{ pl.trackIds.length }} треков)</option>
+                    <option [value]="pl.id">{{ pl.title }} ({{ pl.trackIds.length }} {{ i18n.t('common.tracks') }})</option>
                   }
                 </select>
               </div>
@@ -3369,35 +3369,35 @@
 
           <div class="timer-section">
             <div class="timer-section-header">
-              <span class="timer-section-title">3. Подобранный сет треков</span>
+              <span class="timer-section-title">{{ i18n.t('timer.step3') }}</span>
               <button 
                 type="button" 
                 class="btn-regen-set font-mono" 
                 (click)="timerService.generatePlaylistForTimer()"
                 [disabled]="timerService.isGenerating()"
-                title="Пересобрать другой вариант"
+                [title]="i18n.t('timer.shuffle')"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" [class.spin-icon]="timerService.isGenerating()">
                   <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
                 </svg>
-                <span>Перемешать</span>
+                <span>{{ i18n.t('timer.shuffle') }}</span>
               </button>
             </div>
 
             <div class="timer-preview-card">
               <div class="preview-metrics-row">
                 <div class="metric-box">
-                  <span class="metric-label">ТРЕКОВ</span>
+                  <span class="metric-label">{{ i18n.t('timer.metrics.tracks') }}</span>
                   <span class="metric-val font-mono">{{ timerService.previewTracks().length }}</span>
                 </div>
                 <div class="metric-box">
-                  <span class="metric-label">ДЛИТЕЛЬНОСТЬ</span>
+                  <span class="metric-label">{{ i18n.t('timer.metrics.duration') }}</span>
                   <span class="metric-val font-mono">{{ formatTime(timerService.previewTotalDuration()) }}</span>
                 </div>
                 <div class="metric-box">
-                  <span class="metric-label">ТОЧНОСТЬ</span>
+                  <span class="metric-label">{{ i18n.t('timer.metrics.accuracy') }}</span>
                   <span class="metric-val font-mono">
-                    {{ timerService.previewDifferenceSec() > 0 ? '+' : '' }}{{ timerService.previewDifferenceSec() }} сек
+                    {{ timerService.previewDifferenceSec() > 0 ? '+' : '' }}{{ timerService.previewDifferenceSec() }} {{ i18n.t('timer.sec') }}
                   </span>
                 </div>
               </div>
@@ -3408,11 +3408,11 @@
                     <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
                     </svg>
-                    <span>Подбираем идеальную комбинацию треков...</span>
+                    <span>{{ i18n.t('timer.loading') }}</span>
                   </div>
                 } @else if (timerService.previewTracks().length === 0) {
                   <div class="timer-empty-state font-mono text-muted">
-                    Нет доступных треков для подбора.
+                    {{ i18n.t('timer.empty') }}
                   </div>
                 } @else {
                   @for (t of timerService.previewTracks(); track t.id; let idx = $index) {
@@ -3440,7 +3440,7 @@
 
         <div class="modal-footer timer-footer">
           <button type="button" class="btn-cancel" (click)="timerService.closeTimerModal()">
-            Отмена
+            {{ i18n.t('common.cancel') }}
           </button>
           <button 
             type="button" 
@@ -3451,7 +3451,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 3 19 12 5 21 5 3"/>
             </svg>
-            <span>Запустить таймер ({{ timerService.targetMinutes() }} мин)</span>
+            <span>{{ i18n.t('timer.start') }} ({{ timerService.targetMinutes() }} {{ i18n.t('timer.min') }})</span>
           </button>
         </div>
       </div>
@@ -3468,32 +3468,32 @@
           </svg>
         </div>
 
-        <h2 class="finish-title">Время вышло</h2>
+        <h2 class="finish-title">{{ i18n.t('timer.finish.title') }}</h2>
         <p class="finish-desc">
-          Ваша сессия на <strong class="font-mono text-primary">{{ timerService.completedSessionStats()?.minutes || timerService.targetMinutes() }} минут</strong> успешно завершена.
+          {{ i18n.currentLang() === 'ru' ? 'Ваша сессия на ' : 'Your session for ' }}<strong class="font-mono text-primary">{{ timerService.completedSessionStats()?.minutes || timerService.targetMinutes() }} {{ i18n.t('timer.min') }}</strong> {{ i18n.currentLang() === 'ru' ? 'успешно завершена.' : 'is successfully complete.' }}
         </p>
 
         <div class="finish-stats-card font-mono">
           <div class="finish-stat-col">
-            <span class="stat-label text-muted">ВРЕМЯ</span>
-            <span class="stat-val">{{ timerService.completedSessionStats()?.minutes || timerService.targetMinutes() }} мин</span>
+            <span class="stat-label text-muted">{{ i18n.t('timer.finish.time') }}</span>
+            <span class="stat-val">{{ timerService.completedSessionStats()?.minutes || timerService.targetMinutes() }} {{ i18n.t('timer.min') }}</span>
           </div>
           <div class="finish-stat-divider"></div>
           <div class="finish-stat-col">
-            <span class="stat-label text-muted">ТРЕКОВ СЫГРАНО</span>
+            <span class="stat-label text-muted">{{ i18n.t('timer.finish.tracks') }}</span>
             <span class="stat-val">{{ timerService.completedSessionStats()?.tracksCount || timerService.previewTracks().length }}</span>
           </div>
         </div>
 
         <div class="finish-actions-row">
           <button type="button" class="btn-finish-sec" (click)="timerService.closeFinishModal()">
-            Завершить
+            {{ i18n.t('common.close') }}
           </button>
           <button type="button" class="btn-finish-extra font-mono" (click)="timerService.addFiveMinutes()">
-            +5 минут ещё
+            +5 {{ i18n.t('timer.min') }}
           </button>
           <button type="button" class="btn-finish-prim font-mono" (click)="timerService.closeFinishModal(); audioService.play()">
-            Продолжить музыку
+            {{ i18n.t('timer.finish.resume') }}
           </button>
         </div>
       </div>

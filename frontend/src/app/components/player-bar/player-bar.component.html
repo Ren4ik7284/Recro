@@ -46,7 +46,7 @@
       <button 
         class="player-fav-btn desktop-only" 
         (click)="openAddToPlaylist.emit(cur); $event.stopPropagation()"
-        title="Добавить в плейлист"
+        [title]="i18n.t('player.addToPlaylist')"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
@@ -70,7 +70,7 @@
           class="player-fav-btn desktop-only" 
           [class.favorited]="offlineService.isTrackOffline(cur.id)"
           (click)="toggleOfflineTrack(cur); $event.stopPropagation()"
-          [title]="offlineService.isTrackOffline(cur.id) ? 'Сохранено оффлайн (нажмите для удаления)' : 'Скачать для оффлайн-прослушивания'"
+          [title]="offlineService.isTrackOffline(cur.id) ? i18n.t('player.savedOffline') : i18n.t('player.downloadOffline')"
         >
           @if (offlineService.isDownloading(cur.id)) {
             <svg class="spin-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -101,14 +101,14 @@
         class="ctrl-feature-btn desktop-only font-mono" 
         [class.active]="lyricsService.isLyricsOpen()"
         (click)="lyricsService.toggleLyricsView(); $event.stopPropagation()"
-        title="Текст песни (караоке)"
+        [title]="i18n.t('player.lyricsKaraoke')"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="4" y1="6" x2="20" y2="6"/>
           <line x1="4" y1="12" x2="16" y2="12"/>
           <line x1="4" y1="18" x2="12" y2="18"/>
         </svg>
-        <span>ТЕКСТ</span>
+        <span>{{ i18n.t('player.lyricsBtn') }}</span>
       </button>
 
       <!-- Shuffle / Случайный порядок -->
@@ -116,7 +116,7 @@
         class="ctrl-btn desktop-only" 
         [class.active]="audioService.isShuffle()"
         (click)="audioService.toggleShuffle(); $event.stopPropagation()"
-        title="Случайный порядок"
+        [title]="i18n.t('player.shuffle')"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="16 3 21 3 21 8"/>
@@ -128,7 +128,7 @@
       </button>
 
       <!-- Prev / Предыдущий трек -->
-      <button class="ctrl-btn desktop-only" (click)="audioService.prev(); $event.stopPropagation()" title="Предыдущий трек">
+      <button class="ctrl-btn desktop-only" (click)="audioService.prev(); $event.stopPropagation()" [title]="i18n.t('player.prev')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="19 20 9 12 19 4 19 20"/>
           <line x1="5" y1="19" x2="5" y2="5"/>
@@ -139,7 +139,7 @@
       <button 
         class="play-main-btn" 
         (click)="audioService.togglePlay(); $event.stopPropagation()"
-        title="Пуск / Пауза (Пробел)"
+        [title]="i18n.t('player.playPauseSpace')"
       >
         @if (audioService.isPlaying()) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -154,7 +154,7 @@
       </button>
 
       <!-- Next / Следующий трек -->
-      <button class="ctrl-btn btn-mobile-visible" (click)="audioService.next(); $event.stopPropagation()" title="Следующий трек">
+      <button class="ctrl-btn btn-mobile-visible" (click)="audioService.next(); $event.stopPropagation()" [title]="i18n.t('player.next')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="5 4 15 12 5 20 5 4"/>
           <line x1="19" y1="5" x2="19" y2="19"/>
@@ -165,7 +165,7 @@
         <button 
           class="ctrl-btn btn-mobile-visible mobile-only timer-mini-pill font-mono"
           (click)="timerService.openTimerModal(); $event.stopPropagation()"
-          title="Музыкальный таймер"
+          [title]="i18n.t('player.smartTimer')"
           style="display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px; color: #f4f4f5; font-size: 11px; font-weight: 600; height: 26px;"
         >
           <span style="width: 5px; height: 5px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 6px #2563eb;"></span>
@@ -178,7 +178,7 @@
         class="ctrl-btn desktop-only" 
         [class.active]="audioService.repeatMode() !== 'off'"
         (click)="audioService.cycleRepeat(); $event.stopPropagation()"
-        [title]="'Повтор: ' + audioService.repeatMode()"
+        [title]="i18n.t('player.repeatLabel') + audioService.repeatMode()"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="17 1 21 5 17 9"/>
@@ -196,7 +196,7 @@
         class="ctrl-feature-btn desktop-only font-mono" 
         [class.active]="timerService.isActive()"
         (click)="timerService.openTimerModal(); $event.stopPropagation()"
-        [title]="timerService.isActive() ? 'Музыкальный таймер активен: ' + timerService.formattedRemaining() : 'Музыкальный смарт-таймер'"
+        [title]="timerService.isActive() ? i18n.t('player.timerActive') + timerService.formattedRemaining() : i18n.t('player.smartTimer')"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/>
@@ -206,7 +206,7 @@
           <span class="timer-active-dot"></span>
           <span>{{ timerService.formattedRemaining() }}</span>
         } @else {
-          <span>ТАЙМЕР</span>
+          <span>{{ i18n.t('player.timerBtn') }}</span>
         }
       </button>
     </div>
@@ -224,7 +224,7 @@
         @if (audioService.isLiveStream()) {
           <div class="live-stream-bar">
             <span class="live-pulse-dot"></span>
-            <span class="live-stream-label">НЕПРЕРЫВНЫЙ ОНЛАЙН-ПОТОК • ПРЯМОЙ ЭФИР</span>
+            <span class="live-stream-label">{{ i18n.t('player.liveStream') }}</span>
           </div>
         } @else {
           <input 
@@ -253,7 +253,7 @@
   <div class="player-right desktop-only">
     <!-- Volume Group -->
     <div class="volume-group">
-      <button class="utility-btn" (click)="audioService.toggleMute()" title="Без звука (M)">
+      <button class="utility-btn" (click)="audioService.toggleMute()" [title]="i18n.t('player.muteShortcut')">
         @if (audioService.isMuted() || audioService.volume() === 0) {
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -295,7 +295,7 @@
       class="utility-btn" 
       [class.active]="audioService.isNormalizationEnabled()"
       (click)="audioService.toggleNormalization()"
-      [title]="audioService.isNormalizationEnabled() ? 'Нормализация пиков громкости включена' : 'Нормализация выключена'"
+      [title]="audioService.isNormalizationEnabled() ? i18n.t('player.normOn') : i18n.t('player.normOff')"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       NORM
@@ -305,7 +305,7 @@
       class="utility-btn" 
       [class.active]="audioService.isCrossfadeEnabled()"
       (click)="audioService.toggleCrossfade()"
-      [title]="audioService.isCrossfadeEnabled() ? 'Плавный кроссфейд (2.5с) включен' : 'Кроссфейд выключен'"
+      [title]="audioService.isCrossfadeEnabled() ? i18n.t('player.fadeOn') : i18n.t('player.fadeOff')"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       FADE
@@ -315,7 +315,7 @@
       class="utility-btn" 
       [class.active]="audioService.isVisualizerOpen()"
       (click)="audioService.toggleVisualizer()"
-      [title]="audioService.isVisualizerOpen() ? 'Закрыть визуализатор (V)' : 'Открыть аудио-визуализатор спектра (V)'"
+      [title]="audioService.isVisualizerOpen() ? i18n.t('player.visClose') : i18n.t('player.visOpen')"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       VIS
@@ -325,7 +325,7 @@
       class="utility-btn desktop-only" 
       [class.active]="ambientService.isEnabled()"
       (click)="ambientService.toggle()"
-      [title]="ambientService.isEnabled() ? 'Выключить динамический амбиентный фон обложки' : 'Включить динамический амбиентный фон обложки'"
+      [title]="ambientService.isEnabled() ? i18n.t('player.glowOff') : i18n.t('player.glowOn')"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       GLOW
@@ -335,7 +335,7 @@
     <button 
       class="utility-btn queue-btn" 
       (click)="toggleQueueDrawer.emit()"
-      title="Очередь воспроизведения"
+      [title]="i18n.t('player.queueDrawer')"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="8" y1="6" x2="21" y2="6"/>

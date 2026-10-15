@@ -13,7 +13,7 @@
   >
     <div class="profile-top-bar" [class.no-back]="!showCloseButton()">
       @if (showCloseButton()) {
-        <button class="btn-profile-back" (click)="close.emit()" title="Назад">
+        <button class="btn-profile-back" (click)="close.emit()" [title]="i18n.t('profile.back')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
@@ -23,7 +23,7 @@
       <div class="top-bar-right-actions">
 
 
-        <button class="btn-profile-achievements font-mono" (click)="openAchievementsModal()" title="Испытания и значки профиля">
+        <button class="btn-profile-achievements font-mono" (click)="openAchievementsModal()" [title]="i18n.t('profile.questsAndBadges')">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
             <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
@@ -32,20 +32,20 @@
             <path d="M14 14.66V17c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-2.34"/>
             <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
           </svg>
-          <span>Награды</span>
+          <span>{{ i18n.t('profile.rewards') }}</span>
           <span class="achievements-badge-count">{{ statsService.unlockedCount() }}/{{ badges().length }}</span>
         </button>
 
-        <button class="btn-profile-banner-edit font-mono" (click)="openBannerModal()" title="Сменить баннер профиля">
+        <button class="btn-profile-banner-edit font-mono" (click)="openBannerModal()" [title]="i18n.t('profile.banner')">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
             <circle cx="9" cy="9" r="2"/>
             <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
           </svg>
-          <span>Баннер</span>
+          <span>{{ i18n.t('profile.banner') }}</span>
         </button>
 
-        <button class="btn-profile-settings" (click)="openSettings()" title="Кастомизация и настройки">
+        <button class="btn-profile-settings" (click)="openSettings()" [title]="i18n.t('profile.settings')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -55,7 +55,7 @@
     </div>
 
     <div class="profile-hero-content">
-      <div class="profile-avatar-wrapper" (click)="openAvatarModal()" title="Нажмите, чтобы изменить аватар и стиль">
+      <div class="profile-avatar-wrapper" (click)="openAvatarModal()" [title]="i18n.t('profile.avatarModal.title')">
         <div class="profile-avatar-circle" [class]="'avatar-frame-' + selectedAvatarFrame()">
           @if (effectiveAvatar(); as avatar) {
             <img [src]="avatar" class="profile-avatar-img" alt="avatar" referrerpolicy="no-referrer" />
@@ -71,24 +71,24 @@
             </svg>
           </div>
         </div>
-        <span class="profile-online-badge" title="В сети"></span>
+        <span class="profile-online-badge"></span>
       </div>
 
       <div class="profile-meta-info">
         <div class="profile-meta-header-row">
-          <span class="profile-label-subtitle">Профиль</span>
+          <span class="profile-label-subtitle">{{ i18n.t('profile.title') }}</span>
           @if (userVibe(); as vibe) {
-            <button class="profile-vibe-badge font-mono" (click)="openSettings()" title="Изменить статус">
+            <button class="profile-vibe-badge font-mono" (click)="openSettings()" [title]="i18n.t('profile.changeStatus')">
               <span class="vibe-pulse-dot"></span>
               <span>{{ vibe }}</span>
             </button>
           } @else {
-            <button class="btn-set-vibe-hint font-mono" (click)="openSettings()" title="Установить статус">
+            <button class="btn-set-vibe-hint font-mono" (click)="openSettings()" [title]="i18n.t('profile.setStatus')">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span>Статус</span>
+              <span>{{ i18n.t('profile.status') }}</span>
             </button>
           }
         </div>
@@ -103,44 +103,44 @@
               [style.borderColor]="tag.color"
             >
               {{ tag.text }}
-              <button class="btn-tag-remove" (click)="removeTag(tag, $event)" title="Удалить тег">
+              <button class="btn-tag-remove" (click)="removeTag(tag, $event)" [title]="i18n.t('common.delete')">
                 &times;
               </button>
             </span>
           }
 
-          <button class="btn-add-tag-trigger font-mono" (click)="openAddTag()" title="Создать свой тег">
+          <button class="btn-add-tag-trigger font-mono" (click)="openAddTag()" [title]="i18n.t('profile.tag')">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="12" y1="5" x2="12" y2="19"/>
               <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            <span>Тег</span>
+            <span>{{ i18n.t('profile.tag') }}</span>
           </button>
         </div>
 
         <div class="profile-equipped-badges">
           @if (equippedBadgesList().length > 0) {
-            <span class="equipped-label font-mono">ЗНАЧКИ:</span>
+            <span class="equipped-label font-mono">{{ i18n.t('profile.badges') }}</span>
             <div class="equipped-badges-row">
               @for (b of equippedBadgesList(); track b.id) {
-                <div class="equipped-badge-pill font-mono" [title]="b.name + ': ' + b.desc + ' (кликните для просмотра наград)'" (click)="openAchievementsModal()">
+                <div class="equipped-badge-pill font-mono" [title]="b.name + ': ' + b.desc" (click)="openAchievementsModal()">
                   <span class="badge-code-tag">{{ b.code }}</span>
                   <span class="badge-name-text">{{ b.name }}</span>
                 </div>
               }
             </div>
           } @else {
-            <button class="btn-open-badges-empty font-mono" (click)="openAchievementsModal()" title="Открыть задания и выбрать значки для шапки">
+            <button class="btn-open-badges-empty font-mono" (click)="openAchievementsModal()" [title]="i18n.t('profile.questsAndBadges')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
               </svg>
-              <span>Задания и значки ({{ statsService.unlockedCount() }}/{{ badges().length }})</span>
+              <span>{{ i18n.t('profile.questsAndBadges') }} ({{ statsService.unlockedCount() }}/{{ badges().length }})</span>
             </button>
           }
         </div>
 
         <p class="profile-stats-meta font-mono">
-          {{ userPlaylists().length }} плейлистов &bull; онлайн
+          {{ userPlaylists().length }} {{ i18n.t('profile.playlistsMeta') }}
         </p>
       </div>
     </div>
@@ -154,8 +154,8 @@
     @if (pinnedPlaylists().length > 0) {
       <section class="profile-section pinned-playlists-section">
         <div class="section-header-compact">
-          <h2 class="profile-section-title font-mono">ИЗБРАННЫЕ ПЛЕЙЛИСТЫ</h2>
-          <span class="section-subtitle-tag font-mono">ЗАКРЕПЛЕНО: {{ pinnedPlaylists().length }}</span>
+          <h2 class="profile-section-title font-mono">{{ i18n.t('profile.pinnedPlaylists') }}</h2>
+          <span class="section-subtitle-tag font-mono">{{ i18n.t('profile.pinnedCount') }} {{ pinnedPlaylists().length }}</span>
         </div>
 
         <div class="playlists-grid pinned-grid">
@@ -175,7 +175,7 @@
                 <button 
                   class="btn-pin-toggle active font-mono" 
                   (click)="togglePin(pl.id, $event)" 
-                  title="Открепить от полки"
+                  [title]="i18n.t('profile.unpin')"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -184,7 +184,7 @@
                 <button 
                   class="btn-playlist-cover-edit font-mono"
                   (click)="openEditPlaylistCover(pl, $event)"
-                  title="Изменить обложку плейлиста"
+                  [title]="i18n.t('profile.editCover')"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -193,7 +193,7 @@
                 </button>
               </div>
               <span class="playlist-title-label font-mono" [title]="pl.title">{{ pl.title }}</span>
-              <span class="playlist-author-label font-mono">Избранное</span>
+              <span class="playlist-author-label font-mono">{{ i18n.t('nav.favorites') }}</span>
             </div>
           }
         </div>
@@ -538,7 +538,7 @@
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
               <circle cx="12" cy="7" r="4"/>
             </svg>
-            <h3>Кастомизация аватара</h3>
+            <h3>{{ i18n.t('profile.avatarModal.title') }}</h3>
           </div>
           <button class="btn-modal-close" (click)="closeAvatarModal()">&times;</button>
         </div>
@@ -573,7 +573,7 @@
                 <circle cx="9" cy="9" r="2"/>
                 <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
               </svg>
-              <span>Загрузить фото с устройства</span>
+              <span>{{ i18n.t('profile.avatarModal.upload') }}</span>
             </button>
 
             @if (editAvatarUrl()) {
@@ -591,16 +591,16 @@
                 <span>Скачать</span>
               </button>
 
-              <button type="button" class="btn-upload-remove font-mono" (click)="removeAvatar()" title="Сбросить фото">
-                Сбросить
+              <button type="button" class="btn-upload-remove font-mono" (click)="removeAvatar()" [title]="i18n.currentLang() === 'ru' ? 'Сбросить фото' : 'Reset photo'">
+                {{ i18n.currentLang() === 'ru' ? 'Сбросить' : 'Reset' }}
               </button>
             }
           </div>
 
           <!-- Preset avatars -->
           <div class="custom-section-heading">
-            <span>Стилизованные аватары</span>
-            <small>Быстрый выбор</small>
+            <span>{{ i18n.t('profile.avatarModal.presets') }}</span>
+            <small>{{ i18n.currentLang() === 'ru' ? 'Быстрый выбор' : 'Quick select' }}</small>
           </div>
           <div class="avatar-presets-grid">
             @for (preset of avatarPresets; track preset.id) {
@@ -619,8 +619,8 @@
 
           <!-- Frame effect -->
           <div class="custom-section-heading" style="margin-top: 18px;">
-            <span>Акцентная окантовка</span>
-            <small>Стиль рамки</small>
+            <span>{{ i18n.t('profile.settingsModal.frame') }}</span>
+            <small>{{ i18n.currentLang() === 'ru' ? 'Стиль рамки' : 'Frame style' }}</small>
           </div>
           <div class="frames-selector-row">
             @for (frame of avatarFrames; track frame.id) {
@@ -638,9 +638,9 @@
         </div>
 
         <div class="modal-dialog-footer">
-          <button class="btn-modal-cancel font-mono" (click)="closeAvatarModal()">Отмена</button>
+          <button class="btn-modal-cancel font-mono" (click)="closeAvatarModal()">{{ i18n.t('common.cancel') }}</button>
           <button class="btn-modal-submit font-mono" (click)="saveAvatar()" [disabled]="isSavingAvatar()">
-            {{ isSavingAvatar() ? 'Сохранение...' : 'Сохранить аватар' }}
+            {{ isSavingAvatar() ? (i18n.currentLang() === 'ru' ? 'Сохранение...' : 'Saving...') : i18n.t('common.save') }}
           </button>
         </div>
       </div>
@@ -657,7 +657,7 @@
               <circle cx="9" cy="9" r="2"/>
               <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
             </svg>
-            <h3>Кастомизация баннера</h3>
+            <h3>{{ i18n.t('profile.bannerModal.title') }}</h3>
           </div>
           <button class="btn-modal-close" (click)="closeBannerModal()">&times;</button>
         </div>
@@ -685,7 +685,7 @@
               </div>
               <div class="preview-mini-meta">
                 <span class="preview-mini-name">{{ authService.currentUser()?.username || 'Nickname' }}</span>
-                <span class="preview-mini-vibe font-mono">{{ userVibe() || 'Статус' }}</span>
+                <span class="preview-mini-vibe font-mono">{{ userVibe() || (i18n.currentLang() === 'ru' ? 'Статус' : 'Status') }}</span>
               </div>
             </div>
           </div>
@@ -698,7 +698,7 @@
                 <circle cx="9" cy="9" r="2"/>
                 <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
               </svg>
-              <span>Загрузить баннер с устройства</span>
+              <span>{{ i18n.t('profile.bannerModal.upload') }}</span>
             </button>
 
             @if (editBannerUrl()) {
@@ -716,16 +716,16 @@
                 <span>Скачать</span>
               </button>
 
-              <button type="button" class="btn-upload-remove font-mono" (click)="removeBanner()" title="Сбросить баннер">
-                Сбросить
+              <button type="button" class="btn-upload-remove font-mono" (click)="removeBanner()" [title]="i18n.currentLang() === 'ru' ? 'Сбросить баннер' : 'Reset banner'">
+                {{ i18n.currentLang() === 'ru' ? 'Сбросить' : 'Reset' }}
               </button>
             }
           </div>
 
           <!-- Preset themes / gradients -->
           <div class="custom-section-heading">
-            <span>Темы оформления</span>
-            <small>Строгие темные стили</small>
+            <span>{{ i18n.t('profile.bannerModal.presets') }}</span>
+            <small>{{ i18n.currentLang() === 'ru' ? 'Строгие темные стили' : 'Dark themes' }}</small>
           </div>
           <div class="banner-presets-grid">
             @for (preset of bannerPresets; track preset.id) {
@@ -751,9 +751,9 @@
         </div>
 
         <div class="modal-dialog-footer">
-          <button class="btn-modal-cancel font-mono" (click)="closeBannerModal()">Отмена</button>
+          <button class="btn-modal-cancel font-mono" (click)="closeBannerModal()">{{ i18n.t('common.cancel') }}</button>
           <button class="btn-modal-submit font-mono" (click)="saveBanner()" [disabled]="isSavingBanner()">
-            {{ isSavingBanner() ? 'Сохранение...' : 'Сохранить баннер' }}
+            {{ isSavingBanner() ? (i18n.currentLang() === 'ru' ? 'Сохранение...' : 'Saving...') : i18n.t('common.save') }}
           </button>
         </div>
       </div>
@@ -767,32 +767,32 @@
           <div class="modal-title-with-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            <h3>Настройки профиля</h3>
+            <h3>{{ i18n.t('profile.settingsModal.title') }}</h3>
           </div>
           <button class="btn-modal-close" (click)="closeSettings()">&times;</button>
         </div>
 
         <div class="modal-dialog-body">
-          <label class="modal-input-label">Имя пользователя (Никнейм)</label>
+          <label class="modal-input-label">{{ i18n.t('profile.settingsModal.nickname') }}</label>
           <input 
             type="text" 
             class="modal-text-input font-mono"
             maxlength="30"
             [ngModel]="editUsername()"
             (ngModelChange)="editUsername.set($event)"
-            placeholder="Введите никнейм"
+            [placeholder]="i18n.currentLang() === 'ru' ? 'Введите никнейм' : 'Enter nickname'"
           />
 
-          <label class="modal-input-label" style="margin-top: 16px;">Статус профиля</label>
+          <label class="modal-input-label" style="margin-top: 16px;">{{ i18n.t('profile.settingsModal.status') }}</label>
           <input 
             type="text" 
             class="modal-text-input font-mono"
             maxlength="35"
             [ngModel]="editVibe()"
             (ngModelChange)="editVibe.set($event)"
-            placeholder="Например: В наушниках"
+            [placeholder]="i18n.currentLang() === 'ru' ? 'Например: В наушниках' : 'e.g. In the zone'"
           />
 
           <div class="vibe-chips-quick-row">
@@ -814,7 +814,7 @@
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                 <circle cx="12" cy="7" r="4"/>
               </svg>
-              <span>Настроить аватар и рамку</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Настроить аватар и рамку' : 'Customize Avatar & Frame' }}</span>
             </button>
 
             <button type="button" class="btn-shortcut-custom font-mono" (click)="closeSettings(); openBannerModal()">
@@ -823,14 +823,14 @@
                 <circle cx="9" cy="9" r="2"/>
                 <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
               </svg>
-              <span>Выбрать тему баннера</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Выбрать тему баннера' : 'Choose Banner Theme' }}</span>
             </button>
           </div>
         </div>
 
         <div class="modal-dialog-footer">
-          <button class="btn-modal-cancel font-mono" (click)="closeSettings()">Отмена</button>
-          <button class="btn-modal-submit font-mono" (click)="saveSettings()">Сохранить</button>
+          <button class="btn-modal-cancel font-mono" (click)="closeSettings()">{{ i18n.t('common.cancel') }}</button>
+          <button class="btn-modal-submit font-mono" (click)="saveSettings()">{{ i18n.t('common.save') }}</button>
         </div>
       </div>
     </div>
@@ -849,7 +849,7 @@
     <div class="profile-modal-backdrop" (click)="closeEditPlaylistCover()">
       <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
         <div class="modal-dialog-header">
-          <h3 class="font-mono">ОБЛОЖКА ПЛЕЙЛИСТА</h3>
+          <h3 class="font-mono">{{ i18n.currentLang() === 'ru' ? 'ОБЛОЖКА ПЛЕЙЛИСТА' : 'PLAYLIST COVER' }}</h3>
           <button class="btn-modal-close" (click)="closeEditPlaylistCover()">&times;</button>
         </div>
         <div class="modal-dialog-body">
@@ -875,7 +875,7 @@
                 <polyline points="17 8 12 3 7 8"/>
                 <line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              <span>Выбрать файл с устройства</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Выбрать файл с устройства' : 'Choose file from device' }}</span>
             </button>
 
             @if (editPlaylistCoverUrl()) {
@@ -884,13 +884,13 @@
                   <polyline points="3 6 5 6 21 6"/>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                 </svg>
-                <span>Удалить обложку</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Удалить обложку' : 'Remove cover' }}</span>
               </button>
             }
           </div>
 
           <div class="preset-covers-section">
-            <label class="modal-input-label font-mono">Готовые стили оформления:</label>
+            <label class="modal-input-label font-mono">{{ i18n.currentLang() === 'ru' ? 'Готовые стили оформления:' : 'Preset cover styles:' }}</label>
             <div class="preset-covers-grid">
               @for (preset of playlistCoverPresets; track preset.id) {
                 <div 
@@ -905,7 +905,7 @@
             </div>
           </div>
 
-          <label class="modal-input-label font-mono" style="margin-top: 14px;">Или прямая ссылка на изображение</label>
+          <label class="modal-input-label font-mono" style="margin-top: 14px;">{{ i18n.currentLang() === 'ru' ? 'Или прямая ссылка на изображение' : 'Or direct image URL' }}</label>
           <input 
             type="text" 
             class="modal-text-input font-mono"
@@ -915,8 +915,8 @@
           />
         </div>
         <div class="modal-dialog-footer">
-          <button class="btn-modal-cancel font-mono" (click)="closeEditPlaylistCover()">Отмена</button>
-          <button class="btn-modal-submit font-mono" (click)="savePlaylistCover()">Сохранить</button>
+          <button class="btn-modal-cancel font-mono" (click)="closeEditPlaylistCover()">{{ i18n.t('common.cancel') }}</button>
+          <button class="btn-modal-submit font-mono" (click)="savePlaylistCover()">{{ i18n.t('common.save') }}</button>
         </div>
       </div>
     </div>
@@ -928,9 +928,9 @@
       <div class="profile-modal-dialog achievements-dialog" (click)="$event.stopPropagation()">
         <div class="modal-dialog-header">
           <div class="dialog-title-group">
-            <h3 class="font-mono">ИСПЫТАНИЯ И ЗНАЧКИ</h3>
+            <h3 class="font-mono">{{ i18n.currentLang() === 'ru' ? 'ИСПЫТАНИЯ И ЗНАЧКИ' : 'QUESTS & BADGES' }}</h3>
             <span class="dialog-subtitle-mono font-mono">
-              ВЫПОЛНЕНО: {{ statsService.unlockedCount() }} ИЗ {{ badges().length }}
+              {{ i18n.currentLang() === 'ru' ? 'ВЫПОЛНЕНО: ' + statsService.unlockedCount() + ' ИЗ ' + badges().length : 'COMPLETED: ' + statsService.unlockedCount() + ' OF ' + badges().length }}
             </span>
           </div>
           <button class="btn-modal-close" (click)="closeAchievementsModal()">&times;</button>
@@ -939,7 +939,7 @@
         <div class="modal-dialog-body achievements-body">
           <div class="achievements-info-banner font-mono">
             <span class="pulse-status-dot"></span>
-            <span>Слушайте треки в плеере и выполняйте испытания. Полученные значки можно надеть в шапку профиля (до 3 значков).</span>
+            <span>{{ i18n.currentLang() === 'ru' ? 'Слушайте треки в плеере и выполняйте испытания. Полученные значки можно надеть в шапку профиля (до 3 значков).' : 'Listen to tracks and complete challenges. Earned badges can be equipped to your profile header (up to 3 badges).' }}</span>
           </div>
 
           <div class="badges-minimal-list modal-badges-list">
@@ -961,13 +961,13 @@
                     <span class="badge-title font-mono">{{ badge.name }}</span>
                     <span class="badge-status-label font-mono">
                       @if (badge.equipped) {
-                        <span class="status-badge-active">В ШАПКЕ</span>
+                        <span class="status-badge-active">{{ i18n.currentLang() === 'ru' ? 'В ШАПКЕ' : 'EQUIPPED' }}</span>
                       } @else if (badge.claimed) {
-                        <span class="status-badge-claimed">В КОЛЛЕКЦИИ</span>
+                        <span class="status-badge-claimed">{{ i18n.currentLang() === 'ru' ? 'В КОЛЛЕКЦИИ' : 'CLAIMED' }}</span>
                       } @else if (badge.unlocked) {
-                        <span class="status-badge-ready">ВЫПОЛНЕНО</span>
+                        <span class="status-badge-ready">{{ i18n.currentLang() === 'ru' ? 'ВЫПОЛНЕНО' : 'COMPLETED' }}</span>
                       } @else {
-                        <span class="status-badge-progress">В ПРОЦЕССЕ</span>
+                        <span class="status-badge-progress">{{ i18n.currentLang() === 'ru' ? 'В ПРОЦЕССЕ' : 'IN PROGRESS' }}</span>
                       }
                     </span>
                   </div>
@@ -997,9 +997,9 @@
                       (click)="claimBadge(badge.id, $event)"
                     >
                       @if (badge.unlocked) {
-                        ЗАБРАТЬ
+                        {{ i18n.currentLang() === 'ru' ? 'ЗАБРАТЬ' : 'CLAIM' }}
                       } @else {
-                        В ПРОЦЕССЕ
+                        {{ i18n.currentLang() === 'ru' ? 'В ПРОЦЕССЕ' : 'LOCKED' }}
                       }
                     </button>
                   } @else {
@@ -1007,12 +1007,12 @@
                       class="btn-badge-action font-mono equip-btn"
                       [class.is-equipped]="badge.equipped"
                       (click)="toggleBadgeEquip(badge.id, $event)"
-                      title="Показать / скрыть значок в шапке профиля"
+                      [title]="i18n.currentLang() === 'ru' ? 'Показать / скрыть значок в шапке профиля' : 'Toggle badge in profile header'"
                     >
                       @if (badge.equipped) {
-                        СНЯТЬ
+                        {{ i18n.currentLang() === 'ru' ? 'СНЯТЬ' : 'UNEQUIP' }}
                       } @else {
-                        НАДЕТЬ
+                        {{ i18n.currentLang() === 'ru' ? 'НАДЕТЬ' : 'EQUIP' }}
                       }
                     </button>
                   }
@@ -1023,7 +1023,7 @@
         </div>
 
         <div class="modal-dialog-footer">
-          <button class="btn-modal-cancel font-mono" (click)="closeAchievementsModal()">Закрыть</button>
+          <button class="btn-modal-cancel font-mono" (click)="closeAchievementsModal()">{{ i18n.t('common.close') }}</button>
         </div>
       </div>
     </div>

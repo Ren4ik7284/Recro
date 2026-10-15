@@ -5,6 +5,8 @@ import { LibraryService } from './library.service';
 import { RecommendationService } from './recommendation.service';
 import { NavigationService } from './navigation.service';
 
+import { I18nService } from './i18n.service';
+
 export type TimerMood = 'focus' | 'workout' | 'relax' | 'my_music' | 'favorites';
 
 export interface TimerMoodOption {
@@ -30,6 +32,19 @@ export class TimerService {
   private readonly libraryService = inject(LibraryService);
   private readonly recService = inject(RecommendationService);
   private readonly navService = inject(NavigationService);
+  readonly i18n = inject(I18nService);
+
+  readonly localizedMoods = computed<TimerMoodOption[]>(() => {
+    // tracks currentLang for reactive translation
+    const _lang = this.i18n.currentLang();
+    return [
+      { id: 'focus', title: this.i18n.t('timer.mood.focus.title', 'Фокус и учеба'), desc: this.i18n.t('timer.mood.focus.desc', 'Lo-Fi, инструментал и спокойный бит'), icon: 'brain' },
+      { id: 'workout', title: this.i18n.t('timer.mood.workout.title', 'Спорт и энергия'), desc: this.i18n.t('timer.mood.workout.desc', 'Фонк, рок, EDM и мощный ритм'), icon: 'flame' },
+      { id: 'relax', title: this.i18n.t('timer.mood.relax.title', 'Сон и релакс'), desc: this.i18n.t('timer.mood.relax.desc', 'Эмбиент, акустика и мягкое звучание'), icon: 'moon' },
+      { id: 'favorites', title: this.i18n.t('timer.mood.favorites.title', 'Только любимое'), desc: this.i18n.t('timer.mood.favorites.desc', 'Ваши избранные треки'), icon: 'heart' },
+      { id: 'my_music', title: this.i18n.t('timer.mood.my_music.title', 'Вся моя музыка'), desc: this.i18n.t('timer.mood.my_music.desc', 'Случайные треки из вашей библиотеки'), icon: 'library' },
+    ];
+  });
 
   readonly isActive = signal<boolean>(false);
   readonly isPaused = signal<boolean>(false);

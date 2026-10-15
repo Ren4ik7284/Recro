@@ -1561,68 +1561,272 @@ export class LibraryService implements OnDestroy {
     };
   }
 
-  async recordHistoryPlay(track: Track) {
-    if (!this.isBackendOnline() || !this.authService.isAuthenticated()) return;
+  private get STORAGE_KEY_HISTORY(): string {
+    return `signal_history_${this.storageUserId}`;
+  }
+
+  getLocalHistory(): HistoryItem[] {
+    if (typeof localStorage === 'undefined') return [];
     try {
-      await fetch(`${this.getBackendUrl()}/api/history`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...this.authService.getAuthHeaders(),
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          track_id: track.id,
-          title: track.title,
-          artist: track.artist,
-          genre: track.genre,
-          cover_url: track.coverUrl,
-          duration: track.duration,
-        }),
-      });
+      const saved = localStorage.getItem(this.STORAGE_KEY_HISTORY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return [];
+  }
+
+  private saveLocalHistory(list: HistoryItem[]) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(this.STORAGE_KEY_HISTORY, JSON.stringify(list.slice(0, 500)));
     } catch {}
   }
 
+  async recordHistoryPlay(track: Track) {
+    if (!track || !track.title) return;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const newItem: HistoryItem = {
+      id: Date.now(),
+      track_id: track.id,
+      track_title: track.title,
+      track_artist: track.artist || 'Unknown Artist',
+      track_genre: track.genre || 'Music',
+      cover_url: track.coverUrl,
+      duration: track.duration || 0,
+      played_at: nowSec,
+    };
+
+    // 1. Всегда надежно сохраняем в локальную историю устройства
+    const currentList = this.getLocalHistory();
+    // Исключаем дубликаты за последние 3 секунды (защита от дребезга)
+    const filtered = currentList.filter(
+      (item) => !(item.track_id === track.id && Math.abs(item.played_at - nowSec) < 3)
+    );
+    filtered.unshift(newItem);
+    this.saveLocalHistory(filtered);
+
+    // 2. Если авторизован и бэкенд на связи, синхронизируем с бэкендом
+    if (this.isBackendOnline() && this.authService.isAuthenticated()) {
+      try {
+        await fetch(`${this.getBackendUrl()}/api/history`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.authService.getAuthHeaders(),
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            track_id: track.id,
+            title: track.title,
+            artist: track.artist,
+            genre: track.genre,
+            cover_url: track.coverUrl,
+            duration: track.duration,
+          }),
+        });
+      } catch {}
+    }
+  }
+
   async getHistory(): Promise<HistoryItem[]> {
-    if (!this.isBackendOnline() || !this.authService.isAuthenticated()) return [];
+    const local = this.getLocalHistory();
+    if (!this.isBackendOnline() || !this.authService.isAuthenticated()) {
+      return local;
+    }
     try {
       const res = await fetch(`${this.getBackendUrl()}/api/history`, {
         headers: this.authService.getAuthHeaders(),
         credentials: 'same-origin',
       });
-      if (!res.ok) return [];
-      return await res.json();
-    } catch {
-      return [];
-    }
+      if (res.ok) {
+        const remote: HistoryItem[] = await res.json();
+        // Объединяем удаленные и локальные данные
+        const map = new Map<string, HistoryItem>();
+        for (const item of [...remote, ...local]) {
+          const key = `${item.track_id}_${item.played_at}`;
+          if (!map.has(key)) {
+            map.set(key, item);
+          }
+        }
+        const merged = Array.from(map.values()).sort((a, b) => b.played_at - a.played_at).slice(0, 500);
+        this.saveLocalHistory(merged);
+        return merged;
+      }
+    } catch {}
+    return local;
   }
 
   async clearHistory(): Promise<boolean> {
-    if (!this.isBackendOnline() || !this.authService.isAuthenticated()) return false;
-    try {
-      const res = await fetch(`${this.getBackendUrl()}/api/history`, {
-        method: 'DELETE',
-        headers: this.authService.getAuthHeaders(),
-        credentials: 'same-origin',
-      });
-      return res.ok;
-    } catch {
-      return false;
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem(this.STORAGE_KEY_HISTORY);
+      } catch {}
     }
+    if (this.isBackendOnline() && this.authService.isAuthenticated()) {
+      try {
+        await fetch(`${this.getBackendUrl()}/api/history`, {
+          method: 'DELETE',
+          headers: this.authService.getAuthHeaders(),
+          credentials: 'same-origin',
+        });
+      } catch {}
+    }
+    return true;
   }
 
   async getWrappedStats(): Promise<WrappedStats | null> {
-    if (!this.isBackendOnline() || !this.authService.isAuthenticated()) return null;
-    try {
-      const res = await fetch(`${this.getBackendUrl()}/api/stats/wrapped`, {
-        headers: this.authService.getAuthHeaders(),
-        credentials: 'same-origin',
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
+    // 1. Пробуем бэкенд для авторизованного пользователя
+    if (this.isBackendOnline() && this.authService.isAuthenticated()) {
+      try {
+        const res = await fetch(`${this.getBackendUrl()}/api/stats/wrapped`, {
+          headers: this.authService.getAuthHeaders(),
+          credentials: 'same-origin',
+        });
+        if (res.ok) {
+          const stats = await res.json();
+          if (stats && stats.total_plays > 0) {
+            return stats;
+          }
+        }
+      } catch {}
     }
+
+    // 2. Если бэкенд не вернул данные, рассчитываем Музыкальный итог на клиенте из локальной истории!
+    const history = await this.getHistory();
+    const username = this.authService.currentUser()?.username || (typeof localStorage !== 'undefined' && localStorage.getItem('signal_custom_username')) || 'Слушатель';
+
+    if (!history || history.length === 0) {
+      return {
+        username,
+        total_plays: 0,
+        total_minutes: 0,
+        unique_tracks: 0,
+        unique_artists: 0,
+        top_tracks: [],
+        top_artists: [],
+        top_genres: [],
+        personality: {
+          title: 'Исследователь Частот',
+          tag: '#EXPLORER',
+          description: 'Вы только формируете свой звуковой почерк в экосистеме Recro.',
+        },
+      };
+    }
+
+    const total_plays = history.length;
+    const total_duration_secs = history.reduce((acc, h) => acc + (h.duration || 180), 0);
+    const total_minutes = Math.round(total_duration_secs / 60);
+
+    const trackCounts = new Map<string, { item: HistoryItem; count: number }>();
+    const artistCounts = new Map<string, number>();
+    const genreCounts = new Map<string, number>();
+
+    for (const h of history) {
+      // Tracks
+      const trackKey = h.track_id || `${h.track_artist} - ${h.track_title}`;
+      const tEntry = trackCounts.get(trackKey);
+      if (tEntry) {
+        tEntry.count++;
+      } else {
+        trackCounts.set(trackKey, { item: h, count: 1 });
+      }
+
+      // Artists
+      if (h.track_artist && h.track_artist.trim()) {
+        const a = h.track_artist.trim();
+        artistCounts.set(a, (artistCounts.get(a) || 0) + 1);
+      }
+
+      // Genres
+      if (h.track_genre && h.track_genre.trim() && h.track_genre.toLowerCase() !== 'unknown') {
+        const g = h.track_genre.trim();
+        genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
+      }
+    }
+
+    const unique_tracks = trackCounts.size;
+    const unique_artists = artistCounts.size;
+
+    const top_tracks = Array.from(trackCounts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+      .map(({ item, count }) => ({
+        track_id: item.track_id,
+        title: item.track_title,
+        artist: item.track_artist,
+        cover_url: item.cover_url,
+        plays: count,
+      }));
+
+    const top_artists = Array.from(artistCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([artist, plays]) => ({
+        artist,
+        plays,
+      }));
+
+    const totalGenrePlays = Array.from(genreCounts.values()).reduce((a, b) => a + b, 0);
+    const top_genres = Array.from(genreCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([genre, plays]) => ({
+        genre,
+        plays,
+        percentage: totalGenrePlays > 0 ? Math.round((plays / totalGenrePlays) * 1000) / 10 : 0,
+      }));
+
+    const primaryGenre = (top_genres[0]?.genre || '').toLowerCase();
+    let personality = {
+      title: 'Исследователь Частот',
+      tag: '#EXPLORER',
+      description: 'Вы только формируете свой звуковой почерк в экосистеме Recro.',
+    };
+
+    if (primaryGenre.includes('electron') || primaryGenre.includes('synth') || primaryGenre.includes('techno')) {
+      personality = {
+        title: 'Кибер-Архитектор',
+        tag: '#CYBER_SOUND',
+        description: 'Ваш пульс синхронизирован с синтезаторами и цифровым потоком Recro.',
+      };
+    } else if (primaryGenre.includes('ambient') || primaryGenre.includes('chill') || primaryGenre.includes('lounge')) {
+      personality = {
+        title: 'Космический Дрейфующий',
+        tag: '#DEEP_DRIFT',
+        description: 'Глубокие текстуры и медитативное спокойствие определяют ваше музыкальное поле.',
+      };
+    } else if (primaryGenre.includes('hip') || primaryGenre.includes('rap') || primaryGenre.includes('trap')) {
+      personality = {
+        title: 'Ритмический Стратег',
+        tag: '#BEAT_DOMINATION',
+        description: 'Вы цените панчи, бас и честный флоу без лишних компромиссов.',
+      };
+    } else if (primaryGenre.includes('rock') || primaryGenre.includes('metal')) {
+      personality = {
+        title: 'Перегруженный Драйвер',
+        tag: '#HIGH_VOLTAGE',
+        description: 'Максимальная энергия и чистый драйв звучат в каждом вашем треке.',
+      };
+    } else if (total_plays > 20) {
+      personality = {
+        title: 'Аудио-Сингулярность',
+        tag: '#INFINITE_AUDIO',
+        description: 'Музыка звучит бесконечно, исследуя десятки различных жанров и миров.',
+      };
+    }
+
+    return {
+      username,
+      total_plays,
+      total_minutes,
+      unique_tracks,
+      unique_artists,
+      top_tracks,
+      top_artists,
+      top_genres,
+      personality,
+    };
   }
 
   async getTopArtists(force = false): Promise<ChartArtist[]> {

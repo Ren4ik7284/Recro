@@ -68,7 +68,7 @@ export class App implements OnInit {
   readonly timerService = inject(TimerService);
   readonly themeService = inject(ThemeService);
   readonly i18n = inject(I18nService);
-  readonly timerMoods = TIMER_MOODS;
+  get timerMoods() { return this.timerService.localizedMoods(); }
   readonly Math = Math;
 
   constructor() {
@@ -707,12 +707,6 @@ export class App implements OnInit {
   }
 
   async openWrappedModal(pushHistory = true) {
-    if (!this.authService.isAuthenticated()) {
-      this.showToast('Войдите в аккаунт для просмотра Recro Wrapped');
-      this.openAuthModal('login', 'Чтобы посмотреть персональную статистику и итоги прослушиваний Recro Wrapped, войдите в аккаунт.');
-      return;
-    }
-
     this.isLoadingWrapped.set(true);
     this.isWrappedModalOpen.set(true);
     if (pushHistory) {
@@ -722,7 +716,7 @@ export class App implements OnInit {
       const stats = await this.libraryService.getWrappedStats();
       this.wrappedStats.set(stats);
     } catch {
-      this.showToast('Не удалось загрузить статистику');
+      this.showToast(this.i18n.t('wrapped.loadError', 'Не удалось загрузить статистику'));
     } finally {
       this.isLoadingWrapped.set(false);
     }
@@ -753,12 +747,6 @@ export class App implements OnInit {
   }
 
   async openHistoryModal(pushHistory = true) {
-    if (!this.authService.isAuthenticated()) {
-      this.showToast('Войдите в аккаунт для просмотра истории');
-      this.openAuthModal('login', 'Чтобы просматривать и быстро воспроизводить историю прослушиваний, войдите в аккаунт.');
-      return;
-    }
-
     this.isLoadingHistory.set(true);
     this.isHistoryModalOpen.set(true);
     if (pushHistory) {
@@ -768,7 +756,7 @@ export class App implements OnInit {
       const history = await this.libraryService.getHistory();
       this.historyList.set(history);
     } catch {
-      this.showToast('Не удалось загрузить историю');
+      this.showToast(this.i18n.t('history.loadError', 'Не удалось загрузить историю'));
     } finally {
       this.isLoadingHistory.set(false);
     }
@@ -780,11 +768,14 @@ export class App implements OnInit {
   }
 
   async clearListeningHistory() {
-    if (confirm('Очистить всю историю прослушиваний?')) {
+    const confirmMsg = this.i18n.currentLang() === 'ru' 
+      ? 'Очистить всю историю прослушиваний?' 
+      : 'Clear entire listening history?';
+    if (confirm(confirmMsg)) {
       const ok = await this.libraryService.clearHistory();
       if (ok) {
         this.historyList.set([]);
-        this.showToast('История прослушиваний очищена');
+        this.showToast(this.i18n.t('history.cleared', 'История прослушиваний очищена'));
       }
     }
   }
@@ -810,23 +801,25 @@ export class App implements OnInit {
       this.libraryService.addTrackToLibrary(tempTrack);
       this.playTrack(tempTrack);
     }
-    this.showToast(`Воспроизведение: ${item.track_title}`);
+    const playingMsg = this.i18n.currentLang() === 'ru' ? 'Воспроизведение: ' : 'Playing: ';
+    this.showToast(`${playingMsg}${item.track_title}`);
   }
 
   formatHistoryDate(timestampSecs: number): string {
     if (!timestampSecs) return '';
+    const isRu = this.i18n.currentLang() === 'ru';
     const date = new Date(timestampSecs * 1000);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'Только что';
-    if (diffMins < 60) return `${diffMins} мин назад`;
+    if (diffMins < 1) return isRu ? 'Только что' : 'Just now';
+    if (diffMins < 60) return isRu ? `${diffMins} мин назад` : `${diffMins}m ago`;
     
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} ч назад`;
+    if (diffHours < 24) return isRu ? `${diffHours} ч назад` : `${diffHours}h ago`;
 
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString(isRu ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
   setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search', playlistId?: string, pushHistory = true) {
