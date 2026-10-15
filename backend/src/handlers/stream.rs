@@ -291,6 +291,77 @@ pub async fn stream_audio(
         }
     }
 
+    if is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
+        let mut forward_query = Vec::new();
+        if let Some(ref t) = params.title {
+            forward_query.push(format!("title={}", urlencoding::encode(t)));
+        }
+        if let Some(ref a) = params.artist {
+            forward_query.push(format!("artist={}", urlencoding::encode(a)));
+        }
+        if let Some(ref u) = params.url {
+            forward_query.push(format!("url={}", urlencoding::encode(u)));
+        }
+        if let Some(ref id) = params.id {
+            forward_query.push(format!("id={}", urlencoding::encode(id)));
+        }
+        if let Some(ss) = params.ss {
+            forward_query.push(format!("ss={}", ss));
+        }
+        if let Some(pf) = params.prefetch {
+            forward_query.push(format!("prefetch={}", pf));
+        }
+        if let Some(il) = params.is_live {
+            forward_query.push(format!("is_live={}", il));
+        }
+
+        let cloud_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, forward_query.join("&"));
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .timeout(if is_prefetch { Duration::from_secs(4) } else { Duration::from_secs(20) })
+            .build();
+
+        if let Ok(client) = client {
+            let mut req = client.get(&cloud_url);
+            if !client_ip.is_empty() {
+                req = req.header("X-Forwarded-For", &client_ip);
+            }
+            if let Some(range_val) = headers.get(header::RANGE) {
+                req = req.header(header::RANGE, range_val);
+            }
+            if let Ok(resp) = req.send().await {
+                let status = resp.status();
+                if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
+                    let mut res_headers = HeaderMap::new();
+                    res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
+                    res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+                    res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, "*".parse().unwrap());
+                    if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
+                        res_headers.insert(header::CONTENT_LENGTH, cl.clone());
+                    }
+                    if let Some(ar) = resp.headers().get(header::ACCEPT_RANGES) {
+                        res_headers.insert(header::ACCEPT_RANGES, ar.clone());
+                    }
+                    if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
+                        res_headers.insert(header::CONTENT_RANGE, cr.clone());
+                    }
+                    if let Some(cc) = resp.headers().get(header::CACHE_CONTROL) {
+                        res_headers.insert(header::CACHE_CONTROL, cc.clone());
+                    } else {
+                        res_headers.insert(header::CACHE_CONTROL, "public, max-age=604800".parse().unwrap());
+                    }
+
+                    if params.prefetch.unwrap_or(false) {
+                        return Ok(StatusCode::NO_CONTENT.into_response());
+                    }
+
+                    let body = Body::from_stream(resp.bytes_stream());
+                    return Ok((status, res_headers, body).into_response());
+                }
+            }
+        }
+    }
+
     let cache_key = if let (Some(t), Some(a)) = (&params.title, &params.artist) {
         format!("{}:{}:{}", target, t.trim(), a.trim())
     } else {
@@ -782,7 +853,7 @@ pub async fn stream_audio(
     res_headers.insert(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate".parse().unwrap());
     res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
     res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, "*".parse().unwrap());
-    res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
+    res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("none"));
 
     Ok((StatusCode::OK, res_headers, body).into_response())
 }
