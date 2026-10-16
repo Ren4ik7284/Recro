@@ -55,7 +55,6 @@ declare global {
     VisualizerComponent,
     LyricsComponent,
     ProfileComponent,
-    FloatingMiniPlayerComponent,
     LiveBackgroundComponent,
     LiveBackgroundSettingsComponent,
   ],

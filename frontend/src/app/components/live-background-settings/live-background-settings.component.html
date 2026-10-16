@@ -1,6 +1,7 @@
 @if (bgService.isSettingsOpen()) {
   <div class="live-settings-backdrop" (click)="bgService.closeSettings()"></div>
   <div class="live-settings-panel" (click)="$event.stopPropagation()">
+    <!-- Header -->
     <div class="live-settings-header">
       <div class="header-left">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -8,9 +9,9 @@
           <circle cx="8.5" cy="8.5" r="1.5"/>
           <polyline points="21 15 16 10 5 21"/>
         </svg>
-        <span class="live-settings-title font-mono">{{ i18n.currentLang() === 'ru' ? 'Анимированный фон и тема' : 'Live Background & Theme' }}</span>
+        <span class="live-settings-title font-mono">{{ i18n.currentLang() === 'ru' ? 'ФОН И ТЕМА' : 'BACKGROUND & THEME' }}</span>
       </div>
-      <button type="button" class="btn-settings-close" (click)="bgService.closeSettings()" title="Закрыть">
+      <button type="button" class="btn-settings-close" (click)="bgService.closeSettings()" title="Закрыть (Esc)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -19,9 +20,9 @@
     </div>
 
     <div class="live-settings-body">
-      <!-- 1. ЖИВОЙ ФОН -->
+      <!-- 1. Пресеты фона -->
       <div class="live-settings-group">
-        <label class="group-label font-mono">{{ i18n.t('lyrics.settings.bgSection') }}</label>
+        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ТИП ФОНА' : 'BACKGROUND PRESET' }}</label>
         <div class="preset-pill-row font-mono">
           @for (p of bgService.presets; track p.id) {
             <button 
@@ -34,8 +35,66 @@
             </button>
           }
         </div>
+      </div>
 
-        <!-- Upload local GIF / Video area (No external links!) -->
+      <!-- 2. Добавление по ссылке (Pinterest, GIF, MP4) -->
+      <div class="live-settings-group">
+        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ДОБАВИТЬ ПО ССЫЛКЕ (PINTEREST / MP4 / GIF)' : 'ADD VIA URL' }}</label>
+        <div class="url-input-row font-mono">
+          <input 
+            type="url" 
+            class="url-input" 
+            [placeholder]="i18n.currentLang() === 'ru' ? 'https://pin.it/... или ссылка на GIF/MP4' : 'https://pin.it/... or GIF/MP4 URL'"
+            [ngModel]="urlInput()" 
+            (ngModelChange)="urlInput.set($event)"
+            (keyup.enter)="onApplyUrl()"
+          />
+          <button 
+            type="button" 
+            class="btn-apply-url font-mono" 
+            [disabled]="!urlInput().trim() || bgService.isResolvingUrl()"
+            (click)="onApplyUrl()"
+          >
+            @if (bgService.isResolvingUrl()) {
+              <span class="url-spinner"></span>
+            } @else {
+              <span>{{ i18n.currentLang() === 'ru' ? 'OK' : 'Apply' }}</span>
+            }
+          </button>
+        </div>
+
+        <!-- Saved Links list for quick reuse -->
+        @if (bgService.savedItems().length > 0) {
+          <div class="saved-links-section">
+            <span class="saved-links-title font-mono">{{ i18n.currentLang() === 'ru' ? 'СОХРАНЕННЫЕ ФОНЫ' : 'SAVED BACKGROUNDS' }}</span>
+            <div class="saved-chips-list font-mono">
+              @for (item of bgService.savedItems(); track item.id) {
+                <div 
+                  class="saved-chip" 
+                  [class.active]="bgService.customMediaUrl() === item.mediaUrl"
+                  (click)="selectSaved(item)"
+                  [title]="item.name + ' (' + item.rawUrl + ')'"
+                >
+                  <span class="chip-media-badge">{{ item.mediaType === 'video' ? 'MP4' : 'IMG' }}</span>
+                  <span class="chip-label">{{ item.name }}</span>
+                  <button 
+                    type="button" 
+                    class="btn-chip-remove" 
+                    (click)="removeSaved(item, $event)" 
+                    title="Удалить из сохраненных"
+                  >
+                    ✕
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- 3. Загрузка локального файла -->
+      <div class="live-settings-group">
+        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ИЛИ ЗАГРУЗИТЬ СВОЙ ФАЙЛ' : 'OR UPLOAD LOCAL FILE' }}</label>
         <div 
           class="upload-drop-zone font-mono"
           (dragover)="onDragOver($event)"
@@ -58,23 +117,80 @@
             @if (bgService.customMediaName(); as name) {
               <span class="active-file-name">{{ name }}</span>
             } @else {
-              <span>{{ i18n.t('lyrics.settings.uploadBtn') }}</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Выберите GIF или MP4 видео' : 'Choose GIF or MP4 video' }}</span>
             }
-            <span class="upload-hint">{{ i18n.t('lyrics.settings.uploadHint') }}</span>
+            <span class="upload-hint">{{ i18n.currentLang() === 'ru' ? 'Сохраняется локально в плеере' : 'Stored locally in IndexedDB' }}</span>
           </div>
-          @if (bgService.customMediaUrl()) {
+          @if (bgService.customMediaUrl() && bgService.activePreset() === 'custom') {
             <button 
               type="button" 
               class="btn-remove-custom" 
               (click)="bgService.removeCustomFile(); $event.stopPropagation()"
-              title="Удалить фон"
+              title="Сбросить"
             >
               ✕
             </button>
           }
         </div>
+      </div>
 
-        <!-- Dimmer & Blur controls -->
+      <!-- 4. Переключатели (Switch Toggles вместо галочек) -->
+      <div class="live-settings-group">
+        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ЭФФЕКТЫ И ОТОБРАЖЕНИЕ' : 'EFFECTS & DISPLAY' }}</label>
+        
+        <!-- Тонированное стекло -->
+        <div class="switch-row font-mono" (click)="bgService.toggleGlassTint()">
+          <div class="switch-label-col">
+            <span class="switch-title">{{ i18n.currentLang() === 'ru' ? 'Тонированное стекло (Frosted Glass)' : 'Frosted Glass Tint' }}</span>
+            <span class="switch-sub">{{ i18n.currentLang() === 'ru' ? 'Мягкая полупрозрачность всего плеера с размытием' : 'Soft glass tinting across the player' }}</span>
+          </div>
+          <button 
+            type="button" 
+            class="switch-toggle" 
+            [class.on]="bgService.isGlassTinted()"
+            aria-label="Toggle Glass Tint"
+          >
+            <span class="switch-knob"></span>
+          </button>
+        </div>
+
+        <!-- Фон во всем приложении -->
+        <div class="switch-row font-mono" (click)="bgService.toggleApplyGlobally()">
+          <div class="switch-label-col">
+            <span class="switch-title">{{ i18n.t('lyrics.settings.globalBg') }}</span>
+            <span class="switch-sub">{{ i18n.currentLang() === 'ru' ? 'Отображать фон во всех разделах плеера' : 'Show background across all views' }}</span>
+          </div>
+          <button 
+            type="button" 
+            class="switch-toggle" 
+            [class.on]="bgService.applyGlobally()"
+            aria-label="Toggle Global Background"
+          >
+            <span class="switch-knob"></span>
+          </button>
+        </div>
+
+        <!-- Адаптация темы под фон -->
+        <div class="switch-row font-mono" (click)="bgService.toggleSyncTheme()">
+          <div class="switch-label-col">
+            <span class="switch-title">{{ i18n.t('lyrics.settings.syncTheme') }}</span>
+            <span class="switch-sub">{{ i18n.currentLang() === 'ru' ? 'Автоматическая палитра цветов из видео/GIF' : 'Dynamic palette adaptation from media' }}</span>
+          </div>
+          <button 
+            type="button" 
+            class="switch-toggle" 
+            [class.on]="bgService.syncThemeWithBg()"
+            aria-label="Toggle Theme Adaptation"
+          >
+            <span class="switch-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 5. Затемнение и Размытие -->
+      <div class="live-settings-group">
+        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'НАСТРОЙКА ИНТЕНСИВНОСТИ' : 'INTENSITY' }}</label>
+        
         <div class="slider-row">
           <span class="slider-label font-mono">{{ i18n.t('lyrics.settings.dimmer') }} ({{ bgService.dimmerLevel() }}%)</span>
           <div class="pill-options font-mono">
@@ -92,72 +208,11 @@
             <button type="button" [class.active]="bgService.blurLevel() === 16" (click)="bgService.setBlur(16)">16px</button>
           </div>
         </div>
-
-        <!-- Toggles -->
-        <label class="toggle-option font-mono">
-          <input 
-            type="checkbox" 
-            [checked]="bgService.syncThemeWithBg()" 
-            (change)="bgService.toggleSyncTheme()" 
-          />
-          <span>{{ i18n.t('lyrics.settings.syncTheme') }}</span>
-        </label>
-
-        <label class="toggle-option font-mono">
-          <input 
-            type="checkbox" 
-            [checked]="bgService.applyGlobally()" 
-            (change)="bgService.toggleApplyGlobally()" 
-          />
-          <span>{{ i18n.t('lyrics.settings.globalBg') }}</span>
-        </label>
       </div>
 
-      <!-- 2. ТИПОГРАФИКА И КАРАОКЕ -->
-      <div class="live-settings-group">
-        <label class="group-label font-mono">{{ i18n.t('lyrics.settings.textSection') }}</label>
-        <div class="control-row">
-          <span class="control-title font-mono">{{ i18n.t('lyrics.settings.fontSize') }}</span>
-          <div class="pill-options font-mono">
-            <button type="button" [class.active]="bgService.fontSize() === 'sm'" (click)="bgService.setFontSize('sm')">S</button>
-            <button type="button" [class.active]="bgService.fontSize() === 'md'" (click)="bgService.setFontSize('md')">M</button>
-            <button type="button" [class.active]="bgService.fontSize() === 'lg'" (click)="bgService.setFontSize('lg')">L</button>
-            <button type="button" [class.active]="bgService.fontSize() === 'xl'" (click)="bgService.setFontSize('xl')">XL</button>
-          </div>
-        </div>
-
-        <div class="control-row">
-          <span class="control-title font-mono">{{ i18n.t('lyrics.settings.align') }}</span>
-          <div class="pill-options font-mono">
-            <button type="button" [class.active]="bgService.textAlign() === 'left'" (click)="bgService.setTextAlign('left')">{{ i18n.t('lyrics.settings.alignLeft') }}</button>
-            <button type="button" [class.active]="bgService.textAlign() === 'center'" (click)="bgService.setTextAlign('center')">{{ i18n.t('lyrics.settings.alignCenter') }}</button>
-          </div>
-        </div>
-
-        <label class="toggle-option font-mono">
-          <input 
-            type="checkbox" 
-            [checked]="bgService.focusMode()" 
-            (change)="bgService.toggleFocusMode()" 
-          />
-          <span>{{ i18n.t('lyrics.settings.focusMode') }}</span>
-        </label>
-      </div>
-
-      <!-- 3. СКОРОСТЬ ВОСПРОИЗВЕДЕНИЯ -->
-      <div class="live-settings-group">
-        <label class="group-label font-mono">{{ i18n.t('lyrics.settings.speedSection') }}</label>
-        <div class="pill-options font-mono">
-          <button type="button" [class.active]="audioService.playbackSpeed() === 0.8" (click)="audioService.setPlaybackSpeed(0.8)">0.8x</button>
-          <button type="button" [class.active]="audioService.playbackSpeed() === 1.0" (click)="audioService.setPlaybackSpeed(1.0)">1.0x</button>
-          <button type="button" [class.active]="audioService.playbackSpeed() === 1.2" (click)="audioService.setPlaybackSpeed(1.2)">1.2x</button>
-          <button type="button" [class.active]="audioService.playbackSpeed() === 1.5" (click)="audioService.setPlaybackSpeed(1.5)">1.5x</button>
-        </div>
-      </div>
-
-      <!-- Reset Button -->
+      <!-- Footer Reset -->
       <div class="live-settings-footer">
-        <button type="button" class="btn-reset-settings font-mono" (click)="bgService.resetAllSettings(); audioService.setPlaybackSpeed(1.0)">
+        <button type="button" class="btn-reset-settings font-mono" (click)="bgService.resetAllSettings()">
           {{ i18n.t('lyrics.settings.reset') }}
         </button>
       </div>

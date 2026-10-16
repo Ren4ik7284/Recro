@@ -1,9 +1,9 @@
 .live-settings-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   z-index: 99998;
   animation: liveFadeIn 0.2s ease-out;
 }
@@ -14,7 +14,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   width: 90%;
-  max-width: 440px;
+  max-width: 460px;
   max-height: 85vh;
   background: rgba(14, 16, 26, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -44,7 +44,6 @@
         font-size: 13px;
         font-weight: 700;
         letter-spacing: 0.8px;
-        text-transform: uppercase;
         color: #f1f5f9;
       }
     }
@@ -73,7 +72,7 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 18px;
 
     &::-webkit-scrollbar {
       width: 5px;
@@ -90,9 +89,9 @@
     gap: 10px;
 
     .group-label {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 700;
-      letter-spacing: 1px;
+      letter-spacing: 0.8px;
       text-transform: uppercase;
       color: #38bdf8;
     }
@@ -108,7 +107,7 @@
       border: 1px solid rgba(255, 255, 255, 0.09);
       border-radius: 8px;
       padding: 8px 6px;
-      font-size: 11.5px;
+      font-size: 11px;
       color: #cbd5e1;
       cursor: pointer;
       text-align: center;
@@ -121,7 +120,7 @@
       }
 
       &.active {
-        background: rgba(56, 189, 248, 0.16);
+        background: rgba(56, 189, 248, 0.18);
         border-color: #38bdf8;
         color: #38bdf8;
         font-weight: 700;
@@ -129,6 +128,144 @@
     }
   }
 
+  /* URL input row */
+  .url-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .url-input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 11.5px;
+      color: #ffffff;
+      outline: none;
+      transition: border-color 0.15s;
+
+      &:focus {
+        border-color: #38bdf8;
+      }
+
+      &::placeholder {
+        color: #64748b;
+      }
+    }
+
+    .btn-apply-url {
+      background: #38bdf8;
+      color: #090a0f;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 50px;
+      transition: opacity 0.15s, transform 0.1s;
+
+      &:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .url-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(0, 0, 0, 0.3);
+        border-top-color: #000;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+    }
+  }
+
+  /* Saved links chips */
+  .saved-links-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+
+    .saved-links-title {
+      font-size: 9.5px;
+      font-weight: 600;
+      color: #64748b;
+      letter-spacing: 0.5px;
+    }
+
+    .saved-chips-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+
+      .saved-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        font-size: 10.5px;
+        color: #cbd5e1;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        max-width: 200px;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        &.active {
+          background: rgba(56, 189, 248, 0.16);
+          border-color: #38bdf8;
+          color: #38bdf8;
+        }
+
+        .chip-media-badge {
+          font-size: 8.5px;
+          font-weight: 700;
+          padding: 1px 4px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 3px;
+          color: #94a3b8;
+        }
+
+        .chip-label {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .btn-chip-remove {
+          background: transparent;
+          border: none;
+          color: #64748b;
+          font-size: 11px;
+          cursor: pointer;
+          padding: 0 2px;
+
+          &:hover {
+            color: #ef4444;
+          }
+        }
+      }
+    }
+  }
+
+  /* Upload drop zone */
   .upload-drop-zone {
     display: flex;
     align-items: center;
@@ -155,7 +292,7 @@
       overflow: hidden;
 
       .active-file-name {
-        font-size: 12px;
+        font-size: 11.5px;
         font-weight: 600;
         color: #38bdf8;
         white-space: nowrap;
@@ -164,7 +301,7 @@
       }
 
       .upload-hint {
-        font-size: 10.5px;
+        font-size: 10px;
         color: #64748b;
       }
     }
@@ -175,11 +312,81 @@
       color: #ef4444;
       cursor: pointer;
       padding: 4px;
-      font-size: 14px;
+      font-size: 13px;
       border-radius: 4px;
 
       &:hover {
         background: rgba(239, 68, 68, 0.15);
+      }
+    }
+  }
+
+  /* Compact modern Switch Toggles */
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .switch-label-col {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      .switch-title {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: #f1f5f9;
+      }
+
+      .switch-sub {
+        font-size: 10px;
+        color: #64748b;
+      }
+    }
+
+    .switch-toggle {
+      width: 34px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+      padding: 0;
+
+      .switch-knob {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        background: #cbd5e1;
+        border-radius: 50%;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+      }
+
+      &.on {
+        background: #38bdf8;
+        border-color: #38bdf8;
+
+        .switch-knob {
+          transform: translateX(14px);
+          background: #090a0f;
+        }
       }
     }
   }
@@ -191,19 +398,7 @@
     gap: 12px;
 
     .slider-label {
-      font-size: 11.5px;
-      color: #cbd5e1;
-    }
-  }
-
-  .control-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-
-    .control-title {
-      font-size: 11.5px;
+      font-size: 11px;
       color: #cbd5e1;
     }
   }
@@ -232,46 +427,6 @@
         border-color: #38bdf8;
         color: #38bdf8;
         font-weight: 700;
-      }
-    }
-  }
-
-  .toggle-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 11.5px;
-    color: #cbd5e1;
-    cursor: pointer;
-    user-select: none;
-
-    input[type="checkbox"] {
-      appearance: none;
-      -webkit-appearance: none;
-      width: 16px;
-      height: 16px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 4px;
-      cursor: pointer;
-      position: relative;
-      transition: all 0.15s ease;
-
-      &:checked {
-        background: #38bdf8;
-        border-color: #38bdf8;
-
-        &::after {
-          content: '';
-          position: absolute;
-          left: 4px;
-          top: 1px;
-          width: 5px;
-          height: 9px;
-          border: solid #090a0f;
-          border-width: 0 2px 2px 0;
-          transform: rotate(45deg);
-        }
       }
     }
   }
@@ -315,4 +470,8 @@
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
   }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

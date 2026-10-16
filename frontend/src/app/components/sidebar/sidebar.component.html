@@ -103,11 +103,6 @@
           <polyline points="21 15 16 10 5 21"/>
         </svg>
         <span>{{ i18n.currentLang() === 'ru' ? 'Анимированный фон' : 'Live Background' }}</span>
-        @if (bgService.activePreset() !== 'default') {
-          <span class="count-badge font-mono" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); text-transform: uppercase;">
-            {{ bgService.activePreset() }}
-          </span>
-        }
       </button>
 
       @if (pwaService.isMobile()) {

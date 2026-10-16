@@ -335,16 +335,6 @@
 
     <button 
       class="utility-btn desktop-only" 
-      [class.active]="pipService.isPipActive() || pipService.isFloatingFallbackActive()"
-      (click)="pipService.togglePip(); $event.stopPropagation()"
-      [title]="i18n.t('player.pipTitle')"
-      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
-    >
-      MINI
-    </button>
-
-    <button 
-      class="utility-btn desktop-only" 
       [class.active]="bgService.isSettingsOpen()"
       (click)="bgService.toggleSettings(); $event.stopPropagation()"
       title="Анимированный фон и тема"

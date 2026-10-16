@@ -3,12 +3,219 @@ use axum::{
     extract::{Query, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
+    Json,
 };
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 use crate::models::CoverParams;
 use crate::security::check_url_ssrf;
 use crate::AppState as BackendState;
+
+#[derive(Deserialize)]
+pub struct ResolveMediaParams {
+    pub url: String,
+}
+
+#[derive(Serialize)]
+pub struct ResolveMediaResponse {
+    pub success: bool,
+    pub media_url: String,
+    pub media_type: String, // "video" or "image"
+    pub original_url: String,
+    pub title: Option<String>,
+}
+
+pub async fn resolve_media(
+    Query(params): Query<ResolveMediaParams>,
+) -> Result<Json<ResolveMediaResponse>, (StatusCode, String)> {
+    let raw_target = params.url.trim();
+    if raw_target.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "URL is empty".to_string()));
+    }
+
+    if check_url_ssrf(raw_target).await.is_err() {
+        return Err((StatusCode::BAD_REQUEST, "Invalid or prohibited URL".to_string()));
+    }
+
+    let lower = raw_target.to_lowercase();
+
+    // 1. Прямые ссылки на видео
+    if lower.ends_with(".mp4") || lower.ends_with(".webm") || lower.ends_with(".mov") || lower.ends_with(".m4v") {
+        return Ok(Json(ResolveMediaResponse {
+            success: true,
+            media_url: raw_target.to_string(),
+            media_type: "video".to_string(),
+            original_url: raw_target.to_string(),
+            title: Some("Direct Video".to_string()),
+        }));
+    }
+
+    // 2. Прямые ссылки на изображения/GIF
+    if lower.ends_with(".gif") || lower.ends_with(".webp") || lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        return Ok(Json(ResolveMediaResponse {
+            success: true,
+            media_url: raw_target.to_string(),
+            media_type: "image".to_string(),
+            original_url: raw_target.to_string(),
+            title: Some("Direct Image/GIF".to_string()),
+        }));
+    }
+
+    // 3. Pinterest (pin.it или pinterest.com)
+    let is_pinterest = lower.contains("pin.it") || lower.contains("pinterest.");
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(12))
+        .user_agent("facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)")
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let mut target_url = raw_target.to_string();
+
+    // Если это короткая ссылка pin.it, следуем за редиректом
+    if lower.contains("pin.it") {
+        let no_redirect_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(8))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        if let Ok(resp) = no_redirect_client.get(raw_target).send().await {
+            if let Some(loc) = resp.headers().get(reqwest::header::LOCATION) {
+                if let Ok(loc_str) = loc.to_str() {
+                    target_url = loc_str.to_string();
+                }
+            }
+        }
+    }
+
+    // Извлекаем pin ID если есть (например из /pin/1058838562413046444/)
+    let pin_id_opt = if let Some(pos) = target_url.find("/pin/") {
+        let slice = &target_url[pos + 5..];
+        let id_part: String = slice.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if !id_part.is_empty() {
+            Some(id_part)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let fetch_url = if let Some(ref pin_id) = pin_id_opt {
+        format!("https://www.pinterest.com/pin/{}/", pin_id)
+    } else {
+        target_url.clone()
+    };
+
+    let page_resp = client.get(&fetch_url).send().await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to fetch target URL: {}", e)))?;
+
+    let body = page_resp.text().await.unwrap_or_default();
+
+    // Проверяем наличие mp4 (видео обои Pinterest)
+    if is_pinterest || body.contains(".mp4") {
+        if let Some(pos) = body.find("https://v1.pinimg.com/videos/iht/") {
+            let slice = &body[pos..];
+            if let Some(end) = slice.find(".mp4") {
+                let mp4_url = &slice[..end + 4];
+                return Ok(Json(ResolveMediaResponse {
+                    success: true,
+                    media_url: mp4_url.to_string(),
+                    media_type: "video".to_string(),
+                    original_url: raw_target.to_string(),
+                    title: Some("Pinterest Animated Wallpaper".to_string()),
+                }));
+            }
+        }
+
+        // Любой .mp4 в теле
+        if let Some(pos) = body.find("https://") {
+            let mut search_slice = &body[pos..];
+            while let Some(mp4_idx) = search_slice.find(".mp4") {
+                let candidate = &search_slice[..mp4_idx + 4];
+                if let Some(http_pos) = candidate.rfind("https://") {
+                    let mp4_url = &candidate[http_pos..];
+                    if !mp4_url.contains(' ') && !mp4_url.contains('"') && !mp4_url.contains('\\') {
+                        return Ok(Json(ResolveMediaResponse {
+                            success: true,
+                            media_url: mp4_url.to_string(),
+                            media_type: "video".to_string(),
+                            original_url: raw_target.to_string(),
+                            title: Some("Video Background".to_string()),
+                        }));
+                    }
+                }
+                search_slice = &search_slice[mp4_idx + 4..];
+            }
+        }
+    }
+
+    // Проверяем OpenGraph og:video
+    if let Some(pos) = body.find("property=\"og:video\"") {
+        let snippet = &body[pos.saturating_sub(100)..std::cmp::min(body.len(), pos + 250)];
+        if let Some(c_pos) = snippet.find("content=\"") {
+            let after = &snippet[c_pos + 9..];
+            if let Some(end) = after.find('"') {
+                let video_url = &after[..end];
+                if video_url.starts_with("http") {
+                    return Ok(Json(ResolveMediaResponse {
+                        success: true,
+                        media_url: video_url.to_string(),
+                        media_type: "video".to_string(),
+                        original_url: raw_target.to_string(),
+                        title: Some("Video Wallpaper".to_string()),
+                    }));
+                }
+            }
+        }
+    }
+
+    // Проверяем high-res Pinterest image (originals)
+    if let Some(pos) = body.find("https://i.pinimg.com/originals/") {
+        let slice = &body[pos..];
+        if let Some(end) = slice.find('"') {
+            let img_url = &slice[..end];
+            return Ok(Json(ResolveMediaResponse {
+                success: true,
+                media_url: img_url.to_string(),
+                media_type: "image".to_string(),
+                original_url: raw_target.to_string(),
+                title: Some("Pinterest Image".to_string()),
+            }));
+        }
+    }
+
+    // Проверяем og:image
+    if let Some(pos) = body.find("property=\"og:image\"") {
+        let snippet = &body[pos.saturating_sub(100)..std::cmp::min(body.len(), pos + 250)];
+        if let Some(c_pos) = snippet.find("content=\"") {
+            let after = &snippet[c_pos + 9..];
+            if let Some(end) = after.find('"') {
+                let img_url = &after[..end];
+                if img_url.starts_with("http") {
+                    return Ok(Json(ResolveMediaResponse {
+                        success: true,
+                        media_url: img_url.to_string(),
+                        media_type: "image".to_string(),
+                        original_url: raw_target.to_string(),
+                        title: Some("Web Image".to_string()),
+                    }));
+                }
+            }
+        }
+    }
+
+    // Фолбек на переданный URL
+    Ok(Json(ResolveMediaResponse {
+        success: true,
+        media_url: raw_target.to_string(),
+        media_type: if lower.contains("video") || lower.contains(".mp4") { "video".to_string() } else { "image".to_string() },
+        original_url: raw_target.to_string(),
+        title: Some("Custom Media".to_string()),
+    }))
+}
 
 pub async fn health_check() -> &'static str {
     "Recro // Rust Engine Online"

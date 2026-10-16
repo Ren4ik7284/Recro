@@ -120,6 +120,7 @@ async fn main() {
         .route("/api/history", get(get_history).post(record_play).delete(clear_history))
         .route("/api/stats/wrapped", get(get_wrapped))
         .route("/api/cover", get(proxy_cover))
+        .route("/api/resolve-media", get(handlers::cover::resolve_media))
         .route("/api/search", get(search_music))
         .route("/api/top-artists", get(get_top_artists))
         .route("/api/recommendations", get(get_recommendations))

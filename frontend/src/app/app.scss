@@ -11,6 +11,82 @@
   position: relative;
 }
 
+/* Glass Tinted Player Mode (Тонированное стекло поверх анимированного фона) */
+.app-layout.glass-tint-mode {
+  background-color: transparent !important;
+
+  .app-header {
+    background: rgba(9, 11, 18, 0.7) !important;
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .app-sidebar {
+    background: rgba(9, 11, 18, 0.65) !important;
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .app-body {
+    background: transparent !important;
+  }
+
+  .app-main-content {
+    background: transparent !important;
+  }
+
+  .smart-wave-card {
+    background: rgba(13, 16, 26, 0.68) !important;
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  .catalog-view, .track-list-container, .catalog-table-wrap, .main-scroll-viewport {
+    background: transparent !important;
+  }
+
+  .track-row, .catalog-row {
+    background: rgba(14, 17, 26, 0.45) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    &.playing, &.active {
+      background: rgba(56, 189, 248, 0.14) !important;
+    }
+  }
+
+  .player-bar, .app-player-bar, footer.player-bar-wrapper {
+    background: rgba(9, 11, 18, 0.78) !important;
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .playlist-card, .album-card, .radio-station-card {
+    background: rgba(14, 17, 26, 0.6) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .queue-drawer, .right-drawer-panel {
+    background: rgba(10, 13, 22, 0.85) !important;
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+}
+
 .ambient-glow-backdrop {
   position: absolute;
   inset: 0;

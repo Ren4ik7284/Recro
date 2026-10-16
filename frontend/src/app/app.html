@@ -1,4 +1,4 @@
-<div class="app-layout" (click)="activePlaylistPickerTrackId.set(null)">
+<div class="app-layout" [class.glass-tint-mode]="bgService.isGlassTinted() && bgService.applyGlobally() && bgService.activePreset() !== 'default'" (click)="activePlaylistPickerTrackId.set(null)">
   @if (bgService.applyGlobally() && bgService.activePreset() !== 'default') {
     <app-live-background></app-live-background>
   }
@@ -3526,7 +3526,6 @@
   }
 
   <app-lyrics-view></app-lyrics-view>
-  <app-floating-mini-player></app-floating-mini-player>
   <app-live-background-settings></app-live-background-settings>
 
   @if (toastMessage()) {

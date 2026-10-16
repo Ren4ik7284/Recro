@@ -2,11 +2,20 @@ import { Injectable, signal, inject } from '@angular/core';
 import { ThemeService } from './theme.service';
 
 export interface BgPreset {
-  id: 'default' | 'grid' | 'waves' | 'rain' | 'stars' | 'custom';
+  id: 'default' | 'grid' | 'waves' | 'rain' | 'custom';
   nameRu: string;
   nameEn: string;
   primaryColor?: string;
   secondaryColor?: string;
+}
+
+export interface SavedMediaItem {
+  id: string;
+  rawUrl: string;
+  mediaUrl: string;
+  mediaType: 'image' | 'video';
+  name: string;
+  addedAt: number;
 }
 
 export const BG_PRESETS: BgPreset[] = [
@@ -14,14 +23,14 @@ export const BG_PRESETS: BgPreset[] = [
   { id: 'grid', nameRu: 'Сетка', nameEn: 'Grid', primaryColor: '#06b6d4', secondaryColor: '#0b1329' },
   { id: 'waves', nameRu: 'Волны', nameEn: 'Waves', primaryColor: '#8b5cf6', secondaryColor: '#130924' },
   { id: 'rain', nameRu: 'Дождь', nameEn: 'Rain', primaryColor: '#38bdf8', secondaryColor: '#0c192c' },
-  { id: 'stars', nameRu: 'Космос', nameEn: 'Stars', primaryColor: '#cbd5e1', secondaryColor: '#090a10' },
-  { id: 'custom', nameRu: 'Свой файл', nameEn: 'Custom File' },
+  { id: 'custom', nameRu: 'Свой GIF / Видео', nameEn: 'Custom Media' },
 ];
 
 const DB_NAME = 'recro_live_bg_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'backgrounds';
 const KEY_CUSTOM = 'user_background';
+const KEY_SAVED_URLS = 'recro_saved_bg_urls_v1';
 
 @Injectable({
   providedIn: 'root',
@@ -42,8 +51,9 @@ export class LiveBackgroundService {
   readonly blurLevel = signal<number>(this.loadStorageNumber('recro_bg_blur', 8)); // 0, 8, 16, 24px
   readonly syncThemeWithBg = signal<boolean>(this.loadStorageBool('recro_bg_sync_theme', true));
   readonly applyGlobally = signal<boolean>(this.loadStorageBool('recro_bg_global', true));
+  readonly isGlassTinted = signal<boolean>(this.loadStorageBool('recro_bg_glass_tint', true)); // Тонированное стекло
 
-  // Панель настроек шестерёнки в lyrics
+  // Панель настроек
   readonly isSettingsOpen = signal<boolean>(false);
 
   // Настройки типографики караоке
@@ -51,6 +61,11 @@ export class LiveBackgroundService {
   readonly fontFamily = signal<'sans' | 'serif' | 'mono'>((this.loadStorage('recro_lyrics_font_family', 'sans') as any) || 'sans');
   readonly textAlign = signal<'left' | 'center'>((this.loadStorage('recro_lyrics_text_align', 'left') as any) || 'left');
   readonly focusMode = signal<boolean>(this.loadStorageBool('recro_lyrics_focus_mode', true));
+
+  // Список сохранённых ссылок (Pinterest, GIF, MP4) для быстрого повторного использования
+  readonly savedItems = signal<SavedMediaItem[]>(this.loadSavedItems());
+  readonly isResolvingUrl = signal<boolean>(false);
+  readonly resolveError = signal<string | null>(null);
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -60,10 +75,12 @@ export class LiveBackgroundService {
 
   toggleSettings() {
     this.isSettingsOpen.update((v) => !v);
+    this.resolveError.set(null);
   }
 
   closeSettings() {
     this.isSettingsOpen.set(false);
+    this.resolveError.set(null);
   }
 
   // --- Пресеты ---
@@ -120,7 +137,11 @@ export class LiveBackgroundService {
     this.saveStorage('recro_bg_global', String(next));
   }
 
-  // --- Настройки текста ---
+  toggleGlassTint() {
+    const next = !this.isGlassTinted();
+    this.isGlassTinted.set(next);
+    this.saveStorage('recro_bg_glass_tint', String(next));
+  }
 
   setFontSize(size: 'sm' | 'md' | 'lg' | 'xl') {
     this.fontSize.set(size);
@@ -151,8 +172,146 @@ export class LiveBackgroundService {
     this.setFontFamily('sans');
     this.setTextAlign('left');
     this.focusMode.set(true);
-    this.saveStorage('recro_lyrics_focus_mode', 'true');
+    this.applyGlobally.set(true);
+    this.isGlassTinted.set(true);
     this.themeService.resetToDefault();
+  }
+
+  // --- Поддержка ссылок (Pinterest pin.it / Web Video / GIF) ---
+
+  async resolveAndApplyUrl(rawUrl: string): Promise<boolean> {
+    const trimmed = (rawUrl || '').trim();
+    if (!trimmed) return false;
+
+    this.isResolvingUrl.set(true);
+    this.resolveError.set(null);
+
+    try {
+      const endpoint = `/api/resolve-media?url=${encodeURIComponent(trimmed)}`;
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (!data.media_url) {
+        throw new Error('Media URL not found');
+      }
+
+      const mediaUrl: string = data.media_url;
+      const mediaType: 'image' | 'video' = data.media_type === 'video' ? 'video' : 'image';
+      const title: string = data.title || (mediaType === 'video' ? 'Pinterest Video' : 'Pinterest Media');
+
+      // Применяем как активный фон
+      this.customMediaUrl.set(mediaUrl);
+      this.customMediaType.set(mediaType);
+      this.customMediaName.set(title);
+      this.activePreset.set('custom');
+      this.applyGlobally.set(true);
+      this.isGlassTinted.set(true);
+
+      this.saveStorage('recro_bg_preset', 'custom');
+      this.saveStorage('recro_bg_global', 'true');
+      this.saveStorage('recro_bg_glass_tint', 'true');
+      this.saveStorage('recro_bg_custom_name', title);
+
+      // Сохраняем в список сохраненных ссылок, чтобы не потерять
+      this.addSavedItem({
+        id: 'saved_' + Date.now(),
+        rawUrl: trimmed,
+        mediaUrl,
+        mediaType,
+        name: title,
+        addedAt: Date.now(),
+      });
+
+      // Адаптируем цвета темы
+      if (this.syncThemeWithBg()) {
+        this.extractPaletteAndApply(mediaUrl, mediaType === 'video');
+      }
+
+      this.isResolvingUrl.set(false);
+      return true;
+    } catch (err: any) {
+      console.warn('[LiveBackgroundService] Error resolving media URL, trying direct fallback:', err);
+
+      // Прямой фолбек для прямых ссылок
+      const isVideo = trimmed.toLowerCase().includes('.mp4') || trimmed.toLowerCase().includes('.webm');
+      const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image';
+      const name = trimmed.split('/').pop()?.split('?')[0] || 'Web Media';
+
+      this.customMediaUrl.set(trimmed);
+      this.customMediaType.set(mediaType);
+      this.customMediaName.set(name);
+      this.activePreset.set('custom');
+      this.applyGlobally.set(true);
+      this.isGlassTinted.set(true);
+
+      this.saveStorage('recro_bg_preset', 'custom');
+      this.saveStorage('recro_bg_global', 'true');
+      this.saveStorage('recro_bg_glass_tint', 'true');
+      this.saveStorage('recro_bg_custom_name', name);
+
+      this.addSavedItem({
+        id: 'saved_' + Date.now(),
+        rawUrl: trimmed,
+        mediaUrl: trimmed,
+        mediaType,
+        name,
+        addedAt: Date.now(),
+      });
+
+      this.isResolvingUrl.set(false);
+      return true;
+    }
+  }
+
+  selectSavedItem(item: SavedMediaItem) {
+    this.customMediaUrl.set(item.mediaUrl);
+    this.customMediaType.set(item.mediaType);
+    this.customMediaName.set(item.name);
+    this.activePreset.set('custom');
+    this.applyGlobally.set(true);
+    this.isGlassTinted.set(true);
+
+    this.saveStorage('recro_bg_preset', 'custom');
+    this.saveStorage('recro_bg_global', 'true');
+    this.saveStorage('recro_bg_glass_tint', 'true');
+    this.saveStorage('recro_bg_custom_name', item.name);
+
+    if (this.syncThemeWithBg()) {
+      this.extractPaletteAndApply(item.mediaUrl, item.mediaType === 'video');
+    }
+  }
+
+  removeSavedItem(id: string) {
+    const updated = this.savedItems().filter((x) => x.id !== id);
+    this.savedItems.set(updated);
+    this.saveSavedItems(updated);
+  }
+
+  private addSavedItem(item: SavedMediaItem) {
+    const list = this.savedItems().filter((x) => x.rawUrl !== item.rawUrl);
+    const updated = [item, ...list].slice(0, 15); // Храним последние 15
+    this.savedItems.set(updated);
+    this.saveSavedItems(updated);
+  }
+
+  private loadSavedItems(): SavedMediaItem[] {
+    if (typeof localStorage === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(KEY_SAVED_URLS);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private saveSavedItems(items: SavedMediaItem[]) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(KEY_SAVED_URLS, JSON.stringify(items));
+    } catch {}
   }
 
   // --- Загрузка локального файла (GIF / Video) без внешних ссылок ---
@@ -166,7 +325,6 @@ export class LiveBackgroundService {
 
     const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image';
 
-    // Освобождаем старый blob url
     if (this.customMediaUrl()) {
       try { URL.revokeObjectURL(this.customMediaUrl()!); } catch {}
     }
@@ -177,15 +335,15 @@ export class LiveBackgroundService {
     this.customMediaName.set(file.name);
     this.activePreset.set('custom');
     this.applyGlobally.set(true);
+    this.isGlassTinted.set(true);
 
     this.saveStorage('recro_bg_preset', 'custom');
     this.saveStorage('recro_bg_global', 'true');
+    this.saveStorage('recro_bg_glass_tint', 'true');
     this.saveStorage('recro_bg_custom_name', file.name);
 
-    // Сохраняем в IndexedDB
     await this.saveToIndexedDb(file);
 
-    // Извлекаем палитру и адаптируем тему
     if (this.syncThemeWithBg()) {
       this.extractPaletteAndApply(objectUrl, isVideo);
     }
@@ -257,10 +415,10 @@ export class LiveBackgroundService {
       const req = store.get(KEY_CUSTOM);
 
       req.onsuccess = () => {
-        const file = req.result as File | Blob | undefined;
-        if (file) {
-          const isVideo = file.type?.startsWith('video/') || false;
-          const url = URL.createObjectURL(file);
+        if (req.result instanceof Blob) {
+          const blob = req.result;
+          const isVideo = blob.type.startsWith('video/');
+          const url = URL.createObjectURL(blob);
           this.customMediaUrl.set(url);
           this.customMediaType.set(isVideo ? 'video' : 'image');
 
@@ -269,128 +427,110 @@ export class LiveBackgroundService {
           }
         }
       };
-    } catch {}
+    } catch (e) {
+      console.warn('[LiveBackgroundService] Could not restore from IndexedDB:', e);
+    }
   }
 
-  // --- Автоматическая адаптация темы под цветовую палитру GIF / Видео ---
+  // --- Автоматическая адаптация цветовой темы через Canvas Color Extractor ---
 
-  private extractPaletteAndApply(url: string, isVideo: boolean) {
+  private extractPaletteAndApply(mediaUrl: string, isVideo: boolean) {
     if (typeof document === 'undefined') return;
 
     if (isVideo) {
       const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
       video.crossOrigin = 'anonymous';
-      video.src = url;
-
+      video.muted = true;
+      video.src = mediaUrl;
+      video.currentTime = 1.0;
       video.onloadeddata = () => {
-        video.currentTime = 0.5;
-      };
-
-      video.onseeked = () => {
-        this.processCanvasExtraction(video, video.videoWidth || 64, video.videoHeight || 64);
-        video.src = '';
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, 64, 64);
+            const { primary, secondary } = this.extractColorsFromCanvas(ctx, 64, 64);
+            this.themeService.setCustomColors(primary, secondary);
+          }
+        } catch {}
       };
     } else {
       const img = new Image();
       img.crossOrigin = 'anonymous';
+      img.src = mediaUrl;
       img.onload = () => {
-        this.processCanvasExtraction(img, img.naturalWidth || 64, img.naturalHeight || 64);
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, 64, 64);
+            const { primary, secondary } = this.extractColorsFromCanvas(ctx, 64, 64);
+            this.themeService.setCustomColors(primary, secondary);
+          }
+        } catch {}
       };
-      img.src = url;
     }
   }
 
-  private processCanvasExtraction(mediaEl: CanvasImageSource, w: number, h: number) {
-    try {
-      const canvas = document.createElement('canvas');
-      const size = 64;
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+  private extractColorsFromCanvas(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number
+  ): { primary: string; secondary: string } {
+    const data = ctx.getImageData(0, 0, width, height).data;
+    let rSum = 0, gSum = 0, bSum = 0, count = 0;
 
-      ctx.drawImage(mediaEl, 0, 0, size, size);
-      const data = ctx.getImageData(0, 0, size, size).data;
-
-      let bestScore = -1;
-      let primaryRgb = [6, 182, 212]; // fallback cyan
-      let darkRgb = [11, 19, 41];
-
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const a = data[i + 3];
-
-        if (a < 128) continue;
-
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const lum = (max + min) / 2;
-        const delta = max - min;
-        const sat = delta === 0 ? 0 : delta / (1 - Math.abs(2 * (lum / 255) - 1));
-
-        // Отбираем гармоничные выразительные цвета (не чересчур серые и не слепящие)
-        if (lum < 35 || lum > 225 || sat < 0.2) continue;
-
-        const score = sat * (1 - Math.abs(lum / 255 - 0.5));
-        if (score > bestScore) {
-          bestScore = score;
-          primaryRgb = [r, g, b];
-        }
+    for (let i = 0; i < data.length; i += 16) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (brightness > 30 && brightness < 225) {
+        rSum += r;
+        gSum += g;
+        bSum += b;
+        count++;
       }
+    }
 
-      // Формируем глубокий гармоничный темный оттенок для подложек
-      darkRgb = [
-        Math.max(8, Math.round(primaryRgb[0] * 0.12)),
-        Math.max(10, Math.round(primaryRgb[1] * 0.12)),
-        Math.max(18, Math.round(primaryRgb[2] * 0.15)),
-      ];
+    if (count === 0) {
+      return { primary: '#38bdf8', secondary: '#1e293b' };
+    }
 
-      const toHex = (c: number[]) =>
-        '#' + c.map((x) => x.toString(16).padStart(2, '0')).join('');
+    const avgR = Math.round(rSum / count);
+    const avgG = Math.round(gSum / count);
+    const avgB = Math.round(bSum / count);
 
-      const primaryHex = toHex(primaryRgb);
-      const secondaryHex = toHex(darkRgb);
+    const primaryHex = `#${((1 << 24) + (avgR << 16) + (avgG << 8) + avgB).toString(16).slice(1)}`;
+    const secR = Math.max(8, Math.round(avgR * 0.25));
+    const secG = Math.max(10, Math.round(avgG * 0.25));
+    const secB = Math.max(18, Math.round(avgB * 0.25));
+    const secondaryHex = `#${((1 << 24) + (secR << 16) + (secG << 8) + secB).toString(16).slice(1)}`;
 
-      this.themeService.setCustomColors(primaryHex, secondaryHex);
-    } catch {}
+    return { primary: primaryHex, secondary: secondaryHex };
   }
 
-  // --- Хелперы LocalStorage ---
+  // --- Helpers ---
 
   private loadStorage(key: string, def: string): string {
     if (typeof localStorage === 'undefined') return def;
-    try {
-      const v = localStorage.getItem(key);
-      return v !== null ? v : def;
-    } catch {
-      return def;
-    }
+    return localStorage.getItem(key) || def;
   }
 
   private loadStorageNumber(key: string, def: number): number {
     if (typeof localStorage === 'undefined') return def;
-    try {
-      const v = localStorage.getItem(key);
-      if (v !== null) {
-        const parsed = parseInt(v, 10);
-        return !isNaN(parsed) ? parsed : def;
-      }
-    } catch {}
-    return def;
+    const val = localStorage.getItem(key);
+    return val !== null ? Number(val) : def;
   }
 
   private loadStorageBool(key: string, def: boolean): boolean {
     if (typeof localStorage === 'undefined') return def;
-    try {
-      const v = localStorage.getItem(key);
-      return v !== null ? v === 'true' : def;
-    } catch {
-      return def;
-    }
+    const val = localStorage.getItem(key);
+    return val !== null ? val === 'true' : def;
   }
 
   private saveStorage(key: string, val: string) {

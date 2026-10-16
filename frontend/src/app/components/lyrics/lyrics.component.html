@@ -64,20 +64,6 @@
         </div>
       }
 
-      <!-- Mini-Player Picture-in-Picture Toggle -->
-      <button 
-        type="button" 
-        class="btn-lyrics-pip" 
-        (click)="pipService.togglePip()" 
-        [title]="i18n.t('player.pipTitle')"
-        [class.active]="pipService.isPipActive() || pipService.isFloatingFallbackActive()"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="4" width="20" height="16" rx="2"/>
-          <rect x="12" y="10" width="8" height="8" rx="1" fill="currentColor" fill-opacity="0.3"/>
-        </svg>
-      </button>
-
       <!-- Close Fullscreen Lyrics -->
       <button type="button" class="btn-lyrics-close" (click)="lyricsService.closeLyrics()" title="Закрыть текст (Esc)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
