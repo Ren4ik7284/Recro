@@ -41,6 +41,15 @@ export class AudioService {
   readonly queue = signal<Track[]>([]);
   readonly queueIndex = signal<number>(-1);
   readonly preloadedNextTrack = signal<Track | null>(null);
+  readonly playbackSpeed = signal<number>(1.0);
+
+  setPlaybackSpeed(speed: number) {
+    const valid = Math.max(0.5, Math.min(2.0, speed));
+    this.playbackSpeed.set(valid);
+    if (this.audio) {
+      this.audio.playbackRate = valid;
+    }
+  }
 
   private isHandlingEnd = false;
   private hasAudioStartedPlaying = false;
@@ -552,6 +561,9 @@ export class AudioService {
 
     this.audio.addEventListener('play', () => {
       clearStall();
+      if (this.playbackSpeed() !== 1.0) {
+        this.audio.playbackRate = this.playbackSpeed();
+      }
       this.isPlaying.set(true);
       this.updateMediaSessionPlaybackState('playing');
       const cur = this.currentTrack();

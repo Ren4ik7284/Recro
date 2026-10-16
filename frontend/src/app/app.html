@@ -1,5 +1,8 @@
 <div class="app-layout" (click)="activePlaylistPickerTrackId.set(null)">
-  @if (ambientService.isEnabled()) {
+  @if (bgService.applyGlobally() && bgService.activePreset() !== 'default') {
+    <app-live-background></app-live-background>
+  }
+  @if (ambientService.isEnabled() && (!bgService.applyGlobally() || bgService.activePreset() === 'default')) {
     <div 
       class="ambient-glow-backdrop" 
       [style.--glow-p]="ambientService.palette().primary" 
@@ -3523,6 +3526,7 @@
   }
 
   <app-lyrics-view></app-lyrics-view>
+  <app-floating-mini-player></app-floating-mini-player>
 
   @if (toastMessage()) {
     <div class="system-toast" role="status" aria-live="polite">

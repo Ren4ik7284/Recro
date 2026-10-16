@@ -24,6 +24,7 @@ import { RecommendationService } from './services/recommendation.service';
 import { LyricsService } from './services/lyrics.service';
 import { LyricsComponent } from './components/lyrics/lyrics.component';
 import { ProfileComponent } from './components/profile/profile.component';
+import { FloatingMiniPlayerComponent } from './components/floating-mini-player/floating-mini-player.component';
 import { NavigationService } from './services/navigation.service';
 import { AmbientService } from './services/ambient.service';
 import { PwaService } from './services/pwa.service';
@@ -31,6 +32,9 @@ import { TimerService, TIMER_MOODS, TimerMood } from './services/timer.service';
 import { PLAYLIST_COVER_PRESETS, PlaylistCoverPreset } from './components/profile/profile-presets';
 import { ThemeService } from './services/theme.service';
 import { I18nService } from './services/i18n.service';
+import { PipService } from './services/pip.service';
+import { LiveBackgroundService } from './services/live-background.service';
+import { LiveBackgroundComponent } from './components/live-background/live-background.component';
 
 declare global {
   interface Window {
@@ -50,6 +54,8 @@ declare global {
     VisualizerComponent,
     LyricsComponent,
     ProfileComponent,
+    FloatingMiniPlayerComponent,
+    LiveBackgroundComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -68,6 +74,8 @@ export class App implements OnInit {
   readonly timerService = inject(TimerService);
   readonly themeService = inject(ThemeService);
   readonly i18n = inject(I18nService);
+  readonly pipService = inject(PipService);
+  readonly bgService = inject(LiveBackgroundService);
   get timerMoods() { return this.timerService.localizedMoods(); }
   readonly Math = Math;
 

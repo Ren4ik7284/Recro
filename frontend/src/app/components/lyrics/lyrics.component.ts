@@ -12,11 +12,15 @@ import { CommonModule } from '@angular/common';
 import { LyricsService, LyricLine } from '../../services/lyrics.service';
 import { AudioService } from '../../services/audio.service';
 import { LibraryService } from '../../services/library.service';
+import { PipService } from '../../services/pip.service';
+import { I18nService } from '../../services/i18n.service';
+import { LiveBackgroundService } from '../../services/live-background.service';
+import { LiveBackgroundComponent } from '../live-background/live-background.component';
 
 @Component({
   selector: 'app-lyrics-view',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LiveBackgroundComponent],
   templateUrl: './lyrics.component.html',
   styleUrl: './lyrics.component.scss',
   encapsulation: ViewEncapsulation.None,
@@ -25,8 +29,29 @@ export class LyricsComponent {
   readonly lyricsService = inject(LyricsService);
   readonly audioService = inject(AudioService);
   readonly libraryService = inject(LibraryService);
+  readonly pipService = inject(PipService);
+  readonly i18n = inject(I18nService);
+  readonly bgService = inject(LiveBackgroundService);
 
   @ViewChild('lyricsScrollContainer') scrollContainer?: ElementRef<HTMLDivElement>;
+
+  onFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      this.bgService.handleFileUpload(input.files[0]);
+    }
+  }
+
+  onDropFile(event: DragEvent) {
+    event.preventDefault();
+    if (event.dataTransfer?.files && event.dataTransfer.files[0]) {
+      this.bgService.handleFileUpload(event.dataTransfer.files[0]);
+    }
+  }
+
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+  }
 
   private lastScrolledIndex = -1;
 

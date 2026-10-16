@@ -1,0 +1,32 @@
+<div class="live-bg-container" [style.--bg-blur.px]="bgService.blurLevel()">
+  <!-- Custom user uploaded GIF / Image / Video -->
+  @if (bgService.activePreset() === 'custom' && bgService.customMediaUrl(); as url) {
+    @if (bgService.customMediaType() === 'video') {
+      <video 
+        [src]="url" 
+        autoplay 
+        loop 
+        muted 
+        playsinline 
+        class="live-bg-element"
+      ></video>
+    } @else {
+      <img 
+        [src]="url" 
+        alt="Background" 
+        class="live-bg-element"
+      />
+    }
+  }
+
+  <!-- Procedural canvas animations (Grid, Waves, Rain, Stars) -->
+  @if (bgService.activePreset() !== 'default' && bgService.activePreset() !== 'custom') {
+    <canvas #proceduralCanvas class="live-bg-element"></canvas>
+  }
+
+  <!-- Minimalist Dimmer & Vignette Overlay -->
+  <div 
+    class="live-bg-tint" 
+    [style.opacity]="bgService.dimmerLevel() / 100"
+  ></div>
+</div>

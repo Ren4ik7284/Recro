@@ -44,6 +44,7 @@ export class LyricsService {
   readonly syncOffsetMs = signal<number>(0);
   readonly errorMessage = signal<string | null>(null);
   readonly isAutoScrollLocked = signal<boolean>(false);
+  readonly isExternalTrackingActive = signal<boolean>(false);
 
   // BPM and rhythmic beat duration in ms
   readonly currentBpm = computed(() => this.bpmService.currentBpm());
@@ -114,6 +115,24 @@ export class LyricsService {
     }
 
     return activeIdx;
+  });
+
+  // Текущая звучащая строка текста
+  readonly currentLyricLine = computed<LyricLine | null>(() => {
+    const lyrics = this.currentLyrics();
+    const idx = this.activeLineIndex();
+    if (!lyrics || idx < 0 || idx >= lyrics.lines.length) return null;
+    return lyrics.lines[idx];
+  });
+
+  // Следующая строка текста
+  readonly nextLyricLine = computed<LyricLine | null>(() => {
+    const lyrics = this.currentLyrics();
+    const idx = this.activeLineIndex();
+    if (!lyrics || lyrics.lines.length === 0) return null;
+    const nextIdx = idx < 0 ? 0 : idx + 1;
+    if (nextIdx >= lyrics.lines.length) return null;
+    return lyrics.lines[nextIdx];
   });
 
   // Активная строка подсвечена как звучащая, когда текущее время достигло её начала
@@ -226,11 +245,11 @@ export class LyricsService {
   }
 
   // 60fps высокоточное отслеживание момента звука без рывков таймера
-  private startHighPrecisionTracking() {
+  public startHighPrecisionTracking() {
     if (this.rafId !== null || typeof window === 'undefined') return;
 
     const loop = () => {
-      if (this.isLyricsOpen()) {
+      if (this.isLyricsOpen() || this.isExternalTrackingActive()) {
         const exact = this.getSmoothedCurrentTime();
         this.precisePlaybackTime.set(exact);
         this.rafId = requestAnimationFrame(loop);
@@ -242,10 +261,19 @@ export class LyricsService {
     this.rafId = requestAnimationFrame(loop);
   }
 
-  private stopHighPrecisionTracking() {
-    if (this.rafId !== null) {
+  public stopHighPrecisionTracking() {
+    if (this.rafId !== null && !this.isLyricsOpen() && !this.isExternalTrackingActive()) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
+    }
+  }
+
+  public setExternalTracking(active: boolean) {
+    this.isExternalTrackingActive.set(active);
+    if (active) {
+      this.startHighPrecisionTracking();
+    } else if (!this.isLyricsOpen()) {
+      this.stopHighPrecisionTracking();
     }
   }
 

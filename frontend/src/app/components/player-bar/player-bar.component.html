@@ -111,6 +111,20 @@
         <span>{{ i18n.t('player.lyricsBtn') }}</span>
       </button>
 
+      <!-- PiP Mini-Player / Мини-плеер -->
+      <button 
+        class="ctrl-feature-btn desktop-only font-mono" 
+        [class.active]="pipService.isPipActive() || pipService.isFloatingFallbackActive()"
+        (click)="pipService.togglePip(); $event.stopPropagation()"
+        [title]="i18n.t('player.pipTitle')"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <rect x="12" y="10" width="8" height="8" rx="1" fill="currentColor" fill-opacity="0.3"/>
+        </svg>
+        <span>{{ i18n.t('player.pipBtn') }}</span>
+      </button>
+
       <!-- Shuffle / Случайный порядок -->
       <button 
         class="ctrl-btn desktop-only" 

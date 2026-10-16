@@ -10,6 +10,7 @@ import { TimerService } from '../../services/timer.service';
 import { VisualizerComponent } from '../visualizer/visualizer.component';
 import { Track } from '../../models/track.model';
 import { I18nService } from '../../services/i18n.service';
+import { PipService } from '../../services/pip.service';
 
 @Component({
   selector: 'app-player-bar',
@@ -27,6 +28,7 @@ export class PlayerBarComponent {
   readonly ambientService = inject(AmbientService);
   readonly timerService = inject(TimerService);
   readonly i18n = inject(I18nService);
+  readonly pipService = inject(PipService);
 
   @Output() toggleQueueDrawer = new EventEmitter<void>();
   @Output() expandMobilePlayer = new EventEmitter<void>();
