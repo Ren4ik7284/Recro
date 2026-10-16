@@ -7,6 +7,7 @@ import { TimerService } from '../../services/timer.service';
 import { PwaService } from '../../services/pwa.service';
 import { ThemeService } from '../../services/theme.service';
 import { I18nService } from '../../services/i18n.service';
+import { LiveBackgroundService } from '../../services/live-background.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -24,6 +25,7 @@ export class SidebarComponent {
   readonly pwaService = inject(PwaService);
   readonly themeService = inject(ThemeService);
   readonly i18n = inject(I18nService);
+  readonly bgService = inject(LiveBackgroundService);
 
   @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' = 'all';
   @Input() isProfileOpen = false;

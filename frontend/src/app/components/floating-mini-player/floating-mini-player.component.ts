@@ -5,6 +5,7 @@ import { LyricsService } from '../../services/lyrics.service';
 import { LibraryService } from '../../services/library.service';
 import { PipService } from '../../services/pip.service';
 import { I18nService } from '../../services/i18n.service';
+import { Track } from '../../models/track.model';
 
 @Component({
   selector: 'app-floating-mini-player',
@@ -32,12 +33,24 @@ export class FloatingMiniPlayerComponent {
     return cur ? this.libraryService.isTrackFavorite(cur) : false;
   }
 
+  isCurrentDisliked(): boolean {
+    const cur = this.audioService.currentTrack();
+    return cur ? this.libraryService.isDisliked(cur) : false;
+  }
+
   toggleFavorite() {
     const cur = this.audioService.currentTrack();
     if (cur) {
       const isNowFav = this.libraryService.toggleFavorite(cur.id, cur);
       this.audioService.updateTrackFavoriteStatus(cur.id, isNowFav, cur);
+      if (isNowFav) {
+        this.audioService.recService.recordTrackLike(cur);
+      }
     }
+  }
+
+  dislikeCurrentTrack() {
+    this.audioService.dislikeCurrentTrack();
   }
 
   onSeek(event: MouseEvent, trackEl: HTMLElement) {
@@ -52,5 +65,15 @@ export class FloatingMiniPlayerComponent {
 
   expandLyrics() {
     this.lyricsService.openLyrics();
+  }
+
+  onCoverError(event: Event, track?: Track | null) {
+    const img = event.target as HTMLImageElement;
+    if (img && track) {
+      const fallback = this.libraryService.getFallbackCoverUrl(track.title, track.artist);
+      if (img.src !== fallback) {
+        img.src = fallback;
+      }
+    }
   }
 }

@@ -35,6 +35,7 @@ import { I18nService } from './services/i18n.service';
 import { PipService } from './services/pip.service';
 import { LiveBackgroundService } from './services/live-background.service';
 import { LiveBackgroundComponent } from './components/live-background/live-background.component';
+import { LiveBackgroundSettingsComponent } from './components/live-background-settings/live-background-settings.component';
 
 declare global {
   interface Window {
@@ -56,6 +57,7 @@ declare global {
     ProfileComponent,
     FloatingMiniPlayerComponent,
     LiveBackgroundComponent,
+    LiveBackgroundSettingsComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',

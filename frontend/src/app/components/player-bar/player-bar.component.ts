@@ -11,6 +11,7 @@ import { VisualizerComponent } from '../visualizer/visualizer.component';
 import { Track } from '../../models/track.model';
 import { I18nService } from '../../services/i18n.service';
 import { PipService } from '../../services/pip.service';
+import { LiveBackgroundService } from '../../services/live-background.service';
 
 @Component({
   selector: 'app-player-bar',
@@ -29,6 +30,7 @@ export class PlayerBarComponent {
   readonly timerService = inject(TimerService);
   readonly i18n = inject(I18nService);
   readonly pipService = inject(PipService);
+  readonly bgService = inject(LiveBackgroundService);
 
   @Output() toggleQueueDrawer = new EventEmitter<void>();
   @Output() expandMobilePlayer = new EventEmitter<void>();

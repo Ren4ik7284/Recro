@@ -1224,9 +1224,9 @@
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
       &:hover:not(:disabled) {
-        background: rgba(30, 215, 96, 0.15);
-        border-color: rgba(30, 215, 96, 0.4);
-        color: #1ed760;
+        background: rgba(59, 130, 246, 0.15);
+        border-color: rgba(59, 130, 246, 0.4);
+        color: #3b82f6;
         transform: translateY(-1px);
       }
 

@@ -1,6 +1,6 @@
 @if (pipService.isFloatingFallbackActive()) {
   <div class="floating-pip-card">
-    <!-- Ambient Backdrop -->
+    <!-- Ambient Backdrop from cover -->
     @if (audioService.currentTrack(); as cur) {
       <div 
         class="floating-pip-backdrop"
@@ -8,93 +8,89 @@
       ></div>
     }
 
-    <!-- Header -->
-    <div class="floating-pip-header">
-      @if (audioService.currentTrack(); as cur) {
-        <img 
-          [src]="libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist) || cur.coverUrl" 
-          alt="Cover" 
-          class="floating-pip-cover"
-        />
-        <div class="floating-pip-meta">
-          <span class="floating-pip-title" [title]="cur.title">{{ cur.title }}</span>
-          <span class="floating-pip-artist" [title]="cur.artist">{{ cur.artist || 'Unknown' }}</span>
-        </div>
-      } @else {
-        <div class="floating-pip-meta">
-          <span class="floating-pip-title">{{ i18n.t('player.noTrack') }}</span>
-          <span class="floating-pip-artist">{{ i18n.t('player.startListening') }}</span>
-        </div>
-      }
-
-      <div class="floating-pip-actions">
-        <!-- Like -->
+    <!-- Top mini bar: logo & controls -->
+    <div class="floating-pip-topbar">
+      <div class="mini-brand font-mono">
+        <span class="brand-dot"></span>
+        <span>RECRO MINI</span>
+      </div>
+      <div class="floating-pip-top-actions">
+        <!-- Expand to Fullscreen Lyrics / Player -->
         <button 
           type="button" 
-          class="floating-btn-icon" 
-          [class.liked]="isCurrentFavorite()"
-          (click)="toggleFavorite()" 
-          [title]="i18n.t('player.like')"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-          </svg>
-        </button>
-
-        <!-- Expand to Fullscreen Lyrics -->
-        <button 
-          type="button" 
-          class="floating-btn-icon" 
+          class="floating-top-btn" 
           (click)="expandLyrics()" 
           [title]="i18n.t('player.pipExpand')"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 3h6v6"></path>
-            <path d="M10 14L21 3"></path>
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 3 21 3 21 9"/>
+            <polyline points="9 21 3 21 3 15"/>
+            <line x1="21" y1="3" x2="14" y2="10"/>
+            <line x1="3" y1="21" x2="10" y2="14"/>
           </svg>
         </button>
 
-        <!-- Close Floating PiP -->
+        <!-- Close Mini-Player -->
         <button 
           type="button" 
-          class="floating-btn-icon" 
+          class="floating-top-btn" 
           (click)="pipService.closePip()" 
           [title]="i18n.t('player.pipClose')"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
       </div>
     </div>
 
-    <!-- Karaoke Box -->
-    <div class="floating-pip-lyrics" (click)="expandLyrics()" [title]="i18n.t('player.pipExpand')">
-      @if (lyricsService.currentLyrics()?.isSynced) {
-        @if (lyricsService.currentLyricLine(); as line) {
-          <div class="floating-line-current">{{ line.text }}</div>
-          @if (lyricsService.nextLyricLine(); as next) {
-            <div class="floating-line-next">{{ next.text }}</div>
-          }
-        } @else {
-          <div class="floating-line-current floating-placeholder">{{ i18n.t('player.pipIntro') }}</div>
-          @if (lyricsService.nextLyricLine(); as next) {
-            <div class="floating-line-next">{{ next.text }}</div>
-          }
-        }
+    <!-- Square Album Cover (Aspect Ratio 1:1) -->
+    <div class="floating-pip-cover-wrap" (click)="expandLyrics()" [title]="i18n.t('player.pipExpand')">
+      @if (audioService.currentTrack(); as cur) {
+        <img 
+          [src]="libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist) || cur.coverUrl" 
+          alt="Cover" 
+          class="floating-pip-square-cover"
+          (error)="onCoverError($event, cur)"
+        />
       } @else {
-        <div class="floating-line-current floating-placeholder">
-          {{ audioService.currentTrack()?.title || i18n.t('player.pipInstrumental') }}
+        <div class="floating-pip-cover-placeholder">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v8M8 12h8"/>
+          </svg>
         </div>
-        @if (audioService.currentTrack()?.artist; as artist) {
-          <div class="floating-line-next">{{ artist }}</div>
-        }
       }
     </div>
 
-    <!-- Progress Bar -->
+    <!-- Track Meta -->
+    <div class="floating-pip-meta">
+      @if (audioService.currentTrack(); as cur) {
+        <div class="floating-pip-title" [title]="cur.title">{{ cur.title }}</div>
+        <div class="floating-pip-artist" [title]="cur.artist">{{ cur.artist || 'Unknown' }}</div>
+      } @else {
+        <div class="floating-pip-title">{{ i18n.t('player.noTrack') }}</div>
+        <div class="floating-pip-artist">{{ i18n.t('player.startListening') }}</div>
+      }
+    </div>
+
+    <!-- Live Active Karaoke Line (Compact) -->
+    <div class="floating-pip-lyrics" (click)="expandLyrics()" [title]="i18n.t('player.pipExpand')">
+      @if (lyricsService.currentLyrics()?.isSynced) {
+        @if (lyricsService.currentLyricLine(); as line) {
+          <div class="floating-line-active">{{ line.text }}</div>
+        } @else {
+          <div class="floating-line-placeholder font-mono">{{ i18n.t('player.pipIntro') }}</div>
+        }
+      } @else {
+        <div class="floating-line-placeholder font-mono">
+          {{ audioService.currentTrack()?.title || i18n.t('player.pipInstrumental') }}
+        </div>
+      }
+    </div>
+
+    <!-- Mini Progress Scrubber -->
     <div class="floating-pip-progress-row">
       <span class="floating-pip-time font-mono">{{ formatTime(audioService.currentTime()) }}</span>
       <div 
@@ -110,15 +106,35 @@
       <span class="floating-pip-time font-mono text-right">{{ formatTime(audioService.duration()) }}</span>
     </div>
 
-    <!-- Controls -->
+    <!-- Bottom Controls: Dislike, Prev, Play/Pause, Next, Like, Volume -->
     <div class="floating-pip-controls">
-      <button type="button" class="floating-ctrl-btn" (click)="audioService.prev()" [title]="i18n.t('player.prev')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polygon points="19 20 9 12 19 4 19 20"></polygon>
-          <line x1="5" y1="19" x2="5" y2="5"></line>
+      <!-- 1. Dislike (Не нравится) -->
+      <button 
+        type="button" 
+        class="floating-ctrl-btn dislike-btn" 
+        [class.active]="isCurrentDisliked()"
+        (click)="dislikeCurrentTrack()" 
+        [title]="i18n.t('player.dislike')"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
         </svg>
       </button>
 
+      <!-- 2. Prev (Предыдущий трек) -->
+      <button 
+        type="button" 
+        class="floating-ctrl-btn" 
+        (click)="audioService.prev()" 
+        [title]="i18n.t('player.prev')"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="19 20 9 12 19 4 19 20"/>
+          <line x1="5" y1="19" x2="5" y2="5"/>
+        </svg>
+      </button>
+
+      <!-- 3. Main Play / Pause -->
       <button 
         type="button" 
         class="floating-play-btn" 
@@ -126,22 +142,63 @@
         [title]="i18n.t('player.play')"
       >
         @if (audioService.isPlaying()) {
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <rect width="4" height="16" x="6" y="4" rx="1"></rect>
-            <rect width="4" height="16" x="14" y="4" rx="1"></rect>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect width="4" height="16" x="6" y="4" rx="1"/>
+            <rect width="4" height="16" x="14" y="4" rx="1"/>
           </svg>
         } @else {
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="6 3 20 12 6 21 6 3"></polygon>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="6 3 20 12 6 21 6 3"/>
           </svg>
         }
       </button>
 
-      <button type="button" class="floating-ctrl-btn" (click)="audioService.next()" [title]="i18n.t('player.next')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polygon points="5 4 15 12 5 20 5 4"></polygon>
-          <line x1="19" y1="5" x2="19" y2="19"></line>
+      <!-- 4. Next (Следующий трек) -->
+      <button 
+        type="button" 
+        class="floating-ctrl-btn" 
+        (click)="audioService.next()" 
+        [title]="i18n.t('player.next')"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="5 4 15 12 5 20 5 4"/>
+          <line x1="19" y1="5" x2="19" y2="19"/>
         </svg>
+      </button>
+
+      <!-- 5. Like (В избранное) -->
+      <button 
+        type="button" 
+        class="floating-ctrl-btn like-btn" 
+        [class.active]="isCurrentFavorite()"
+        (click)="toggleFavorite()" 
+        [title]="i18n.t('player.like')"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" [attr.fill]="isCurrentFavorite() ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+      </button>
+
+      <!-- 6. Mute / Volume (Звук) -->
+      <button 
+        type="button" 
+        class="floating-ctrl-btn mute-btn" 
+        [class.muted]="audioService.isMuted() || audioService.volume() === 0"
+        (click)="audioService.toggleMute()" 
+        [title]="i18n.t('player.muteShortcut')"
+      >
+        @if (audioService.isMuted() || audioService.volume() === 0) {
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <line x1="22" y1="9" x2="16" y2="15"/>
+            <line x1="16" y1="9" x2="22" y2="15"/>
+          </svg>
+        } @else {
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        }
       </button>
     </div>
   </div>

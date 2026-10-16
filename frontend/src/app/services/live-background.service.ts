@@ -41,7 +41,7 @@ export class LiveBackgroundService {
   readonly dimmerLevel = signal<number>(this.loadStorageNumber('recro_bg_dimmer', 45)); // 20 - 80%
   readonly blurLevel = signal<number>(this.loadStorageNumber('recro_bg_blur', 8)); // 0, 8, 16, 24px
   readonly syncThemeWithBg = signal<boolean>(this.loadStorageBool('recro_bg_sync_theme', true));
-  readonly applyGlobally = signal<boolean>(this.loadStorageBool('recro_bg_global', false));
+  readonly applyGlobally = signal<boolean>(this.loadStorageBool('recro_bg_global', true));
 
   // Панель настроек шестерёнки в lyrics
   readonly isSettingsOpen = signal<boolean>(false);
@@ -71,6 +71,11 @@ export class LiveBackgroundService {
   setPreset(presetId: string) {
     this.activePreset.set(presetId);
     this.saveStorage('recro_bg_preset', presetId);
+
+    if (presetId !== 'default') {
+      this.applyGlobally.set(true);
+      this.saveStorage('recro_bg_global', 'true');
+    }
 
     const preset = BG_PRESETS.find((p) => p.id === presetId);
     if (preset?.primaryColor && preset?.secondaryColor && this.syncThemeWithBg()) {
@@ -171,8 +176,10 @@ export class LiveBackgroundService {
     this.customMediaType.set(mediaType);
     this.customMediaName.set(file.name);
     this.activePreset.set('custom');
+    this.applyGlobally.set(true);
 
     this.saveStorage('recro_bg_preset', 'custom');
+    this.saveStorage('recro_bg_global', 'true');
     this.saveStorage('recro_bg_custom_name', file.name);
 
     // Сохраняем в IndexedDB

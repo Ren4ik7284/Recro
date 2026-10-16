@@ -23,31 +23,31 @@ export class PipService {
 
   private pipWindow: any = null;
 
-  // Кэшированные DOM элементы в окне PiP для 60fps обновления без reflow
+  // Cached DOM elements in PiP window for smooth updates without reflow
   private dom = {
     coverImg: null as HTMLImageElement | null,
     titleEl: null as HTMLElement | null,
     artistEl: null as HTMLElement | null,
     lineCurrentEl: null as HTMLElement | null,
-    lineNextEl: null as HTMLElement | null,
     progressBar: null as HTMLElement | null,
     progressFill: null as HTMLElement | null,
     timeCurrentEl: null as HTMLElement | null,
     timeTotalEl: null as HTMLElement | null,
     btnPlayIcon: null as HTMLElement | null,
     btnLike: null as HTMLElement | null,
+    btnDislike: null as HTMLElement | null,
+    btnMute: null as HTMLElement | null,
     backdropEl: null as HTMLElement | null,
   };
 
   constructor() {
-    // Автоматическое закрытие PiP при выгрузке страницы
     if (typeof window !== 'undefined') {
       window.addEventListener('beforeunload', () => {
         this.closePip();
       });
     }
 
-    // Реактивное обновление состояния PiP окна (Document PiP)
+    // Reactive DOM sync for Document PiP
     effect(() => {
       if (!this.isPipActive() || !this.pipWindow) return;
 
@@ -57,11 +57,22 @@ export class PipService {
       const duration = this.audioService.duration() || 0;
       const lyrics = this.lyricsService.currentLyrics();
       const curLine = this.lyricsService.currentLyricLine();
-      const nextLine = this.lyricsService.nextLyricLine();
       const isSynced = !!lyrics?.isSynced;
       const isFavorite = track ? this.libraryService.isTrackFavorite(track) : false;
+      const isDisliked = track ? this.libraryService.isDisliked(track) : false;
+      const isMuted = this.audioService.isMuted() || this.audioService.volume() === 0;
 
-      this.updatePipDom(track, isPlaying, currentTime, duration, curLine?.text, nextLine?.text, isSynced, isFavorite);
+      this.updatePipDom(
+        track,
+        isPlaying,
+        currentTime,
+        duration,
+        curLine?.text,
+        isSynced,
+        isFavorite,
+        isDisliked,
+        isMuted
+      );
     });
   }
 
@@ -85,7 +96,7 @@ export class PipService {
       }
     }
 
-    // Fallback для браузеров без Document PiP (например, Firefox):
+    // Fallback for browsers without Document PiP
     this.isFloatingFallbackActive.set(true);
     this.lyricsService.setExternalTracking(true);
   }
@@ -102,13 +113,14 @@ export class PipService {
       titleEl: null,
       artistEl: null,
       lineCurrentEl: null,
-      lineNextEl: null,
       progressBar: null,
       progressFill: null,
       timeCurrentEl: null,
       timeTotalEl: null,
       btnPlayIcon: null,
       btnLike: null,
+      btnDislike: null,
+      btnMute: null,
       backdropEl: null,
     };
     this.isPipActive.set(false);
@@ -120,14 +132,13 @@ export class PipService {
     const docPip = (window as any).documentPictureInPicture;
     if (!docPip) return;
 
-    // Закрываем предыдущее окно, если было открыто
     if (this.pipWindow) {
       try { this.pipWindow.close(); } catch {}
     }
 
     const pipWin = await docPip.requestWindow({
-      width: 400,
-      height: 200,
+      width: 230,
+      height: 380,
     });
 
     this.pipWindow = pipWin;
@@ -140,7 +151,6 @@ export class PipService {
       this.pipWindow = null;
     });
 
-    // Настраиваем документ окна
     const doc = pipWin.document;
     doc.title = 'Recro Mini Player';
 
@@ -176,48 +186,100 @@ export class PipService {
         justify-content: space-between;
         width: 100%;
         height: 100%;
-        padding: 10px 14px;
-        background: rgba(12, 14, 22, 0.94);
+        padding: 10px 12px;
+        background: rgba(12, 14, 22, 0.96);
         overflow: hidden;
+        gap: 6px;
       }
       .pip-ambient-backdrop {
         position: absolute;
         inset: -20px;
         background-size: cover;
         background-position: center;
-        filter: blur(35px) saturate(180%);
+        filter: blur(40px) saturate(200%);
         opacity: 0.28;
         pointer-events: none;
         z-index: 0;
         transform: scale(1.1);
         transition: background-image 0.5s ease-out;
       }
-      .pip-header {
+      .pip-topbar {
         position: relative;
         z-index: 1;
         display: flex;
         align-items: center;
-        gap: 10px;
-        min-width: 0;
+        justify-content: space-between;
+      }
+      .pip-brand {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        color: #94a3b8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+      .pip-brand-dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #38bdf8;
+        box-shadow: 0 0 6px #38bdf8;
+      }
+      .pip-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+      .pip-top-btn {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 3px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.15s, background-color 0.15s;
+      }
+      .pip-top-btn:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      /* Square 1:1 Album Cover */
+      .pip-cover-wrap {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #141622;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+        flex-shrink: 0;
       }
       .pip-cover {
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
+        width: 100%;
+        height: 100%;
         object-fit: cover;
-        flex-shrink: 0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-        background: #1e2230;
+        display: block;
       }
+
       .pip-meta {
-        flex: 1;
-        min-width: 0;
+        position: relative;
+        z-index: 1;
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        gap: 1px;
+        min-width: 0;
       }
       .pip-title {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
         color: #ffffff;
         white-space: nowrap;
@@ -226,91 +288,44 @@ export class PipService {
         line-height: 1.25;
       }
       .pip-artist {
-        font-size: 11px;
+        font-size: 10px;
         color: #94a3b8;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         line-height: 1.25;
-        margin-top: 1px;
-      }
-      .pip-header-actions {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        flex-shrink: 0;
-      }
-      .pip-icon-btn {
-        background: transparent;
-        border: none;
-        color: #94a3b8;
-        cursor: pointer;
-        padding: 5px;
-        border-radius: 6px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: color 0.15s, background-color 0.15s, transform 0.1s;
-      }
-      .pip-icon-btn:hover {
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.1);
-      }
-      .pip-icon-btn:active {
-        transform: scale(0.92);
-      }
-      .pip-icon-btn.liked {
-        color: #f43f5e;
       }
 
       /* Karaoke Live Lyrics Area */
       .pip-lyrics-box {
         position: relative;
         z-index: 1;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 9px;
-        padding: 6px 10px;
-        margin: 6px 0;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 6px;
+        padding: 3px 6px;
+        min-height: 22px;
         display: flex;
-        flex-direction: column;
-        justify-content: center;
         align-items: center;
+        justify-content: center;
         text-align: center;
-        min-height: 48px;
         cursor: pointer;
-        transition: background-color 0.2s, border-color 0.2s;
-      }
-      .pip-lyrics-box:hover {
-        background: rgba(255, 255, 255, 0.09);
-        border-color: rgba(255, 255, 255, 0.16);
       }
       .pip-line-current {
-        font-size: 13.5px;
+        font-size: 10.5px;
         font-weight: 700;
         color: #38bdf8;
-        line-height: 1.25;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-        text-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
-        transition: color 0.2s;
-      }
-      .pip-line-next {
-        font-size: 10.5px;
-        color: #64748b;
         line-height: 1.2;
-        margin-top: 3px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 90%;
+        text-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
       }
       .pip-line-placeholder {
-        font-size: 12px;
-        color: #94a3b8;
-        font-style: italic;
+        font-size: 9.5px;
+        color: #64748b;
+        font-weight: 500;
+        text-shadow: none;
       }
 
       /* Controls & Progress */
@@ -319,27 +334,27 @@ export class PipService {
         z-index: 1;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
       }
       .pip-progress-row {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
       .pip-time {
-        font-size: 10px;
+        font-size: 9px;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         color: #64748b;
-        min-width: 28px;
+        min-width: 22px;
       }
       .pip-time-total {
         text-align: right;
       }
       .pip-progress-track {
         flex: 1;
-        height: 5px;
+        height: 4px;
         background: rgba(255, 255, 255, 0.12);
-        border-radius: 3px;
+        border-radius: 2px;
         cursor: pointer;
         position: relative;
         overflow: hidden;
@@ -348,19 +363,20 @@ export class PipService {
         height: 100%;
         width: 0%;
         background: linear-gradient(90deg, #38bdf8, #818cf8);
-        border-radius: 3px;
+        border-radius: 2px;
         pointer-events: none;
       }
 
+      /* 6 Buttons in a single balanced row */
       .pip-controls {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 16px;
+        justify-content: space-between;
+        padding: 2px 0;
       }
       .pip-btn-play {
-        width: 32px;
-        height: 32px;
+        width: 30px;
+        height: 30px;
         border-radius: 50%;
         background: #ffffff;
         color: #090a0f;
@@ -370,7 +386,8 @@ export class PipService {
         justify-content: center;
         cursor: pointer;
         transition: transform 0.12s, background-color 0.15s;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        flex-shrink: 0;
       }
       .pip-btn-play:hover {
         transform: scale(1.08);
@@ -385,7 +402,7 @@ export class PipService {
         color: #cbd5e1;
         cursor: pointer;
         padding: 4px;
-        border-radius: 6px;
+        border-radius: 4px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -396,6 +413,15 @@ export class PipService {
       }
       .pip-btn-ctrl:active {
         transform: scale(0.9);
+      }
+      .pip-btn-ctrl.disliked {
+        color: #ef4444;
+      }
+      .pip-btn-ctrl.liked {
+        color: #f43f5e;
+      }
+      .pip-btn-ctrl.muted {
+        color: #ef4444;
       }
     `;
     doc.head.appendChild(style);
@@ -411,16 +437,80 @@ export class PipService {
     wrapper.appendChild(backdrop);
     this.dom.backdropEl = backdrop;
 
-    // Header
-    const header = doc.createElement('div');
-    header.className = 'pip-header';
+    // Top Bar
+    const topbar = doc.createElement('div');
+    topbar.className = 'pip-topbar';
+
+    const brand = doc.createElement('div');
+    brand.className = 'pip-brand';
+    const dot = doc.createElement('span');
+    dot.className = 'pip-brand-dot';
+    const brandText = doc.createElement('span');
+    brandText.textContent = 'RECRO MINI';
+    brand.appendChild(dot);
+    brand.appendChild(brandText);
+    topbar.appendChild(brand);
+
+    const topActions = doc.createElement('div');
+    topActions.className = 'pip-top-actions';
+
+    // Expand button
+    const btnExpand = doc.createElement('button');
+    btnExpand.type = 'button';
+    btnExpand.className = 'pip-top-btn';
+    btnExpand.title = this.i18n.t('player.pipExpand');
+    btnExpand.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 3 21 3 21 9"/>
+        <polyline points="9 21 3 21 3 15"/>
+        <line x1="21" y1="3" x2="14" y2="10"/>
+        <line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+    `;
+    btnExpand.addEventListener('click', () => {
+      try {
+        window.focus();
+        this.lyricsService.openLyrics();
+      } catch {}
+    });
+    topActions.appendChild(btnExpand);
+
+    // Close button
+    const btnClose = doc.createElement('button');
+    btnClose.type = 'button';
+    btnClose.className = 'pip-top-btn';
+    btnClose.title = this.i18n.t('player.pipClose');
+    btnClose.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    `;
+    btnClose.addEventListener('click', () => this.closePip());
+    topActions.appendChild(btnClose);
+
+    topbar.appendChild(topActions);
+    wrapper.appendChild(topbar);
+
+    // Square 1:1 Album Cover
+    const coverWrap = doc.createElement('div');
+    coverWrap.className = 'pip-cover-wrap';
+    coverWrap.title = this.i18n.t('player.pipExpand');
+    coverWrap.addEventListener('click', () => {
+      try {
+        window.focus();
+        this.lyricsService.openLyrics();
+      } catch {}
+    });
 
     const cover = doc.createElement('img');
     cover.className = 'pip-cover';
     cover.alt = 'Cover';
-    header.appendChild(cover);
+    coverWrap.appendChild(cover);
+    wrapper.appendChild(coverWrap);
     this.dom.coverImg = cover;
 
+    // Track Meta
     const meta = doc.createElement('div');
     meta.className = 'pip-meta';
     const title = doc.createElement('div');
@@ -431,58 +521,11 @@ export class PipService {
     artist.textContent = 'Player';
     meta.appendChild(title);
     meta.appendChild(artist);
-    header.appendChild(meta);
+    wrapper.appendChild(meta);
     this.dom.titleEl = title;
     this.dom.artistEl = artist;
 
-    const actions = doc.createElement('div');
-    actions.className = 'pip-header-actions';
-
-    // Like Button
-    const btnLike = doc.createElement('button');
-    btnLike.type = 'button';
-    btnLike.className = 'pip-icon-btn';
-    btnLike.title = this.i18n.t('player.like');
-    btnLike.innerHTML = `
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-      </svg>
-    `;
-    btnLike.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const cur = this.audioService.currentTrack();
-      if (cur) {
-        const isNowFav = this.libraryService.toggleFavorite(cur.id, cur);
-        this.audioService.updateTrackFavoriteStatus(cur.id, isNowFav, cur);
-      }
-    });
-    actions.appendChild(btnLike);
-    this.dom.btnLike = btnLike;
-
-    // Expand to main lyrics button
-    const btnExpand = doc.createElement('button');
-    btnExpand.type = 'button';
-    btnExpand.className = 'pip-icon-btn';
-    btnExpand.title = this.i18n.t('player.pipExpand');
-    btnExpand.innerHTML = `
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M15 3h6v6"></path>
-        <path d="M10 14L21 3"></path>
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-      </svg>
-    `;
-    btnExpand.addEventListener('click', () => {
-      try {
-        window.focus();
-        this.lyricsService.openLyrics();
-      } catch {}
-    });
-    actions.appendChild(btnExpand);
-
-    header.appendChild(actions);
-    wrapper.appendChild(header);
-
-    // Karaoke Box
+    // Compact Karaoke Box
     const lyricsBox = doc.createElement('div');
     lyricsBox.className = 'pip-lyrics-box';
     lyricsBox.title = this.i18n.t('player.pipExpand');
@@ -494,18 +537,11 @@ export class PipService {
     });
 
     const lineCurrent = doc.createElement('div');
-    lineCurrent.className = 'pip-line-current';
+    lineCurrent.className = 'pip-line-current pip-line-placeholder';
     lineCurrent.textContent = this.i18n.t('player.pipIntro');
-
-    const lineNext = doc.createElement('div');
-    lineNext.className = 'pip-line-next';
-
     lyricsBox.appendChild(lineCurrent);
-    lyricsBox.appendChild(lineNext);
     wrapper.appendChild(lyricsBox);
-
     this.dom.lineCurrentEl = lineCurrent;
-    this.dom.lineNextEl = lineNext;
 
     // Bottom Controls & Scrubber
     const bottom = doc.createElement('div');
@@ -548,17 +584,33 @@ export class PipService {
 
     bottom.appendChild(progRow);
 
-    // Playback buttons
+    // Playback Controls (6 buttons: Dislike, Prev, Play, Next, Like, Mute)
     const controls = doc.createElement('div');
     controls.className = 'pip-controls';
 
-    // Prev
+    // 1. Dislike
+    const btnDislike = doc.createElement('button');
+    btnDislike.type = 'button';
+    btnDislike.className = 'pip-btn-ctrl';
+    btnDislike.title = this.i18n.t('player.dislike');
+    btnDislike.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+      </svg>
+    `;
+    btnDislike.addEventListener('click', () => {
+      this.audioService.dislikeCurrentTrack();
+    });
+    controls.appendChild(btnDislike);
+    this.dom.btnDislike = btnDislike;
+
+    // 2. Prev
     const btnPrev = doc.createElement('button');
     btnPrev.type = 'button';
     btnPrev.className = 'pip-btn-ctrl';
     btnPrev.title = this.i18n.t('player.prev');
     btnPrev.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polygon points="19 20 9 12 19 4 19 20"></polygon>
         <line x1="5" y1="19" x2="5" y2="5"></line>
       </svg>
@@ -566,7 +618,7 @@ export class PipService {
     btnPrev.addEventListener('click', () => this.audioService.prev());
     controls.appendChild(btnPrev);
 
-    // Play / Pause
+    // 3. Play / Pause
     const btnPlay = doc.createElement('button');
     btnPlay.type = 'button';
     btnPlay.className = 'pip-btn-play';
@@ -575,19 +627,57 @@ export class PipService {
     btnPlay.addEventListener('click', () => this.audioService.togglePlay());
     this.dom.btnPlayIcon = btnPlay;
 
-    // Next
+    // 4. Next
     const btnNext = doc.createElement('button');
     btnNext.type = 'button';
     btnNext.className = 'pip-btn-ctrl';
     btnNext.title = this.i18n.t('player.next');
     btnNext.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polygon points="5 4 15 12 5 20 5 4"></polygon>
         <line x1="19" y1="5" x2="19" y2="19"></line>
       </svg>
     `;
     btnNext.addEventListener('click', () => this.audioService.next());
     controls.appendChild(btnNext);
+
+    // 5. Like
+    const btnLike = doc.createElement('button');
+    btnLike.type = 'button';
+    btnLike.className = 'pip-btn-ctrl';
+    btnLike.title = this.i18n.t('player.like');
+    btnLike.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+      </svg>
+    `;
+    btnLike.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cur = this.audioService.currentTrack();
+      if (cur) {
+        const isNowFav = this.libraryService.toggleFavorite(cur.id, cur);
+        this.audioService.updateTrackFavoriteStatus(cur.id, isNowFav, cur);
+      }
+    });
+    controls.appendChild(btnLike);
+    this.dom.btnLike = btnLike;
+
+    // 6. Mute / Volume
+    const btnMute = doc.createElement('button');
+    btnMute.type = 'button';
+    btnMute.className = 'pip-btn-ctrl';
+    btnMute.title = this.i18n.t('player.muteShortcut');
+    btnMute.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      </svg>
+    `;
+    btnMute.addEventListener('click', () => {
+      this.audioService.toggleMute();
+    });
+    controls.appendChild(btnMute);
+    this.dom.btnMute = btnMute;
 
     bottom.appendChild(controls);
     wrapper.appendChild(bottom);
@@ -604,6 +694,9 @@ export class PipService {
         e.preventDefault();
         const dur = this.audioService.duration() || 0;
         this.audioService.seek(Math.min(dur, this.audioService.currentTime() + 5));
+      } else if (e.code === 'KeyM') {
+        e.preventDefault();
+        this.audioService.toggleMute();
       } else if (e.code === 'Escape') {
         this.closePip();
       }
@@ -618,9 +711,10 @@ export class PipService {
     currentTime: number,
     duration: number,
     curLineText?: string,
-    nextLineText?: string,
     isSynced?: boolean,
-    isFavorite?: boolean
+    isFavorite?: boolean,
+    isDisliked?: boolean,
+    isMuted?: boolean
   ) {
     if (!this.pipWindow) return;
 
@@ -649,23 +743,54 @@ export class PipService {
     if (this.dom.btnPlayIcon) {
       if (isPlaying) {
         this.dom.btnPlayIcon.innerHTML = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <rect width="4" height="16" x="6" y="4" rx="1"></rect>
             <rect width="4" height="16" x="14" y="4" rx="1"></rect>
           </svg>
         `;
       } else {
         this.dom.btnPlayIcon.innerHTML = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <polygon points="6 3 20 12 6 21 6 3"></polygon>
           </svg>
         `;
       }
     }
 
+    // Dislike status
+    if (this.dom.btnDislike) {
+      this.dom.btnDislike.classList.toggle('disliked', !!isDisliked);
+    }
+
     // Like status
     if (this.dom.btnLike) {
       this.dom.btnLike.classList.toggle('liked', !!isFavorite);
+      this.dom.btnLike.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="${isFavorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+        </svg>
+      `;
+    }
+
+    // Mute status
+    if (this.dom.btnMute) {
+      this.dom.btnMute.classList.toggle('muted', !!isMuted);
+      if (isMuted) {
+        this.dom.btnMute.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <line x1="22" y1="9" x2="16" y2="15"/>
+            <line x1="16" y1="9" x2="22" y2="15"/>
+          </svg>
+        `;
+      } else {
+        this.dom.btnMute.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        `;
+      }
     }
 
     // Progress
@@ -680,27 +805,14 @@ export class PipService {
       this.dom.timeTotalEl.textContent = this.formatTime(duration);
     }
 
-    // Lyrics Lines
-    if (this.dom.lineCurrentEl && this.dom.lineNextEl) {
-      if (isSynced) {
-        if (curLineText) {
-          this.dom.lineCurrentEl.textContent = curLineText;
-          this.dom.lineCurrentEl.className = 'pip-line-current';
-          this.dom.lineNextEl.textContent = nextLineText || '';
-          this.dom.lineNextEl.style.display = nextLineText ? 'block' : 'none';
-        } else {
-          // Вокал ещё не начался (вступление)
-          this.dom.lineCurrentEl.textContent = this.i18n.t('player.pipIntro');
-          this.dom.lineCurrentEl.className = 'pip-line-current pip-line-placeholder';
-          this.dom.lineNextEl.textContent = nextLineText || '';
-          this.dom.lineNextEl.style.display = nextLineText ? 'block' : 'none';
-        }
+    // Lyrics
+    if (this.dom.lineCurrentEl) {
+      if (isSynced && curLineText) {
+        this.dom.lineCurrentEl.textContent = curLineText;
+        this.dom.lineCurrentEl.className = 'pip-line-current';
       } else {
-        // Нет синхронизированного текста
         this.dom.lineCurrentEl.textContent = track ? track.title : this.i18n.t('player.pipInstrumental');
         this.dom.lineCurrentEl.className = 'pip-line-current pip-line-placeholder';
-        this.dom.lineNextEl.textContent = track ? (track.artist || '') : '';
-        this.dom.lineNextEl.style.display = track?.artist ? 'block' : 'none';
       }
     }
   }
