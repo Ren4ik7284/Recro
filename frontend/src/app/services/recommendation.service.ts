@@ -602,7 +602,7 @@ export class RecommendationService {
   private readonly sessionPlayedIds = new Set<string>();
   private readonly sessionPlayedKeys = new Set<string>();
   private onlineDiscoveryPool: Track[] = [];
-  private artistSeedOffset = 0;
+  private artistSeedOffset = Math.floor(Math.random() * 50);
 
   clearDiscoveryBuffer(): void {
     this.onlineDiscoveryPool = [];
@@ -2083,9 +2083,20 @@ export class RecommendationService {
     const nonLibrary = pool.filter((t) => !this.isLibraryTrack(t));
     const activePool = nonLibrary.length > 0 ? nonLibrary : pool;
     const unplayed = activePool.filter((t) => !this.isSessionDuplicate(t));
-    const finalPool = unplayed.length >= count ? unplayed : (unplayed.length > 0 ? unplayed : activePool);
-    finalPool.sort(() => 0.5 - Math.random());
-    return finalPool.slice(0, count).map((t) => ({ ...t }));
+    const candidatePool = unplayed.length >= count ? unplayed : (unplayed.length > 0 ? unplayed : activePool);
+
+    // True Fisher-Yates shuffle
+    const shuffled = [...candidatePool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Deprioritize tracks played recently (last 4 hours) so starter does not repeat daily
+    const fresh = shuffled.filter((t) => !this.isRecentlyPlayed(t, 240));
+    const finalSelection = fresh.length >= count ? fresh : shuffled;
+
+    return finalSelection.slice(0, count).map((t) => ({ ...t }));
   }
 
   /**

@@ -16,11 +16,6 @@
   <header class="lyrics-topbar">
     <div class="lyrics-track-summary">
       <span class="lyrics-badge font-mono">ТЕКСТ ПЕСНИ</span>
-      @if (lyricsService.currentLyrics()?.isSynced) {
-        <span class="lyrics-synced-pill font-mono">СИНХРОНИЗИРОВАНО</span>
-      } @else if (lyricsService.currentLyrics()) {
-        <span class="lyrics-plain-pill font-mono">БЕЗ СИНХРОНИЗАЦИИ</span>
-      }
       @if (lyricsService.currentBpm(); as bpm) {
         <span class="lyrics-bpm-pill font-mono">{{ bpm }} BPM</span>
       }
