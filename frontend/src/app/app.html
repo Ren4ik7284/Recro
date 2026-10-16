@@ -92,9 +92,9 @@
                 }
                 <input #playlistHeaderCoverInput type="file" accept="image/*" style="display: none;" (change)="onExistingPlaylistCoverUpload(pl, $event)" />
                 <div class="playlist-header-meta">
-                  <div class="playlist-label font-mono">ПЛЕЙЛИСТ</div>
+                  <div class="playlist-label font-mono">{{ i18n.t('catalog.playlistTag') }}</div>
                   <h1 class="view-title">{{ pl.title }}</h1>
-                  <p class="view-subtitle">{{ pl.description || 'Пользовательский плейлист' }} • {{ pl.trackIds.length }} треков</p>
+                  <p class="view-subtitle">{{ pl.description || i18n.t('catalog.customPlaylist') }} • {{ pl.trackIds.length }} {{ i18n.t('catalog.tracksCount') }}</p>
                 </div>
                   <div class="playlist-header-actions">
                   <button class="btn-header-action" (click)="refreshLibrary()" [disabled]="isRefreshingLibrary()" [title]="i18n.t('catalog.refresh')">
@@ -200,39 +200,39 @@
                 <div class="wave-badge-group">
                   <span class="wave-tag font-mono">
                     @if (recService.isMixActive() && audioService.isPlaying()) {
-                      В ЭФИРЕ • МОЯ ВОЛНА
+                      {{ i18n.t('wave.onAir') }}
                     } @else if (recService.isMixActive()) {
-                      НА ПАУЗЕ • МОЯ ВОЛНА
+                      {{ i18n.t('wave.paused') }}
                     } @else {
-                      ПЕРСОНАЛЬНЫЙ ПОТОК
+                      {{ i18n.t('wave.personalFlow') }}
                     }
                   </span>
                   
                   <span class="wave-config-chip font-mono">
-                    @if (recService.mixConfig().mood === 'energetic') { БОДРОЕ }
-                    @else if (recService.mixConfig().mood === 'chill') { СПОКОЙНОЕ }
-                    @else if (recService.mixConfig().mood === 'favorites') { ТОЛЬКО ЛЮБИМОЕ }
-                    @else { ВСЕ СТИЛИ }
+                    @if (recService.mixConfig().mood === 'energetic') { {{ i18n.t('wave.moodEnergetic') }} }
+                    @else if (recService.mixConfig().mood === 'chill') { {{ i18n.t('wave.moodChill') }} }
+                    @else if (recService.mixConfig().mood === 'favorites') { {{ i18n.t('wave.moodFavorites') }} }
+                    @else { {{ i18n.t('wave.moodAll') }} }
                     •
-                    @if (recService.mixConfig().source === 'library_only') { МОЯ МУЗЫКА }
-                    @else { ПОТОК ОТКРЫТИЙ }
+                    @if (recService.mixConfig().source === 'library_only') { {{ i18n.t('wave.myMusic') }} }
+                    @else { {{ i18n.t('wave.discoveryFlow') }} }
                   </span>
 
                   @if (recService.isFetchingDiscovery()) {
                     <span class="wave-discovery-badge font-mono">
                       <svg class="spin-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                      ПОДБОР...
+                      {{ i18n.t('wave.picking') }}
                     </span>
                   }
                 </div>
 
-                <button class="btn-wave-burger" (click)="openMixSettings()" title="Параметры Моей Волны">
+                <button class="btn-wave-burger" (click)="openMixSettings()" [title]="i18n.t('wave.paramsBtn')">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="3" y1="6" x2="21" y2="6"/>
                     <line x1="3" y1="12" x2="21" y2="12"/>
                     <line x1="3" y1="18" x2="21" y2="18"/>
                   </svg>
-                  <span>Параметры</span>
+                  <span>{{ i18n.t('wave.paramsBtn') }}</span>
                 </button>
               </div>
 
@@ -547,11 +547,11 @@
                   <table class="tracks-table">
                     <thead>
                       <tr>
-                        <th class="th-index">#</th>
-                        <th class="th-title">НАЗВАНИЕ</th>
-                        <th class="th-artist">ИСПОЛНИТЕЛЬ</th>
-                        <th class="th-duration">ВРЕМЯ</th>
-                        <th class="th-actions">ДЕЙСТВИЯ</th>
+                        <th class="th-index">{{ i18n.t('table.index') }}</th>
+                        <th class="th-title">{{ i18n.t('table.title') }}</th>
+                        <th class="th-artist">{{ i18n.t('table.artist') }}</th>
+                        <th class="th-duration">{{ i18n.t('table.duration') }}</th>
+                        <th class="th-actions">{{ i18n.t('table.actions') }}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -714,13 +714,13 @@
             <table class="tracks-table">
               <thead>
                 <tr>
-                  <th class="th-index">#</th>
-                  <th class="th-title">НАЗВАНИЕ</th>
-                  <th class="th-artist">ИСПОЛНИТЕЛЬ / ИСТОЧНИК</th>
-                  <th class="th-genre">ЖАНР</th>
-                  <th class="th-format">ФОРМАТ</th>
-                  <th class="th-duration">ВРЕМЯ</th>
-                  <th class="th-actions">ДЕЙСТВИЯ</th>
+                  <th class="th-index">{{ i18n.t('table.index') }}</th>
+                  <th class="th-title">{{ i18n.t('table.title') }}</th>
+                  <th class="th-artist">{{ i18n.t('table.artistSource') }}</th>
+                  <th class="th-genre">{{ i18n.t('table.genre') }}</th>
+                  <th class="th-format">{{ i18n.t('table.format') }}</th>
+                  <th class="th-duration">{{ i18n.t('table.duration') }}</th>
+                  <th class="th-actions">{{ i18n.t('table.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -729,20 +729,20 @@
                     class="track-row" 
                     [class.playing]="audioService.currentTrack()?.id === track.id"
                     [class.is-draggable]="activeTab() === 'playlist'"
-                    [class.dragging]="draggedTrackIndex() === i"
-                    [class.drag-over-top]="dragOverIndex() === i && dragOverPosition() === 'top'"
-                    [class.drag-over-bottom]="dragOverIndex() === i && dragOverPosition() === 'bottom'"
-                    [draggable]="activeTab() === 'playlist'"
-                    (dragstart)="onTrackDragStart($event, i, track)"
-                    (dragover)="onTrackDragOver($event, i)"
-                    (dragleave)="onTrackDragLeave($event, i)"
-                    (drop)="onTrackDrop($event, i)"
+                    [class.dragging]="draggedTrackId() === track.id"
+                    [class.drag-over-top]="dragOverTrackId() === track.id && dragOverPosition() === 'top'"
+                    [class.drag-over-bottom]="dragOverTrackId() === track.id && dragOverPosition() === 'bottom'"
+                    [attr.draggable]="activeTab() === 'playlist' ? 'true' : null"
+                    (dragstart)="onTrackDragStart($event, track.id)"
+                    (dragover)="onTrackDragOver($event, track.id)"
+                    (dragleave)="onTrackDragLeave($event, track.id)"
+                    (drop)="onTrackDrop($event, track.id)"
                     (dragend)="onTrackDragEnd()"
                     (click)="playTrack(track)"
                   >
                     <td class="cell-index">
                       @if (activeTab() === 'playlist') {
-                        <span class="drag-handle-grip desktop-only" title="Зажмите ЛКМ для перемещения трека">
+                        <span class="drag-handle-grip desktop-only" [attr.draggable]="'true'" (dragstart)="onTrackDragStart($event, track.id)" title="Зажмите ЛКМ для перемещения трека">
                           <svg width="10" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <circle cx="9" cy="5" r="2.2"/><circle cx="15" cy="5" r="2.2"/>
                             <circle cx="9" cy="12" r="2.2"/><circle cx="15" cy="12" r="2.2"/>
@@ -1082,7 +1082,7 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 6h16M4 12h16M4 18h7"/>
       </svg>
-      <span>Плейлисты</span>
+      <span>{{ i18n.t('nav.playlistsMobile') }}</span>
     </button>
 
     <button class="m-nav-item" [class.active]="isProfileModalOpen()" (click)="openProfileModal()">
@@ -2032,7 +2032,7 @@
     <div class="modal-backdrop" (click)="closeCreatePlaylistModal()">
       <div class="modal-dialog playlist-modal" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <h3 class="modal-title">Новый плейлист</h3>
+          <h3 class="modal-title">{{ i18n.t('playlist.modalTitle') }}</h3>
           <button class="btn-close-sm" (click)="closeCreatePlaylistModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -2042,10 +2042,10 @@
 
         <div class="modal-body">
           <div class="input-field">
-            <label class="field-label">Название плейлиста</label>
+            <label class="field-label">{{ i18n.t('playlist.titleLabel') }}</label>
             <input 
               type="text" 
-              placeholder="Например: Любимые треки..."
+              [placeholder]="i18n.t('playlist.titlePlaceholder')"
               [ngModel]="playlistTitleInput()"
               (ngModelChange)="playlistTitleInput.set($event)"
               (keyup.enter)="submitCreatePlaylist()"
@@ -2055,10 +2055,10 @@
           </div>
 
           <div class="input-field">
-            <label class="field-label">Описание (опционально)</label>
+            <label class="field-label">{{ i18n.t('playlist.descLabel') }}</label>
             <input 
               type="text" 
-              placeholder="Краткое описание..."
+              [placeholder]="i18n.t('playlist.descPlaceholder')"
               [ngModel]="playlistDescInput()"
               (ngModelChange)="playlistDescInput.set($event)"
               (keyup.enter)="submitCreatePlaylist()"
@@ -2067,7 +2067,7 @@
           </div>
 
           <div class="input-field">
-            <label class="field-label">Обложка плейлиста (опционально)</label>
+            <label class="field-label">{{ i18n.t('playlist.coverLabel') }}</label>
             <div class="playlist-cover-creator-box" style="display: flex; gap: 14px; align-items: center; margin-bottom: 10px;">
               <div style="width: 64px; height: 64px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
                 @if (playlistCoverInput()) {
@@ -2089,19 +2089,19 @@
                       <polyline points="17 8 12 3 7 8"/>
                       <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    <span>Выбрать фото с устройства</span>
+                    <span>{{ i18n.t('playlist.selectPhoto') }}</span>
                     <input type="file" accept="image/*" style="display: none;" (change)="onPlaylistCoverSelected($event)" />
                   </label>
                   @if (playlistCoverInput()) {
-                    <button type="button" class="btn-cancel" style="padding: 6px 10px; font-size: 11px;" (click)="playlistCoverInput.set('')">Удалить</button>
+                    <button type="button" class="btn-cancel" style="padding: 6px 10px; font-size: 11px;" (click)="playlistCoverInput.set('')">{{ i18n.t('playlist.removeCover') }}</button>
                   }
                 </div>
-                <span style="font-size: 10px; color: var(--text-muted);">Любая картинка или фото с вашего компьютера / галереи телефона</span>
+                <span style="font-size: 10px; color: var(--text-muted);">{{ i18n.t('playlist.coverHint') }}</span>
               </div>
             </div>
 
             <div style="margin-top: 10px;">
-              <span style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); display: block; margin-bottom: 6px;">ИЛИ ВЫБЕРИТЕ СТИЛЬ ОБЛОЖКИ:</span>
+              <span style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); display: block; margin-bottom: 6px;">{{ i18n.t('playlist.orPreset') }}</span>
               <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;">
                 @for (preset of playlistCoverPresets; track preset.id) {
                   <div 
@@ -2119,7 +2119,7 @@
             <div style="margin-top: 10px;">
               <input 
                 type="text" 
-                placeholder="Или ссылка на картинку (https://...)"
+                [placeholder]="i18n.t('playlist.orUrl')"
                 [ngModel]="playlistCoverInput()"
                 (ngModelChange)="playlistCoverInput.set($event)"
                 class="form-text-input"
@@ -2130,9 +2130,9 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" (click)="closeCreatePlaylistModal()">Отмена</button>
+          <button class="btn-cancel" (click)="closeCreatePlaylistModal()">{{ i18n.t('common.cancel') }}</button>
           <button class="btn-confirm-action" [disabled]="!playlistTitleInput().trim()" (click)="submitCreatePlaylist()">
-            Создать
+            {{ i18n.t('common.create') }}
           </button>
         </div>
       </div>
@@ -2144,7 +2144,7 @@
       <div class="modal-dialog add-to-pl-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
-            <h3 class="modal-title">Добавить в плейлист</h3>
+            <h3 class="modal-title">{{ i18n.t('playlist.addToPl') }}</h3>
             <p class="modal-subtitle notranslate" translate="no">{{ targetTrackForPlaylist()?.title }} — {{ targetTrackForPlaylist()?.artist }}</p>
           </div>
           <button class="btn-close-sm" (click)="closeAddToPlaylistModal()">
@@ -2156,7 +2156,7 @@
 
         <div class="modal-body pl-selection-body">
           @if (libraryService.playlists().length === 0) {
-            <p class="empty-pl-note">У вас пока нет созданных плейлистов</p>
+            <p class="empty-pl-note">{{ i18n.t('playlist.emptyList') }}</p>
           } @else {
             <div class="pl-selection-list">
               @for (pl of libraryService.playlists(); track pl.id) {
@@ -2167,7 +2167,7 @@
                 >
                   <div class="pl-item-info">
                     <span class="pl-item-name">{{ pl.title }}</span>
-                    <span class="pl-item-count">{{ pl.trackIds.length }} треков</span>
+                    <span class="pl-item-count">{{ pl.trackIds.length }} {{ i18n.t('playlist.tracksUnit') }}</span>
                   </div>
                   <div class="pl-check-box">
                     @if (pl.trackIds.includes(targetTrackForPlaylist()!.id)) {
@@ -2188,10 +2188,10 @@
 
         <div class="modal-footer">
           <button class="btn-new-pl" (click)="closeAddToPlaylistModal(); openCreatePlaylistModal()">
-            + Создать новый плейлист
+            + {{ i18n.t('playlist.createNew') }}
           </button>
           <button class="btn-confirm-action" (click)="closeAddToPlaylistModal()">
-            Готово
+            {{ i18n.t('common.done') }}
           </button>
         </div>
       </div>

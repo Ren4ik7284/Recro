@@ -893,6 +893,9 @@ export class App implements OnInit {
   }
 
   playTrack(track: Track) {
+    if (this.isDraggingTrack()) {
+      return;
+    }
     if (this.audioService.currentTrack()?.id === track.id) {
       this.audioService.togglePlay();
       return;
@@ -1396,22 +1399,27 @@ export class App implements OnInit {
   }
 
   // Playlist Track Drag and Drop (PC)
-  readonly draggedTrackIndex = signal<number | null>(null);
-  readonly dragOverIndex = signal<number | null>(null);
+  readonly draggedTrackId = signal<string | null>(null);
+  readonly dragOverTrackId = signal<string | null>(null);
   readonly dragOverPosition = signal<'top' | 'bottom' | null>(null);
+  readonly isDraggingTrack = signal<boolean>(false);
 
-  onTrackDragStart(event: DragEvent, index: number, track: Track) {
+  onTrackDragStart(event: DragEvent, trackId: string) {
     if (this.activeTab() !== 'playlist') return;
-    this.draggedTrackIndex.set(index);
+    this.draggedTrackId.set(trackId);
+    this.isDraggingTrack.set(true);
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', String(index));
+      event.dataTransfer.setData('text/plain', trackId);
     }
   }
 
-  onTrackDragOver(event: DragEvent, index: number) {
-    if (this.activeTab() !== 'playlist' || this.draggedTrackIndex() === null) return;
+  onTrackDragOver(event: DragEvent, trackId: string) {
+    if (this.activeTab() !== 'playlist') return;
+    const fromId = this.draggedTrackId();
+    if (!fromId || fromId === trackId) return;
     event.preventDefault();
+    event.stopPropagation();
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = 'move';
     }
@@ -1420,40 +1428,38 @@ export class App implements OnInit {
       const rect = target.getBoundingClientRect();
       const relY = event.clientY - rect.top;
       const isTopHalf = relY < rect.height / 2;
-      this.dragOverIndex.set(index);
+      this.dragOverTrackId.set(trackId);
       this.dragOverPosition.set(isTopHalf ? 'top' : 'bottom');
     }
   }
 
-  onTrackDragLeave(event: DragEvent, index: number) {
-    if (this.dragOverIndex() === index) {
-      this.dragOverIndex.set(null);
+  onTrackDragLeave(event: DragEvent, trackId: string) {
+    if (this.dragOverTrackId() === trackId) {
+      this.dragOverTrackId.set(null);
       this.dragOverPosition.set(null);
     }
   }
 
-  onTrackDrop(event: DragEvent, dropIndex: number) {
+  onTrackDrop(event: DragEvent, dropTrackId: string) {
     if (this.activeTab() !== 'playlist') return;
     event.preventDefault();
-    const fromIndex = this.draggedTrackIndex();
+    event.stopPropagation();
+    const fromId = this.draggedTrackId();
     const currentPl = this.currentPlaylist();
-    if (fromIndex !== null && currentPl && fromIndex !== dropIndex) {
-      const position = this.dragOverPosition();
-      let targetIndex = dropIndex;
-      if (position === 'bottom' && fromIndex < dropIndex) {
-        targetIndex = dropIndex;
-      } else if (position === 'top' && fromIndex > dropIndex) {
-        targetIndex = dropIndex;
-      }
-      this.libraryService.reorderTracksInPlaylist(currentPl.id, fromIndex, targetIndex);
+    if (fromId && currentPl && fromId !== dropTrackId) {
+      const position = this.dragOverPosition() === 'bottom' ? 'after' : 'before';
+      this.libraryService.reorderTracksInPlaylist(currentPl.id, fromId, dropTrackId, position);
     }
     this.onTrackDragEnd();
   }
 
   onTrackDragEnd() {
-    this.draggedTrackIndex.set(null);
-    this.dragOverIndex.set(null);
+    this.draggedTrackId.set(null);
+    this.dragOverTrackId.set(null);
     this.dragOverPosition.set(null);
+    setTimeout(() => {
+      this.isDraggingTrack.set(false);
+    }, 80);
   }
 
   toggleTrackInPlaylist(playlist: Playlist, track: Track) {

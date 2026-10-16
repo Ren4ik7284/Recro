@@ -801,6 +801,12 @@
         &.is-draggable {
           user-select: none;
           -webkit-user-select: none;
+          -webkit-user-drag: element;
+          cursor: grab;
+
+          &:active {
+            cursor: grabbing;
+          }
 
           .drag-handle-grip {
             display: inline-flex;

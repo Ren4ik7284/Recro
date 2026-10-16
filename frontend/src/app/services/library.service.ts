@@ -1501,20 +1501,41 @@ export class LibraryService implements OnDestroy {
     return isAdded;
   }
 
-  reorderTracksInPlaylist(playlistId: string, fromIndex: number, toIndex: number): boolean {
-    if (fromIndex === toIndex) return false;
+  reorderTracksInPlaylist(
+    playlistId: string, 
+    fromTrackIdOrIndex: string | number, 
+    toTrackIdOrIndex: string | number, 
+    position: 'before' | 'after' = 'before'
+  ): boolean {
     let success = false;
     this.playlists.update((pls) =>
       pls.map((p) => {
         if (p.id === playlistId) {
-          if (fromIndex < 0 || fromIndex >= p.trackIds.length || toIndex < 0 || toIndex >= p.trackIds.length) {
+          const fromIdx = typeof fromTrackIdOrIndex === 'number'
+            ? fromTrackIdOrIndex
+            : p.trackIds.indexOf(fromTrackIdOrIndex);
+
+          const toIdx = typeof toTrackIdOrIndex === 'number'
+            ? toTrackIdOrIndex
+            : p.trackIds.indexOf(toTrackIdOrIndex);
+
+          if (fromIdx < 0 || fromIdx >= p.trackIds.length || toIdx < 0 || toIdx >= p.trackIds.length || fromIdx === toIdx) {
             return p;
           }
-          const updatedTrackIds = [...p.trackIds];
-          const [moved] = updatedTrackIds.splice(fromIndex, 1);
-          updatedTrackIds.splice(toIndex, 0, moved);
+
+          const updated = [...p.trackIds];
+          const [moved] = updated.splice(fromIdx, 1);
+          let insertIdx = typeof toTrackIdOrIndex === 'string' 
+            ? updated.indexOf(toTrackIdOrIndex) 
+            : (toIdx > fromIdx ? toIdx - 1 : toIdx);
+
+          if (position === 'after') {
+            insertIdx += 1;
+          }
+          const finalIdx = Math.max(0, Math.min(updated.length, insertIdx));
+          updated.splice(finalIdx, 0, moved);
           success = true;
-          return { ...p, trackIds: updatedTrackIds };
+          return { ...p, trackIds: updated };
         }
         return p;
       })

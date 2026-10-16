@@ -319,15 +319,15 @@
     <section class="profile-section user-playlists-section">
       <div class="section-header-compact">
         <div class="section-title-wrap">
-          <h2 class="profile-section-title font-mono">ВСЕ ПЛЕЙЛИСТЫ</h2>
-          <span class="section-subtitle-tag font-mono">ВСЕГО: {{ userPlaylists().length }}</span>
+          <h2 class="profile-section-title font-mono">{{ i18n.t('profile.allPlaylists') }}</h2>
+          <span class="section-subtitle-tag font-mono">{{ i18n.t('profile.totalPlaylists') }} {{ userPlaylists().length }}</span>
         </div>
-        <button class="btn-create-pl-profile font-mono" (click)="createPlaylist.emit()" title="Создать новый плейлист">
+        <button class="btn-create-pl-profile font-mono" (click)="createPlaylist.emit()" [title]="i18n.t('profile.createNewPlaylist')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          <span>Новый плейлист</span>
+          <span>{{ i18n.t('profile.newPlaylistBtn') }}</span>
         </button>
       </div>
 
@@ -374,9 +374,9 @@
         </div>
       } @else {
         <div class="empty-playlists-box">
-          <p class="empty-playlists-text font-mono">Плейлисты еще не созданы</p>
+          <p class="empty-playlists-text font-mono">{{ i18n.t('profile.noPlaylistsYet') }}</p>
           <button class="btn-create-first-playlist font-mono" (click)="createPlaylist.emit()">
-            Создать плейлист
+            {{ i18n.t('profile.createPlaylistBtn') }}
           </button>
         </div>
       }
