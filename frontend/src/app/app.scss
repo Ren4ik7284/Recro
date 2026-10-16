@@ -20,6 +20,8 @@
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    position: relative;
+    z-index: 1000;
   }
 
   .app-sidebar {
@@ -140,10 +142,10 @@
     border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
   }
 
-  .playlist-card, .album-card, .radio-station-card, .station-card {
+  .playlist-card, .album-card, .radio-station-card, .station-card, .profile-theme-box, .stat-card, .badge-card {
     background: rgba(14, 17, 26, 0.55) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
   }
 
@@ -235,6 +237,14 @@
   display: none !important;
 }
 
+app-header-bar {
+  display: block;
+  width: 100%;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1000;
+}
+
 .app-header {
   height: 56px;
   min-height: 56px;
@@ -247,7 +257,8 @@
   justify-content: space-between;
   padding: 0 20px;
   gap: 16px;
-  z-index: 20;
+  position: relative;
+  z-index: 1000;
 
   .header-left {
     display: flex;

@@ -38,7 +38,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      color: #38bdf8;
+      color: #f4f4f5;
 
       .live-settings-title {
         font-size: 13px;
@@ -93,7 +93,7 @@
       font-weight: 700;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: #38bdf8;
+      color: #a1a1aa;
     }
   }
 
@@ -103,8 +103,8 @@
     gap: 6px;
 
     .preset-pill {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.09);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 8px;
       padding: 8px 6px;
       font-size: 11px;
@@ -114,15 +114,15 @@
       transition: all 0.15s ease;
 
       &:hover {
-        background: rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.1);
         color: #ffffff;
-        border-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.22);
       }
 
       &.active {
-        background: rgba(56, 189, 248, 0.18);
-        border-color: #38bdf8;
-        color: #38bdf8;
+        background: rgba(255, 255, 255, 0.18);
+        border-color: #ffffff;
+        color: #ffffff;
         font-weight: 700;
       }
     }
@@ -145,7 +145,7 @@
 
     &:hover {
       background: rgba(255, 255, 255, 0.07);
-      border-color: #38bdf8;
+      border-color: rgba(255, 255, 255, 0.35);
       color: #f1f5f9;
     }
 
@@ -159,7 +159,7 @@
       .active-file-name {
         font-size: 11.5px;
         font-weight: 600;
-        color: #38bdf8;
+        color: #ffffff;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -245,8 +245,8 @@
       }
 
       &.on {
-        background: #38bdf8;
-        border-color: #38bdf8;
+        background: #ffffff;
+        border-color: #ffffff;
 
         .switch-knob {
           transform: translateX(14px);
@@ -288,9 +288,9 @@
       }
 
       &.active {
-        background: rgba(56, 189, 248, 0.18);
-        border-color: #38bdf8;
-        color: #38bdf8;
+        background: rgba(255, 255, 255, 0.2);
+        border-color: #ffffff;
+        color: #ffffff;
         font-weight: 700;
       }
     }

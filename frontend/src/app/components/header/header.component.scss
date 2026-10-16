@@ -8,7 +8,8 @@
   justify-content: space-between;
   padding: 0 24px;
   gap: 16px;
-  z-index: 500;
+  position: relative;
+  z-index: 1000;
 
   .header-left {
     display: flex;
@@ -300,14 +301,12 @@
         top: calc(100% + 6px);
         right: 0;
         width: 230px;
-        background-color: rgba(9, 9, 11, 0.96);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid var(--border-subtle);
+        background-color: #111319 !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
         border-radius: var(--radius-md);
-        box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
-        padding: 4px;
-        z-index: 1000;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+        padding: 5px;
+        z-index: 10000 !important;
         display: flex;
         flex-direction: column;
         animation: fadeIn 0.15s ease-out;
