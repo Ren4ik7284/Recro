@@ -341,9 +341,9 @@
                       </div>
                     </div>
                     <div class="wave-idle-text">
-                      <h2 class="wave-title">Моя Волна</h2>
+                      <h2 class="wave-title">{{ i18n.t('wave.title') }}</h2>
                       <p class="wave-desc">
-                        Бесконечный умный поток музыки, настроенный под ваши интересы и вкус.
+                        {{ i18n.t('wave.desc') }}
                       </p>
                     </div>
                   </div>
@@ -352,12 +352,12 @@
                     <button 
                       class="btn-wave-start" 
                       (click)="toggleSmartMix(recService.currentMood())"
-                      title="Включить Мою Волну"
+                      [title]="i18n.t('wave.startBtnTitle')"
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="6 3 20 12 6 21 6 3"/>
                       </svg>
-                      <span>Запустить волну</span>
+                      <span>{{ i18n.t('wave.start') }}</span>
                     </button>
                   </div>
                 </div>
@@ -1065,7 +1065,7 @@
         <path d="M18 5v14"/>
         <path d="M22 10v4"/>
       </svg>
-      <span>Волна</span>
+      <span>{{ i18n.t('nav.waveMobile') }}</span>
     </button>
 
     <button class="m-nav-item" [class.active]="activeTab() === 'favorites'" (click)="setView('favorites')">
@@ -2819,8 +2819,8 @@
       <div class="modal-dialog quick-start-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div class="modal-title-wrap">
-            <span class="modal-tag font-mono">РЕКОМЕНДАТЕЛЬНЫЙ ДВИЖОК</span>
-            <h3 class="modal-title">Настройка Моей Волны</h3>
+            <span class="modal-tag font-mono">{{ i18n.t('wave.engineTag') }}</span>
+            <h3 class="modal-title">{{ i18n.t('wave.settings') }}</h3>
           </div>
           <button class="btn-close-sm" (click)="isQuickStartMixModalOpen.set(false)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2972,10 +2972,10 @@
         <!-- Header -->
         <div class="modal-header mix-header">
           <div class="modal-title-group">
-            <span class="modal-tag font-mono">РЕКОМЕНДАТЕЛЬНЫЙ ДВИЖОК</span>
-            <h3 class="modal-title">Параметры Моей Волны</h3>
+            <span class="modal-tag font-mono">{{ i18n.t('wave.engineTag') }}</span>
+            <h3 class="modal-title">{{ i18n.t('wave.paramsTitle') }}</h3>
             <p class="mix-settings-desc">
-              Настройте персональный поток под себя. Выбранные параметры мгновенно применяются к волне и синхронизируются на всех ваших устройствах.
+              {{ i18n.t('wave.paramsSubtitle') }}
             </p>
           </div>
           <button type="button" class="btn-close-sm" (click)="closeMixSettings()" title="Закрыть" aria-label="Закрыть параметры">

@@ -83,9 +83,15 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'player.repeatLabel': 'Повтор: ',
 
     // My Wave
-    'wave.start': 'Запустить Волну',
+    'wave.title': 'Моя Волна',
+    'wave.desc': 'Бесконечный умный поток музыки, настроенный под ваши интересы и вкус.',
+    'wave.start': 'Запустить волну',
+    'wave.startBtnTitle': 'Включить Мою Волну',
     'wave.active': 'Моя Волна играет',
     'wave.settings': 'Настройки Моей Волны',
+    'wave.engineTag': 'РЕКОМЕНДАТЕЛЬНЫЙ ДВИЖОК',
+    'wave.paramsTitle': 'Параметры Моей Волны',
+    'wave.paramsSubtitle': 'Настройте персональный поток под себя. Выбранные параметры мгновенно применяются к волне и синхронизируются на всех ваших устройствах.',
     'wave.mood': 'Настроение',
     'wave.all': 'Бодрое / Разное',
     'wave.calm': 'Спокойное',
@@ -283,6 +289,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'catalog.customPlaylist': 'Пользовательский плейлист',
     'catalog.tracksCount': 'треков',
     'nav.playlistsMobile': 'Плейлисты',
+    'nav.waveMobile': 'Волна',
 
     // Modals & General
     'common.save': 'Сохранить',
@@ -375,9 +382,15 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'player.repeatLabel': 'Repeat: ',
 
     // My Wave
+    'wave.title': 'My Wave',
+    'wave.desc': 'Endless smart stream of music tailored to your taste and interests.',
     'wave.start': 'Start My Wave',
+    'wave.startBtnTitle': 'Turn on My Wave',
     'wave.active': 'My Wave is Playing',
     'wave.settings': 'My Wave Settings',
+    'wave.engineTag': 'RECOMMENDATION ENGINE',
+    'wave.paramsTitle': 'My Wave Settings',
+    'wave.paramsSubtitle': 'Customize your personal stream. Selected options instantly apply to the wave and sync across your devices.',
     'wave.mood': 'Mood',
     'wave.all': 'Energetic / Mixed',
     'wave.calm': 'Calm',
@@ -575,6 +588,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'catalog.customPlaylist': 'Custom playlist',
     'catalog.tracksCount': 'tracks',
     'nav.playlistsMobile': 'Playlists',
+    'nav.waveMobile': 'Wave',
 
     // Modals & General
     'common.save': 'Save',

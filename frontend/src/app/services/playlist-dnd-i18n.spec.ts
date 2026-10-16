@@ -21,11 +21,19 @@ describe('Playlist Drag & Drop and i18n Translations', () => {
   describe('i18n Translations', () => {
     it('should translate Smart Wave strings in both ru and en', () => {
       i18n.setLanguage('ru');
+      expect(i18n.t('wave.title')).toBe('Моя Волна');
+      expect(i18n.t('wave.desc')).toBe('Бесконечный умный поток музыки, настроенный под ваши интересы и вкус.');
+      expect(i18n.t('wave.start')).toBe('Запустить волну');
+      expect(i18n.t('wave.startBtnTitle')).toBe('Включить Мою Волну');
       expect(i18n.t('wave.onAir')).toBe('В ЭФИРЕ • МОЯ ВОЛНА');
       expect(i18n.t('wave.discoveryFlow')).toBe('ПОТОК ОТКРЫТИЙ');
       expect(i18n.t('wave.moodAll')).toBe('ВСЕ СТИЛИ');
 
       i18n.setLanguage('en');
+      expect(i18n.t('wave.title')).toBe('My Wave');
+      expect(i18n.t('wave.desc')).toBe('Endless smart stream of music tailored to your taste and interests.');
+      expect(i18n.t('wave.start')).toBe('Start My Wave');
+      expect(i18n.t('wave.startBtnTitle')).toBe('Turn on My Wave');
       expect(i18n.t('wave.onAir')).toBe('ON AIR • MY WAVE');
       expect(i18n.t('wave.discoveryFlow')).toBe('DISCOVERY STREAM');
       expect(i18n.t('wave.moodAll')).toBe('ALL STYLES');
