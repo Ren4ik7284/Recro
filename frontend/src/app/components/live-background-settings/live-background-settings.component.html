@@ -37,64 +37,9 @@
         </div>
       </div>
 
-      <!-- 2. Добавление по ссылке (Pinterest, GIF, MP4) -->
+      <!-- 2. Загрузка локального файла -->
       <div class="live-settings-group">
-        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ДОБАВИТЬ ПО ССЫЛКЕ (PINTEREST / MP4 / GIF)' : 'ADD VIA URL' }}</label>
-        <div class="url-input-row font-mono">
-          <input 
-            type="url" 
-            class="url-input" 
-            [placeholder]="i18n.currentLang() === 'ru' ? 'https://pin.it/... или ссылка на GIF/MP4' : 'https://pin.it/... or GIF/MP4 URL'"
-            [ngModel]="urlInput()" 
-            (ngModelChange)="urlInput.set($event)"
-            (keyup.enter)="onApplyUrl()"
-          />
-          <button 
-            type="button" 
-            class="btn-apply-url font-mono" 
-            [disabled]="!urlInput().trim() || bgService.isResolvingUrl()"
-            (click)="onApplyUrl()"
-          >
-            @if (bgService.isResolvingUrl()) {
-              <span class="url-spinner"></span>
-            } @else {
-              <span>{{ i18n.currentLang() === 'ru' ? 'OK' : 'Apply' }}</span>
-            }
-          </button>
-        </div>
-
-        <!-- Saved Links list for quick reuse -->
-        @if (bgService.savedItems().length > 0) {
-          <div class="saved-links-section">
-            <span class="saved-links-title font-mono">{{ i18n.currentLang() === 'ru' ? 'СОХРАНЕННЫЕ ФОНЫ' : 'SAVED BACKGROUNDS' }}</span>
-            <div class="saved-chips-list font-mono">
-              @for (item of bgService.savedItems(); track item.id) {
-                <div 
-                  class="saved-chip" 
-                  [class.active]="bgService.customMediaUrl() === item.mediaUrl"
-                  (click)="selectSaved(item)"
-                  [title]="item.name + ' (' + item.rawUrl + ')'"
-                >
-                  <span class="chip-media-badge">{{ item.mediaType === 'video' ? 'MP4' : 'IMG' }}</span>
-                  <span class="chip-label">{{ item.name }}</span>
-                  <button 
-                    type="button" 
-                    class="btn-chip-remove" 
-                    (click)="removeSaved(item, $event)" 
-                    title="Удалить из сохраненных"
-                  >
-                    ✕
-                  </button>
-                </div>
-              }
-            </div>
-          </div>
-        }
-      </div>
-
-      <!-- 3. Загрузка локального файла -->
-      <div class="live-settings-group">
-        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ИЛИ ЗАГРУЗИТЬ СВОЙ ФАЙЛ' : 'OR UPLOAD LOCAL FILE' }}</label>
+        <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ЗАГРУЗИТЬ СВОЙ ФАЙЛ (GIF / ВИДЕО / ФОТО)' : 'UPLOAD CUSTOM FILE (GIF / VIDEO / PHOTO)' }}</label>
         <div 
           class="upload-drop-zone font-mono"
           (dragover)="onDragOver($event)"

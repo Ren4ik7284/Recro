@@ -1,13 +1,12 @@
-import { Component, inject, ViewEncapsulation, signal } from '@angular/core';
+import { Component, inject, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { LiveBackgroundService, SavedMediaItem } from '../../services/live-background.service';
+import { LiveBackgroundService } from '../../services/live-background.service';
 import { I18nService } from '../../services/i18n.service';
 
 @Component({
   selector: 'app-live-background-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule],
   templateUrl: './live-background-settings.component.html',
   styleUrl: './live-background-settings.component.scss',
   encapsulation: ViewEncapsulation.None,
@@ -15,17 +14,6 @@ import { I18nService } from '../../services/i18n.service';
 export class LiveBackgroundSettingsComponent {
   readonly bgService = inject(LiveBackgroundService);
   readonly i18n = inject(I18nService);
-
-  readonly urlInput = signal<string>('');
-
-  async onApplyUrl() {
-    const url = this.urlInput().trim();
-    if (!url) return;
-    const ok = await this.bgService.resolveAndApplyUrl(url);
-    if (ok) {
-      this.urlInput.set('');
-    }
-  }
 
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -43,14 +31,5 @@ export class LiveBackgroundSettingsComponent {
 
   onDragOver(event: DragEvent) {
     event.preventDefault();
-  }
-
-  selectSaved(item: SavedMediaItem) {
-    this.bgService.selectSavedItem(item);
-  }
-
-  removeSaved(item: SavedMediaItem, event: Event) {
-    event.stopPropagation();
-    this.bgService.removeSavedItem(item.id);
   }
 }
