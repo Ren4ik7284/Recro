@@ -1,6 +1,13 @@
-use axum::extract::State;
+use std::convert::Infallible;
+use std::time::Duration;
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
+use futures_util::stream::Stream;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Row;
 
@@ -578,5 +585,51 @@ pub async fn save_library(
         crate::turso::execute_batch_writes(stmts);
     }
 
+    let _ = state.sync_channel.send(format!("{}:library_updated", user_id));
+
     Ok(StatusCode::OK)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SyncEventsQuery {
+    pub token: Option<String>,
+}
+
+pub async fn sync_events(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<SyncEventsQuery>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    let user_id = if let Some(ref t) = query.token {
+        crate::auth::verify_jwt(t)
+            .map(|claims| claims.sub)
+            .map_err(|_| StatusCode::UNAUTHORIZED)?
+    } else {
+        crate::auth::extract_claims_from_headers(&headers)
+            .map(|claims| claims.sub)
+            .map_err(|_| StatusCode::UNAUTHORIZED)?
+    };
+
+    let rx = state.sync_channel.subscribe();
+    let initial = futures_util::stream::once(async {
+        Ok(Event::default().event("connected").data("ok"))
+    });
+
+    let updates = BroadcastStream::new(rx).filter_map(move |result| {
+        let user_id = user_id.clone();
+        match result {
+            Ok(msg) => {
+                if let Some((target_user, event_name)) = msg.split_once(':') {
+                    if target_user == user_id {
+                        return Some(Ok(Event::default().event(event_name).data(event_name)));
+                    }
+                }
+                None
+            }
+            Err(_) => None,
+        }
+    });
+
+    let stream = initial.chain(updates);
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15))))
 }

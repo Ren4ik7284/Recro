@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject, OnDestroy } from '@angular/core';
+import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angular/core';
 import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
@@ -236,12 +236,26 @@ export class LibraryService implements OnDestroy {
   private syncPollInterval: ReturnType<typeof setInterval> | null = null;
   private visibilityHandler: (() => void) | null = null;
   private focusHandler: (() => void) | null = null;
+  private eventSource: EventSource | null = null;
+  private sseReconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.initLibrary();
     this.checkBackendHealth().then(() => {
       this.syncWithBackendOnStartup();
       this.startAutoSync();
+    });
+
+    effect(() => {
+      const isAuth = this.authService.isAuthenticated();
+      if (isAuth) {
+        this.connectRealtimeSync();
+      } else {
+        if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = null;
+        }
+      }
     });
   }
 
@@ -250,6 +264,56 @@ export class LibraryService implements OnDestroy {
     if (this.syncTimeout) clearTimeout(this.syncTimeout);
     if (this.visibilityHandler) document.removeEventListener('visibilitychange', this.visibilityHandler);
     if (this.focusHandler) window.removeEventListener('focus', this.focusHandler);
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    if (this.sseReconnectTimeout) {
+      clearTimeout(this.sseReconnectTimeout);
+      this.sseReconnectTimeout = null;
+    }
+  }
+
+  connectRealtimeSync() {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    if (!this.authService.isAuthenticated()) return;
+
+    const token = this.authService.getAuthToken();
+    const backendUrl = this.getBackendUrl();
+    const url = `${backendUrl}/api/sync/events${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+
+    try {
+      this.eventSource = new EventSource(url, { withCredentials: true });
+
+      this.eventSource.addEventListener('library_updated', () => {
+        // Real-time synchronization triggered from another connected device
+        this.syncWithBackendOnStartup(true);
+      });
+
+      this.eventSource.addEventListener('profile_updated', () => {
+        // Real-time update for profile avatar/banner/tags
+        this.authService.verifyRemoteSession(backendUrl);
+      });
+
+      this.eventSource.onerror = () => {
+        if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = null;
+        }
+        if (this.sseReconnectTimeout) clearTimeout(this.sseReconnectTimeout);
+        this.sseReconnectTimeout = setTimeout(() => {
+          if (this.authService.isAuthenticated()) {
+            this.connectRealtimeSync();
+          }
+        }, 5000);
+      };
+    } catch (e) {
+      console.warn('Real-time sync SSE failed to connect:', e);
+    }
   }
 
   getBackendUrl(): string {
@@ -931,49 +995,27 @@ export class LibraryService implements OnDestroy {
           return;
         }
 
-        // Полное безопасное слияние (union merge): никогда не удалять треки, которые есть локально!
-        const cloudTrackMap = new Map<string, Track>();
-        for (const ct of cloudTracks) {
-          cloudTrackMap.set(ct.id, ct);
-        }
+        const localUpdatedAt = parseInt(localStorage.getItem(this.STORAGE_KEY_UPDATED_AT) || '0', 10);
 
-        const mergedMap = new Map<string, Track>(cloudTrackMap);
-        let hasNewLocalTracks = false;
+        if (forceCloud || cloudUpdatedAt >= localUpdatedAt || localUpdatedAt === 0) {
+          // Keep true local-only uploads (custom uploaded MP3s) if any
+          const localOnlyUploads = localTracks.filter(
+            (lt) => lt.isLocalUpload && !cloudTracks.some((ct) => ct.id === lt.id)
+          );
+          const finalTracks = localOnlyUploads.length > 0 ? [...cloudTracks, ...localOnlyUploads] : cloudTracks;
 
-        for (const lt of localTracks) {
-          if (!lt || !lt.id || lt.id.startsWith('default-track-')) continue;
-          if (!mergedMap.has(lt.id)) {
-            mergedMap.set(lt.id, lt);
-            hasNewLocalTracks = true;
-          }
-        }
+          this.tracks.set(finalTracks);
+          this.playlists.set(cloudPlaylists);
+          this.radioStations.set(cloudStations);
+          this.saveLocalWithoutCloudSync();
 
-        const mergedTracks = this.sanitizeTracks(Array.from(mergedMap.values()));
-
-        // Также безопасно объединяем плейлисты
-        const playlistMap = new Map<string, Playlist>();
-        for (const cp of cloudPlaylists) {
-          playlistMap.set(cp.id, cp);
-        }
-        for (const lp of this.playlists()) {
-          if (!playlistMap.has(lp.id)) {
-            playlistMap.set(lp.id, lp);
-            hasNewLocalTracks = true;
-          }
-        }
-
-        this.tracks.set(mergedTracks);
-        this.playlists.set(Array.from(playlistMap.values()));
-        this.radioStations.set(cloudStations);
-        this.saveLocalWithoutCloudSync();
-
-        // Если локально были треки, которых ещё нет в облаке, сразу синхронизируем их на сервер
-        if (hasNewLocalTracks) {
+          try {
+            localStorage.setItem(this.STORAGE_KEY_UPDATED_AT, (cloudUpdatedAt || Date.now()).toString());
+          } catch {}
+        } else {
+          // Device has newer local changes made while offline
           await this.pushLibraryToBackend();
         }
-        try {
-          localStorage.setItem(this.STORAGE_KEY_UPDATED_AT, (cloudUpdatedAt || Date.now()).toString());
-        } catch {}
 
         try {
           const offlineSvc = this.offlineService;

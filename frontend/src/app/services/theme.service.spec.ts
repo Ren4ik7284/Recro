@@ -15,11 +15,11 @@ describe('ThemeService & Discord Nitro Theme Engine', () => {
     localStorage.clear();
   });
 
-  it('should initialize with default royal blue theme', () => {
+  it('should initialize with default classic dark monochrome theme', () => {
     const current = themeService.currentTheme();
-    expect(current.color1).toBe('#2563eb');
-    expect(current.color2).toBe('#0f172a');
-    expect(current.presetId).toBe('deep-blue');
+    expect(current.color1).toBe('#ffffff');
+    expect(current.color2).toBe('#27272a');
+    expect(current.presetId).toBe('classic-dark');
   });
 
   it('should switch to a Discord Nitro preset correctly', () => {
@@ -59,8 +59,8 @@ describe('ThemeService & Discord Nitro Theme Engine', () => {
     expect(themeService.isThemeModalOpen()).toBe(false);
   });
 
-  it('should have 10 Nitro presets and quick swatch palette defined', () => {
-    expect(themeService.presets.length).toBe(10);
+  it('should have 10+ Nitro presets and quick swatch palette defined', () => {
+    expect(themeService.presets.length).toBeGreaterThanOrEqual(10);
     expect(themeService.quickSwatches.length).toBeGreaterThan(10);
   });
 });

@@ -37,6 +37,8 @@ pub type ActiveTranscodes = Arc<Mutex<std::collections::HashSet<String>>>;
 pub type SearchCache = Arc<Mutex<HashMap<String, (Vec<crate::models::SearchTrack>, Instant)>>>;
 pub type CoverCache = Arc<Mutex<HashMap<String, (axum::body::Bytes, axum::http::HeaderValue, Instant)>>>;
 
+pub type SyncChannel = tokio::sync::broadcast::Sender<String>;
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: DbPool,
@@ -49,6 +51,7 @@ pub struct AppState {
     pub search_cache: SearchCache,
     pub cover_cache: CoverCache,
     pub soundcloud: Arc<SoundCloudClient>,
+    pub sync_channel: SyncChannel,
 }
 
 #[tokio::main]
@@ -59,6 +62,7 @@ async fn main() {
     tokio::spawn(spotify_charts::start_spotify_charts_worker());
 
     let soundcloud = SoundCloudClient::new();
+    let (sync_channel, _) = tokio::sync::broadcast::channel::<String>(512);
 
     let pool = match init_db().await {
         Ok(p) => p,
@@ -81,6 +85,7 @@ async fn main() {
         search_cache: Arc::new(Mutex::new(HashMap::new())),
         cover_cache: Arc::new(Mutex::new(HashMap::new())),
         soundcloud,
+        sync_channel,
     };
 
     let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {
@@ -111,6 +116,7 @@ async fn main() {
         .route("/api/auth/config", get(get_auth_config))
         .route("/api/auth/google", post(google_login))
         .route("/api/sync", get(get_library).post(save_library))
+        .route("/api/sync/events", get(handlers::library::sync_events))
         .route("/api/history", get(get_history).post(record_play).delete(clear_history))
         .route("/api/stats/wrapped", get(get_wrapped))
         .route("/api/cover", get(proxy_cover))

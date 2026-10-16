@@ -19,27 +19,27 @@
   --border-focus: #52525b;
 
   --accent-white: #fafafa;
-  --accent-blue: #2563eb;
-  --accent-blue-hover: #1d4ed8;
-  --accent-blue-subtle: rgba(37, 99, 235, 0.15);
+  --accent-blue: #3b82f6;
+  --accent-blue-hover: #2563eb;
+  --accent-blue-subtle: rgba(59, 130, 246, 0.15);
   --accent-blue-border: rgba(59, 130, 246, 0.35);
 
-  --accent-green: #2563eb;
-  --accent-green-hover: #1d4ed8;
-  --accent-green-subtle: rgba(37, 99, 235, 0.15);
+  --accent-green: #3b82f6;
+  --accent-green-hover: #2563eb;
+  --accent-green-subtle: rgba(59, 130, 246, 0.15);
   --accent-green-border: rgba(59, 130, 246, 0.35);
 
-  /* Discord Nitro Theme Engine Variables */
-  --theme-c1: #2563eb;
-  --theme-c2: #0f172a;
-  --theme-c1-hover: #3b82f6;
-  --theme-c1-subtle: rgba(37, 99, 235, 0.16);
-  --theme-c1-border: rgba(37, 99, 235, 0.38);
-  --theme-c1-glow: rgba(37, 99, 235, 0.35);
-  --theme-c2-subtle: rgba(15, 23, 42, 0.16);
-  --theme-c2-glow: rgba(15, 23, 42, 0.30);
+  /* Discord Nitro Theme Engine Variables (Default: Pure Sleek Dark Monochrome) */
+  --theme-c1: #ffffff;
+  --theme-c2: #71717a;
+  --theme-c1-hover: #e4e4e7;
+  --theme-c1-subtle: rgba(255, 255, 255, 0.08);
+  --theme-c1-border: rgba(255, 255, 255, 0.16);
+  --theme-c1-glow: rgba(255, 255, 255, 0.12);
+  --theme-c2-subtle: rgba(113, 113, 122, 0.16);
+  --theme-c2-glow: rgba(113, 113, 122, 0.15);
   --theme-gradient: linear-gradient(135deg, var(--theme-c1), var(--theme-c2));
-  --theme-ambient-mesh: radial-gradient(ellipse 90% 80% at 10% 15%, rgba(37, 99, 235, 0.16) 0%, transparent 65%), radial-gradient(ellipse 85% 75% at 90% 85%, rgba(15, 23, 42, 0.16) 0%, transparent 65%);
+  --theme-ambient-mesh: none;
 
   --radius-sm: 6px;
   --radius-md: 8px;

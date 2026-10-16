@@ -1614,15 +1614,17 @@
 }
 
 .profile-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-  display: flex;
+  position: fixed !important;
+  inset: 0 !important;
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 100000 !important;
   padding: 16px;
+  overflow: hidden;
 }
 
 .profile-modal-dialog {
@@ -2450,27 +2452,57 @@
   }
 
   .profile-modal-backdrop {
-    align-items: flex-end;
-    padding: 0;
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    overflow: hidden !important;
   }
 
   .profile-modal-dialog {
+    width: 100% !important;
     max-width: 100% !important;
-    border-radius: 20px 20px 0 0 !important;
-    max-height: 88vh !important;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
+    border-radius: 22px 22px 0 0 !important;
+    max-height: 82dvh !important;
+    margin: 0 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-bottom: none !important;
+    background: #18181b !important;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.85) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+    animation: sheetSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+
+    // Drag / swipe handle bar at the top of the sheet
+    &::before {
+      content: '';
+      display: block;
+      width: 38px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.25);
+      margin: 8px auto 4px auto;
+      flex-shrink: 0;
+    }
 
     .modal-dialog-header {
-      padding: 14px 18px;
+      padding: 10px 18px 12px 18px !important;
+      background: transparent !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+
+      .modal-title-with-icon h3 {
+        font-size: 15px !important;
+      }
     }
 
     .modal-dialog-body {
-      padding: 16px;
+      padding: 14px 16px !important;
       flex: 1 1 auto;
-      overflow-y: auto;
-      max-height: calc(88vh - 110px) !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      max-height: calc(82dvh - 130px) !important;
 
       .avatar-preview-container {
         margin-bottom: 12px;
@@ -2544,14 +2576,21 @@
     }
 
     .modal-dialog-footer {
-      padding: 12px 16px;
-      padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
+      padding: 10px 16px !important;
+      padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important;
+      background: #18181b !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+      display: flex !important;
+      gap: 10px !important;
+      flex-shrink: 0 !important;
 
       .btn-modal-cancel,
       .btn-modal-submit {
         flex: 1;
-        height: 42px;
+        height: 44px;
+        border-radius: 10px;
         font-size: 13px;
+        font-weight: 600;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -3012,6 +3051,17 @@
         }
       }
     }
+  }
+}
+
+@keyframes sheetSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }
 

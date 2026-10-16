@@ -1473,20 +1473,24 @@ export class AudioService {
 
         if (nextIdx >= updatedQ.length) {
           // Never loop back to index 0 in Smart Mix!
-          // Try to get any track from library or starters that hasn't played recently
           const cur = this.currentTrack();
-          let fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id && !this.recService.isSessionDuplicate(t));
-          if (fallbackCandidates.length === 0) {
-            fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id);
-          }
-          if (fallbackCandidates.length > 0) {
-            const randomPick = fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)];
-            this.queue.update((curQ) => [...curQ, randomPick]);
-            nextIdx = this.queue().length - 1;
+          if (source === 'library_only') {
+            let fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id && !this.recService.isSessionDuplicate(t));
+            if (fallbackCandidates.length === 0) {
+              fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id);
+            }
+            if (fallbackCandidates.length > 0) {
+              const randomPick = fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)];
+              this.queue.update((curQ) => [...curQ, randomPick]);
+              nextIdx = this.queue().length - 1;
+            }
           } else {
-            let starters = this.recService.getStarterCandidates(mood, 3, lang).filter((t) => t.id !== cur?.id);
+            // Strictly NO library tracks in discovery mix!
+            let starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
+              (t) => t.id !== cur?.id && !this.recService.isLibraryTrack(t)
+            );
             if (starters.length === 0) {
-              starters = this.recService.getStarterCandidates(mood, 3, lang);
+              starters = this.recService.getStarterCandidates(mood, 6, lang).filter((t) => !this.recService.isLibraryTrack(t));
             }
             if (starters.length > 0) {
               this.queue.update((curQ) => [...curQ, starters[0]]);
@@ -2046,7 +2050,8 @@ export class AudioService {
     // Prioritize instant pre-cached starter track so Smart Mix starts playing with 0ms delay:
     if (starters.length > 0) {
       immediateTrack = starters[0];
-      const bufferedDiscoveries = this.recService.getBufferedDiscoveries(effectiveLang);
+      const bufferedDiscoveries = this.recService.getBufferedDiscoveries(effectiveLang)
+        .filter((t) => !this.recService.isLibraryTrack(t));
       initialQueue = [starters[0], ...bufferedDiscoveries.slice(0, 3)];
       for (const starter of starters.slice(1)) {
         if (!initialQueue.some((t) => t.id === starter.id)) {
@@ -2054,9 +2059,13 @@ export class AudioService {
         }
         if (initialQueue.length >= 4) break;
       }
-    } else if (localCandidates.length > 0) {
-      immediateTrack = localCandidates[0];
-      initialQueue = localCandidates.slice(0, 3);
+    } else {
+      const freshOnline = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), curTrack);
+      const pureOnline = freshOnline.filter((t) => !this.recService.isLibraryTrack(t));
+      if (pureOnline.length > 0) {
+        immediateTrack = pureOnline[0];
+        initialQueue = pureOnline;
+      }
     }
 
     if (immediateTrack) {

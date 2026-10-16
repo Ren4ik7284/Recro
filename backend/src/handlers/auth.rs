@@ -509,6 +509,8 @@ pub async fn update_profile(
     let banner_url: Option<String> = updated.get("banner_url");
     let profile_tags: Option<String> = updated.get("profile_tags");
 
+    let _ = state.sync_channel.send(format!("{}:profile_updated", user_id));
+
     Ok(Json(UserInfo { id, username, email, avatar_url, banner_url, profile_tags }))
 }
 

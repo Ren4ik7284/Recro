@@ -188,6 +188,10 @@ export class AuthService {
     }
   }
 
+  getAuthToken(): string | null {
+    return this.token();
+  }
+
   getAuthHeaders(): Record<string, string> {
     const t = this.token();
     if (!t) return {};

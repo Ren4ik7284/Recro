@@ -638,11 +638,16 @@ export class RecommendationService {
 
   isLibraryTrack(track: Track): boolean {
     if (!track) return false;
-    const candidates = this.getAllLocalCandidates();
+    const libTracks = this.libraryService.tracks();
+    const localCandidates = this.getAllLocalCandidates();
+    const candidates = libTracks.length > 0 ? libTracks : localCandidates;
     if (candidates.length === 0) return false;
 
     // 1. Direct ID match
     if (candidates.some((t) => t.id === track.id)) return true;
+
+    // 2. Direct audio URL match (full valid url)
+    if (track.audioUrl && track.audioUrl.length > 10 && !track.audioUrl.startsWith('/api/stream') && candidates.some((t) => t.audioUrl === track.audioUrl)) return true;
 
     // 3. Exact artist::title key match
     const trackKey = this.getTitleKey(track);
@@ -2075,8 +2080,10 @@ export class RecommendationService {
     } else if (mood === 'chill') {
       pool = pool.filter((t) => t.genre.includes('Hip-Hop') || t.genre.includes('Pop') || t.genre.includes('Viral') || t.genre.includes('Lo-Fi'));
     }
-    const unplayed = pool.filter((t) => !this.isSessionDuplicate(t));
-    const finalPool = unplayed.length >= count ? unplayed : (unplayed.length > 0 ? unplayed : pool);
+    const nonLibrary = pool.filter((t) => !this.isLibraryTrack(t));
+    const activePool = nonLibrary.length > 0 ? nonLibrary : pool;
+    const unplayed = activePool.filter((t) => !this.isSessionDuplicate(t));
+    const finalPool = unplayed.length >= count ? unplayed : (unplayed.length > 0 ? unplayed : activePool);
     finalPool.sort(() => 0.5 - Math.random());
     return finalPool.slice(0, count).map((t) => ({ ...t }));
   }

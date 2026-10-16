@@ -10,6 +10,13 @@ export interface ThemePreset {
 
 export const THEME_PRESETS: ThemePreset[] = [
   {
+    id: 'classic-dark',
+    nameRu: 'Классический тёмный',
+    nameEn: 'Classic Dark',
+    color1: '#ffffff',
+    color2: '#27272a',
+  },
+  {
     id: 'deep-blue',
     nameRu: 'Королевский синий',
     nameEn: 'Royal Blue',
@@ -134,6 +141,10 @@ export class ThemeService {
       const raw = localStorage.getItem(this.STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        // Reset old 'deep-blue' default to 'classic-dark' if user hasn't explicitly chosen custom colors
+        if (parsed.presetId === 'deep-blue' && parsed.color1 === '#2563eb' && parsed.color2 === '#0f172a' && !parsed.isCustom) {
+          return { color1: THEME_PRESETS[0].color1, color2: THEME_PRESETS[0].color2, presetId: THEME_PRESETS[0].id };
+        }
         if (parsed.color1 && parsed.color2) {
           return parsed;
         }
@@ -179,7 +190,7 @@ export class ThemeService {
   }
 
   resetToDefault() {
-    this.setPreset('deep-blue');
+    this.setPreset('classic-dark');
   }
 
   openModal() {
@@ -226,6 +237,45 @@ export class ThemeService {
   private applyThemeToDOM(cfg: ThemeConfig) {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
+
+    const isClassicDark = cfg.presetId === 'classic-dark' ||
+      (cfg.color1.toLowerCase() === '#ffffff' && cfg.color2.toLowerCase() === '#27272a');
+
+    if (isClassicDark) {
+      // Изначальный чистый чёрно-бело-серый монохром без вырвиглазной синевы!
+      root.style.setProperty('--theme-c1', '#ffffff');
+      root.style.setProperty('--theme-c2', '#71717a');
+      root.style.setProperty('--theme-c1-hover', '#e4e4e7');
+      root.style.setProperty('--theme-c1-subtle', 'rgba(255, 255, 255, 0.08)');
+      root.style.setProperty('--theme-c1-border', 'rgba(255, 255, 255, 0.16)');
+      root.style.setProperty('--theme-c1-glow', 'rgba(255, 255, 255, 0.12)');
+      root.style.setProperty('--theme-c2-subtle', 'rgba(113, 113, 122, 0.16)');
+      root.style.setProperty('--theme-c2-glow', 'rgba(113, 113, 122, 0.15)');
+
+      root.style.setProperty('--theme-gradient', 'linear-gradient(135deg, #ffffff, #71717a)');
+      root.style.setProperty('--theme-ambient-mesh', 'none');
+
+      // Синий аккуратно используется только для акцента/выделения инфы (не на весь экран)
+      root.style.setProperty('--accent-blue', '#3b82f6');
+      root.style.setProperty('--accent-blue-hover', '#2563eb');
+      root.style.setProperty('--accent-blue-subtle', 'rgba(59, 130, 246, 0.15)');
+      root.style.setProperty('--accent-blue-border', 'rgba(59, 130, 246, 0.35)');
+
+      root.style.setProperty('--accent-green', '#3b82f6');
+      root.style.setProperty('--accent-green-hover', '#2563eb');
+      root.style.setProperty('--accent-green-subtle', 'rgba(59, 130, 246, 0.15)');
+      root.style.setProperty('--accent-green-border', 'rgba(59, 130, 246, 0.35)');
+
+      // Чистые тёмные shadcn/zinc фоны
+      root.style.setProperty('--bg-canvas', '#09090b');
+      root.style.setProperty('--bg-sidebar', '#09090b');
+      root.style.setProperty('--bg-panel', '#0d0d10');
+      root.style.setProperty('--bg-card', '#18181b');
+      root.style.setProperty('--bg-card-hover', '#222226');
+      root.style.setProperty('--border-subtle', '#27272a');
+      return;
+    }
+
     const rgb1 = this.hexToRgb(cfg.color1);
     const rgb2 = this.hexToRgb(cfg.color2);
 
@@ -237,7 +287,7 @@ export class ThemeService {
     const c2Subtle = `rgba(${rgb2.r}, ${rgb2.g}, ${rgb2.b}, 0.16)`;
     const c2Glow = `rgba(${rgb2.r}, ${rgb2.g}, ${rgb2.b}, 0.30)`;
 
-    // Основные CSS переменные цветовой темы
+    // Основные CSS переменные кастомной цветовой темы (Discord Nitro)
     root.style.setProperty('--theme-c1', cfg.color1);
     root.style.setProperty('--theme-c2', cfg.color2);
     root.style.setProperty('--theme-c1-hover', c1Hover);
@@ -247,14 +297,12 @@ export class ThemeService {
     root.style.setProperty('--theme-c2-subtle', c2Subtle);
     root.style.setProperty('--theme-c2-glow', c2Glow);
 
-    // Градиенты в стиле Discord Nitro
     root.style.setProperty('--theme-gradient', `linear-gradient(135deg, ${cfg.color1}, ${cfg.color2})`);
     root.style.setProperty(
       '--theme-ambient-mesh',
       `radial-gradient(ellipse 90% 80% at 10% 15%, ${c1Subtle} 0%, transparent 65%), radial-gradient(ellipse 85% 75% at 90% 85%, ${c2Subtle} 0%, transparent 65%)`
     );
 
-    // Акцентные переменные плеера
     root.style.setProperty('--accent-blue', cfg.color1);
     root.style.setProperty('--accent-blue-hover', c1Hover);
     root.style.setProperty('--accent-blue-subtle', c1Subtle);
@@ -265,12 +313,12 @@ export class ThemeService {
     root.style.setProperty('--accent-green-subtle', c1Subtle);
     root.style.setProperty('--accent-green-border', c1Border);
 
-    // Подмешивание оттенков в фон (Discord Nitro atmospheric dark blend)
-    root.style.setProperty('--bg-canvas', `color-mix(in srgb, ${cfg.color2} 12%, #09090b)`);
-    root.style.setProperty('--bg-sidebar', `color-mix(in srgb, ${cfg.color1} 14%, #070709)`);
-    root.style.setProperty('--bg-panel', `color-mix(in srgb, ${cfg.color2} 14%, #0b0b0e)`);
-    root.style.setProperty('--bg-card', `color-mix(in srgb, ${cfg.color1} 18%, #141418)`);
-    root.style.setProperty('--bg-card-hover', `color-mix(in srgb, ${cfg.color1} 26%, #1c1c22)`);
-    root.style.setProperty('--border-subtle', `color-mix(in srgb, ${cfg.color1} 22%, #222228)`);
+    // Мягкое атмосферное подмешивание (деликатный оттенок в темноте)
+    root.style.setProperty('--bg-canvas', `color-mix(in srgb, ${cfg.color2} 8%, #09090b)`);
+    root.style.setProperty('--bg-sidebar', `color-mix(in srgb, ${cfg.color1} 10%, #070709)`);
+    root.style.setProperty('--bg-panel', `color-mix(in srgb, ${cfg.color2} 10%, #0b0b0e)`);
+    root.style.setProperty('--bg-card', `color-mix(in srgb, ${cfg.color1} 12%, #141418)`);
+    root.style.setProperty('--bg-card-hover', `color-mix(in srgb, ${cfg.color1} 18%, #1c1c22)`);
+    root.style.setProperty('--border-subtle', `color-mix(in srgb, ${cfg.color1} 16%, #222228)`);
   }
 }
