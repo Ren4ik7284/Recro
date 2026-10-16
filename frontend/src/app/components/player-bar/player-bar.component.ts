@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, inject, signal, ViewEncapsulation } from '@angular/core';
+import { Component, EventEmitter, Output, inject, signal, computed, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AudioService } from '../../services/audio.service';
@@ -72,6 +72,15 @@ export class PlayerBarComponent {
   // Scrubber Dragging State
   readonly isScrubbing = signal<boolean>(false);
   readonly scrubTime = signal<number>(0);
+
+  readonly currentProgressPercent = computed(() => {
+    if (this.isScrubbing()) {
+      const d = this.audioService.duration();
+      if (!d || d <= 0) return 0;
+      return Math.min(100, Math.max(0, (this.scrubTime() / d) * 100));
+    }
+    return this.audioService.progressPercent();
+  });
 
   onScrubberInput(val: number) {
     this.isScrubbing.set(true);

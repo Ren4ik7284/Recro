@@ -1,4 +1,4 @@
-const CACHE_NAME = 'recro-pwa-v19';
+const CACHE_NAME = 'recro-pwa-v20';
 const OFFLINE_AUDIO_CACHE = 'recro-offline-tracks-v1';
 
 const ASSETS_TO_CACHE = [

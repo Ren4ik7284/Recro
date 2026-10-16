@@ -728,9 +728,28 @@
                   <tr 
                     class="track-row" 
                     [class.playing]="audioService.currentTrack()?.id === track.id"
+                    [class.is-draggable]="activeTab() === 'playlist'"
+                    [class.dragging]="draggedTrackIndex() === i"
+                    [class.drag-over-top]="dragOverIndex() === i && dragOverPosition() === 'top'"
+                    [class.drag-over-bottom]="dragOverIndex() === i && dragOverPosition() === 'bottom'"
+                    [draggable]="activeTab() === 'playlist'"
+                    (dragstart)="onTrackDragStart($event, i, track)"
+                    (dragover)="onTrackDragOver($event, i)"
+                    (dragleave)="onTrackDragLeave($event, i)"
+                    (drop)="onTrackDrop($event, i)"
+                    (dragend)="onTrackDragEnd()"
                     (click)="playTrack(track)"
                   >
                     <td class="cell-index">
+                      @if (activeTab() === 'playlist') {
+                        <span class="drag-handle-grip desktop-only" title="Зажмите ЛКМ для перемещения трека">
+                          <svg width="10" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="9" cy="5" r="2.2"/><circle cx="15" cy="5" r="2.2"/>
+                            <circle cx="9" cy="12" r="2.2"/><circle cx="15" cy="12" r="2.2"/>
+                            <circle cx="9" cy="19" r="2.2"/><circle cx="15" cy="19" r="2.2"/>
+                          </svg>
+                        </span>
+                      }
                       @if (audioService.currentTrack()?.id === track.id && audioService.isPlaying()) {
                         <div class="audio-bar-anim" (click)="audioService.togglePlay(); $event.stopPropagation()">
                           <span></span><span></span><span></span>
@@ -1202,6 +1221,7 @@
               [max]="audioService.duration() || 100"
               step="1"
               [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
+              [style.--slider-progress.%]="currentProgressPercent()"
               (input)="onScrubberInput(+($any($event.target).value))"
               (change)="onScrubberChange(+($any($event.target).value))"
               class="mono-slider"
@@ -1262,6 +1282,7 @@
           max="1"
           step="0.02"
           [value]="audioService.isMuted() ? 0 : audioService.volume()"
+          [style.--slider-progress.%]="audioService.isMuted() ? 0 : audioService.volume() * 100"
           (input)="audioService.setVolume(+($any($event.target).value))"
           class="mono-slider"
         />

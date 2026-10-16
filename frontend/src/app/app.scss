@@ -798,6 +798,51 @@
           }
         }
 
+        &.is-draggable {
+          user-select: none;
+          -webkit-user-select: none;
+
+          .drag-handle-grip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 24px;
+            margin-right: 2px;
+            color: var(--text-muted);
+            cursor: grab;
+            opacity: 0.45;
+            transition: opacity 0.15s ease, color 0.15s ease;
+
+            &:hover {
+              opacity: 1;
+              color: var(--theme-c1, var(--text-primary));
+            }
+            &:active {
+              cursor: grabbing;
+            }
+          }
+
+          &:hover .drag-handle-grip {
+            opacity: 0.85;
+          }
+        }
+
+        &.dragging {
+          opacity: 0.35 !important;
+          background: rgba(255, 255, 255, 0.08) !important;
+        }
+
+        &.drag-over-top {
+          border-top: 2px solid var(--theme-c1, #3b82f6) !important;
+          box-shadow: inset 0 2px 8px var(--theme-c1-subtle, rgba(59, 130, 246, 0.25));
+        }
+
+        &.drag-over-bottom {
+          border-bottom: 2px solid var(--theme-c1, #3b82f6) !important;
+          box-shadow: inset 0 -2px 8px var(--theme-c1-subtle, rgba(59, 130, 246, 0.25));
+        }
+
         td {
           height: 50px;
           padding: 0 14px;
@@ -808,12 +853,15 @@
         }
 
         .cell-index {
-          width: 48px;
-          min-width: 48px;
-          max-width: 48px;
+          width: 54px;
+          min-width: 54px;
+          max-width: 54px;
           padding: 0;
           text-align: center;
           position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
 
           .index-num {
             display: flex;

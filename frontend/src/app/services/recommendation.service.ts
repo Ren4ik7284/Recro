@@ -557,9 +557,9 @@ const ELECTRONIC_REGEX = /\b(synth|synthwave|edm|house|dance|techno|club|dnb|dru
 const CHILL_REGEX = /\b(lo-?fi|chill|ambient|relax|sleep|piano|acoustic|акустика|лаборатория|calm|meditation|soft|лаунж)\b/i;
 const POP_REGEX = /\b(pop|поп|indie|инди|hit|k-?pop|vocal|вокал)\b/i;
 
-export const JUNK_GENRES_REGEX = /\b(jazz|джаз|classical|классика|классическая|blues|блюз|chamber|orchestral|symphony|симфония|opera|опера|relaxing piano|sleep music|meditation|lounge bar|soothing piano|bossa nova)\b/i;
+export const JUNK_GENRES_REGEX = /\b(jazz|джаз|classical|классика|классическая|blues|блюз|chamber|orchestral|symphony|симфония|opera|опера|relaxing piano|sleep music|meditation|lounge bar|soothing piano|bossa nova|asmr|soundtrack|score|ambient rain|white noise|sleep aid|nature sounds|birds chirping|guided meditation)\b/i;
 export const REGIONAL_SPAM_REGEX = /[\u0900-\u097F]|punjabi|hindi|bollywood|desi|bhangra|sidhu|haryanvi|tamil|telugu|[іїєґІЇЄҐ]|українськ|ukrainian|\bзсу\b/i;
-export const BEDROOM_PRODUCER_REGEX = /\b(type beat|beat prod|instrumental|karaoke|караоке|минус|slowed|reverb|8d audio|bass boosted|nightcore|sped up|speed up|remake|guitar cover|кавер|1 hour|10 hours|hour mix|compilation|сборник)\b/i;
+export const BEDROOM_PRODUCER_REGEX = /\b(type beat|beat prod|instrumental|karaoke|караоке|минус|slowed|reverb|8d audio|bass boosted|nightcore|sped up|speed up|remake|guitar cover|кавер|1 hour|10 hours|hour mix|compilation|сборник|earrape|bass test|ringtone|rington|рингтон|тишина|audio test|sound effect|sound effects|sfx|skibidi|meme|parody|пародия|прикол|soundboard|tiktok mashup|tiktok version|clean version|censored version|vlog music|no copyright|royalty free|intro music|outro music)\b/i;
 
 @Injectable({
   providedIn: 'root',
@@ -1616,9 +1616,10 @@ export class RecommendationService {
     }
     const baseShift = minScore <= 0 ? Math.abs(minScore) + 5 : 0;
 
-    // Efraimidis-Spirakis Weighted Reservoir Sampling:
+    // Efraimidis-Spirakis Weighted Reservoir Sampling with sharpened power curve:
     const weightedItems = eligible.map((item) => {
-      const weight = Math.max(0.1, item.score + baseShift);
+      const normalizedScore = Math.max(0.1, item.score + baseShift);
+      const weight = Math.pow(normalizedScore, 2.2);
       const r = Math.max(1e-10, Math.random());
       const key = Math.log(r) / weight;
       return { track: item.track, key };
@@ -1936,8 +1937,9 @@ export class RecommendationService {
 
       // 3. User favorite tracks expansion: query tracks similar to user's favorites
       const favTracks = langFilteredCandidates.filter((t) => t.isFavorite);
+      let sampleFav: Track | undefined;
       if (favTracks.length > 0 && typeof this.libraryService.getSimilarTracks === 'function') {
-        const sampleFav = favTracks[Math.floor(Math.random() * favTracks.length)];
+        sampleFav = favTracks[Math.floor(Math.random() * favTracks.length)];
         if (sampleFav.title && sampleFav.artist && (!effectiveSeed || sampleFav.id !== effectiveSeed.id)) {
           tasks.push(
             this.libraryService.getSimilarTracks(sampleFav.title, sampleFav.artist, 15, sampleFav.genre || dominantGenre).catch(() => [] as Track[])
@@ -1945,11 +1947,15 @@ export class RecommendationService {
         }
       }
 
-      // 4. Trending chart expansion matching dominant genre
-      if (typeof this.libraryService.getSoundCloudCharts === 'function') {
-        tasks.push(
-          this.libraryService.getSoundCloudCharts(dominantGenre, 15).catch(() => [] as Track[])
-        );
+      // 4. Expanded favorite / history similar tracks expansion instead of generic charts
+      const extraFav = favTracks.filter((t) => !sampleFav || t.id !== sampleFav.id);
+      if (extraFav.length > 0 && typeof this.libraryService.getSimilarTracks === 'function') {
+        const sample2 = extraFav[Math.floor(Math.random() * extraFav.length)];
+        if (sample2?.title && sample2?.artist) {
+          tasks.push(
+            this.libraryService.getSimilarTracks(sample2.title, sample2.artist, 15, sample2.genre || dominantGenre).catch(() => [] as Track[])
+          );
+        }
       }
 
       const results = await Promise.all(tasks);
@@ -1961,7 +1967,7 @@ export class RecommendationService {
         if (excludeIds.has(t.id) || this.isDisliked(t) || this.isSessionDuplicate(t)) continue;
         if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
         if (!isTrackLanguageMatch(t, effectiveLang)) continue;
-        if (t.duration > 0 && (t.duration < 45 || t.duration > 500)) continue;
+        if (t.duration > 0 && (t.duration < 55 || t.duration > 480)) continue;
 
         const textKey = `${t.genre || ''} ${t.title} ${t.artist}`;
         if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
@@ -1987,7 +1993,8 @@ export class RecommendationService {
 
         const trackVec = this.extractTrackVector(t);
         let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        if (!isDirectCircleMatch && sim < 0.28) continue;
+        // Strict quality threshold: unrelated artists must share >= 0.48 taste similarity to user
+        if (!isDirectCircleMatch && sim < 0.48) continue;
         sim += artistAffinityBonus;
 
         scoredCandidates.push({ track: t, sim });

@@ -179,16 +179,38 @@ export class LibraryService implements OnDestroy {
     const view = this.selectedView();
     const playlistId = this.activePlaylistId();
 
+    if (view === 'playlist' && playlistId) {
+      const pl = this.playlists().find((p) => p.id === playlistId);
+      if (!pl) return [];
+      const trackMap = new Map(this.tracks().map((t) => [t.id, t]));
+      const orderedTracks = pl.trackIds
+        .map((id) => trackMap.get(id))
+        .filter((t): t is Track => !!t);
+
+      return orderedTracks.filter((track) => {
+        if (genre !== 'all' && track.genre.toLowerCase() !== genre.toLowerCase()) {
+          return false;
+        }
+        if (query) {
+          const matchTitle = track.title.toLowerCase().includes(query);
+          const matchArtist = track.artist.toLowerCase().includes(query);
+          const matchAlbum = track.album?.toLowerCase().includes(query) ?? false;
+          const matchGenre = track.genre.toLowerCase().includes(query);
+          const matchUrl = track.audioUrl.toLowerCase().includes(query);
+          if (!matchTitle && !matchArtist && !matchAlbum && !matchGenre && !matchUrl) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+
     return this.tracks().filter((track) => {
       if (view === 'all' && track.playlistOnly) return false;
       if (view === 'favorites' && !track.isFavorite) return false;
       if (view === 'uploads' && !track.isLocalUpload) return false;
       if (view === 'streams' && !track.isLiveStream && track.format !== 'stream') return false;
       if (view === 'offline' && !this.offlineService.isTrackOffline(track.id)) return false;
-      if (view === 'playlist' && playlistId) {
-        const pl = this.playlists().find((p) => p.id === playlistId);
-        if (!pl || !pl.trackIds.includes(track.id)) return false;
-      }
 
       if (genre !== 'all' && track.genre.toLowerCase() !== genre.toLowerCase()) {
         return false;
@@ -1477,6 +1499,31 @@ export class LibraryService implements OnDestroy {
     this.persistPlaylists();
     this.pushLibraryToBackend();
     return isAdded;
+  }
+
+  reorderTracksInPlaylist(playlistId: string, fromIndex: number, toIndex: number): boolean {
+    if (fromIndex === toIndex) return false;
+    let success = false;
+    this.playlists.update((pls) =>
+      pls.map((p) => {
+        if (p.id === playlistId) {
+          if (fromIndex < 0 || fromIndex >= p.trackIds.length || toIndex < 0 || toIndex >= p.trackIds.length) {
+            return p;
+          }
+          const updatedTrackIds = [...p.trackIds];
+          const [moved] = updatedTrackIds.splice(fromIndex, 1);
+          updatedTrackIds.splice(toIndex, 0, moved);
+          success = true;
+          return { ...p, trackIds: updatedTrackIds };
+        }
+        return p;
+      })
+    );
+    if (success) {
+      this.persistPlaylists();
+      this.pushLibraryToBackend();
+    }
+    return success;
   }
 
   exportLibrary() {

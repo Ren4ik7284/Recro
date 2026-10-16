@@ -233,6 +233,7 @@
             [max]="audioService.duration() || 100"
             step="1"
             [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
+            [style.--slider-progress.%]="currentProgressPercent()"
             (input)="onScrubberInput(+($any($event.target).value))"
             (change)="onScrubberChange(+($any($event.target).value))"
             class="mono-slider"
@@ -281,6 +282,7 @@
           max="1"
           step="0.02"
           [value]="audioService.isMuted() ? 0 : audioService.volume()"
+          [style.--slider-progress.%]="audioService.isMuted() ? 0 : audioService.volume() * 100"
           (input)="audioService.setVolume(+($any($event.target).value))"
           class="mono-slider vol-slider"
         />

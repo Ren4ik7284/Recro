@@ -180,6 +180,15 @@ export class App implements OnInit {
 
   readonly isScrubbing = signal<boolean>(false);
   readonly scrubTime = signal<number>(0);
+
+  readonly currentProgressPercent = computed(() => {
+    if (this.isScrubbing()) {
+      const d = this.audioService.duration();
+      if (!d || d <= 0) return 0;
+      return Math.min(100, Math.max(0, (this.scrubTime() / d) * 100));
+    }
+    return this.audioService.progressPercent();
+  });
   private toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   onScrubberInput(val: number) {
@@ -1384,6 +1393,67 @@ export class App implements OnInit {
     if (!pl) return;
     this.libraryService.deletePlaylist(pl.id);
     this.showToast(`Плейлист "${pl.title}" удален`);
+  }
+
+  // Playlist Track Drag and Drop (PC)
+  readonly draggedTrackIndex = signal<number | null>(null);
+  readonly dragOverIndex = signal<number | null>(null);
+  readonly dragOverPosition = signal<'top' | 'bottom' | null>(null);
+
+  onTrackDragStart(event: DragEvent, index: number, track: Track) {
+    if (this.activeTab() !== 'playlist') return;
+    this.draggedTrackIndex.set(index);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(index));
+    }
+  }
+
+  onTrackDragOver(event: DragEvent, index: number) {
+    if (this.activeTab() !== 'playlist' || this.draggedTrackIndex() === null) return;
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+    const target = event.currentTarget as HTMLElement | null;
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      const relY = event.clientY - rect.top;
+      const isTopHalf = relY < rect.height / 2;
+      this.dragOverIndex.set(index);
+      this.dragOverPosition.set(isTopHalf ? 'top' : 'bottom');
+    }
+  }
+
+  onTrackDragLeave(event: DragEvent, index: number) {
+    if (this.dragOverIndex() === index) {
+      this.dragOverIndex.set(null);
+      this.dragOverPosition.set(null);
+    }
+  }
+
+  onTrackDrop(event: DragEvent, dropIndex: number) {
+    if (this.activeTab() !== 'playlist') return;
+    event.preventDefault();
+    const fromIndex = this.draggedTrackIndex();
+    const currentPl = this.currentPlaylist();
+    if (fromIndex !== null && currentPl && fromIndex !== dropIndex) {
+      const position = this.dragOverPosition();
+      let targetIndex = dropIndex;
+      if (position === 'bottom' && fromIndex < dropIndex) {
+        targetIndex = dropIndex;
+      } else if (position === 'top' && fromIndex > dropIndex) {
+        targetIndex = dropIndex;
+      }
+      this.libraryService.reorderTracksInPlaylist(currentPl.id, fromIndex, targetIndex);
+    }
+    this.onTrackDragEnd();
+  }
+
+  onTrackDragEnd() {
+    this.draggedTrackIndex.set(null);
+    this.dragOverIndex.set(null);
+    this.dragOverPosition.set(null);
   }
 
   toggleTrackInPlaylist(playlist: Playlist, track: Track) {
