@@ -146,6 +146,7 @@ export class LibraryService implements OnDestroy {
     { id: 'default-8', name: 'Record Lo-Fi', streamUrl: 'https://radiorecord.hostingradio.ru/lofi96.aacp', genre: 'Lo-Fi / Beats', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-9', name: 'SomaFM: Groove Salad', streamUrl: 'https://ice4.somafm.com/groovesalad-128-mp3', genre: 'Ambient / Downtempo', country: 'US', bitrate: '128k Live' },
     { id: 'default-10', name: 'Record Russian Hits', streamUrl: 'https://radiorecord.hostingradio.ru/rus96.aacp', genre: 'Pop / Russian', country: 'RU', bitrate: '96k AAC' },
+    { id: 'default-11', name: 'Радио Дача', streamUrl: 'http://online-1.gkvr.ru:8000/dacha_krd_128.aac', genre: 'Pop / Retro / Hits', country: 'RU', bitrate: '128k AAC' },
   ];
 
   readonly tracks = signal<Track[]>([]);
