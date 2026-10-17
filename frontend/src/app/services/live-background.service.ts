@@ -1,9 +1,9 @@
-import { Injectable, signal, inject, effect } from '@angular/core';
+import { Injectable, signal, inject, effect, untracked } from '@angular/core';
 import { ThemeService } from './theme.service';
 import { AuthService } from './auth.service';
 
 export interface BgPreset {
-  id: 'default' | 'grid' | 'waves' | 'rain' | 'custom';
+  id: 'off' | 'default' | 'grid' | 'waves' | 'rain' | 'custom';
   nameRu: string;
   nameEn: string;
   primaryColor?: string;
@@ -20,6 +20,7 @@ export interface SavedMediaItem {
 }
 
 export const BG_PRESETS: BgPreset[] = [
+  { id: 'off', nameRu: 'Отключен', nameEn: 'Off' },
   { id: 'default', nameRu: 'Обложка трека', nameEn: 'Track Cover' },
   { id: 'grid', nameRu: 'Сетка', nameEn: 'Grid', primaryColor: '#06b6d4', secondaryColor: '#0b1329' },
   { id: 'waves', nameRu: 'Волны', nameEn: 'Waves', primaryColor: '#8b5cf6', secondaryColor: '#130924' },
@@ -69,44 +70,50 @@ export class LiveBackgroundService {
   readonly isResolvingUrl = signal<boolean>(false);
   readonly resolveError = signal<string | null>(null);
 
+  // Маркер последнего примененного профиля из облака
+  private lastSyncedProfileTags = '';
+
   constructor() {
     if (typeof window !== 'undefined') {
       this.initIndexedDbAndRestore();
     }
 
-    // Синхронизация фонового оформления с облаком
+    // Синхронизация фонового оформления с облаком (только при реальном изменении извне)
     effect(() => {
       const user = this.authService?.currentUser();
       if (!user || user.id === 'guest' || !user.profile_tags) return;
+      if (user.profile_tags === this.lastSyncedProfileTags) return;
+      this.lastSyncedProfileTags = user.profile_tags;
+
       try {
         const meta = JSON.parse(user.profile_tags);
         if (meta && meta.background) {
           const bg = meta.background;
-          if (bg.preset && bg.preset !== this.activePreset()) {
+          if (bg.preset && bg.preset !== untracked(() => this.activePreset())) {
             this.activePreset.set(bg.preset);
             this.saveStorage('recro_bg_preset', bg.preset);
           }
-          if (typeof bg.dimmer === 'number' && bg.dimmer !== this.dimmerLevel()) {
+          if (typeof bg.dimmer === 'number' && bg.dimmer !== untracked(() => this.dimmerLevel())) {
             this.dimmerLevel.set(bg.dimmer);
             this.saveStorage('recro_bg_dimmer', String(bg.dimmer));
           }
-          if (typeof bg.blur === 'number' && bg.blur !== this.blurLevel()) {
+          if (typeof bg.blur === 'number' && bg.blur !== untracked(() => this.blurLevel())) {
             this.blurLevel.set(bg.blur);
             this.saveStorage('recro_bg_blur', String(bg.blur));
           }
-          if (typeof bg.isGlassTinted === 'boolean' && bg.isGlassTinted !== this.isGlassTinted()) {
+          if (typeof bg.isGlassTinted === 'boolean' && bg.isGlassTinted !== untracked(() => this.isGlassTinted())) {
             this.isGlassTinted.set(bg.isGlassTinted);
             this.saveStorage('recro_bg_glass_tint', String(bg.isGlassTinted));
           }
-          if (typeof bg.applyGlobally === 'boolean' && bg.applyGlobally !== this.applyGlobally()) {
+          if (typeof bg.applyGlobally === 'boolean' && bg.applyGlobally !== untracked(() => this.applyGlobally())) {
             this.applyGlobally.set(bg.applyGlobally);
             this.saveStorage('recro_bg_global', String(bg.applyGlobally));
           }
-          if (typeof bg.syncThemeWithBg === 'boolean' && bg.syncThemeWithBg !== this.syncThemeWithBg()) {
+          if (typeof bg.syncThemeWithBg === 'boolean' && bg.syncThemeWithBg !== untracked(() => this.syncThemeWithBg())) {
             this.syncThemeWithBg.set(bg.syncThemeWithBg);
             this.saveStorage('recro_bg_sync_theme', String(bg.syncThemeWithBg));
           }
-          if (bg.customMediaUrl && bg.customMediaUrl !== this.customMediaUrl()) {
+          if (bg.customMediaUrl && bg.customMediaUrl !== untracked(() => this.customMediaUrl())) {
             this.customMediaUrl.set(bg.customMediaUrl);
             this.customMediaType.set(bg.customMediaType || 'image');
             this.customMediaName.set(bg.customMediaName || 'Cloud Background');
@@ -116,7 +123,7 @@ export class LiveBackgroundService {
           }
         }
       } catch {}
-    });
+    }, { allowSignalWrites: true });
   }
 
   toggleSettings() {
@@ -135,7 +142,10 @@ export class LiveBackgroundService {
     this.activePreset.set(presetId);
     this.saveStorage('recro_bg_preset', presetId);
 
-    if (presetId !== 'default') {
+    if (presetId === 'off') {
+      this.applyGlobally.set(false);
+      this.saveStorage('recro_bg_global', 'false');
+    } else if (presetId !== 'default') {
       this.applyGlobally.set(true);
       this.saveStorage('recro_bg_global', 'true');
     }
@@ -236,9 +246,8 @@ export class LiveBackgroundService {
     if (!this.authService?.isAuthenticated()) return;
     if (this.syncBgTimeout) clearTimeout(this.syncBgTimeout);
     this.syncBgTimeout = setTimeout(() => {
-      this.authService?.updateProfileCustomization((meta) => ({
-        ...meta,
-        background: {
+      this.authService?.updateProfileCustomization((meta) => {
+        const bgData = {
           preset: this.activePreset(),
           dimmer: this.dimmerLevel(),
           blur: this.blurLevel(),
@@ -248,8 +257,16 @@ export class LiveBackgroundService {
           customMediaUrl: this.customMediaUrl()?.startsWith('blob:') ? null : this.customMediaUrl(),
           customMediaType: this.customMediaType(),
           customMediaName: this.customMediaName(),
-        },
-      })).catch(() => {});
+        };
+        const updated = {
+          ...meta,
+          background: bgData,
+        };
+        try {
+          this.lastSyncedProfileTags = JSON.stringify(updated);
+        } catch {}
+        return updated;
+      }).catch(() => {});
     }, 600);
   }
 

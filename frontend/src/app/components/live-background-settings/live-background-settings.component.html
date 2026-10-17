@@ -84,51 +84,48 @@
         <label class="group-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ЭФФЕКТЫ И ОТОБРАЖЕНИЕ' : 'EFFECTS & DISPLAY' }}</label>
         
         <!-- Тонированное стекло -->
-        <div class="switch-row font-mono" (click)="bgService.toggleGlassTint()">
+        <div class="switch-row font-mono" role="switch" [attr.aria-checked]="bgService.isGlassTinted()" tabindex="0" (click)="bgService.toggleGlassTint()" (keydown.enter)="bgService.toggleGlassTint()" (keydown.space)="$event.preventDefault(); bgService.toggleGlassTint()">
           <div class="switch-label-col">
             <span class="switch-title">{{ i18n.currentLang() === 'ru' ? 'Тонированное стекло (Frosted Glass)' : 'Frosted Glass Tint' }}</span>
             <span class="switch-sub">{{ i18n.currentLang() === 'ru' ? 'Мягкая полупрозрачность всего плеера с размытием' : 'Soft glass tinting across the player' }}</span>
           </div>
-          <button 
-            type="button" 
+          <span 
             class="switch-toggle" 
             [class.on]="bgService.isGlassTinted()"
-            aria-label="Toggle Glass Tint"
+            aria-hidden="true"
           >
             <span class="switch-knob"></span>
-          </button>
+          </span>
         </div>
 
         <!-- Фон во всем приложении -->
-        <div class="switch-row font-mono" (click)="bgService.toggleApplyGlobally()">
+        <div class="switch-row font-mono" role="switch" [attr.aria-checked]="bgService.applyGlobally()" tabindex="0" (click)="bgService.toggleApplyGlobally()" (keydown.enter)="bgService.toggleApplyGlobally()" (keydown.space)="$event.preventDefault(); bgService.toggleApplyGlobally()">
           <div class="switch-label-col">
             <span class="switch-title">{{ i18n.t('lyrics.settings.globalBg') }}</span>
             <span class="switch-sub">{{ i18n.currentLang() === 'ru' ? 'Отображать фон во всех разделах плеера' : 'Show background across all views' }}</span>
           </div>
-          <button 
-            type="button" 
+          <span 
             class="switch-toggle" 
             [class.on]="bgService.applyGlobally()"
-            aria-label="Toggle Global Background"
+            aria-hidden="true"
           >
             <span class="switch-knob"></span>
-          </button>
+          </span>
         </div>
 
         <!-- Адаптация темы под фон -->
-        <div class="switch-row font-mono" (click)="bgService.toggleSyncTheme()">
+        <div class="switch-row font-mono" role="switch" [attr.aria-checked]="bgService.syncThemeWithBg()" tabindex="0" (click)="bgService.toggleSyncTheme()" (keydown.enter)="bgService.toggleSyncTheme()" (keydown.space)="$event.preventDefault(); bgService.toggleSyncTheme()">
           <div class="switch-label-col">
             <span class="switch-title">{{ i18n.t('lyrics.settings.syncTheme') }}</span>
             <span class="switch-sub">{{ i18n.currentLang() === 'ru' ? 'Автоматическая палитра цветов из видео/GIF' : 'Dynamic palette adaptation from media' }}</span>
           </div>
-          <button 
-            type="button" 
+          <span 
             class="switch-toggle" 
             [class.on]="bgService.syncThemeWithBg()"
-            aria-label="Toggle Theme Adaptation"
+            aria-hidden="true"
           >
             <span class="switch-knob"></span>
-          </button>
+          </span>
         </div>
       </div>
 

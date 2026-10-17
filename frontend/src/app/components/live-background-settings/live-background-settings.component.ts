@@ -1,4 +1,4 @@
-import { Component, inject, ViewEncapsulation } from '@angular/core';
+import { Component, inject, ViewEncapsulation, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LiveBackgroundService } from '../../services/live-background.service';
 import { I18nService } from '../../services/i18n.service';
@@ -14,6 +14,13 @@ import { I18nService } from '../../services/i18n.service';
 export class LiveBackgroundSettingsComponent {
   readonly bgService = inject(LiveBackgroundService);
   readonly i18n = inject(I18nService);
+
+  @HostListener('window:keydown.escape')
+  handleEscape() {
+    if (this.bgService.isSettingsOpen()) {
+      this.bgService.closeSettings();
+    }
+  }
 
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;

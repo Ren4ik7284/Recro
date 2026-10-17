@@ -27,7 +27,7 @@
   }
 
   <!-- Procedural canvas animations (Grid, Waves, Rain, Stars) -->
-  @if (bgService.activePreset() !== 'default' && bgService.activePreset() !== 'custom') {
+  @if (bgService.activePreset() !== 'default' && bgService.activePreset() !== 'custom' && bgService.activePreset() !== 'off') {
     <canvas #proceduralCanvas class="live-bg-element"></canvas>
   }
 

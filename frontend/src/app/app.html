@@ -1,8 +1,8 @@
-<div class="app-layout" [class.glass-tint-mode]="bgService.isGlassTinted() && bgService.applyGlobally() && bgService.activePreset() !== 'default'" (click)="activePlaylistPickerTrackId.set(null)">
-  @if (bgService.applyGlobally() && bgService.activePreset() !== 'default') {
+<div class="app-layout" [class.glass-tint-mode]="bgService.isGlassTinted() && bgService.applyGlobally() && bgService.activePreset() !== 'default' && bgService.activePreset() !== 'off'" (click)="activePlaylistPickerTrackId.set(null)">
+  @if (bgService.applyGlobally() && bgService.activePreset() !== 'default' && bgService.activePreset() !== 'off') {
     <app-live-background></app-live-background>
   }
-  @if (ambientService.isEnabled() && (!bgService.applyGlobally() || bgService.activePreset() === 'default')) {
+  @if (ambientService.isEnabled() && (!bgService.applyGlobally() || bgService.activePreset() === 'default' || bgService.activePreset() === 'off')) {
     <div 
       class="ambient-glow-backdrop" 
       [style.--glow-p]="ambientService.palette().primary" 

@@ -1,16 +1,21 @@
 <div class="lyrics-overlay" [class.open]="lyricsService.isLyricsOpen()">
   <!-- Dynamic blurred ambient backdrop from album art or live procedural/GIF background -->
   <div class="lyrics-backdrop">
-    <app-live-background></app-live-background>
-    @if (bgService.activePreset() === 'default') {
-      @if (audioService.currentTrack(); as cur) {
-        <div 
-          class="lyrics-blur-cover" 
-          [style.background-image]="'url(' + (libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist) || cur.coverUrl) + ')'"
-        ></div>
-      } @else {
-        <div class="lyrics-blur-default"></div>
+    @if (bgService.activePreset() !== 'off') {
+      <app-live-background></app-live-background>
+      @if (bgService.activePreset() === 'default') {
+        @if (audioService.currentTrack(); as cur) {
+          <div 
+            class="lyrics-blur-cover" 
+            [style.background-image]="'url(' + (libraryService.formatCoverUrl(cur.coverUrl, cur.title, cur.artist) || cur.coverUrl) + ')'"
+          ></div>
+        } @else {
+          <div class="lyrics-blur-default"></div>
+        }
+        <div class="lyrics-backdrop-tint"></div>
       }
+    } @else {
+      <div class="lyrics-blur-default"></div>
       <div class="lyrics-backdrop-tint"></div>
     }
   </div>

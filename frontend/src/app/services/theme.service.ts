@@ -1,4 +1,4 @@
-import { Injectable, signal, effect, inject } from '@angular/core';
+import { Injectable, signal, effect, inject, untracked } from '@angular/core';
 import { AuthService } from './auth.service';
 
 export interface ThemePreset {
@@ -126,6 +126,7 @@ export class ThemeService {
 
   readonly currentTheme = signal<ThemeConfig>(this.loadInitialTheme());
   readonly isThemeModalOpen = signal<boolean>(false);
+  private lastAppliedThemeTags = '';
 
   constructor() {
     // Автоматически применяем стили при любом изменении сигнала темы
@@ -134,10 +135,13 @@ export class ThemeService {
       this.applyThemeToDOM(cfg);
     });
 
-    // Синхронизация с облачным профилем
+    // Синхронизация с облачным профилем (только при входящих изменениях извне)
     effect(() => {
       const user = this.authService?.currentUser();
       if (!user || user.id === 'guest' || !user.profile_tags) return;
+      if (user.profile_tags === this.lastAppliedThemeTags) return;
+      this.lastAppliedThemeTags = user.profile_tags;
+
       try {
         const meta = JSON.parse(user.profile_tags);
         if (meta && meta.theme && meta.theme.color1 && meta.theme.color2) {
@@ -147,14 +151,18 @@ export class ThemeService {
             presetId: meta.theme.presetId,
             isCustom: Boolean(meta.theme.isCustom),
           };
-          const cur = this.currentTheme();
+          const cur = untracked(() => this.currentTheme());
           if (cur.color1 !== cloudTheme.color1 || cur.color2 !== cloudTheme.color2) {
             this.currentTheme.set(cloudTheme);
-            this.persistTheme(cloudTheme);
+            if (typeof localStorage !== 'undefined') {
+              try {
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(cloudTheme));
+              } catch {}
+            }
           }
         }
       } catch {}
-    });
+    }, { allowSignalWrites: true });
   }
 
   private loadInitialTheme(): ThemeConfig {
@@ -240,15 +248,21 @@ export class ThemeService {
     if (!this.authService?.isAuthenticated()) return;
     if (this.syncThemeTimeout) clearTimeout(this.syncThemeTimeout);
     this.syncThemeTimeout = setTimeout(() => {
-      this.authService?.updateProfileCustomization((meta) => ({
-        ...meta,
-        theme: {
-          color1: cfg.color1,
-          color2: cfg.color2,
-          presetId: cfg.presetId,
-          isCustom: cfg.isCustom,
-        },
-      })).catch(() => {});
+      this.authService?.updateProfileCustomization((meta) => {
+        const updated = {
+          ...meta,
+          theme: {
+            color1: cfg.color1,
+            color2: cfg.color2,
+            presetId: cfg.presetId,
+            isCustom: cfg.isCustom,
+          },
+        };
+        try {
+          this.lastAppliedThemeTags = JSON.stringify(updated);
+        } catch {}
+        return updated;
+      }).catch(() => {});
     }, 600);
   }
 

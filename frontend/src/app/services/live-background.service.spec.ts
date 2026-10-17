@@ -41,6 +41,12 @@ describe('LiveBackgroundService', () => {
     expect(themeService.currentTheme().color1).toBe(gridPreset?.primaryColor);
   });
 
+  it('should switch to off preset and disable global background', () => {
+    service.setPreset('off');
+    expect(service.activePreset()).toBe('off');
+    expect(service.applyGlobally()).toBe(false);
+  });
+
   it('should update dimmer and blur levels', () => {
     service.setDimmer(70);
     expect(service.dimmerLevel()).toBe(70);
