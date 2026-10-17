@@ -2311,34 +2311,60 @@
 
     .banner-preview-card {
       width: 100%;
-      height: 116px;
-      border-radius: 14px;
+      height: 180px;
+      border-radius: 16px;
       margin-bottom: 16px;
       position: relative;
       overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+      background-size: cover !important;
+      background-position: center center !important;
+      background-repeat: no-repeat !important;
+
+      .banner-preview-badge {
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: #e4e4e7;
+        font-size: 10px;
+        letter-spacing: 0.6px;
+        font-weight: 700;
+        z-index: 2;
+      }
 
       .banner-preview-card-inner {
         position: absolute;
-        inset: 0;
-        background: linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(15,15,18,0.85) 100%);
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(15, 15, 18, 0.72) 45%, rgba(15, 15, 18, 0.94) 100%);
         display: flex;
-        align-items: flex-end;
-        padding: 14px 18px;
+        align-items: center;
+        padding: 12px 18px;
         gap: 12px;
+        z-index: 1;
 
         .preview-mini-avatar {
           width: 44px;
           height: 44px;
           border-radius: 50%;
-          border: 2px solid rgba(255, 255, 255, 0.25);
+          border: 2px solid rgba(255, 255, 255, 0.28);
           background: #27272a;
           overflow: hidden;
           flex-shrink: 0;
           display: flex;
           align-items: center;
           justify-content: center;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
 
           img {
             width: 100%;
@@ -2347,7 +2373,7 @@
           }
 
           svg {
-            color: #71717a;
+            color: #a1a1aa;
           }
         }
 
@@ -2355,17 +2381,26 @@
           display: flex;
           flex-direction: column;
           gap: 2px;
+          min-width: 0;
 
           .preview-mini-name {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 700;
             color: #ffffff;
             line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
           }
 
           .preview-mini-vibe {
             font-size: 11px;
-            color: #e4e4e7;
+            color: #d4d4d8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
           }
         }
       }
@@ -2751,8 +2786,42 @@
       }
 
       .banner-preview-card {
-        height: 96px;
-        margin-bottom: 12px;
+        width: 100% !important;
+        height: 168px !important;
+        min-height: 168px !important;
+        max-height: 220px !important;
+        margin-bottom: 14px !important;
+        border-radius: 16px !important;
+        background-size: cover !important;
+        background-position: center center !important;
+        background-repeat: no-repeat !important;
+
+        .banner-preview-badge {
+          top: 8px !important;
+          right: 8px !important;
+          padding: 3px 8px !important;
+          font-size: 9px !important;
+        }
+
+        .banner-preview-card-inner {
+          padding: 10px 12px !important;
+          gap: 10px !important;
+
+          .preview-mini-avatar {
+            width: 38px !important;
+            height: 38px !important;
+            border-width: 2px !important;
+          }
+
+          .preview-mini-meta {
+            .preview-mini-name {
+              font-size: 14px !important;
+            }
+            .preview-mini-vibe {
+              font-size: 10px !important;
+            }
+          }
+        }
       }
 
       .media-upload-options-row {
@@ -2789,10 +2858,13 @@
 
       .banner-presets-grid {
         grid-template-columns: repeat(2, 1fr) !important;
-        gap: 8px;
+        gap: 10px !important;
 
         .preset-banner-card {
-          height: 56px;
+          height: 64px !important;
+          border-radius: 12px !important;
+          background-size: cover !important;
+          background-position: center center !important;
         }
       }
 

@@ -2042,8 +2042,9 @@ export class AudioService {
     const isActivelyPlaying = this.isPlaying();
     const curIsLibrary = curTrack ? this.recService.isLibraryTrack(curTrack) : false;
     const curMatchesMood = curTrack ? this.recService.doesTrackMatchMood(curTrack, mood) : false;
+    const curIsDisliked = curTrack ? (this.recService.isDisliked(curTrack) || this.libraryService.isArtistDisliked(curTrack.artist)) : false;
 
-    if (curTrack && isActivelyPlaying && isTrackLanguageMatch(curTrack, effectiveLang) && !curIsLibrary && curMatchesMood) {
+    if (curTrack && isActivelyPlaying && isTrackLanguageMatch(curTrack, effectiveLang) && !curIsLibrary && curMatchesMood && !curIsDisliked) {
       // Clear the upcoming linear queue (no more library tracks following in list order!)
       const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
         .filter((t) => t.id !== curTrack.id && !this.recService.isLibraryTrack(t));

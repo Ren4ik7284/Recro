@@ -32,16 +32,18 @@ if [ "$MODE" = "frontend" ] || [ "$MODE" = "all" ]; then
 
     for SVR in "${SERVERS[@]}"; do
         echo "📤 Загрузка на сервер $SVR..."
-        scp -o ConnectTimeout=10 "$TAR_TMP" $SVR:/tmp/recro-frontend-deploy.tar.gz
-        
-        # Если это bebragnom89, синхронизируем Caddyfile
-        if [ "$SVR" = "bebragnom89" ]; then
-            scp -o ConnectTimeout=10 "$DIR/Caddyfile" $SVR:/tmp/Caddyfile
-            ssh -o ConnectTimeout=10 $SVR "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz && mv -f /tmp/Caddyfile /etc/caddy/Caddyfile && systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
+        if scp -o ConnectTimeout=8 "$TAR_TMP" $SVR:/tmp/recro-frontend-deploy.tar.gz; then
+            # Если это bebragnom89, синхронизируем Caddyfile
+            if [ "$SVR" = "bebragnom89" ]; then
+                scp -o ConnectTimeout=8 "$DIR/Caddyfile" $SVR:/tmp/Caddyfile 2>/dev/null || true
+                ssh -o ConnectTimeout=8 $SVR "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz && mv -f /tmp/Caddyfile /etc/caddy/Caddyfile && systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
+            else
+                ssh -o ConnectTimeout=8 $SVR "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz && systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
+            fi
+            echo "✅ Сервер $SVR успешно обновлен!"
         else
-            ssh -o ConnectTimeout=10 $SVR "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz && systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
+            echo "⚠️ Сервер $SVR временно недоступен по SSH (тайм-аут), пропускаем..."
         fi
-        echo "✅ Сервер $SVR успешно обновлен!"
     done
     rm -f "$TAR_TMP"
 fi

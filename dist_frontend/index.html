@@ -47,17 +47,19 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js').catch(function() {});
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+          reg.update();
+        }).catch(function() {});
       });
     }
   </script>
 
   <script>
     (async function() {
-      const bundleName = 'main-SLD6XKB5.js';
-      const gzName = 'main-SLD6XKB5.js.gz';
-      const rawSize = 1223216;
-      const gzSize = 260011;
+      const bundleName = 'main-ESODF4PQ.js';
+      const gzName = 'main-ESODF4PQ.js.gz';
+      const rawSize = 1230757;
+      const gzSize = 261306;
       const chunkSize = 16384; // 16KB slices to strictly stay under tunnel limit
 
       const statusEl = document.getElementById('recro-status');

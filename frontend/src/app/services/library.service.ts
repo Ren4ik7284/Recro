@@ -22,6 +22,17 @@ export const BUILTIN_DISLIKED_ARTISTS: string[] = [
   'бигбейби тейп',
   'kizaru',
   'кизару',
+  'madk1d',
+  'madkid',
+  'мэдкид',
+  'мадкид',
+  'cupsize',
+  'капсайз',
+  'серега пират',
+  'серёга пират',
+  'serega pirat',
+  'kostromin',
+  'костромин',
 ];
 
 @Injectable({
