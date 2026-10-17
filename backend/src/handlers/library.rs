@@ -23,6 +23,8 @@ pub async fn get_library(
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
     let user_id = claims.sub;
 
+    crate::turso::sync_down_user(&state.pool, &user_id).await;
+
     let meta_row = sqlx::query("SELECT updated_at, mix_settings, disliked_tracks FROM user_sync_meta WHERE user_id = ?")
         .bind(&user_id)
         .fetch_optional(&state.pool)

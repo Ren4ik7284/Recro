@@ -140,14 +140,6 @@ async fn proxy_direct_stream(target: &str, is_live: bool) -> Result<Response, St
         header::CACHE_CONTROL,
         header::HeaderValue::from_static("no-cache, no-store, must-revalidate"),
     );
-    res_headers.insert(
-        header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        header::HeaderValue::from_static("*"),
-    );
-    res_headers.insert(
-        header::ACCESS_CONTROL_EXPOSE_HEADERS,
-        header::HeaderValue::from_static("*"),
-    );
 
     if !is_live {
         if let Some(cl) = upstream.headers().get(header::CONTENT_LENGTH) {
@@ -334,8 +326,6 @@ pub async fn stream_audio(
                 if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
                     let mut res_headers = HeaderMap::new();
                     res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
-                    res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-                    res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, "*".parse().unwrap());
                     if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
                         res_headers.insert(header::CONTENT_LENGTH, cl.clone());
                     }
@@ -410,8 +400,6 @@ pub async fn stream_audio(
                 let mut res_headers = HeaderMap::new();
                 res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
                 res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=86400"));
-                res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, header::HeaderValue::from_static("*"));
-                res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, header::HeaderValue::from_static("*"));
                 return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
             }
         }
@@ -664,8 +652,6 @@ pub async fn stream_audio(
                             let mut res_headers = HeaderMap::new();
                             res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
                             res_headers.insert(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate".parse().unwrap());
-                            res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-                            res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, "*".parse().unwrap());
                             return Ok((StatusCode::OK, res_headers, body).into_response());
                         }
                     }
@@ -866,8 +852,6 @@ pub async fn stream_audio(
     let mut res_headers = HeaderMap::new();
     res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
     res_headers.insert(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate".parse().unwrap());
-    res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-    res_headers.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, "*".parse().unwrap());
     res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("none"));
 
     Ok((StatusCode::OK, res_headers, body).into_response())

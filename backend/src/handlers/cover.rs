@@ -327,7 +327,6 @@ pub async fn proxy_cover(
                     header::CACHE_CONTROL,
                     HeaderValue::from_static("public, max-age=2592000, immutable"),
                 );
-                res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
                 return Ok((StatusCode::OK, res_headers, cached_bytes.clone()).into_response());
             }
         }
@@ -418,7 +417,6 @@ pub async fn proxy_cover(
                                             header::CACHE_CONTROL,
                                             HeaderValue::from_static("public, max-age=2592000, immutable"),
                                         );
-                                        res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
 
                                         return Ok((StatusCode::OK, res_headers, bytes).into_response());
                                     }
@@ -453,7 +451,6 @@ pub async fn proxy_cover(
         header::CACHE_CONTROL,
         HeaderValue::from_static("public, max-age=86400, immutable"),
     );
-    res_headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
 
     Ok((StatusCode::OK, res_headers, svg_bytes).into_response())
 }

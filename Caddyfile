@@ -3,12 +3,10 @@
 }
 
 (common) {
-    header {
-        Access-Control-Allow-Origin *
-        Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-        Access-Control-Allow-Headers *
-        Access-Control-Expose-Headers *
-    }
+    header ?Access-Control-Allow-Origin *
+    header ?Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+    header ?Access-Control-Allow-Headers *
+    header ?Access-Control-Expose-Headers *
 
     handle /recro.apk {
         root * /var/www/recro/frontend
