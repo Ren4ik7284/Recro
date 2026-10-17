@@ -217,6 +217,10 @@ export class App implements OnInit {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   }
 
+  formatCover(url?: string, title?: string, artist?: string): string | undefined {
+    return this.libraryService.formatCoverUrl(url, title, artist) || url;
+  }
+
   ngOnInit() {
     this.libraryService.checkBackendHealth().then(() => {
       this.libraryService.syncWithBackendOnStartup();

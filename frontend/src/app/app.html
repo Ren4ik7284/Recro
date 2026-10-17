@@ -246,7 +246,7 @@
                   <div class="wave-track-meta">
                     <div class="wave-track-cover">
                       @if (audioService.currentTrack()!.coverUrl) {
-                        <img [src]="audioService.currentTrack()!.coverUrl" alt="Cover" />
+                        <img [src]="formatCover(audioService.currentTrack()!.coverUrl, audioService.currentTrack()!.title, audioService.currentTrack()!.artist)" alt="Cover" />
                       } @else {
                         <div class="wave-cover-placeholder">
                           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -584,7 +584,7 @@
                           <td class="cell-title">
                             <div class="track-title-box">
                               @if (track.coverUrl) {
-                                <img [src]="track.coverUrl" class="track-row-cover" alt="" loading="lazy" />
+                                <img [src]="formatCover(track.coverUrl, track.title, track.artist)" class="track-row-cover" alt="" loading="lazy" />
                               } @else {
                                 <div class="track-row-cover-placeholder">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -656,7 +656,7 @@
                     >
                       <div class="mobile-cover-wrap">
                         @if (track.coverUrl) {
-                          <img [src]="track.coverUrl" alt="" class="mobile-track-img" loading="lazy" />
+                          <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="mobile-track-img" loading="lazy" />
                         } @else {
                           <div class="mobile-cover-fallback">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -774,7 +774,7 @@
                     <td class="cell-title">
                       <div class="track-title-box">
                         @if (track.coverUrl) {
-                          <img [src]="track.coverUrl" alt="" class="row-cover-thumb" />
+                          <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="row-cover-thumb" />
                         }
                         <span class="track-title-text notranslate" translate="no">{{ track.title }}</span>
                         @if (offlineService.isTrackOffline(track.id)) {
@@ -892,7 +892,7 @@
               >
                 <div class="card-cover-wrap">
                   @if (track.coverUrl) {
-                    <img [src]="track.coverUrl" alt="" class="card-cover-img" />
+                    <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="card-cover-img" />
                   } @else {
                     <div class="card-cover-empty">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

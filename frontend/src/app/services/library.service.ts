@@ -530,6 +530,7 @@ export class LibraryService implements OnDestroy {
 
   formatCoverUrl(coverUrl?: string, title?: string, artist?: string): string | undefined {
     const activeBase = this.getBackendUrl();
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const queryParams: string[] = [];
     if (title) queryParams.push(`title=${encodeURIComponent(title)}`);
     if (artist) queryParams.push(`artist=${encodeURIComponent(artist)}`);
@@ -558,6 +559,10 @@ export class LibraryService implements OnDestroy {
       coverUrl.includes('soundcloud.com')
     ) {
       return `${activeBase}/api/cover?url=${encodeURIComponent(coverUrl)}${glue}`;
+    }
+
+    if (isHttps && coverUrl.startsWith('http://')) {
+      return coverUrl.replace(/^http:\/\//, 'https://');
     }
 
     return coverUrl;
@@ -950,6 +955,12 @@ export class LibraryService implements OnDestroy {
         body: JSON.stringify(payload),
       });
 
+      if (res.status === 401) {
+        console.warn('[LibraryService] /api/sync POST returned 401. Session expired, logging out.');
+        this.authService.logout();
+        return;
+      }
+
       if (res.ok) {
         this.isCloudSynced.set(true);
       }
@@ -1022,6 +1033,11 @@ export class LibraryService implements OnDestroy {
         headers: this.authService.getAuthHeaders(),
         credentials: 'include',
       });
+      if (res.status === 401) {
+        console.warn('[LibraryService] /api/sync GET returned 401. Session expired, logging out.');
+        this.authService.logout();
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       if (!data) return;
@@ -1417,18 +1433,25 @@ export class LibraryService implements OnDestroy {
       let audioUrl = t.audioUrl || '';
       let coverUrl = t.coverUrl;
 
-      if (audioUrl.includes('localhost:8085') || audioUrl.includes('127.0.0.1:8085')) {
-        audioUrl = audioUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1):8085/, backendUrl);
+      // Rewrites all /api/ endpoints (e.g. /api/stream, /api/cover) to current backendUrl,
+      // regardless of whether they were originally stored with localhost, raw IP (80.87.202.157), or another domain
+      if (audioUrl.includes('/api/')) {
+        const idx = audioUrl.indexOf('/api/');
+        audioUrl = `${backendUrl}${audioUrl.slice(idx)}`;
       }
-      if (coverUrl && (coverUrl.includes('localhost:8085') || coverUrl.includes('127.0.0.1:8085'))) {
-        coverUrl = coverUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1):8085/, backendUrl);
+      if (coverUrl && coverUrl.includes('/api/')) {
+        const idx = coverUrl.indexOf('/api/');
+        coverUrl = `${backendUrl}${coverUrl.slice(idx)}`;
       }
 
-      if (audioUrl.startsWith('/api/')) {
-        audioUrl = `${backendUrl}${audioUrl}`;
-      }
-      if (coverUrl && coverUrl.startsWith('/api/')) {
-        coverUrl = `${backendUrl}${coverUrl}`;
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      if (isHttps) {
+        if (audioUrl.startsWith('http://') && !audioUrl.includes('localhost') && !audioUrl.includes('127.0.0.1')) {
+          audioUrl = audioUrl.replace(/^http:\/\//, 'https://');
+        }
+        if (coverUrl && coverUrl.startsWith('http://')) {
+          coverUrl = coverUrl.replace(/^http:\/\//, 'https://');
+        }
       }
 
       const lowerTitle = (t.title || '').toLowerCase();

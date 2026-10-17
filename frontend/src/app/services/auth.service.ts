@@ -263,7 +263,8 @@ export class AuthService {
           }, base).catch(() => {});
         }
       } else if (res.status === 401) {
-        console.warn('[AuthService] /api/auth/me returned 401, preserving local cached session.');
+        console.warn('[AuthService] /api/auth/me returned 401. Session expired, clearing invalid token.');
+        this.clearSession();
       }
     } catch {}
   }
@@ -508,6 +509,9 @@ export class AuthService {
             this.setCookie('recro_user_data', JSON.stringify(merged), 365);
           } catch {}
           return true;
+        } else if (res.status === 401) {
+          this.clearSession();
+          return false;
         }
       } catch {}
     }
