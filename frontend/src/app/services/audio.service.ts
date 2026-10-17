@@ -2,7 +2,7 @@ import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { Track } from '../models/track.model';
 import { LibraryService } from './library.service';
 import { OfflineService } from './offline.service';
-import { RecommendationService, MixMood, isTrackLanguageMatch } from './recommendation.service';
+import { RecommendationService, MixMood, isTrackLanguageMatch, normalizeArtist } from './recommendation.service';
 import { NavigationService } from './navigation.service';
 
 @Injectable({
@@ -1972,6 +1972,7 @@ export class AudioService {
       (t) => !existingQueueIds.has(t.id) &&
              !this.recService.isSessionDuplicate(t) &&
              isTrackLanguageMatch(t, effectiveLang) &&
+             this.recService.doesTrackMatchMood(t, mood) &&
              (source === 'library_only' || !this.recService.isLibraryTrack(t))
     );
 
@@ -2037,8 +2038,12 @@ export class AudioService {
     }
 
     // 2. Pure Discovery / Balanced Flow (source !== 'library_only'):
-    // If ANY track is already playing (from library, search, or previous stream), seamlessly continue playing it as seed!
-    if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang)) {
+    // Only continue playing curTrack as seed if curTrack is ACTIVELY playing AND matches mood AND is not a library track!
+    const isActivelyPlaying = this.isPlaying();
+    const curIsLibrary = curTrack ? this.recService.isLibraryTrack(curTrack) : false;
+    const curMatchesMood = curTrack ? this.recService.doesTrackMatchMood(curTrack, mood) : false;
+
+    if (curTrack && isActivelyPlaying && isTrackLanguageMatch(curTrack, effectiveLang) && !curIsLibrary && curMatchesMood) {
       // Clear the upcoming linear queue (no more library tracks following in list order!)
       const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
         .filter((t) => t.id !== curTrack.id && !this.recService.isLibraryTrack(t));
@@ -2051,7 +2056,7 @@ export class AudioService {
       return true;
     }
 
-    // Launch from IDLE (no track playing):
+    // Launch from IDLE or fresh start (ensure starter is never a library track and never repetitive):
     const starters = this.recService.getStarterCandidates(mood, 12, effectiveLang)
       .filter((t) => !this.recService.isLibraryTrack(t));
 
@@ -2059,10 +2064,11 @@ export class AudioService {
     let initialQueue: Track[] = [];
 
     if (starters.length > 0) {
-      // Pick random starter with different artist instead of hardcoded starters[0]!
       const randIdx = Math.floor(Math.random() * starters.length);
       immediateTrack = starters[randIdx];
-      const remainingStarters = starters.filter((t) => t.id !== immediateTrack!.id);
+      const remainingStarters = starters.filter(
+        (t) => t.id !== immediateTrack!.id && normalizeArtist(t.artist) !== normalizeArtist(immediateTrack!.artist)
+      );
       initialQueue = [immediateTrack, ...remainingStarters.slice(0, 3)];
     } else {
       const freshOnline = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), null);
@@ -2092,11 +2098,23 @@ export class AudioService {
     this.recService.clearDiscoveryBuffer();
     this.recService.setMixMood(mood);
     if (this.recService.isMixActive()) {
-      const q = this.queue();
-      const idx = this.queueIndex();
-      const played = q.slice(0, idx + 1);
-      this.queue.set(played);
-      this.ensureSmartQueue();
+      const cur = this.currentTrack();
+      const curMatchesMood = cur ? this.recService.doesTrackMatchMood(cur, mood) : false;
+      const source = this.recService.mixConfig().source;
+      const curIsLibrary = cur ? this.recService.isLibraryTrack(cur) : false;
+
+      // If current track violates new mood or violates discovery source rules, immediately jump to a fresh matching starter!
+      if (!curMatchesMood || (source !== 'library_only' && curIsLibrary)) {
+        this.queue.set([]);
+        this.queueIndex.set(0);
+        this.startSmartMix(mood).catch(() => {});
+      } else {
+        const q = this.queue();
+        const idx = this.queueIndex();
+        const played = q.slice(0, idx + 1);
+        this.queue.set(played);
+        this.ensureSmartQueue().catch(() => {});
+      }
     }
   }
 

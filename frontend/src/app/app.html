@@ -565,18 +565,20 @@
                           (click)="playOnlineTrack(track)"
                         >
                           <td class="cell-index">
-                            @if (audioService.currentTrack()?.id === track.id && audioService.isPlaying()) {
-                              <div class="audio-bar-anim" (click)="audioService.togglePlay(); $event.stopPropagation()">
-                                <span></span><span></span><span></span>
-                              </div>
-                            } @else {
-                              <button class="row-play-btn" (click)="playOnlineTrack(track); $event.stopPropagation()" title="Слушать">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                  <polygon points="6 3 20 12 6 21 6 3"/>
-                                </svg>
-                              </button>
-                              <span class="index-num font-mono">{{ i + 1 }}</span>
-                            }
+                            <div class="cell-index-wrap">
+                              @if (audioService.currentTrack()?.id === track.id && audioService.isPlaying()) {
+                                <div class="audio-bar-anim" (click)="audioService.togglePlay(); $event.stopPropagation()">
+                                  <span></span><span></span><span></span>
+                                </div>
+                              } @else {
+                                <button class="row-play-btn" (click)="playOnlineTrack(track); $event.stopPropagation()" title="Слушать">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                    <polygon points="6 3 20 12 6 21 6 3"/>
+                                  </svg>
+                                </button>
+                                <span class="index-num font-mono">{{ i + 1 }}</span>
+                              }
+                            </div>
                           </td>
 
                           <td class="cell-title">
@@ -744,27 +746,29 @@
                     (click)="playTrack(track)"
                   >
                     <td class="cell-index">
-                      @if (activeTab() === 'playlist') {
-                        <span class="drag-handle-grip desktop-only" [attr.draggable]="'true'" (dragstart)="onTrackDragStart($event, track.id)" title="Зажмите ЛКМ для перемещения трека">
-                          <svg width="10" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <circle cx="9" cy="5" r="2.2"/><circle cx="15" cy="5" r="2.2"/>
-                            <circle cx="9" cy="12" r="2.2"/><circle cx="15" cy="12" r="2.2"/>
-                            <circle cx="9" cy="19" r="2.2"/><circle cx="15" cy="19" r="2.2"/>
-                          </svg>
-                        </span>
-                      }
-                      @if (audioService.currentTrack()?.id === track.id && audioService.isPlaying()) {
-                        <div class="audio-bar-anim" (click)="audioService.togglePlay(); $event.stopPropagation()">
-                          <span></span><span></span><span></span>
-                        </div>
-                      } @else {
-                        <button class="row-play-btn" (click)="playTrack(track); $event.stopPropagation()" title="Воспроизвести">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <polygon points="6 3 20 12 6 21 6 3"/>
-                          </svg>
-                        </button>
-                        <span class="index-num font-mono">{{ i + 1 }}</span>
-                      }
+                      <div class="cell-index-wrap">
+                        @if (activeTab() === 'playlist') {
+                          <span class="drag-handle-grip desktop-only" [attr.draggable]="'true'" (dragstart)="onTrackDragStart($event, track.id)" title="Зажмите ЛКМ для перемещения трека">
+                            <svg width="10" height="14" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="9" cy="5" r="2.2"/><circle cx="15" cy="5" r="2.2"/>
+                              <circle cx="9" cy="12" r="2.2"/><circle cx="15" cy="12" r="2.2"/>
+                              <circle cx="9" cy="19" r="2.2"/><circle cx="15" cy="19" r="2.2"/>
+                            </svg>
+                          </span>
+                        }
+                        @if (audioService.currentTrack()?.id === track.id && audioService.isPlaying()) {
+                          <div class="audio-bar-anim" (click)="audioService.togglePlay(); $event.stopPropagation()">
+                            <span></span><span></span><span></span>
+                          </div>
+                        } @else {
+                          <button class="row-play-btn" (click)="playTrack(track); $event.stopPropagation()" title="Воспроизвести">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="6 3 20 12 6 21 6 3"/>
+                            </svg>
+                          </button>
+                          <span class="index-num font-mono">{{ i + 1 }}</span>
+                        }
+                      </div>
                     </td>
 
                     <td class="cell-title">

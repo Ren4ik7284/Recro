@@ -720,6 +720,13 @@ app-header-bar {
     padding-bottom: 14px;
     border-bottom: 1px solid var(--border-subtle);
 
+    .view-header-main-row {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
     .catalog-header-layout {
       display: flex;
       align-items: flex-end;
@@ -825,6 +832,9 @@ app-header-bar {
       display: flex;
       align-items: center;
       gap: 16px;
+      width: 100%;
+      box-sizing: border-box;
+      min-width: 0;
       flex-wrap: wrap;
 
       .playlist-cover-clickable,
@@ -951,13 +961,13 @@ app-header-bar {
         background-color: var(--bg-sidebar);
         white-space: nowrap;
 
-        &.th-index { width: 48px; text-align: center; }
+        &.th-index { width: 58px; min-width: 58px; max-width: 58px; text-align: center; }
         &.th-title { text-align: left; }
         &.th-artist { text-align: left; }
         &.th-genre { width: 110px; text-align: left; }
         &.th-format { width: 68px; text-align: center; }
         &.th-duration { width: 72px; text-align: right; }
-        &.th-actions { width: 180px; min-width: 180px; text-align: right; }
+        &.th-actions { width: 220px; min-width: 220px; max-width: 220px; padding: 10px 18px 10px 8px; text-align: right; }
       }
 
       tbody tr.track-row {
@@ -1056,15 +1066,22 @@ app-header-bar {
         }
 
         .cell-index {
-          width: 54px;
-          min-width: 54px;
-          max-width: 54px;
+          width: 58px;
+          min-width: 58px;
+          max-width: 58px;
           padding: 0;
           text-align: center;
           position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          vertical-align: middle;
+
+          .cell-index-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            width: 100%;
+            height: 100%;
+          }
 
           .index-num {
             display: flex;
@@ -1072,7 +1089,7 @@ app-header-bar {
             justify-content: center;
             width: 24px;
             height: 24px;
-            margin: 0 auto;
+            margin: 0;
             font-size: 12px;
             color: var(--text-muted);
           }
@@ -1087,7 +1104,7 @@ app-header-bar {
             cursor: pointer;
             width: 24px;
             height: 24px;
-            margin: 0 auto;
+            margin: 0;
             border-radius: 4px;
 
             &:hover {
@@ -1171,10 +1188,10 @@ app-header-bar {
         }
 
         .cell-actions {
-          width: 180px;
-          min-width: 180px;
-          max-width: 180px;
-          padding: 0 12px;
+          width: 220px;
+          min-width: 220px;
+          max-width: 220px;
+          padding: 0 18px 0 8px;
           text-align: right;
           overflow: visible;
 
@@ -1192,11 +1209,19 @@ app-header-bar {
               cursor: pointer;
               width: 26px;
               height: 26px;
+              min-width: 26px;
+              flex-shrink: 0;
               border-radius: 4px;
               display: flex;
               align-items: center;
               justify-content: center;
               transition: color 0.12s ease, background-color 0.12s ease;
+
+              svg {
+                width: 15px;
+                height: 15px;
+                flex-shrink: 0;
+              }
 
               &:hover {
                 color: var(--text-primary);
@@ -3399,7 +3424,7 @@ app-header-bar {
 
   .tracks-table-wrapper .tracks-table {
     .cell-format,
-    thead th:nth-child(5) {
+    .th-format {
       display: none;
     }
   }
@@ -3421,7 +3446,7 @@ app-header-bar {
 @media (max-width: 860px) {
   .tracks-table-wrapper .tracks-table {
     .cell-genre,
-    thead th:nth-child(4) {
+    .th-genre {
       display: none;
     }
   }
@@ -3641,8 +3666,17 @@ app-header-bar {
         }
 
         .playlist-header-actions {
-          margin-left: 0;
+          margin-left: auto;
           flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+
+          .btn-header-action {
+            padding: 6px 8px;
+            font-size: 11px;
+            span { display: none; }
+          }
 
           .btn-delete-pl {
             padding: 6px 10px;

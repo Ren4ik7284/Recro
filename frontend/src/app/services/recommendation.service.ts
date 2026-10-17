@@ -30,12 +30,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   // --- Russian / CIS Tracks ---
   {
     id: 'starter-ru-1',
-    title: 'Моя голова винтом',
-    artist: 'Kostromin',
-    duration: 135,
-    audioUrl: '/api/stream?title=%D0%9C%D0%BE%D1%8F%20%D0%B3%D0%BE%D0%BB%D0%BE%D0%B2%D0%B0%20%D0%B2%D0%B8%D0%BD%D1%82%D0%BE%D0%BC&artist=Kostromin',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/0c2fb753d0e2c00236a28795dae9ca24/500x500.jpg',
-    genre: 'Pop / Viral',
+    title: 'Полковнику никто не пишет',
+    artist: 'Би-2',
+    duration: 293,
+    audioUrl: '/api/stream?title=%D0%9F%D0%BE%D0%BB%D0%BA%D0%BE%D0%B2%D0%BD%D0%B8%D0%BA%D1%83%20%D0%BD%D0%B8%D0%BA%D1%82%D0%BE%20%D0%BD%D0%B5%20%D0%BF%D0%B8%D1%88%D0%B5%D1%82&artist=%D0%91%D0%B8-2',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/44bb978e8749e1e2474fcf376f5f90bc/500x500.jpg',
+    genre: 'Rock',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -108,12 +108,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-ru-7',
-    title: 'не надо',
-    artist: 'madk1d',
-    duration: 140,
-    audioUrl: '/api/stream?title=%D0%BD%D0%B5%20%D0%BD%D0%B0%D0%B4%D0%BE&artist=madk1d',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/4ee6246aa577ebaf16b25a388f72aa98/500x500.jpg',
-    genre: 'Alternative / Rock',
+    title: 'Выше домов',
+    artist: 'Сироткин',
+    duration: 215,
+    audioUrl: '/api/stream?title=%D0%92%D1%8B%D1%88%D0%B5%20%D0%B4%D0%BE%D0%BC%D0%BE%D0%B2&artist=%D0%A1%D0%B8%D1%80%D0%BE%D1%82%D0%BA%D0%B8%D0%BD',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/98bb1cb76241b714b13a7c642e13eb98/500x500.jpg',
+    genre: 'Indie / Pop',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -121,12 +121,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-ru-8',
-    title: 'люби меня, алина',
-    artist: 'CUPSIZE',
-    duration: 97,
-    audioUrl: '/api/stream?title=%D0%BB%D1%8E%D0%B1%D0%B8%20%D0%BC%D0%B5%D0%BD%D1%8F%2C%20%D0%B0%D0%BB%D0%B8%D0%BD%D0%B0&artist=CUPSIZE',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/b4618e87498c55dcff163558807d727b/500x500.jpg',
-    genre: 'Rock / Indie',
+    title: 'Судно (Борис Рыжий)',
+    artist: 'Молчат Дома',
+    duration: 141,
+    audioUrl: '/api/stream?title=%D0%A1%D1%83%D0%B4%D0%BD%D0%BE%20(%D0%91%D0%BE%D1%80%D0%B8%D1%81%20%D0%A0%D1%8B%D0%B6%D0%B8%D0%B9)&artist=%D0%9C%D0%BE%D0%BB%D1%87%D0%B0%D1%82%20%D0%94%D0%BE%D0%BC%D0%B0',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/86a9a95782782e441ea636a0d241d7d2/500x500.jpg',
+    genre: 'Post-Punk / Synthwave',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -1362,15 +1362,6 @@ export class RecommendationService {
 
   getTargetVectorForMood(mood: MixMood, currentTrack?: Track | null): TasteVector {
     const base = { ...this.tasteVector() };
-    if (mood === 'energetic') {
-      base.energy = Math.max(base.energy, 0.85);
-      base.tempo = Math.max(base.tempo, 0.75);
-      base.chill = Math.min(base.chill, 0.2);
-    } else if (mood === 'chill') {
-      base.energy = Math.min(base.energy, 0.35);
-      base.chill = Math.max(base.chill, 0.85);
-      base.acoustic = Math.max(base.acoustic, 0.65);
-    }
 
     if (currentTrack && !currentTrack.isLiveStream) {
       const curVec = this.extractTrackVector(currentTrack);
@@ -1384,7 +1375,34 @@ export class RecommendationService {
       base.chill = base.chill * 0.75 + curVec.chill * 0.25;
     }
 
+    // Explicit mood parameters strictly dominate the final target vector:
+    if (mood === 'energetic') {
+      base.energy = Math.max(base.energy, 0.88);
+      base.tempo = Math.max(base.tempo, 0.78);
+      base.chill = Math.min(base.chill, 0.15);
+      base.rock = Math.max(base.rock, 0.55);
+      base.electronic = Math.max(base.electronic, 0.55);
+    } else if (mood === 'chill') {
+      base.energy = Math.min(base.energy, 0.30);
+      base.tempo = Math.min(base.tempo, 0.40);
+      base.chill = Math.max(base.chill, 0.88);
+      base.acoustic = Math.max(base.acoustic, 0.70);
+    }
+
     return base;
+  }
+
+  doesTrackMatchMood(track: Track, mood: MixMood): boolean {
+    if (!track) return false;
+    if (mood === 'all' || mood === 'favorites') return true;
+    const vec = this.extractTrackVector(track);
+    if (mood === 'energetic') {
+      return vec.energy >= 0.50 && vec.chill < 0.65;
+    }
+    if (mood === 'chill') {
+      return vec.energy <= 0.62 && (vec.chill >= 0.35 || vec.acoustic >= 0.35);
+    }
+    return true;
   }
 
   /**
@@ -1721,15 +1739,15 @@ export class RecommendationService {
     } else {
       // Fallback seed artists if user library lacks artists in the requested language
       const defaultRuArtists = mood === 'energetic'
-        ? ['Король и Шут', 'DVRST', 'Три дня дождя', 'Порнофильмы']
+        ? ['Кино', 'Король и Шут', 'DVRST', 'Би-2', 'Shortparis', 'Три дня дождя', 'Порнофильмы']
         : mood === 'chill'
-        ? ['Zivert', 'Сироткин', 'Markul', 'Хадн Дадн']
-        : ['madk1d', 'cupsize', 'Три дня дождя', 'Кино'];
+        ? ['Сироткин', 'Молчат Дома', 'Скриптонит', 'polnalyubvi', 'Моя Мишель', 'Zivert']
+        : ['Кино', 'Би-2', 'Король и Шут', 'Скриптонит', 'SALUKI', 'Сироткин', 'Молчат Дома'];
       const defaultEnArtists = mood === 'energetic'
-        ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott']
+        ? ['The Prodigy', 'Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Nirvana', 'Muse']
         : mood === 'chill'
-        ? ['Joji', 'Billie Eilish', 'Frank Ocean', 'Lorde']
-        : ['Daft Punk', 'Imagine Dragons', 'Queen', 'Nirvana'];
+        ? ['Joji', 'Radiohead', 'Massive Attack', 'Depeche Mode', 'Tame Impala', 'Cigarettes After Sex']
+        : ['Daft Punk', 'Queen', 'Arctic Monkeys', 'The Weeknd', 'Radiohead', 'Nirvana'];
 
       const seedList = lang === 'ru' ? defaultRuArtists : lang === 'en' ? defaultEnArtists : [...defaultRuArtists.slice(0, 2), ...defaultEnArtists.slice(0, 2)];
       for (const artist of seedList) {
@@ -1924,16 +1942,16 @@ export class RecommendationService {
         this.artistSeedOffset = (this.artistSeedOffset + takeCount) % 1000;
       } else {
         const curatedRu = (mood === 'energetic'
-          ? ['madk1d', 'cupsize', 'Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Автоспорт']
+          ? ['Кино', 'Король и Шут', 'Би-2', 'Три дня дождя', 'Shortparis', 'Oxxxymiron', 'Хаски', 'SALUKI', 'Порнофильмы', 'DVRST', 'The Hatters', 'Noize MC']
           : mood === 'chill'
-          ? ['zhanulka', 'Zivert', 'Сироткин', 'Markul', 'SALUKI', 'Хадн Дадн']
-          : ['madk1d', 'cupsize', 'zhanulka', 'Три дня дождя', 'Кино', 'Серега Пират', 'SALUKI', 'Автоспорт']
+          ? ['Сироткин', 'Молчат Дома', 'Скриптонит', 'polnalyubvi', 'Моя Мишель', 'Zivert', 'Mnogoznaal', 'Антоха МС', 'Буерак', 'Дайте танк (!)']
+          : ['Кино', 'Король и Шут', 'Би-2', 'Скриптонит', 'SALUKI', 'Три дня дождя', 'Сироткин', 'Молчат Дома', 'polnalyubvi', 'Oxxxymiron']
         ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curatedEn = (mood === 'energetic'
-          ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott', 'Nirvana']
+          ? ['The Prodigy', 'Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Nirvana', 'Muse', 'Kasabian', 'Pendulum', 'Chase Atlantic']
           : mood === 'chill'
-          ? ['Joji', 'Frank Ocean', 'Billie Eilish', 'Lorde', 'Mac Miller']
-          : ['Queen', 'Daft Punk', 'Arctic Monkeys', 'The Weeknd', 'Imagine Dragons']
+          ? ['Joji', 'Radiohead', 'Massive Attack', 'Depeche Mode', 'Tame Impala', 'Cigarettes After Sex', 'Mac Miller', 'Frank Ocean', 'Lana Del Rey']
+          : ['Queen', 'Daft Punk', 'Arctic Monkeys', 'The Weeknd', 'Nirvana', 'Radiohead', 'Gorillaz', 'Linkin Park', 'The Neighbourhood']
         ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curated = effectiveLang === 'ru' ? curatedRu : curatedEn;
         const art = curated[Math.floor(Math.random() * curated.length)];
@@ -2001,6 +2019,13 @@ export class RecommendationService {
         }
 
         const trackVec = this.extractTrackVector(t);
+        // Explicit mood enforcement:
+        if (mood === 'energetic') {
+          if (trackVec.energy < 0.52 || (trackVec.chill > 0.60 && trackVec.energy < 0.65)) continue;
+        } else if (mood === 'chill') {
+          if (trackVec.energy > 0.65 || (trackVec.chill < 0.35 && trackVec.acoustic < 0.35)) continue;
+        }
+
         let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
         // Strict quality threshold: unrelated artists must share >= 0.48 taste similarity to user
         if (!isDirectCircleMatch && sim < 0.48) continue;
@@ -2029,6 +2054,9 @@ export class RecommendationService {
             bufferPool.push(t);
             continue;
           }
+          if (title && seenTitles.has(title)) {
+            continue;
+          }
           selectedTracks.push(t);
           excludeIds.add(t.id);
           if (art) seenArtists.add(art);
@@ -2038,15 +2066,17 @@ export class RecommendationService {
         }
       }
 
-      // If strict diversity was starving the quota, fill remaining slots from buffer without immediate consecutive repeats
+      // If strict diversity was starving the quota, fill remaining slots from buffer without duplicate titles or duplicate artists
       if (selectedTracks.length < count && bufferPool.length > 0) {
         for (const t of bufferPool) {
           if (selectedTracks.length >= count) break;
           const art = normalizeArtist(t.artist);
-          const lastArt = selectedTracks.length > 0 ? normalizeArtist(selectedTracks[selectedTracks.length - 1].artist) : null;
-          if (!excludeIds.has(t.id) && (!art || art !== lastArt)) {
+          const title = normalizeTitle(t.title);
+          if (!excludeIds.has(t.id) && (!title || !seenTitles.has(title)) && (!art || !seenArtists.has(art))) {
             selectedTracks.push(t);
             excludeIds.add(t.id);
+            if (art) seenArtists.add(art);
+            if (title) seenTitles.add(title);
           }
         }
       }
@@ -2058,10 +2088,12 @@ export class RecommendationService {
         for (const st of starters) {
           if (selectedTracks.length >= count) break;
           const art = normalizeArtist(st.artist);
-          if (!excludeIds.has(st.id) && !this.isSessionDuplicate(st) && !this.isLibraryTrack(st) && (!art || !seenArtists.has(art))) {
+          const title = normalizeTitle(st.title);
+          if (!excludeIds.has(st.id) && !this.isSessionDuplicate(st) && !this.isLibraryTrack(st) && (!art || !seenArtists.has(art)) && (!title || !seenTitles.has(title))) {
             selectedTracks.push(st);
             excludeIds.add(st.id);
             if (art) seenArtists.add(art);
+            if (title) seenTitles.add(title);
           }
         }
       }
@@ -2082,9 +2114,9 @@ export class RecommendationService {
       pool = pool.filter((t) => isTrackLanguageMatch(t, lang));
     }
     if (mood === 'energetic') {
-      pool = pool.filter((t) => t.genre.includes('Rock') || t.genre.includes('Rap') || t.genre.includes('Trap') || t.genre.includes('Phonk'));
+      pool = pool.filter((t) => t.genre.includes('Rock') || t.genre.includes('Rap') || t.genre.includes('Trap') || t.genre.includes('Phonk') || t.genre.includes('Alternative') || t.genre.includes('Synthpop') || t.genre.includes('Dance'));
     } else if (mood === 'chill') {
-      pool = pool.filter((t) => t.genre.includes('Hip-Hop') || t.genre.includes('Pop') || t.genre.includes('Viral') || t.genre.includes('Lo-Fi'));
+      pool = pool.filter((t) => (t.genre.includes('Hip-Hop') || t.genre.includes('Pop') || t.genre.includes('Lo-Fi') || t.genre.includes('Indie') || t.genre.includes('Post-Punk') || t.genre.includes('Acoustic') || t.genre.includes('Ambient')) && !t.genre.includes('Viral'));
     }
     const nonLibrary = pool.filter((t) => !this.isLibraryTrack(t));
     const activePool = nonLibrary.length > 0 ? nonLibrary : pool;
@@ -2098,11 +2130,25 @@ export class RecommendationService {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 
-    // Deprioritize tracks played recently (last 4 hours) so starter does not repeat daily
-    const fresh = shuffled.filter((t) => !this.isRecentlyPlayed(t, 240));
-    const finalSelection = fresh.length >= count ? fresh : shuffled;
+    // Deprioritize tracks played recently across 48 hours (2880 mins) so starter track NEVER repeats daily!
+    const fresh48h = shuffled.filter((t) => !this.isRecentlyPlayed(t, 2880));
+    if (fresh48h.length >= count) {
+      return fresh48h.slice(0, count).map((t) => ({ ...t }));
+    }
 
-    return finalSelection.slice(0, count).map((t) => ({ ...t }));
+    const fresh24h = shuffled.filter((t) => !this.isRecentlyPlayed(t, 1440));
+    if (fresh24h.length >= count) {
+      return fresh24h.slice(0, count).map((t) => ({ ...t }));
+    }
+
+    // If all starters were played recently, pick the least recently played tracks with random jitter:
+    const sortedByOldest = [...shuffled].sort((a, b) => {
+      const recA = this.recentPlays.get(a.id)?.lastPlayed || 0;
+      const recB = this.recentPlays.get(b.id)?.lastPlayed || 0;
+      return (recA - recB) + (Math.random() - 0.5) * 60000;
+    });
+
+    return sortedByOldest.slice(0, count).map((t) => ({ ...t }));
   }
 
   /**
