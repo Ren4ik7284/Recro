@@ -23,6 +23,7 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
       playlists: signal([]),
       getStorageUserId: () => 'test_user',
       isDisliked: (id: string) => false,
+      isArtistDisliked: vi.fn().mockReturnValue(false),
       setMixConfig: vi.fn(),
       getHistory: vi.fn().mockResolvedValue([]),
       searchOnline: vi.fn().mockResolvedValue([]),

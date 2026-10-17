@@ -11,6 +11,19 @@ export interface ExtractedResult {
   hasChapters?: boolean;
 }
 
+export const BUILTIN_DISLIKED_ARTISTS: string[] = [
+  'pharaoh',
+  'фараон',
+  'og buda',
+  'оуджи буда',
+  'оуджибуда',
+  'big baby tape',
+  'биг бейби тейп',
+  'бигбейби тейп',
+  'kizaru',
+  'кизару',
+];
+
 @Injectable({
   providedIn: 'root',
 })
@@ -77,12 +90,18 @@ export class LibraryService implements OnDestroy {
   }
 
   private loadInitialDislikes(): Set<string> {
-    if (typeof localStorage === 'undefined') return new Set();
+    const defaults = ['artist:pharaoh', 'artist:og buda', 'artist:big baby tape', 'artist:kizaru'];
+    if (typeof localStorage === 'undefined') return new Set(defaults);
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY_DISLIKES);
-      if (saved) return new Set(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return new Set([...defaults, ...parsed]);
+        }
+      }
     } catch {}
-    return new Set();
+    return new Set(defaults);
   }
 
   setMixConfig(newConfig: Partial<MixConfig>) {
@@ -94,6 +113,38 @@ export class LibraryService implements OnDestroy {
     this.markUpdated();
   }
 
+  isArtistDisliked(artist?: string): boolean {
+    if (!artist) return false;
+    const lower = artist.toLowerCase().trim();
+    for (const b of BUILTIN_DISLIKED_ARTISTS) {
+      if (lower.includes(b)) return true;
+    }
+    const dislikes = this.dislikedTrackIds();
+    for (const entry of dislikes) {
+      if (entry.startsWith('artist:')) {
+        const art = entry.substring(7).trim().toLowerCase();
+        if (art && (lower.includes(art) || art.includes(lower))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  dislikeArtist(artist: string) {
+    if (!artist) return;
+    const key = `artist:${artist.trim().toLowerCase()}`;
+    this.dislikedTrackIds.update((set) => {
+      const next = new Set(set);
+      next.add(key);
+      return next;
+    });
+    try {
+      localStorage.setItem(this.STORAGE_KEY_DISLIKES, JSON.stringify(Array.from(this.dislikedTrackIds())));
+    } catch {}
+    this.markUpdated();
+  }
+
   dislikeTrack(trackOrId: string | Track) {
     let trackId = typeof trackOrId === 'string' ? trackOrId : trackOrId.id;
     let trackObj = typeof trackOrId === 'object' ? trackOrId : this.tracks().find((t) => t.id === trackId);
@@ -101,9 +152,14 @@ export class LibraryService implements OnDestroy {
     this.dislikedTrackIds.update((set) => {
       const next = new Set(set);
       next.add(trackId);
-      if (trackObj && trackObj.artist && trackObj.title) {
-        const key = `${trackObj.artist.trim().toLowerCase()}::${trackObj.title.trim().toLowerCase()}`;
-        next.add(key);
+      if (trackObj && trackObj.artist) {
+        if (trackObj.title) {
+          const key = `${trackObj.artist.trim().toLowerCase()}::${trackObj.title.trim().toLowerCase()}`;
+          next.add(key);
+        }
+        // Blacklist artist so they never play in recommendation mixes
+        const artKey = `artist:${trackObj.artist.trim().toLowerCase()}`;
+        next.add(artKey);
       }
       return next;
     });
@@ -123,12 +179,18 @@ export class LibraryService implements OnDestroy {
   isDisliked(trackOrId: string | Track): boolean {
     const dislikes = this.dislikedTrackIds();
     if (typeof trackOrId === 'string') {
-      return dislikes.has(trackOrId);
+      if (dislikes.has(trackOrId)) return true;
+      const track = this.tracks().find((t) => t.id === trackOrId);
+      if (track && track.artist && this.isArtistDisliked(track.artist)) return true;
+      return false;
     }
     if (dislikes.has(trackOrId.id)) return true;
-    if (trackOrId.artist && trackOrId.title) {
-      const key = `${trackOrId.artist.trim().toLowerCase()}::${trackOrId.title.trim().toLowerCase()}`;
-      if (dislikes.has(key)) return true;
+    if (trackOrId.artist) {
+      if (this.isArtistDisliked(trackOrId.artist)) return true;
+      if (trackOrId.title) {
+        const key = `${trackOrId.artist.trim().toLowerCase()}::${trackOrId.title.trim().toLowerCase()}`;
+        if (dislikes.has(key)) return true;
+      }
     }
     return false;
   }

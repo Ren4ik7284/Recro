@@ -271,31 +271,6 @@
                 </div>
 
                 <span class="artist-name-label font-mono notranslate" translate="no" [title]="artist.name">{{ artist.name }}</span>
-
-                @if (artist.monthlyListeners) {
-                  <span class="artist-listeners-metric font-mono" [title]="artist.monthlyListeners + ' слушателей за месяц'">
-                    <span class="spotify-pulse-dot"></span>
-                    {{ formatListeners(artist.monthlyListeners) }} слуш.
-                  </span>
-                } @else {
-                  <span class="artist-sub-role font-mono">
-                    Топ #{{ artist.rank || ($index + 1) }} в мире
-                  </span>
-                }
-
-                @if (artist.dailyDiff) {
-                  <div class="artist-trend-badge font-mono" [class.trend-up]="isPositiveDiff(artist.dailyDiff)" [class.trend-down]="isNegativeDiff(artist.dailyDiff)" [title]="'Динамика за последние сутки: ' + artist.dailyDiff">
-                    <span>
-                      @if (isPositiveDiff(artist.dailyDiff)) {
-                        ▲ {{ formatDiff(artist.dailyDiff) }}
-                      } @else if (isNegativeDiff(artist.dailyDiff)) {
-                        ▼ {{ formatDiff(artist.dailyDiff) }}
-                      } @else {
-                        — 0
-                      }
-                    </span>
-                  </div>
-                }
               </div>
             }
           </div>
@@ -309,6 +284,98 @@
       } @else {
         <div class="empty-artists-box">
           <p class="empty-artists-text font-mono">Загрузка топ-исполнителей Spotify...</p>
+        </div>
+      }
+
+      <div class="section-divider-line"></div>
+    </section>
+
+    <!-- Новые альбомы ваших артистов -->
+    <section class="profile-section new-releases-section">
+      <div class="section-header-compact">
+        <div class="section-title-wrap">
+          <h2 class="profile-section-title font-mono">
+            @if (newReleases().length > 0 && newReleases()[0].is_playlist) {
+              Популярные чарты и плейлисты
+            } @else {
+              Новые альбомы ваших артистов
+            }
+          </h2>
+          <span class="section-subtitle-tag font-mono">
+            @if (newReleases().length > 0 && newReleases()[0].is_playlist) {
+              В тренде Deezer
+            } @else {
+              На основе ваших предпочтений
+            }
+          </span>
+        </div>
+      </div>
+
+      @if (isLoadingReleases()) {
+        <div class="empty-releases-box">
+          <p class="empty-releases-text font-mono">Загрузка новых релизов...</p>
+        </div>
+      } @else if (newReleases().length > 0) {
+        <div class="carousel-outer-wrapper">
+          <button class="carousel-arrow-btn left" (click)="scrollReleasesCarousel('left')" title="Назад">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+
+          <div class="releases-carousel-track" #releasesCarouselRef>
+            @for (item of newReleases(); track item.id + $index) {
+              <div 
+                class="release-card-item" 
+                (click)="onReleaseClick(item)"
+                [title]="(item.is_playlist ? 'Включить плейлист: ' : 'Включить альбом: ') + item.title + ' — ' + item.artist"
+              >
+                <div class="release-cover-box">
+                  @if (item.cover_url) {
+                    <img [src]="item.cover_url" class="release-img" [alt]="item.title" loading="lazy" />
+                  } @else {
+                    <div class="release-placeholder">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v8M8 12h8"/>
+                      </svg>
+                    </div>
+                  }
+                  <div class="release-play-overlay">
+                    <div class="play-circle-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="release-info-wrap">
+                  <span class="release-title-label font-mono notranslate" translate="no" [title]="item.title">
+                    {{ item.title }}
+                  </span>
+                  <span class="release-artist-label font-mono notranslate" translate="no" [title]="item.artist">
+                    {{ item.artist }}
+                  </span>
+                  <div class="release-badge font-mono">
+                    @if (item.is_playlist) {
+                      Чарт
+                    } @else if (item.release_date) {
+                      {{ item.release_date.slice(0, 4) }}
+                    } @else {
+                      Релиз
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+
+          <button class="carousel-arrow-btn right" (click)="scrollReleasesCarousel('right')" title="Вперед">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
         </div>
       }
 

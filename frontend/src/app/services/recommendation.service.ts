@@ -121,12 +121,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-ru-8',
-    title: '99 Problems',
-    artist: 'Big Baby Tape, Kizaru',
-    duration: 147,
-    audioUrl: '/api/stream?title=99%20Problems&artist=Big%20Baby%20Tape%2C%20Kizaru',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/c9c4391264c78fe233b860ce394c8651/500x500.jpg',
-    genre: 'Hip-Hop / Rap',
+    title: 'люби меня, алина',
+    artist: 'CUPSIZE',
+    duration: 97,
+    audioUrl: '/api/stream?title=%D0%BB%D1%8E%D0%B1%D0%B8%20%D0%BC%D0%B5%D0%BD%D1%8F%2C%20%D0%B0%D0%BB%D0%B8%D0%BD%D0%B0&artist=CUPSIZE',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/b4618e87498c55dcff163558807d727b/500x500.jpg',
+    genre: 'Rock / Indie',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -1330,7 +1330,7 @@ export class RecommendationService {
     const result = new Map<string, Track>();
 
     for (const t of allTracks) {
-      if (!t.isLiveStream && !this.isDisliked(t.id)) {
+      if (!t.isLiveStream && !this.isDisliked(t) && !this.libraryService.isArtistDisliked(t.artist)) {
         result.set(t.id, t);
       }
     }
@@ -1339,7 +1339,7 @@ export class RecommendationService {
       for (const tId of pl.trackIds) {
         if (result.has(tId)) continue;
         const found = tracksById.get(tId);
-        if (found && !found.isLiveStream && !this.isDisliked(found.id)) {
+        if (found && !found.isLiveStream && !this.isDisliked(found) && !this.libraryService.isArtistDisliked(found.artist)) {
           result.set(found.id, found);
         }
       }
@@ -1405,7 +1405,8 @@ export class RecommendationService {
     recentArtists?: Set<string>,
     poolSize?: number
   ): number {
-    if (this.isDisliked(track.id)) return -9999;
+    if (this.isDisliked(track)) return -9999;
+    if (this.libraryService.isArtistDisliked(track.artist)) return -9999;
 
     // Strict Junk/Incompatible Genre Rejector (Classical, Quiet Jazz, Ambient Sleep)
     if (!this.hasUserAffinityForJunk() && JUNK_GENRES_REGEX.test(`${track.genre} ${track.title} ${track.artist} ${track.album || ''}`)) {
@@ -1567,7 +1568,7 @@ export class RecommendationService {
     const effectiveLang = this.getEffectiveLanguage(currentTrack);
 
     const validCandidates = allLocal.filter((t) => {
-      if (this.isDisliked(t.id)) return false;
+      if (this.isDisliked(t) || this.libraryService.isArtistDisliked(t.artist)) return false;
       if (mood === 'favorites' && !t.isFavorite) return false;
       if (!isTrackLanguageMatch(t, effectiveLang)) return false;
       return true;
@@ -1901,6 +1902,7 @@ export class RecommendationService {
       const langTopArtists = Array.from(topArtistsMap.entries())
         .sort((a, b) => b[1] - a[1])
         .map(([name]) => name)
+        .filter((a) => !this.libraryService.isArtistDisliked(a))
         .filter((a) => {
           if (this.isCyrillicUserLibrary()) return true;
           const isRu = isRussianArtist(a);
@@ -1921,16 +1923,18 @@ export class RecommendationService {
         }
         this.artistSeedOffset = (this.artistSeedOffset + takeCount) % 1000;
       } else {
-        const curatedRu = mood === 'energetic'
-          ? ['madk1d', 'cupsize', 'Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Big Baby Tape']
+        const curatedRu = (mood === 'energetic'
+          ? ['madk1d', 'cupsize', 'Три дня дождя', 'Король и Шут', 'Порнофильмы', 'DVRST', 'Автоспорт']
           : mood === 'chill'
           ? ['zhanulka', 'Zivert', 'Сироткин', 'Markul', 'SALUKI', 'Хадн Дадн']
-          : ['madk1d', 'cupsize', 'zhanulka', 'Три дня дождя', 'Кино', 'serega pirat', 'SALUKI', 'Markul'];
-        const curatedEn = mood === 'energetic'
+          : ['madk1d', 'cupsize', 'zhanulka', 'Три дня дождя', 'Кино', 'Серега Пират', 'SALUKI', 'Автоспорт']
+        ).filter((a) => !this.libraryService.isArtistDisliked(a));
+        const curatedEn = (mood === 'energetic'
           ? ['Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Travis Scott', 'Nirvana']
           : mood === 'chill'
           ? ['Joji', 'Frank Ocean', 'Billie Eilish', 'Lorde', 'Mac Miller']
-          : ['Queen', 'Daft Punk', 'Arctic Monkeys', 'The Weeknd', 'Imagine Dragons'];
+          : ['Queen', 'Daft Punk', 'Arctic Monkeys', 'The Weeknd', 'Imagine Dragons']
+        ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curated = effectiveLang === 'ru' ? curatedRu : curatedEn;
         const art = curated[Math.floor(Math.random() * curated.length)];
         if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
@@ -1941,7 +1945,7 @@ export class RecommendationService {
       }
 
       // 3. User favorite tracks expansion: query tracks similar to user's favorites
-      const favTracks = langFilteredCandidates.filter((t) => t.isFavorite);
+      const favTracks = langFilteredCandidates.filter((t) => t.isFavorite && !this.libraryService.isArtistDisliked(t.artist));
       let sampleFav: Track | undefined;
       if (favTracks.length > 0 && typeof this.libraryService.getSimilarTracks === 'function') {
         sampleFav = favTracks[Math.floor(Math.random() * favTracks.length)];
@@ -1969,7 +1973,7 @@ export class RecommendationService {
 
       for (const t of rawCandidates) {
         if (!t || !t.id || !t.audioUrl?.trim() || !t.title?.trim() || !t.artist?.trim()) continue;
-        if (excludeIds.has(t.id) || this.isDisliked(t) || this.isSessionDuplicate(t)) continue;
+        if (excludeIds.has(t.id) || this.isDisliked(t) || this.libraryService.isArtistDisliked(t.artist) || this.isSessionDuplicate(t)) continue;
         if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
         if (!isTrackLanguageMatch(t, effectiveLang)) continue;
         if (t.duration > 0 && (t.duration < 55 || t.duration > 480)) continue;
@@ -2071,7 +2075,9 @@ export class RecommendationService {
   }
 
   getStarterCandidates(mood: MixMood = 'all', count = 5, lang: MixLanguage = this.libraryService.mixConfig().language): Track[] {
-    let pool = [...STARTER_MIX_TRACKS];
+    let pool = STARTER_MIX_TRACKS.filter(
+      (t) => !this.isDisliked(t) && !this.libraryService.isArtistDisliked(t.artist)
+    );
     if (lang && lang !== 'all') {
       pool = pool.filter((t) => isTrackLanguageMatch(t, lang));
     }

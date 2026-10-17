@@ -1303,3 +1303,107 @@ pub async fn get_top_artists(
     Ok(Json(artists))
 }
 
+#[derive(Debug, serde::Deserialize, Default)]
+pub struct NewReleasesQuery {
+    #[serde(default)]
+    pub artists: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ReleaseItem {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub cover_url: Option<String>,
+    pub track_count: Option<u32>,
+    pub release_date: Option<String>,
+    pub is_playlist: bool,
+}
+
+pub async fn get_new_releases(
+    Query(query): Query<NewReleasesQuery>,
+) -> Result<Json<Vec<ReleaseItem>>, StatusCode> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(6))
+        .build()
+        .unwrap_or_default();
+
+    let artists_raw = query.artists.unwrap_or_default();
+    let artist_list: Vec<&str> = artists_raw
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .take(6)
+        .collect();
+
+    let mut releases = Vec::new();
+    let mut seen_titles = HashSet::new();
+
+    if !artist_list.is_empty() {
+        for artist in artist_list {
+            let encoded = urlencoding::encode(artist);
+            let url = format!("https://api.deezer.com/search/album?q={}&limit=3", encoded);
+            if let Ok(resp) = client.get(&url).header("User-Agent", "Mozilla/5.0").send().await {
+                if let Ok(json) = resp.json::<serde_json::Value>().await {
+                    if let Some(data) = json["data"].as_array() {
+                        for item in data {
+                            let title = item["title"].as_str().unwrap_or("").trim().to_string();
+                            let art_name = item["artist"]["name"].as_str().unwrap_or(artist).trim().to_string();
+                            let norm_key = format!("{}::{}", art_name.to_lowercase(), title.to_lowercase());
+                            if !title.is_empty() && seen_titles.insert(norm_key) {
+                                let cover = item["cover_big"].as_str()
+                                    .or_else(|| item["cover_medium"].as_str())
+                                    .map(|s| s.to_string());
+                                let id = item["id"].to_string();
+                                let track_count = item["nb_tracks"].as_u64().map(|n| n as u32);
+                                let rel_date = item["release_date"].as_str().map(|s| s.to_string());
+                                releases.push(ReleaseItem {
+                                    id,
+                                    title,
+                                    artist: art_name,
+                                    cover_url: cover,
+                                    track_count,
+                                    release_date: rel_date,
+                                    is_playlist: false,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: If no artists or no albums found, fetch top chart playlists from Deezer
+    if releases.is_empty() {
+        let url = "https://api.deezer.com/chart/0/playlists?limit=8";
+        if let Ok(resp) = client.get(url).header("User-Agent", "Mozilla/5.0").send().await {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(data) = json["data"].as_array() {
+                    for item in data {
+                        let title = item["title"].as_str().unwrap_or("").trim().to_string();
+                        if !title.is_empty() && seen_titles.insert(title.to_lowercase()) {
+                            let cover = item["picture_big"].as_str()
+                                .or_else(|| item["picture_medium"].as_str())
+                                .map(|s| s.to_string());
+                            let id = item["id"].to_string();
+                            let track_count = item["nb_tracks"].as_u64().map(|n| n as u32);
+                            releases.push(ReleaseItem {
+                                id,
+                                title,
+                                artist: "Чарт плейлист".to_string(),
+                                cover_url: cover,
+                                track_count,
+                                release_date: None,
+                                is_playlist: true,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(Json(releases))
+}
+

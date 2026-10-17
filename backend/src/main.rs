@@ -123,6 +123,7 @@ async fn main() {
         .route("/api/resolve-media", get(handlers::cover::resolve_media))
         .route("/api/search", get(search_music))
         .route("/api/top-artists", get(get_top_artists))
+        .route("/api/new-releases", get(handlers::search::get_new_releases))
         .route("/api/recommendations", get(get_recommendations))
         .route("/api/similar-tracks", get(get_similar_tracks))
         .route("/api/extract", get(extract_info))

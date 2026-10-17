@@ -54,6 +54,7 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       playlists: signal([]),
       getStorageUserId: () => 'test_user',
       isDisliked: () => false,
+      isArtistDisliked: () => false,
       setMixConfig: vi.fn(),
       getHistory: vi.fn().mockResolvedValue([]),
       searchOnline: vi.fn().mockResolvedValue([]),

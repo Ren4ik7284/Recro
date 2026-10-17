@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, input, output, ElementRef, ViewChild, effect } from '@angular/core';
+import { Component, inject, signal, computed, input, output, ElementRef, ViewChild, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
@@ -21,6 +21,16 @@ import {
   AvatarFrame,
   PlaylistCoverPreset
 } from './profile-presets';
+
+export interface ReleaseItem {
+  id: string;
+  title: string;
+  artist: string;
+  cover_url?: string;
+  track_count?: number;
+  release_date?: string;
+  is_playlist: boolean;
+}
 
 export interface ColoredTag {
   text: string;
@@ -56,9 +66,13 @@ export class ProfileComponent {
   readonly i18n = inject(I18nService);
 
   @ViewChild('carouselRef') carouselRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('releasesCarouselRef') releasesCarouselRef?: ElementRef<HTMLDivElement>;
   @ViewChild('avatarFileInput') avatarFileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('bannerFileInput') bannerFileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('playlistCoverInput') playlistCoverInput?: ElementRef<HTMLInputElement>;
+
+  readonly newReleases = signal<ReleaseItem[]>([]);
+  readonly isLoadingReleases = signal<boolean>(false);
 
   readonly showCloseButton = input<boolean>(false);
   readonly close = output<void>();
@@ -309,6 +323,7 @@ export class ProfileComponent {
   constructor() {
     this.initProfileMetadata();
     this.fetchWorldTopArtists();
+    this.fetchNewReleases();
 
     // Cross-device auto sync: реактивно обновляем теги, вайб и рамку профиля при синхронизации
     effect(() => {
@@ -316,6 +331,14 @@ export class ProfileComponent {
       if (u) {
         this.initProfileMetadata();
       }
+    });
+
+    effect(() => {
+      // Re-fetch when user's library tracks change
+      const _ = this.libraryService.tracks();
+      untracked(() => {
+        this.fetchNewReleases();
+      });
     });
   }
 
@@ -789,6 +812,55 @@ export class ProfileComponent {
       left: direction === 'left' ? -step : step,
       behavior: 'smooth',
     });
+  }
+
+  scrollReleasesCarousel(direction: 'left' | 'right') {
+    if (!this.releasesCarouselRef?.nativeElement) return;
+    const el = this.releasesCarouselRef.nativeElement;
+    const step = 220;
+    el.scrollBy({
+      left: direction === 'left' ? -step : step,
+      behavior: 'smooth',
+    });
+  }
+
+  async fetchNewReleases() {
+    this.isLoadingReleases.set(true);
+    try {
+      const tracks = this.libraryService.tracks();
+      const artistScores = new Map<string, number>();
+
+      for (const t of tracks) {
+        if (!t.artist || this.libraryService.isArtistDisliked(t.artist)) continue;
+        const art = t.artist.trim();
+        const score = (t.plays || 1) + (t.isFavorite ? 5 : 0);
+        artistScores.set(art, (artistScores.get(art) || 0) + score);
+      }
+
+      const sortedArtists = Array.from(artistScores.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([art]) => art);
+
+      const query = sortedArtists.slice(0, 6).join(',');
+      const backendUrl = this.libraryService.getBackendUrl();
+      const res = await fetch(`${backendUrl}/api/new-releases?artists=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data: ReleaseItem[] = await res.json();
+        this.newReleases.set(data);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch new releases:', e);
+    } finally {
+      this.isLoadingReleases.set(false);
+    }
+  }
+
+  onReleaseClick(item: ReleaseItem) {
+    if (item.is_playlist) {
+      this.searchArtist.emit(item.title);
+    } else {
+      this.searchArtist.emit(`${item.artist} ${item.title}`);
+    }
   }
 
   onArtistClick(artistName: string) {
