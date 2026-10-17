@@ -383,7 +383,7 @@ export class LibraryService implements OnDestroy {
           if (this.authService.isAuthenticated()) {
             this.connectRealtimeSync();
           }
-        }, 5000);
+        }, 30000);
       };
     } catch (e) {
       console.warn('Real-time sync SSE failed to connect:', e);
@@ -418,14 +418,6 @@ export class LibraryService implements OnDestroy {
   }
 
   private initLibrary() {
-    if (!this.authService.isAuthenticated()) {
-      this.tracks.set([]);
-      this.playlists.set([]);
-      this.activePlaylistId.set(null);
-      this.radioStations.set([...this.defaultRadioStations]);
-      return;
-    }
-
     let savedTracks: Track[] = [];
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY_TRACKS);
@@ -956,8 +948,7 @@ export class LibraryService implements OnDestroy {
       });
 
       if (res.status === 401) {
-        console.warn('[LibraryService] /api/sync POST returned 401. Session expired, logging out.');
-        this.authService.logout();
+        console.warn('[LibraryService] /api/sync POST returned 401, preserving local library.');
         return;
       }
 
@@ -1034,8 +1025,7 @@ export class LibraryService implements OnDestroy {
         credentials: 'include',
       });
       if (res.status === 401) {
-        console.warn('[LibraryService] /api/sync GET returned 401. Session expired, logging out.');
-        this.authService.logout();
+        console.warn('[LibraryService] /api/sync GET returned 401, preserving local library.');
         return;
       }
       if (!res.ok) return;

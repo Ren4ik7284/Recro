@@ -1749,13 +1749,11 @@ export class AudioService {
   }
 
   formatStreamUrl(track: Track): string {
-    let playUrl = track.audioUrl;
-    if (playUrl.startsWith('blob:')) return playUrl;
+    let playUrl = (track.audioUrl || '').trim();
+    if (!playUrl || playUrl.startsWith('blob:')) return playUrl;
     const activeBase = this.libraryService.getBackendUrl();
 
-    if (playUrl.startsWith('/api/stream')) {
-      playUrl = `${activeBase}${playUrl}`;
-    } else if (playUrl.includes('/api/stream')) {
+    if (playUrl.includes('/api/stream')) {
       const streamIdx = playUrl.indexOf('/api/stream');
       playUrl = `${activeBase}${playUrl.slice(streamIdx)}`;
     } else if (
@@ -1768,11 +1766,13 @@ export class AudioService {
       track.isLiveStream ||
       track.format === 'stream' ||
       track.id.startsWith('radio-') ||
-      track.id.startsWith('default-') ||
-      (!playUrl.startsWith('/') && !playUrl.startsWith(activeBase))
+      track.id.startsWith('default-')
     ) {
-      const isLive = Boolean(track.isLiveStream || track.format === 'stream' || track.id.startsWith('radio-') || track.id.startsWith('default-'));
-      playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}${isLive ? '&is_live=true' : ''}`;
+      playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}&is_live=true`;
+    } else if (playUrl.startsWith('/')) {
+      playUrl = `${activeBase}${playUrl}`;
+    } else if (!playUrl.startsWith('http://') && !playUrl.startsWith('https://')) {
+      playUrl = `${activeBase}/${playUrl}`;
     }
 
     if (playUrl.includes('/api/stream')) {
