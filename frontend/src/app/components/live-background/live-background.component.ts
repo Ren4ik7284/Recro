@@ -21,6 +21,26 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
   readonly bgService = inject(LiveBackgroundService);
 
   @ViewChild('proceduralCanvas') canvasRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('bgVideo') set bgVideoRef(ref: ElementRef<HTMLVideoElement> | undefined) {
+    if (ref?.nativeElement) {
+      this.silenceVideo(ref.nativeElement);
+    }
+  }
+
+  silenceVideo(video: HTMLVideoElement) {
+    if (!video) return;
+    try {
+      video.muted = true;
+      video.defaultMuted = true;
+      video.volume = 0;
+      if ('audioTracks' in video && (video as any).audioTracks) {
+        const tracks = (video as any).audioTracks;
+        for (let i = 0; i < tracks.length; i++) {
+          tracks[i].enabled = false;
+        }
+      }
+    } catch {}
+  }
 
   private animId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;

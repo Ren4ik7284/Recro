@@ -3,12 +3,19 @@
   @if (bgService.activePreset() === 'custom' && bgService.customMediaUrl(); as url) {
     @if (bgService.customMediaType() === 'video') {
       <video 
+        #bgVideo
         [src]="url" 
         autoplay 
         loop 
+        [muted]="true" 
         muted 
         playsinline 
         class="live-bg-element"
+        (loadedmetadata)="silenceVideo(bgVideo)"
+        (canplay)="silenceVideo(bgVideo)"
+        (play)="silenceVideo(bgVideo)"
+        (volumechange)="silenceVideo(bgVideo)"
+        (timeupdate)="silenceVideo(bgVideo)"
       ></video>
     } @else {
       <img 
