@@ -1773,6 +1773,10 @@ export class AudioService {
       playUrl = `${activeBase}${playUrl}`;
     } else if (!playUrl.startsWith('http://') && !playUrl.startsWith('https://')) {
       playUrl = `${activeBase}/${playUrl}`;
+    } else if (!playUrl.startsWith(activeBase)) {
+      // External HTTP/HTTPS URLs (Deezer, VK, remote CDN) MUST be proxied through the backend
+      // so browser CORS and hotlink protection never fail!
+      playUrl = `${activeBase}/api/stream?url=${encodeURIComponent(playUrl)}`;
     }
 
     if (playUrl.includes('/api/stream')) {

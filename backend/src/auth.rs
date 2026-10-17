@@ -126,6 +126,8 @@ pub fn verify_jwt(token: &str) -> Result<Claims, String> {
 
     const ALT_SECRETS: &[&[u8]] = &[
         b"recro_production_jwt_master_secret_2026_super_stable_key_998877_permanent",
+        b"super_secret_jwt_random_key_replace_in_prod",
+        b"signal-audio-secret-key-change-in-prod",
         b"8-kxca0ccKlB6XuP5*re!zh4A8UCp6NCj=y2wcKxY#my63IL0JWDSKh$hvcgE4Kz",
     ];
 

@@ -391,16 +391,21 @@ pub async fn stream_audio(
             }
         }
 
-        if let Ok(meta) = std::fs::metadata(&cache_file_path) {
-            if meta.len() > 100_000 {
-                if params.prefetch.unwrap_or(false) {
-                    return Ok(StatusCode::NO_CONTENT.into_response());
+        if let Ok(file) = tokio::fs::File::open(&cache_file_path).await {
+            if let Ok(meta) = file.metadata().await {
+                if meta.len() > 100_000 {
+                    if params.prefetch.unwrap_or(false) {
+                        return Ok(StatusCode::NO_CONTENT.into_response());
+                    }
+                    let stream = tokio_util::io::ReaderStream::new(file);
+                    let body = Body::from_stream(stream);
+                    let mut res_headers = HeaderMap::new();
+                    res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
+                    res_headers.insert(header::CONTENT_LENGTH, meta.len().to_string().parse().unwrap());
+                    res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
+                    res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, immutable"));
+                    return Ok((StatusCode::OK, res_headers, body).into_response());
                 }
-                let redirect_url = format!("/cache/{}", cache_filename);
-                let mut res_headers = HeaderMap::new();
-                res_headers.insert(header::LOCATION, redirect_url.parse().unwrap());
-                res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=86400"));
-                return Ok((StatusCode::TEMPORARY_REDIRECT, res_headers, Body::empty()).into_response());
             }
         }
     }

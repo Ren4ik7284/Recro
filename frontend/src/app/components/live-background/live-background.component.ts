@@ -20,11 +20,46 @@ import { LiveBackgroundService } from '../../services/live-background.service';
 export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
   readonly bgService = inject(LiveBackgroundService);
 
-  @ViewChild('proceduralCanvas') canvasRef?: ElementRef<HTMLCanvasElement>;
+  private _canvasElement: HTMLCanvasElement | null = null;
+
+  @ViewChild('proceduralCanvas') set proceduralCanvas(ref: ElementRef<HTMLCanvasElement> | undefined) {
+    const el = ref?.nativeElement || null;
+    if (el === this._canvasElement) return;
+    this._canvasElement = el;
+
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+
+    if (el) {
+      this.resizeCanvas();
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          this.resizeCanvas();
+        });
+        this.resizeObserver.observe(el.parentElement || el);
+      }
+      this.setupAnimation(this.bgService.activePreset());
+    } else {
+      this.stopAnimation();
+    }
+  }
+
+  get canvasRef(): ElementRef<HTMLCanvasElement> | undefined {
+    return this._canvasElement ? new ElementRef(this._canvasElement) : undefined;
+  }
+
   @ViewChild('bgVideo') set bgVideoRef(ref: ElementRef<HTMLVideoElement> | undefined) {
     if (ref?.nativeElement) {
-      this.silenceVideo(ref.nativeElement);
+      this.onVideoReady(ref.nativeElement);
     }
+  }
+
+  onVideoReady(video: HTMLVideoElement) {
+    if (!video) return;
+    this.silenceVideo(video);
+    video.play().catch(() => {});
   }
 
   silenceVideo(video: HTMLVideoElement) {
@@ -55,14 +90,9 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    if (this.canvasRef?.nativeElement) {
+    if (this._canvasElement) {
       this.resizeCanvas();
       this.setupAnimation(this.bgService.activePreset());
-
-      if (typeof ResizeObserver !== 'undefined') {
-        this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
-        this.resizeObserver.observe(this.canvasRef.nativeElement);
-      }
     }
   }
 
@@ -75,10 +105,15 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
   }
 
   private resizeCanvas() {
-    if (!this.canvasRef?.nativeElement) return;
-    const canvas = this.canvasRef.nativeElement;
-    canvas.width = canvas.parentElement?.clientWidth || window.innerWidth;
-    canvas.height = canvas.parentElement?.clientHeight || window.innerHeight;
+    const canvas = this._canvasElement;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    const w = parent?.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 800);
+    const h = parent?.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 600);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
   }
 
   private stopAnimation() {
@@ -90,7 +125,8 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
 
   private setupAnimation(preset: string) {
     this.stopAnimation();
-    if (!this.canvasRef?.nativeElement) return;
+    if (!this._canvasElement) return;
+    this.resizeCanvas();
 
     if (preset === 'grid') {
       this.startGridAnimation();

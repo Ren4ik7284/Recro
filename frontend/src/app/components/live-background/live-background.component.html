@@ -11,8 +11,8 @@
         muted 
         playsinline 
         class="live-bg-element"
-        (loadedmetadata)="silenceVideo(bgVideo)"
-        (canplay)="silenceVideo(bgVideo)"
+        (loadedmetadata)="onVideoReady(bgVideo)"
+        (canplay)="onVideoReady(bgVideo)"
         (play)="silenceVideo(bgVideo)"
         (volumechange)="silenceVideo(bgVideo)"
         (timeupdate)="silenceVideo(bgVideo)"

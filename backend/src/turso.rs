@@ -410,6 +410,13 @@ pub async fn sync_down_user(pool: &DbPool, user_id: &str) {
                     args: vec![TursoValue::text(user_id)],
                 },
             },
+            RequestItem {
+                req_type: "execute",
+                stmt: Stmt {
+                    sql: "SELECT id, avatar_url, banner_url, profile_tags FROM users WHERE id = ?".to_string(),
+                    args: vec![TursoValue::text(user_id)],
+                },
+            },
         ],
     };
 
@@ -600,6 +607,36 @@ pub async fn sync_down_user(pool: &DbPool, user_id: &str) {
                     .bind(bitrate)
                     .bind(favicon)
                     .bind(is_custom)
+                    .execute(pool)
+                    .await;
+                }
+            }
+        }
+    }
+
+    // 4: users profile sync
+    if let Some(item) = results.get(4) {
+        if let Some(rows) = item.response.as_ref().and_then(|r| r.result.as_ref()).and_then(|res| res.rows.as_ref()) {
+            if let Some(r) = rows.get(0) {
+                if r.len() >= 4 {
+                    let uid = cell_as_str(&r[0]).unwrap_or_default();
+                    let avatar = cell_as_str(&r[1]);
+                    let banner = cell_as_str(&r[2]);
+                    let profile_tags = cell_as_str(&r[3]);
+
+                    let _ = sqlx::query(
+                        r#"
+                        UPDATE users SET
+                            avatar_url = COALESCE(?, avatar_url),
+                            banner_url = COALESCE(?, banner_url),
+                            profile_tags = COALESCE(?, profile_tags)
+                        WHERE id = ?
+                        "#,
+                    )
+                    .bind(avatar)
+                    .bind(banner)
+                    .bind(profile_tags)
+                    .bind(uid)
                     .execute(pool)
                     .await;
                 }

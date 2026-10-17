@@ -2,14 +2,17 @@
     email bebragnom89@gmail.com
 }
 
-(common) {
-    header ?Access-Control-Allow-Origin *
-    header ?Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-    header ?Access-Control-Allow-Headers *
-    header ?Access-Control-Expose-Headers *
+(cors) {
+    header Access-Control-Allow-Origin *
+    header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+    header Access-Control-Allow-Headers *
+    header Access-Control-Expose-Headers *
+}
 
+(common) {
     handle /recro.apk {
         root * /var/www/recro/frontend
+        import cors
         header Content-Type application/vnd.android.package-archive
         header Content-Disposition "attachment; filename=recro.apk"
         file_server
@@ -17,6 +20,7 @@
 
     handle /recro.ipa {
         root * /var/www/recro/frontend
+        import cors
         header Content-Type application/octet-stream
         header Content-Disposition "attachment; filename=recro.ipa"
         file_server
@@ -24,9 +28,8 @@
 
     handle_path /cache/* {
         root * /var/www/recro/cache
-        header {
-            Cache-Control "public, max-age=604800, immutable"
-        }
+        import cors
+        header Cache-Control "public, max-age=604800, immutable"
         file_server
     }
 
@@ -38,6 +41,7 @@
 
     handle {
         root * /var/www/recro/frontend
+        import cors
         try_files {path} {path}/ /index.html
         @nocache path /index.html /sw.js /manifest.json /manifest.webmanifest /
         header @nocache {
@@ -55,8 +59,6 @@ recro.80.87.202.157.sslip.io, 80-87-202-157.sslip.io {
     import common
 }
 
-http://80.87.202.157, http://recro.80.87.202.157.sslip.io, http://80-87-202-157.sslip.io, :80 {
+http://80.87.202.157, http://recro.80.87.202.157.sslip.io, http://80-87-202-157.sslip.io, :80, :10000 {
     import common
 }
-
-

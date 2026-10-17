@@ -58,9 +58,24 @@ if [ "$MODE" = "backend" ] || [ "$MODE" = "all" ]; then
     for SVR in "${SERVERS[@]}"; do
         echo "📤 Загрузка бинарника бэкенда на $SVR..."
         scp -o ConnectTimeout=10 target/release/signal-audio-backend $SVR:$REMOTE_PATH/backend/signal-audio-backend.new
-        ssh -o ConnectTimeout=10 $SVR "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
+        if [ "$SVR" = "bebragnom89" ]; then
+            scp -o ConnectTimeout=8 "$DIR/Caddyfile" $SVR:/tmp/Caddyfile 2>/dev/null || true
+            ssh -o ConnectTimeout=10 $SVR "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && mv -f /tmp/Caddyfile /etc/caddy/Caddyfile 2>/dev/null || true && systemctl reload caddy 2>/dev/null || true && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
+        else
+            ssh -o ConnectTimeout=10 $SVR "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
+        fi
         echo "✅ Бэкенд на $SVR перезапущен!"
     done
+fi
+
+# Smoke-test CORS and health on bebragnom89
+if curl -s -I "http://80.87.202.157/api/health" | grep -q "Access-Control-Allow-Origin"; then
+    DUP_COUNT=$(curl -s -I "http://80.87.202.157/api/health" | grep -ci "Access-Control-Allow-Origin" || true)
+    if [ "$DUP_COUNT" -gt 1 ]; then
+        echo "⚠️ ВНИМАНИЕ: Обнаружены дубликаты CORS заголовков ($DUP_COUNT)!"
+    else
+        echo "✅ Smoke-test успешен: CORS заголовок корректен и уникален."
+    fi
 fi
 
 # 3. Деплой зеркала Vercel (опционально)

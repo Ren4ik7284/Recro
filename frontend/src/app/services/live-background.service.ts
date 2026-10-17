@@ -90,8 +90,14 @@ export class LiveBackgroundService {
         if (meta && meta.background) {
           const bg = meta.background;
           if (bg.preset && bg.preset !== untracked(() => this.activePreset())) {
-            this.activePreset.set(bg.preset);
-            this.saveStorage('recro_bg_preset', bg.preset);
+            const currentPreset = untracked(() => this.activePreset());
+            const hasCustomMedia = Boolean(untracked(() => this.customMediaUrl()));
+            if ((bg.preset === 'default' || bg.preset === 'off') && currentPreset === 'custom' && hasCustomMedia) {
+              // Preserve local custom wallpaper!
+            } else {
+              this.activePreset.set(bg.preset);
+              this.saveStorage('recro_bg_preset', bg.preset);
+            }
           }
           if (typeof bg.dimmer === 'number' && bg.dimmer !== untracked(() => this.dimmerLevel())) {
             this.dimmerLevel.set(bg.dimmer);
@@ -525,8 +531,12 @@ export class LiveBackgroundService {
           this.customMediaUrl.set(url);
           this.customMediaType.set(isVideo ? 'video' : 'image');
 
-          if (this.activePreset() === 'custom' && this.syncThemeWithBg()) {
-            this.extractPaletteAndApply(url, isVideo);
+          if (this.activePreset() === 'custom') {
+            this.applyGlobally.set(true);
+            this.saveStorage('recro_bg_global', 'true');
+            if (this.syncThemeWithBg()) {
+              this.extractPaletteAndApply(url, isVideo);
+            }
           }
         }
       };
