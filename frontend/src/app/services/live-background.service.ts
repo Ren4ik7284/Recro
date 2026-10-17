@@ -1,5 +1,6 @@
-import { Injectable, signal, inject } from '@angular/core';
+import { Injectable, signal, inject, effect } from '@angular/core';
 import { ThemeService } from './theme.service';
+import { AuthService } from './auth.service';
 
 export interface BgPreset {
   id: 'default' | 'grid' | 'waves' | 'rain' | 'custom';
@@ -37,13 +38,14 @@ const KEY_SAVED_URLS = 'recro_saved_bg_urls_v1';
 })
 export class LiveBackgroundService {
   private readonly themeService = inject(ThemeService);
+  private readonly authService = inject(AuthService, { optional: true });
 
   readonly presets = BG_PRESETS;
 
   // Реактивные сигналы состояния
   readonly activePreset = signal<string>(this.loadStorage('recro_bg_preset', 'default'));
-  readonly customMediaUrl = signal<string | null>(null);
-  readonly customMediaType = signal<'image' | 'video'>('image');
+  readonly customMediaUrl = signal<string | null>(this.loadStorage('recro_bg_custom_url', '') || null);
+  readonly customMediaType = signal<'image' | 'video'>((this.loadStorage('recro_bg_custom_type', 'image') as any) || 'image');
   readonly customMediaName = signal<string | null>(this.loadStorage('recro_bg_custom_name', ''));
 
   // Опции отображения
@@ -71,6 +73,50 @@ export class LiveBackgroundService {
     if (typeof window !== 'undefined') {
       this.initIndexedDbAndRestore();
     }
+
+    // Синхронизация фонового оформления с облаком
+    effect(() => {
+      const user = this.authService?.currentUser();
+      if (!user || user.id === 'guest' || !user.profile_tags) return;
+      try {
+        const meta = JSON.parse(user.profile_tags);
+        if (meta && meta.background) {
+          const bg = meta.background;
+          if (bg.preset && bg.preset !== this.activePreset()) {
+            this.activePreset.set(bg.preset);
+            this.saveStorage('recro_bg_preset', bg.preset);
+          }
+          if (typeof bg.dimmer === 'number' && bg.dimmer !== this.dimmerLevel()) {
+            this.dimmerLevel.set(bg.dimmer);
+            this.saveStorage('recro_bg_dimmer', String(bg.dimmer));
+          }
+          if (typeof bg.blur === 'number' && bg.blur !== this.blurLevel()) {
+            this.blurLevel.set(bg.blur);
+            this.saveStorage('recro_bg_blur', String(bg.blur));
+          }
+          if (typeof bg.isGlassTinted === 'boolean' && bg.isGlassTinted !== this.isGlassTinted()) {
+            this.isGlassTinted.set(bg.isGlassTinted);
+            this.saveStorage('recro_bg_glass_tint', String(bg.isGlassTinted));
+          }
+          if (typeof bg.applyGlobally === 'boolean' && bg.applyGlobally !== this.applyGlobally()) {
+            this.applyGlobally.set(bg.applyGlobally);
+            this.saveStorage('recro_bg_global', String(bg.applyGlobally));
+          }
+          if (typeof bg.syncThemeWithBg === 'boolean' && bg.syncThemeWithBg !== this.syncThemeWithBg()) {
+            this.syncThemeWithBg.set(bg.syncThemeWithBg);
+            this.saveStorage('recro_bg_sync_theme', String(bg.syncThemeWithBg));
+          }
+          if (bg.customMediaUrl && bg.customMediaUrl !== this.customMediaUrl()) {
+            this.customMediaUrl.set(bg.customMediaUrl);
+            this.customMediaType.set(bg.customMediaType || 'image');
+            this.customMediaName.set(bg.customMediaName || 'Cloud Background');
+            this.saveStorage('recro_bg_custom_url', bg.customMediaUrl);
+            this.saveStorage('recro_bg_custom_type', bg.customMediaType || 'image');
+            this.saveStorage('recro_bg_custom_name', bg.customMediaName || '');
+          }
+        }
+      } catch {}
+    });
   }
 
   toggleSettings() {
@@ -100,6 +146,7 @@ export class LiveBackgroundService {
     } else if (presetId === 'custom' && this.customMediaUrl() && this.syncThemeWithBg()) {
       this.extractPaletteAndApply(this.customMediaUrl()!, this.customMediaType() === 'video');
     }
+    this.syncBgToCloud();
   }
 
   // --- Настройки отображения фона ---
@@ -107,11 +154,13 @@ export class LiveBackgroundService {
   setDimmer(percent: number) {
     this.dimmerLevel.set(percent);
     this.saveStorage('recro_bg_dimmer', String(percent));
+    this.syncBgToCloud();
   }
 
   setBlur(px: number) {
     this.blurLevel.set(px);
     this.saveStorage('recro_bg_blur', String(px));
+    this.syncBgToCloud();
   }
 
   toggleSyncTheme() {
@@ -129,18 +178,21 @@ export class LiveBackgroundService {
         }
       }
     }
+    this.syncBgToCloud();
   }
 
   toggleApplyGlobally() {
     const next = !this.applyGlobally();
     this.applyGlobally.set(next);
     this.saveStorage('recro_bg_global', String(next));
+    this.syncBgToCloud();
   }
 
   toggleGlassTint() {
     const next = !this.isGlassTinted();
     this.isGlassTinted.set(next);
     this.saveStorage('recro_bg_glass_tint', String(next));
+    this.syncBgToCloud();
   }
 
   setFontSize(size: 'sm' | 'md' | 'lg' | 'xl') {
@@ -175,6 +227,30 @@ export class LiveBackgroundService {
     this.applyGlobally.set(true);
     this.isGlassTinted.set(true);
     this.themeService.resetToDefault();
+    this.syncBgToCloud();
+  }
+
+  private syncBgTimeout: any = null;
+
+  syncBgToCloud() {
+    if (!this.authService?.isAuthenticated()) return;
+    if (this.syncBgTimeout) clearTimeout(this.syncBgTimeout);
+    this.syncBgTimeout = setTimeout(() => {
+      this.authService?.updateProfileCustomization((meta) => ({
+        ...meta,
+        background: {
+          preset: this.activePreset(),
+          dimmer: this.dimmerLevel(),
+          blur: this.blurLevel(),
+          isGlassTinted: this.isGlassTinted(),
+          applyGlobally: this.applyGlobally(),
+          syncThemeWithBg: this.syncThemeWithBg(),
+          customMediaUrl: this.customMediaUrl()?.startsWith('blob:') ? null : this.customMediaUrl(),
+          customMediaType: this.customMediaType(),
+          customMediaName: this.customMediaName(),
+        },
+      })).catch(() => {});
+    }, 600);
   }
 
   // --- Поддержка ссылок (Pinterest pin.it / Web Video / GIF) ---
@@ -213,6 +289,8 @@ export class LiveBackgroundService {
       this.saveStorage('recro_bg_preset', 'custom');
       this.saveStorage('recro_bg_global', 'true');
       this.saveStorage('recro_bg_glass_tint', 'true');
+      this.saveStorage('recro_bg_custom_url', mediaUrl);
+      this.saveStorage('recro_bg_custom_type', mediaType);
       this.saveStorage('recro_bg_custom_name', title);
 
       // Сохраняем в список сохраненных ссылок, чтобы не потерять
@@ -230,6 +308,7 @@ export class LiveBackgroundService {
         this.extractPaletteAndApply(mediaUrl, mediaType === 'video');
       }
 
+      this.syncBgToCloud();
       this.isResolvingUrl.set(false);
       return true;
     } catch (err: any) {
@@ -250,6 +329,8 @@ export class LiveBackgroundService {
       this.saveStorage('recro_bg_preset', 'custom');
       this.saveStorage('recro_bg_global', 'true');
       this.saveStorage('recro_bg_glass_tint', 'true');
+      this.saveStorage('recro_bg_custom_url', trimmed);
+      this.saveStorage('recro_bg_custom_type', mediaType);
       this.saveStorage('recro_bg_custom_name', name);
 
       this.addSavedItem({
@@ -261,6 +342,7 @@ export class LiveBackgroundService {
         addedAt: Date.now(),
       });
 
+      this.syncBgToCloud();
       this.isResolvingUrl.set(false);
       return true;
     }
@@ -277,11 +359,14 @@ export class LiveBackgroundService {
     this.saveStorage('recro_bg_preset', 'custom');
     this.saveStorage('recro_bg_global', 'true');
     this.saveStorage('recro_bg_glass_tint', 'true');
+    this.saveStorage('recro_bg_custom_url', item.mediaUrl);
+    this.saveStorage('recro_bg_custom_type', item.mediaType);
     this.saveStorage('recro_bg_custom_name', item.name);
 
     if (this.syncThemeWithBg()) {
       this.extractPaletteAndApply(item.mediaUrl, item.mediaType === 'video');
     }
+    this.syncBgToCloud();
   }
 
   removeSavedItem(id: string) {
@@ -356,6 +441,7 @@ export class LiveBackgroundService {
     this.customMediaUrl.set(null);
     this.customMediaName.set(null);
     this.saveStorage('recro_bg_custom_name', '');
+    this.saveStorage('recro_bg_custom_url', '');
     this.setPreset('default');
 
     await this.deleteFromIndexedDb();

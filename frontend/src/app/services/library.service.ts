@@ -935,7 +935,7 @@ export class LibraryService implements OnDestroy {
           'Content-Type': 'application/json',
           ...this.authService.getAuthHeaders(),
         },
-        credentials: 'same-origin',
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
@@ -1009,7 +1009,7 @@ export class LibraryService implements OnDestroy {
     try {
       const res = await fetch(`${this.getBackendUrl()}/api/sync`, {
         headers: this.authService.getAuthHeaders(),
-        credentials: 'same-origin',
+        credentials: 'include',
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -1060,29 +1060,30 @@ export class LibraryService implements OnDestroy {
 
         const localUpdatedAt = parseInt(localStorage.getItem(this.STORAGE_KEY_UPDATED_AT) || '0', 10);
 
-        if (forceCloud || cloudUpdatedAt >= localUpdatedAt || localUpdatedAt === 0) {
-          // Keep true local-only uploads (custom uploaded MP3s) if any
-          const localOnlyUploads = localTracks.filter(
-            (lt) => lt.isLocalUpload && !cloudTracks.some((ct) => ct.id === lt.id)
-          );
-          const finalTracks = localOnlyUploads.length > 0 ? [...cloudTracks, ...localOnlyUploads] : cloudTracks;
+        // Bidirectional smart merge between local and cloud tracks
+        const { merged: finalTracks, hasNewLocal } = this.mergeTrackLists(localTracks, cloudTracks);
+        const { mergedPlaylists, hasNewLocalPlaylists } = this.mergePlaylistLists(this.playlists(), cloudPlaylists);
 
-          this.tracks.set(finalTracks);
-          this.playlists.set(cloudPlaylists);
-          this.radioStations.set(cloudStations);
-          this.saveLocalWithoutCloudSync();
+        const stationsToSet = cloudStations.length > 0 ? cloudStations : this.radioStations();
 
-          try {
-            localStorage.setItem(this.STORAGE_KEY_UPDATED_AT, (cloudUpdatedAt || Date.now()).toString());
-          } catch {}
-        } else {
-          // Device has newer local changes made while offline
+        this.tracks.set(finalTracks);
+        this.playlists.set(mergedPlaylists);
+        this.radioStations.set(stationsToSet);
+        this.saveLocalWithoutCloudSync();
+
+        try {
+          const maxUpdated = Math.max(cloudUpdatedAt, localUpdatedAt, Date.now());
+          localStorage.setItem(this.STORAGE_KEY_UPDATED_AT, maxUpdated.toString());
+        } catch {}
+
+        if (hasNewLocal || hasNewLocalPlaylists || (finalTracks.length > cloudTracks.length && !forceCloud)) {
+          // Device had tracks or playlists that cloud lacked - push merged state to cloud
           await this.pushLibraryToBackend();
         }
 
         try {
           const offlineSvc = this.offlineService;
-          for (const t of cloudTracks) {
+          for (const t of finalTracks) {
             if (t.isOffline && !offlineSvc.isTrackOffline(t.id) && !offlineSvc.isDownloading(t.id)) {
               if (t.audioUrl && !t.audioUrl.startsWith('blob:')) {
                 offlineSvc.saveTrackOffline(t).catch(() => {});
@@ -1096,6 +1097,106 @@ export class LibraryService implements OnDestroy {
     } catch (e) {
       console.warn('Sync error:', e);
     }
+  }
+
+  private mergeTrackLists(localTracks: Track[], cloudTracks: Track[]): { merged: Track[]; hasNewLocal: boolean } {
+    const keyOf = (t: Track): string => {
+      if (t.id && !t.id.startsWith('default-track-')) {
+        return t.id;
+      }
+      const a = (t.artist || '').trim().toLowerCase();
+      const tit = (t.title || '').trim().toLowerCase();
+      return `${a}::${tit}`;
+    };
+
+    const secondaryKeyOf = (t: Track): string => {
+      const a = (t.artist || '').trim().toLowerCase();
+      const tit = (t.title || '').trim().toLowerCase();
+      return `${a}::${tit}`;
+    };
+
+    const mergedMap = new Map<string, Track>();
+    const titleArtistMap = new Map<string, string>();
+
+    // 1. Put cloud tracks into map
+    for (const ct of cloudTracks) {
+      if (ct.id.startsWith('default-track-')) continue;
+      const primaryKey = keyOf(ct);
+      const secKey = secondaryKeyOf(ct);
+      mergedMap.set(primaryKey, { ...ct });
+      if (secKey && secKey !== '::') {
+        titleArtistMap.set(secKey, primaryKey);
+      }
+    }
+
+    let hasNewLocal = false;
+
+    // 2. Union merge local tracks
+    for (const lt of localTracks) {
+      if (lt.id.startsWith('default-track-')) continue;
+      const primaryKey = keyOf(lt);
+      const secKey = secondaryKeyOf(lt);
+
+      let existingKey = mergedMap.has(primaryKey) ? primaryKey : null;
+      if (!existingKey && secKey && titleArtistMap.has(secKey)) {
+        existingKey = titleArtistMap.get(secKey)!;
+      }
+
+      if (existingKey) {
+        const existing = mergedMap.get(existingKey)!;
+        const mergedTrack: Track = {
+          ...existing,
+          isFavorite: Boolean(existing.isFavorite || lt.isFavorite),
+          plays: Math.max(existing.plays || 0, lt.plays || 0),
+          isOffline: Boolean(existing.isOffline || lt.isOffline),
+          audioUrl: existing.audioUrl && !existing.audioUrl.startsWith('blob:') ? existing.audioUrl : lt.audioUrl,
+          coverUrl: existing.coverUrl || lt.coverUrl,
+          album: existing.album || lt.album,
+          genre: existing.genre || lt.genre,
+        };
+        mergedMap.set(existingKey, mergedTrack);
+      } else {
+        mergedMap.set(primaryKey, { ...lt });
+        if (secKey && secKey !== '::') {
+          titleArtistMap.set(secKey, primaryKey);
+        }
+        hasNewLocal = true;
+      }
+    }
+
+    return {
+      merged: Array.from(mergedMap.values()),
+      hasNewLocal,
+    };
+  }
+
+  private mergePlaylistLists(local: Playlist[], cloud: Playlist[]): { mergedPlaylists: Playlist[]; hasNewLocalPlaylists: boolean } {
+    const plMap = new Map<string, Playlist>();
+    for (const cp of cloud) {
+      if (cp.id) plMap.set(cp.id, { ...cp });
+    }
+    let hasNewLocalPlaylists = false;
+    for (const lp of local) {
+      if (!lp.id) continue;
+      if (!plMap.has(lp.id)) {
+        plMap.set(lp.id, { ...lp });
+        hasNewLocalPlaylists = true;
+      } else {
+        const existing = plMap.get(lp.id)!;
+        const combinedIds = Array.from(new Set([...(existing.trackIds || []), ...(lp.trackIds || [])]));
+        plMap.set(lp.id, {
+          ...existing,
+          title: existing.title || lp.title,
+          coverUrl: existing.coverUrl || lp.coverUrl,
+          description: existing.description || lp.description,
+          trackIds: combinedIds,
+        });
+      }
+    }
+    return {
+      mergedPlaylists: Array.from(plMap.values()),
+      hasNewLocalPlaylists,
+    };
   }
 
   updateTrackOfflineStatus(trackId: string, isOffline: boolean) {
@@ -1292,6 +1393,7 @@ export class LibraryService implements OnDestroy {
 
   sanitizeTracks(tracks: Track[]): Track[] {
     if (!Array.isArray(tracks)) return [];
+    const backendUrl = this.getBackendUrl();
     const isBroken = (url: string) =>
       !url ||
       url.includes(':8052') ||
@@ -1301,22 +1403,43 @@ export class LibraryService implements OnDestroy {
       url.includes('europaplus256.mp3');
 
     return tracks.map((t) => {
-      if (!t.audioUrl) return t;
+      let audioUrl = t.audioUrl || '';
+      let coverUrl = t.coverUrl;
+
+      if (audioUrl.includes('localhost:8085') || audioUrl.includes('127.0.0.1:8085')) {
+        audioUrl = audioUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1):8085/, backendUrl);
+      }
+      if (coverUrl && (coverUrl.includes('localhost:8085') || coverUrl.includes('127.0.0.1:8085'))) {
+        coverUrl = coverUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1):8085/, backendUrl);
+      }
+
+      if (audioUrl.startsWith('/api/')) {
+        audioUrl = `${backendUrl}${audioUrl}`;
+      }
+      if (coverUrl && coverUrl.startsWith('/api/')) {
+        coverUrl = `${backendUrl}${coverUrl}`;
+      }
+
       const lowerTitle = (t.title || '').toLowerCase();
       const isRadio = t.isLiveStream || t.id.startsWith('radio-') || lowerTitle.includes('европа плюс') || lowerTitle.includes('europa plus');
-      if (isRadio && isBroken(t.audioUrl)) {
-        const isTop = lowerTitle.includes('top 40') || t.id.includes('default-2') || t.audioUrl.includes('top');
+      if (isRadio && isBroken(audioUrl)) {
+        const isTop = lowerTitle.includes('top 40') || t.id.includes('default-2') || audioUrl.includes('top');
         const newUrl = isTop
           ? 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3'
           : 'https://ep128server.streamr.ru:8030/ep128';
         return {
           ...t,
           audioUrl: newUrl,
+          coverUrl,
           bitrate: isTop ? '256k MP3' : '128k MP3',
           isLiveStream: true,
         };
       }
-      return t;
+      return {
+        ...t,
+        audioUrl,
+        coverUrl,
+      };
     });
   }
 
@@ -1788,7 +1911,7 @@ export class LibraryService implements OnDestroy {
             'Content-Type': 'application/json',
             ...this.authService.getAuthHeaders(),
           },
-          credentials: 'same-origin',
+          credentials: 'include',
           body: JSON.stringify({
             track_id: track.id,
             title: track.title,
@@ -1810,7 +1933,7 @@ export class LibraryService implements OnDestroy {
     try {
       const res = await fetch(`${this.getBackendUrl()}/api/history`, {
         headers: this.authService.getAuthHeaders(),
-        credentials: 'same-origin',
+        credentials: 'include',
       });
       if (res.ok) {
         const remote: HistoryItem[] = await res.json();
@@ -1841,7 +1964,7 @@ export class LibraryService implements OnDestroy {
         await fetch(`${this.getBackendUrl()}/api/history`, {
           method: 'DELETE',
           headers: this.authService.getAuthHeaders(),
-          credentials: 'same-origin',
+          credentials: 'include',
         });
       } catch {}
     }
@@ -1854,7 +1977,7 @@ export class LibraryService implements OnDestroy {
       try {
         const res = await fetch(`${this.getBackendUrl()}/api/stats/wrapped`, {
           headers: this.authService.getAuthHeaders(),
-          credentials: 'same-origin',
+          credentials: 'include',
         });
         if (res.ok) {
           const stats = await res.json();

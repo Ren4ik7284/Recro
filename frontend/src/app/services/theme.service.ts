@@ -1,4 +1,5 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { Injectable, signal, effect, inject } from '@angular/core';
+import { AuthService } from './auth.service';
 
 export interface ThemePreset {
   id: string;
@@ -119,6 +120,7 @@ export interface ThemeConfig {
 })
 export class ThemeService {
   private readonly STORAGE_KEY = 'recro_theme_config';
+  private readonly authService = inject(AuthService, { optional: true });
   readonly presets = THEME_PRESETS;
   readonly quickSwatches = QUICK_SWATCH_PALETTE;
 
@@ -130,6 +132,28 @@ export class ThemeService {
     effect(() => {
       const cfg = this.currentTheme();
       this.applyThemeToDOM(cfg);
+    });
+
+    // Синхронизация с облачным профилем
+    effect(() => {
+      const user = this.authService?.currentUser();
+      if (!user || user.id === 'guest' || !user.profile_tags) return;
+      try {
+        const meta = JSON.parse(user.profile_tags);
+        if (meta && meta.theme && meta.theme.color1 && meta.theme.color2) {
+          const cloudTheme: ThemeConfig = {
+            color1: meta.theme.color1,
+            color2: meta.theme.color2,
+            presetId: meta.theme.presetId,
+            isCustom: Boolean(meta.theme.isCustom),
+          };
+          const cur = this.currentTheme();
+          if (cur.color1 !== cloudTheme.color1 || cur.color2 !== cloudTheme.color2) {
+            this.currentTheme.set(cloudTheme);
+            this.persistTheme(cloudTheme);
+          }
+        }
+      } catch {}
     });
   }
 
@@ -201,12 +225,31 @@ export class ThemeService {
     this.isThemeModalOpen.set(false);
   }
 
+  private syncThemeTimeout: any = null;
+
   private persistTheme(cfg: ThemeConfig) {
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(cfg));
       } catch {}
     }
+    this.syncThemeToCloud(cfg);
+  }
+
+  private syncThemeToCloud(cfg: ThemeConfig) {
+    if (!this.authService?.isAuthenticated()) return;
+    if (this.syncThemeTimeout) clearTimeout(this.syncThemeTimeout);
+    this.syncThemeTimeout = setTimeout(() => {
+      this.authService?.updateProfileCustomization((meta) => ({
+        ...meta,
+        theme: {
+          color1: cfg.color1,
+          color2: cfg.color2,
+          presetId: cfg.presetId,
+          isCustom: cfg.isCustom,
+        },
+      })).catch(() => {});
+    }, 600);
   }
 
   private hexToRgb(hex: string): { r: number; g: number; b: number } {

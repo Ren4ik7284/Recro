@@ -120,29 +120,33 @@ export class AuthService {
     this.currentUser.set(user);
     if (typeof localStorage !== 'undefined') {
       try {
-        // Токен больше не сохраняется в LocalStorage ради безопасности против XSS
-        localStorage.removeItem(this.TOKEN_STORAGE_KEY);
+        localStorage.setItem(this.TOKEN_STORAGE_KEY, token);
         localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(user));
       } catch {}
     }
-    // Удаляем небезопасную JS-куку (токен защищен на уровне HttpOnly куки бэкенда)
-    this.deleteCookie('recro_jwt_token');
+    this.setCookie('recro_jwt_token', token, 365);
     try {
       this.setCookie('recro_user_data', JSON.stringify(user), 365);
     } catch {}
   }
 
   private restoreSession() {
+    let savedToken: string | null = null;
     let savedUserStr: string | null = null;
 
     if (typeof localStorage !== 'undefined') {
       try {
-        // Очищаем старые токены из LocalStorage при миграции
-        localStorage.removeItem(this.TOKEN_STORAGE_KEY);
+        savedToken = localStorage.getItem(this.TOKEN_STORAGE_KEY);
         savedUserStr = localStorage.getItem(this.USER_STORAGE_KEY);
       } catch {}
     }
-    this.deleteCookie('recro_jwt_token');
+
+    if (!savedToken) {
+      savedToken = this.getCookie('recro_jwt_token');
+    }
+    if (savedToken) {
+      this.token.set(savedToken);
+    }
 
     if (!savedUserStr) {
       savedUserStr = this.getCookie('recro_user_data');
@@ -182,7 +186,7 @@ export class AuthService {
       // Do not destroy session on parse error
     }
 
-    // Фоновая проверка HttpOnly сессии на бэкенде
+    // Фоновая проверка сессии на бэкенде
     if (typeof window !== 'undefined') {
       setTimeout(() => this.verifyRemoteSession(), 50);
     }
@@ -233,7 +237,7 @@ export class AuthService {
     try {
       const res = await fetch(`${base}/api/auth/me`, {
         headers: this.getAuthHeaders(),
-        credentials: 'same-origin',
+        credentials: 'include',
       });
       if (res.ok) {
         const user: UserInfo = await res.json();
@@ -301,7 +305,7 @@ export class AuthService {
       const res = await fetch(`${base}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
+        credentials: 'include',
         body: JSON.stringify({ login: cleanLogin, password: cleanPass }),
       });
 
@@ -358,7 +362,7 @@ export class AuthService {
       const res = await fetch(`${base}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
+        credentials: 'include',
         body: JSON.stringify({ username: cleanUser, password: cleanPass }),
       });
 
@@ -482,7 +486,7 @@ export class AuthService {
             'Content-Type': 'application/json',
             ...this.getAuthHeaders(),
           },
-          credentials: 'same-origin',
+          credentials: 'include',
           body: JSON.stringify({
             username: partial.username,
             avatar_url: partial.avatar_url,
@@ -510,6 +514,20 @@ export class AuthService {
     return true;
   }
 
+  async updateProfileCustomization(updater: (meta: any) => any, backendUrl?: string): Promise<boolean> {
+    const user = this.currentUser();
+    if (!user || user.id === 'guest') return false;
+    let meta: any = {};
+    if (user.profile_tags) {
+      try {
+        meta = JSON.parse(user.profile_tags);
+      } catch {}
+    }
+    const updated = updater(meta);
+    const tagsStr = JSON.stringify(updated);
+    return this.updateProfile({ profile_tags: tagsStr }, backendUrl);
+  }
+
   logout() {
     this.clearSession();
   }
@@ -528,7 +546,7 @@ export class AuthService {
     if (typeof window !== 'undefined') {
       fetch(`${this.getEffectiveBackendUrl()}/api/auth/logout`, {
         method: 'POST',
-        credentials: 'same-origin',
+        credentials: 'include',
       }).catch(() => {});
     }
   }
