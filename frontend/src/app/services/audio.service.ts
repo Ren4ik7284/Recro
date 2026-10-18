@@ -770,7 +770,8 @@ export class AudioService {
       if (this.consecutiveErrorCount === 1) {
         const cur = this.currentTrack();
         if (cur) {
-          console.warn('[AudioService] Transient failure under VPN/slow connection, retrying track in 1.2s...');
+          console.warn('[AudioService] Transient failure under VPN/slow connection, failing over cluster and retrying track in 1.2s...');
+          this.libraryService.failoverBackend();
           this.errorTimeoutId = setTimeout(() => {
             this.playTrack(cur, this.queue(), false, this.queueIndex());
           }, 1200);

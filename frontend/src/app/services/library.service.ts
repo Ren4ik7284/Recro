@@ -2,6 +2,7 @@ import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angula
 import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist, ChartSummary, ChartDetail, ReleaseItem, HomeExploreData } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
+import { CLUSTER_BACKENDS, resolveDefaultBackend } from '../models/cluster.config';
 
 export interface ExtractedResult {
   playlistTitle: string | null;
@@ -34,12 +35,7 @@ export const BUILTIN_DISLIKED_ARTISTS: string[] = [
 })
 export class LibraryService implements OnDestroy {
   private get defaultBackendUrl(): string {
-    if (typeof window === 'undefined') return 'http://127.0.0.1:8085';
-    if (window.location.port === '8085' || !window.location.port || window.location.port === '80' || window.location.port === '443') {
-      return window.location.origin;
-    }
-    const hostname = window.location.hostname || '127.0.0.1';
-    return `${window.location.protocol}//${hostname}:8085`;
+    return resolveDefaultBackend();
   }
 
   private activeBackendUrl = '';
@@ -319,6 +315,12 @@ export class LibraryService implements OnDestroy {
       this.startAutoSync();
     });
 
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.checkBackendHealth();
+      });
+    }
+
     effect(() => {
       const isAuth = this.authService.isAuthenticated();
       if (isAuth) {
@@ -572,19 +574,20 @@ export class LibraryService implements OnDestroy {
     return `${activeBase}/api/cover?title=${encodeURIComponent(title || 'Track')}&artist=${encodeURIComponent(artist || 'Artist')}`;
   }
 
-  async checkBackendHealth() {
+  async checkBackendHealth(): Promise<string> {
     const urlsToTest: string[] = [];
 
     if (typeof window !== 'undefined') {
-      urlsToTest.push(this.defaultBackendUrl);
-      if (window.location.origin !== this.defaultBackendUrl) {
+      const host = window.location.hostname || '';
+      if (host === 'localhost' || host === '127.0.0.1') {
+        urlsToTest.push(`http://${host}:8085`);
+      }
+      if (host.includes('80.87.202.157') || host.includes('177.3.217.64')) {
         urlsToTest.push(window.location.origin);
       }
-      if (window.location.protocol === 'http:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        const hostname = window.location.hostname || '127.0.0.1';
-        urlsToTest.push(`http://${hostname}:8085`);
-        urlsToTest.push('http://127.0.0.1:8085');
-        urlsToTest.push('http://localhost:8085');
+      urlsToTest.push(...CLUSTER_BACKENDS);
+      if (window.location.origin) {
+        urlsToTest.push(window.location.origin);
       }
     } else {
       urlsToTest.push('http://127.0.0.1:8085');
@@ -592,21 +595,57 @@ export class LibraryService implements OnDestroy {
 
     const uniqueUrls = Array.from(new Set(urlsToTest));
 
-    for (const testUrl of uniqueUrls) {
-      try {
-        const res = await fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(1500) });
-        if (res.ok) {
-          this.activeBackendUrl = testUrl;
-          this.isBackendOnline.set(true);
-          this.authService.verifyRemoteSession(this.activeBackendUrl);
-          return;
-        }
-      } catch {}
-    }
+    try {
+      const winner = await new Promise<string>((resolve, reject) => {
+        let finished = false;
+        let failCount = 0;
+        const total = uniqueUrls.length;
 
-    this.activeBackendUrl = this.defaultBackendUrl;
-    this.isBackendOnline.set(true);
-    this.authService.verifyRemoteSession(this.activeBackendUrl);
+        for (const testUrl of uniqueUrls) {
+          fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(2000) })
+            .then((res) => {
+              if (res.ok && !finished) {
+                finished = true;
+                resolve(testUrl);
+              } else {
+                failCount++;
+                if (failCount >= total && !finished) {
+                  reject(new Error('All nodes unreachable'));
+                }
+              }
+            })
+            .catch(() => {
+              failCount++;
+              if (failCount >= total && !finished) {
+                reject(new Error('All nodes unreachable'));
+              }
+            });
+        }
+      });
+
+      this.activeBackendUrl = winner;
+      this.isBackendOnline.set(true);
+      this.authService.setActiveBackendUrl(this.activeBackendUrl);
+      this.authService.verifyRemoteSession(this.activeBackendUrl);
+      return winner;
+    } catch {
+      const fallback = this.defaultBackendUrl;
+      this.activeBackendUrl = fallback;
+      this.isBackendOnline.set(true);
+      this.authService.setActiveBackendUrl(this.activeBackendUrl);
+      this.authService.verifyRemoteSession(this.activeBackendUrl);
+      return fallback;
+    }
+  }
+
+  async failoverBackend(): Promise<string> {
+    const current = this.getBackendUrl();
+    const alt = CLUSTER_BACKENDS.find((b) => !current.includes(b)) || CLUSTER_BACKENDS[0];
+    this.activeBackendUrl = alt;
+    this.authService.setActiveBackendUrl(alt);
+    this.authService.verifyRemoteSession(alt);
+    this.connectRealtimeSync();
+    return alt;
   }
 
   async searchOnline(query: string): Promise<Track[]> {
@@ -618,8 +657,15 @@ export class LibraryService implements OnDestroy {
 
     this.isSearchingOnline.set(true);
     try {
-      const res = await fetch(`${this.getBackendUrl()}/api/search?q=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error('Search failed');
+      let res: Response;
+      try {
+        res = await fetch(`${this.getBackendUrl()}/api/search?q=${encodeURIComponent(q)}`);
+        if (!res.ok) throw new Error(`Search HTTP ${res.status}`);
+      } catch {
+        const alt = await this.failoverBackend();
+        res = await fetch(`${alt}/api/search?q=${encodeURIComponent(q)}`);
+        if (!res.ok) throw new Error('Search failed after failover');
+      }
 
       const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
 

@@ -7,6 +7,7 @@ use axum::{
 use std::net::SocketAddr;
 use std::process::Stdio;
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 use tokio::process::Command;
 use tokio_util::io::ReaderStream;
 
@@ -91,6 +92,36 @@ fn clean_music_title(title: &str) -> String {
     }
 
     cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn parse_byte_range(range_header: &str, total_len: u64) -> Option<(u64, u64)> {
+    let range_str = range_header.strip_prefix("bytes=")?;
+    let mut parts = range_str.split('-');
+    let start_str = parts.next()?.trim();
+    let end_str = parts.next().unwrap_or("").trim();
+
+    if start_str.is_empty() {
+        let suffix_len: u64 = end_str.parse().ok()?;
+        if suffix_len == 0 {
+            return None;
+        }
+        let start = total_len.saturating_sub(suffix_len);
+        let end = total_len.saturating_sub(1);
+        Some((start, end))
+    } else {
+        let start: u64 = start_str.parse().ok()?;
+        let end: u64 = if end_str.is_empty() {
+            total_len.saturating_sub(1)
+        } else {
+            end_str.parse().ok()?
+        };
+        if start <= end && start < total_len {
+            let clamped_end = end.min(total_len.saturating_sub(1));
+            Some((start, clamped_end))
+        } else {
+            None
+        }
+    }
 }
 
 async fn proxy_direct_stream(target: &str, is_live: bool) -> Result<Response, StatusCode> {
@@ -391,19 +422,42 @@ pub async fn stream_audio(
             }
         }
 
-        if let Ok(file) = tokio::fs::File::open(&cache_file_path).await {
+        if let Ok(mut file) = tokio::fs::File::open(&cache_file_path).await {
             if let Ok(meta) = file.metadata().await {
-                if meta.len() > 100_000 {
+                let total_size = meta.len();
+                if total_size > 100_000 {
                     if params.prefetch.unwrap_or(false) {
                         return Ok(StatusCode::NO_CONTENT.into_response());
                     }
-                    let stream = tokio_util::io::ReaderStream::new(file);
-                    let body = Body::from_stream(stream);
+
                     let mut res_headers = HeaderMap::new();
                     res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
-                    res_headers.insert(header::CONTENT_LENGTH, meta.len().to_string().parse().unwrap());
                     res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
                     res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, immutable"));
+
+                    if let Some(range_header) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
+                        if let Some((start, end)) = parse_byte_range(range_header, total_size) {
+                            if file.seek(SeekFrom::Start(start)).await.is_ok() {
+                                let length_to_read = end - start + 1;
+                                let limited_reader = file.take(length_to_read);
+                                let stream = tokio_util::io::ReaderStream::new(limited_reader);
+                                let body = Body::from_stream(stream);
+
+                                res_headers.insert(header::CONTENT_LENGTH, length_to_read.to_string().parse().unwrap());
+                                res_headers.insert(header::CONTENT_RANGE, format!("bytes {}-{}/{}", start, end, total_size).parse().unwrap());
+
+                                return Ok((StatusCode::PARTIAL_CONTENT, res_headers, body).into_response());
+                            }
+                        } else {
+                            let mut err_headers = HeaderMap::new();
+                            err_headers.insert(header::CONTENT_RANGE, format!("bytes */{}", total_size).parse().unwrap());
+                            return Ok((StatusCode::RANGE_NOT_SATISFIABLE, err_headers, Body::empty()).into_response());
+                        }
+                    }
+
+                    let stream = tokio_util::io::ReaderStream::new(file);
+                    let body = Body::from_stream(stream);
+                    res_headers.insert(header::CONTENT_LENGTH, total_size.to_string().parse().unwrap());
                     return Ok((StatusCode::OK, res_headers, body).into_response());
                 }
             }

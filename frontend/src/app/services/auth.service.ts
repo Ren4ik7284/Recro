@@ -1,4 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
+import { resolveDefaultBackend } from '../models/cluster.config';
 
 export interface UserInfo {
   id: string;
@@ -221,12 +222,7 @@ export class AuthService {
   }
 
   private get defaultBackendUrl(): string {
-    if (typeof window === 'undefined') return 'http://127.0.0.1:8085';
-    if (window.location.port === '8085' || !window.location.port || window.location.port === '80' || window.location.port === '443') {
-      return window.location.origin;
-    }
-    const hostname = window.location.hostname || '127.0.0.1';
-    return `${window.location.protocol}//${hostname}:8085`;
+    return resolveDefaultBackend();
   }
 
   private activeBackendUrl = '';
