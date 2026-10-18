@@ -5,9 +5,27 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$DIR/frontend/dist/frontend/browser"
 DEPLOY_DIR="$DIR/dist_frontend/vercel-deploy"
 
+# Если сборка отсутствует, запускаем build
+if [ ! -f "$DIST_DIR/index.html" ]; then
+    echo "📦 Сборка фронтенда..."
+    cd "$DIR/frontend"
+    npm run build
+fi
+
 echo "📦 Подготовка файлов для Vercel..."
+rm -rf "$DEPLOY_DIR"
 mkdir -p "$DEPLOY_DIR"
 cp -r "$DIST_DIR"/* "$DEPLOY_DIR"/
+
+# Привязываем к официальному проекту recro-player
+mkdir -p "$DEPLOY_DIR/.vercel"
+cat << 'EOF' > "$DEPLOY_DIR/.vercel/project.json"
+{
+  "projectId": "prj_C6l6dXOeMIfDCk8TWxFhyrqTN8Zr",
+  "orgId": "team_SHpRT2P2J98eHqq9rpLLzAW6",
+  "projectName": "recro-player"
+}
+EOF
 
 cat << 'EOF' > "$DEPLOY_DIR/vercel.json"
 {
@@ -16,11 +34,19 @@ cat << 'EOF' > "$DEPLOY_DIR/vercel.json"
   "rewrites": [
     {
       "source": "/api/:match*",
-      "destination": "http://177.3.217.64/api/:match*"
+      "destination": "http://80.87.202.157/api/:match*"
     },
     {
       "source": "/cache/:match*",
-      "destination": "http://177.3.217.64/cache/:match*"
+      "destination": "http://80.87.202.157/cache/:match*"
+    },
+    {
+      "source": "/recro.apk",
+      "destination": "/recro.apk"
+    },
+    {
+      "source": "/recro.ipa",
+      "destination": "/recro.ipa"
     },
     {
       "source": "/(.*)",
@@ -36,30 +62,20 @@ cat << 'EOF' > "$DEPLOY_DIR/vercel.json"
           "value": "no-cache, no-store, must-revalidate"
         }
       ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, OPTIONS, PUT, DELETE"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "*"
-        }
-      ]
     }
   ]
 }
 EOF
 
-echo "🚀 Деплой на Vercel..."
-vercel "$DEPLOY_DIR" --prod --yes
-vercel alias set vercel-deploy-two-sigma-75.vercel.app recro-player.vercel.app || true
+echo "🚀 Деплой на Vercel (recro-player)..."
+cd "$DEPLOY_DIR"
+DEPLOY_OUTPUT=$(vercel --prod --yes)
+echo "$DEPLOY_OUTPUT"
+DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -Eo "https://[a-zA-Z0-9.-]+\.vercel\.app" | tail -n 1)
+
+if [ -n "$DEPLOY_URL" ]; then
+    echo "🔗 Назначение алиаса recro-player.vercel.app -> $DEPLOY_URL..."
+    vercel alias set "$DEPLOY_URL" recro-player.vercel.app || true
+fi
 
 echo "✅ Готово! Плеер доступен: https://recro-player.vercel.app/#/"

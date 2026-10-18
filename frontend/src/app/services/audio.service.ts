@@ -1170,11 +1170,15 @@ export class AudioService {
       }
     }
 
-    if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3'))) {
+    if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3') || playUrl.includes('streamr.ru') || playUrl.includes('hostingradio.ru:8014') || playUrl.includes('gkvr.ru'))) {
       const lower = (track.title || '').toLowerCase();
-      playUrl = (lower.includes('top 40') || track.id.includes('default-2') || playUrl.includes('top'))
-        ? 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3'
-        : 'https://ep128server.streamr.ru:8030/ep128';
+      if (lower.includes('дача') || lower.includes('dacha') || track.id.includes('default-11') || playUrl.includes('gkvr.ru')) {
+        playUrl = 'https://stream.n340.com/14_dacha_64';
+      } else {
+        playUrl = (lower.includes('top 40') || track.id.includes('default-2') || playUrl.includes('top'))
+          ? 'https://hls-01-regions.emgsound.ru/11_top40/playlist.m3u8'
+          : 'https://hls-01-regions.emgsound.ru/11_msk/playlist.m3u8';
+      }
     }
 
     // Discard stale request if a newer track was requested
