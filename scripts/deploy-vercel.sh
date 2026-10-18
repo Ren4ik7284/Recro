@@ -5,12 +5,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$DIR/frontend/dist/frontend/browser"
 DEPLOY_DIR="$DIR/dist_frontend/vercel-deploy"
 
-# Если сборка отсутствует, запускаем build
-if [ ! -f "$DIST_DIR/index.html" ]; then
-    echo "📦 Сборка фронтенда..."
-    cd "$DIR/frontend"
-    npm run build
-fi
+echo "📦 Сборка фронтенда..."
+cd "$DIR/frontend"
+npm run build
 
 echo "📦 Подготовка файлов для Vercel..."
 rm -rf "$DEPLOY_DIR"
@@ -60,6 +57,15 @@ cat << 'EOF' > "$DEPLOY_DIR/vercel.json"
         {
           "key": "Cache-Control",
           "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*\\.(?:js|css|woff2|svg|png|jpg|webp))",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
         }
       ]
     }

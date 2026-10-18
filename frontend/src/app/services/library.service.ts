@@ -561,7 +561,6 @@ export class LibraryService implements OnDestroy {
   }
 
   async checkBackendHealth() {
-    const hostname = typeof window !== 'undefined' ? (window.location.hostname || '127.0.0.1') : '127.0.0.1';
     const urlsToTest: string[] = [];
 
     if (typeof window !== 'undefined') {
@@ -569,9 +568,12 @@ export class LibraryService implements OnDestroy {
       if (window.location.origin !== this.defaultBackendUrl) {
         urlsToTest.push(window.location.origin);
       }
-      urlsToTest.push(`http://${hostname}:8085`);
-      urlsToTest.push('http://127.0.0.1:8085');
-      urlsToTest.push('http://localhost:8085');
+      if (window.location.protocol === 'http:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        const hostname = window.location.hostname || '127.0.0.1';
+        urlsToTest.push(`http://${hostname}:8085`);
+        urlsToTest.push('http://127.0.0.1:8085');
+        urlsToTest.push('http://localhost:8085');
+      }
     } else {
       urlsToTest.push('http://127.0.0.1:8085');
     }
@@ -580,7 +582,7 @@ export class LibraryService implements OnDestroy {
 
     for (const testUrl of uniqueUrls) {
       try {
-        const res = await fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(3000) });
+        const res = await fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(1500) });
         if (res.ok) {
           this.activeBackendUrl = testUrl;
           this.isBackendOnline.set(true);
@@ -2160,6 +2162,17 @@ export class LibraryService implements OnDestroy {
     }
   }
 
+  private readonly STORAGE_KEY_HOME_CACHE = 'recro_cached_home_data';
+
+  getCachedHomeExplore(): HomeExploreData | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(this.STORAGE_KEY_HOME_CACHE);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }
+
   async getHomeExplore(): Promise<HomeExploreData | null> {
     try {
       const res = await fetch(`${this.getBackendUrl()}/api/home`);
@@ -2185,11 +2198,17 @@ export class LibraryService implements OnDestroy {
         cover_url: this.formatCoverUrl(item.cover_url),
       }));
 
-      return {
+      const result: HomeExploreData = {
         ...data,
         popular_tracks,
         popular_albums,
       };
+
+      try {
+        localStorage.setItem(this.STORAGE_KEY_HOME_CACHE, JSON.stringify(result));
+      } catch {}
+
+      return result;
     } catch {
       return null;
     }

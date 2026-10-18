@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build && node scripts/chunked-loader.mjs",
+    "build": "ng build",
     "deploy": "bash ../scripts/deploy.sh",
     "deploy:all": "bash ../scripts/deploy.sh all",
     "watch": "ng build --watch --configuration development",

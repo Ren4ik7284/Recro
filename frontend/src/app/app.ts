@@ -244,6 +244,14 @@ export class App implements OnInit {
   }
 
   ngOnInit() {
+    const cachedHome = this.libraryService.getCachedHomeExplore();
+    if (cachedHome) {
+      this.homeData.set(cachedHome);
+      if (cachedHome.charts && cachedHome.charts.length > 0) {
+        this.charts.set(cachedHome.charts);
+      }
+    }
+
     this.libraryService.checkBackendHealth().then(() => {
       this.libraryService.syncWithBackendOnStartup();
     });
