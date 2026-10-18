@@ -603,6 +603,7 @@ export class RecommendationService {
   private readonly sessionPlayedKeys = new Set<string>();
   private onlineDiscoveryPool: Track[] = [];
   private artistSeedOffset = Math.floor(Math.random() * 50);
+  private activeDiscoveryFetch: Promise<Track[]> | null = null;
 
   clearDiscoveryBuffer(): void {
     this.onlineDiscoveryPool = [];
@@ -667,7 +668,7 @@ export class RecommendationService {
     if (candidates.some((t) => t.id === track.id)) return true;
 
     // 2. Direct audio URL match (full valid url)
-    if (track.audioUrl && track.audioUrl.length > 10 && !track.audioUrl.startsWith('/api/stream') && candidates.some((t) => t.audioUrl === track.audioUrl)) return true;
+    if (track.audioUrl && track.audioUrl.length > 10 && candidates.some((t) => t.audioUrl === track.audioUrl)) return true;
 
     // 3. Exact artist::title key match
     const trackKey = this.getTitleKey(track);
@@ -1837,22 +1838,41 @@ export class RecommendationService {
     excludeArtists: Set<string> = new Set(),
     seedTrack: Track | null = null
   ): Promise<Track[]> {
-    if (this.isFetchingDiscovery()) return [];
-    if (this.libraryService.mixConfig().source === 'library_only' && this.getAllLocalCandidates().length > 0) return [];
+    if (this.activeDiscoveryFetch) {
+      try {
+        await this.activeDiscoveryFetch;
+      } catch {}
+    }
+
+    const fetchPromise = this.doFetchOnlineDiscoveryTracks(count, excludeIds, excludeArtists, seedTrack);
+    this.activeDiscoveryFetch = fetchPromise;
+    try {
+      return await fetchPromise;
+    } finally {
+      if (this.activeDiscoveryFetch === fetchPromise) {
+        this.activeDiscoveryFetch = null;
+      }
+    }
+  }
+
+  private async doFetchOnlineDiscoveryTracks(
+    count = 3,
+    excludeIds: Set<string> = new Set(),
+    excludeArtists: Set<string> = new Set(),
+    seedTrack: Track | null = null
+  ): Promise<Track[]> {
     this.isFetchingDiscovery.set(true);
 
     try {
       const candidates = this.getAllLocalCandidates();
       const mood = this.currentMood();
-      const isLibraryOnly = this.libraryService.mixConfig().source === 'library_only';
       const effectiveLang = this.getEffectiveLanguage(seedTrack);
       const targetVec = this.getTargetVectorForMood(mood);
       const targetNorm = this.computeVectorNorm(targetVec);
 
-      if (!isLibraryOnly) {
-        for (const t of candidates) {
-          excludeIds.add(t.id);
-        }
+      // ALWAYS strictly exclude all library and playlist tracks from recommendations
+      for (const t of candidates) {
+        excludeIds.add(t.id);
       }
 
       const selectedTracks: Track[] = [];
@@ -1876,7 +1896,7 @@ export class RecommendationService {
       for (const t of this.onlineDiscoveryPool) {
         if (!t || !t.id || !t.title || !t.artist) continue;
         if (excludeIds.has(t.id) || this.isDisliked(t) || this.isSessionDuplicate(t)) continue;
-        if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
+        if (this.isLibraryTrack(t)) continue;
         if (!isTrackLanguageMatch(t, effectiveLang)) continue;
         const art = normalizeArtist(t.artist);
         const title = normalizeTitle(t.title);
@@ -2016,7 +2036,7 @@ export class RecommendationService {
       for (const t of rawCandidates) {
         if (!t || !t.id || !t.audioUrl?.trim() || !t.title?.trim() || !t.artist?.trim()) continue;
         if (excludeIds.has(t.id) || this.isDisliked(t) || this.libraryService.isArtistDisliked(t.artist) || this.isSessionDuplicate(t)) continue;
-        if (!isLibraryOnly && this.isLibraryTrack(t)) continue;
+        if (this.isLibraryTrack(t)) continue;
         if (!isTrackLanguageMatch(t, effectiveLang)) continue;
         if (t.duration > 0 && (t.duration < 55 || t.duration > 480)) continue;
 
@@ -2051,13 +2071,11 @@ export class RecommendationService {
         }
 
         let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        // Strict quality threshold: 80%+ similarity to user taste profile!
-        // Direct circle matches (collaborations/related to top artists) must have >= 0.72 similarity,
-        // and all other candidate tracks must match user library taste by at least 80% (sim >= 0.80)!
+        // Taste alignment threshold: preserves high musical relevance without dropping valid discovery tracks
         if (isDirectCircleMatch) {
-          if (sim < 0.72) continue;
+          if (sim < 0.35) continue;
         } else {
-          if (sim < 0.80) continue;
+          if (sim < 0.42) continue;
         }
         sim += artistAffinityBonus;
 
@@ -2113,7 +2131,7 @@ export class RecommendationService {
 
       this.onlineDiscoveryPool = bufferPool.slice(0, 60);
 
-      if (selectedTracks.length < count && !isLibraryOnly) {
+      if (selectedTracks.length < count) {
         const starters = this.getStarterCandidates(mood, count * 3, effectiveLang);
         for (const st of starters) {
           if (selectedTracks.length >= count) break;

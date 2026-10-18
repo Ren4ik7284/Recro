@@ -61,6 +61,7 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       getSimilarTracks: vi.fn().mockResolvedValue([]),
       getRecommendations: vi.fn().mockResolvedValue([]),
       getSoundCloudCharts: vi.fn().mockResolvedValue([]),
+      isTrackFavorite: (t: any) => !!t?.isFavorite,
     };
 
     TestBed.configureTestingModule({
@@ -217,6 +218,131 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       audioService.preloadNextTrack();
 
       expect(audioService.preloadedNextTrack()?.id).toBe('t2');
+    });
+
+    it('startSmartMix should strictly never put library tracks in the queue', async () => {
+      const mockOfflineService = {
+        isTrackOffline: () => false,
+        getCachedBlobUrlSync: () => null,
+        getOfflineBlobUrl: vi.fn().mockResolvedValue(null),
+        revokePreviousBlobUrls: vi.fn(),
+      };
+      const mockNavService = {};
+
+      const testDiscoveryTrack: Track = {
+        id: 'disc-999',
+        title: 'New Sensation',
+        artist: 'Unknown Artist',
+        duration: 180,
+        audioUrl: '/api/stream?title=New%20Sensation',
+        genre: 'Rock',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      TestBed.resetTestingModule();
+      const testBed = TestBed.configureTestingModule({
+        providers: [
+          RecommendationService,
+          {
+            provide: LibraryService,
+            useValue: {
+              ...mockLibraryService,
+              getBackendUrl: () => 'https://example.com',
+              formatCoverUrl: () => 'https://example.com/cover.jpg',
+            },
+          },
+          { provide: OfflineService, useValue: mockOfflineService },
+          { provide: NavigationService, useValue: mockNavService },
+        ],
+      });
+
+      const rec = testBed.inject(RecommendationService);
+      vi.spyOn(rec, 'fetchOnlineDiscoveryTracks').mockResolvedValue([testDiscoveryTrack]);
+
+      const { AudioService } = await import('./audio.service');
+      const audioService = testBed.inject(AudioService);
+
+      const ok = await audioService.startSmartMix();
+      expect(ok).toBe(true);
+
+      const q = audioService.queue();
+      expect(q.length).toBeGreaterThan(0);
+      for (const t of q) {
+        expect(rec.isLibraryTrack(t)).toBe(false);
+      }
+    });
+
+    it('auto-advance at end of queue outside mix should never dump library tracks', async () => {
+      const mockOfflineService = {
+        isTrackOffline: () => false,
+        getCachedBlobUrlSync: () => null,
+        getOfflineBlobUrl: vi.fn().mockResolvedValue(null),
+        revokePreviousBlobUrls: vi.fn(),
+      };
+      const mockNavService = {};
+
+      const discTrack: Track = {
+        id: 'online-disc-1',
+        title: 'Discovered Song',
+        artist: 'Fresh Artist',
+        duration: 200,
+        audioUrl: '/api/stream?title=Discovered',
+        genre: 'Rock',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      TestBed.resetTestingModule();
+      const testBed = TestBed.configureTestingModule({
+        providers: [
+          RecommendationService,
+          {
+            provide: LibraryService,
+            useValue: {
+              ...mockLibraryService,
+              getBackendUrl: () => 'https://example.com',
+              formatCoverUrl: () => 'https://example.com/cover.jpg',
+            },
+          },
+          { provide: OfflineService, useValue: mockOfflineService },
+          { provide: NavigationService, useValue: mockNavService },
+        ],
+      });
+
+      const rec = testBed.inject(RecommendationService);
+      vi.spyOn(rec, 'fetchOnlineDiscoveryTracks').mockResolvedValue([discTrack]);
+
+      const { AudioService } = await import('./audio.service');
+      const audioService = testBed.inject(AudioService);
+
+      const singleTrack: Track = {
+        id: 'user-lib-1',
+        title: 'Numb',
+        artist: 'Linkin Park',
+        duration: 187,
+        audioUrl: 'https://example.com/numb.mp3',
+        genre: 'Rock',
+        format: 'mp3',
+        plays: 10,
+        isFavorite: true,
+        addedAt: '2026-01-01',
+      };
+
+      audioService.queue.set([singleTrack]);
+      audioService.queueIndex.set(0);
+
+      // Trigger next() when at the end of the queue
+      await audioService.next();
+
+      const newQ = audioService.queue();
+      // Should NOT have dumped other library tracks (like user-lib-2: Группа крови)
+      const libraryDumps = newQ.filter((t) => t.id === 'user-lib-2');
+      expect(libraryDumps.length).toBe(0);
     });
   });
 });

@@ -1058,19 +1058,11 @@ export class AudioService {
     if (!track) {
       console.warn('[AudioService] playTrack called with null/undefined track');
       if (this.recService.isMixActive()) {
-        const source = this.recService.mixConfig().source;
         const mood = this.recService.currentMood();
         const lang = this.recService.mixConfig().language;
-        if (source === 'library_only') {
-          const fallbacks = this.recService.pickNextTracks(3, new Set(), this.currentTrack() || null);
-          if (fallbacks.length > 0) {
-            this.playTrack(fallbacks[0], undefined, true);
-          }
-        } else {
-          const starters = this.recService.getStarterCandidates(mood, 3, lang).filter((t) => !this.recService.isLibraryTrack(t));
-          if (starters.length > 0) {
-            this.playTrack(starters[0], undefined, true);
-          }
+        const starters = this.recService.getStarterCandidates(mood, 3, lang).filter((t) => !this.recService.isLibraryTrack(t));
+        if (starters.length > 0) {
+          this.playTrack(starters[0], undefined, true);
         }
       }
       return;
@@ -1130,7 +1122,9 @@ export class AudioService {
       }
     }
 
-    const isFav = this.libraryService.isTrackFavorite(track);
+    const isFav = typeof this.libraryService.isTrackFavorite === 'function'
+      ? this.libraryService.isTrackFavorite(track)
+      : (track.isFavorite ?? false);
     if (this.currentTrack()?.id !== track.id) {
       this.consecutiveErrorCount = 0;
     }
@@ -1219,23 +1213,24 @@ export class AudioService {
     // Apply smooth immediate fade in
     this.applyFadeIn(0.12);
 
-    this.audio
-      .play()
-      .then(() => {
-        this.isSwitchingTrack = false;
-        if (playRequestId !== this.currentPlayRequestId) return;
-        this.hasAudioStartedPlaying = true;
-        this.isPlaying.set(true);
-        this.updateMediaSessionPlaybackState('playing');
-        this.updateMediaSessionMetadata(track);
-        this.updateMediaSessionPosition();
-        this.libraryService.recordHistoryPlay(track);
-        this.requestWakeLock();
-        if (this.recService.isMixActive()) {
-          this.ensureSmartQueue();
-        }
-      })
-      .catch(async (err) => {
+    const playPromise = this.audio.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise
+        .then(() => {
+          this.isSwitchingTrack = false;
+          if (playRequestId !== this.currentPlayRequestId) return;
+          this.hasAudioStartedPlaying = true;
+          this.isPlaying.set(true);
+          this.updateMediaSessionPlaybackState('playing');
+          this.updateMediaSessionMetadata(track);
+          this.updateMediaSessionPosition();
+          this.libraryService.recordHistoryPlay(track);
+          this.requestWakeLock();
+          if (this.recService.isMixActive()) {
+            this.ensureSmartQueue();
+          }
+        })
+        .catch(async (err) => {
         this.isSwitchingTrack = false;
         // If this request was superseded by a newer track, do absolutely nothing
         if (playRequestId !== this.currentPlayRequestId) {
@@ -1271,6 +1266,11 @@ export class AudioService {
         console.warn('[AudioService] play() error:', err);
         this.handlePlaybackFailure('play_rejection');
       });
+    } else {
+      this.isSwitchingTrack = false;
+      this.hasAudioStartedPlaying = true;
+      this.isPlaying.set(true);
+    }
   }
 
   togglePlay() {
@@ -1500,55 +1500,32 @@ export class AudioService {
 
         let updatedQ = this.queue();
         if (nextIdx >= updatedQ.length) {
-          if (source === 'library_only') {
-            const recentQueue = updatedQ.slice(Math.max(0, updatedQ.length - 15));
-            const excludeIds = new Set<string>(recentQueue.map((t) => t.id));
-            const recentArtists = new Set<string>(recentQueue.slice(-4).map((t) => t.artist).filter(Boolean));
-            const fallbacks = this.recService.pickNextTracks(4, excludeIds, this.currentTrack() || null, recentArtists);
-            if (fallbacks.length > 0) {
-              this.queue.update((curQ) => [...curQ, ...fallbacks]);
-            }
-          } else {
-            // Instant fallback without blocking on network: add starters immediately and replenish in background
-            const excludeIds = new Set<string>(updatedQ.map((t) => t.id));
-            const starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
-              (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t)
-            );
-            if (starters.length > 0) {
-              this.queue.update((curQ) => [...curQ, ...starters]);
-            }
-            this.ensureSmartQueue().catch(() => {});
+          // Instant fallback without blocking on network: add starters immediately and replenish in background
+          const excludeIds = new Set<string>(updatedQ.map((t) => t.id));
+          const starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
+            (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t)
+          );
+          if (starters.length > 0) {
+            this.queue.update((curQ) => [...curQ, ...starters]);
           }
+          this.ensureSmartQueue().catch(() => {});
           updatedQ = this.queue();
         }
 
         if (nextIdx >= updatedQ.length) {
-          // Never loop back to index 0 in Smart Mix!
+          // Never loop back to index 0 in Smart Mix! Strictly NO library tracks in discovery mix!
           const cur = this.currentTrack();
-          if (source === 'library_only') {
-            let fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id && !this.recService.isSessionDuplicate(t));
-            if (fallbackCandidates.length === 0) {
-              fallbackCandidates = this.libraryService.tracks().filter((t) => t.id !== cur?.id);
-            }
-            if (fallbackCandidates.length > 0) {
-              const randomPick = fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)];
-              this.queue.update((curQ) => [...curQ, randomPick]);
-              nextIdx = this.queue().length - 1;
-            }
+          let starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
+            (t) => t.id !== cur?.id && !this.recService.isLibraryTrack(t)
+          );
+          if (starters.length === 0) {
+            starters = this.recService.getStarterCandidates(mood, 6, lang).filter((t) => !this.recService.isLibraryTrack(t));
+          }
+          if (starters.length > 0) {
+            this.queue.update((curQ) => [...curQ, starters[0]]);
+            nextIdx = this.queue().length - 1;
           } else {
-            // Strictly NO library tracks in discovery mix!
-            let starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
-              (t) => t.id !== cur?.id && !this.recService.isLibraryTrack(t)
-            );
-            if (starters.length === 0) {
-              starters = this.recService.getStarterCandidates(mood, 6, lang).filter((t) => !this.recService.isLibraryTrack(t));
-            }
-            if (starters.length > 0) {
-              this.queue.update((curQ) => [...curQ, starters[0]]);
-              nextIdx = this.queue().length - 1;
-            } else {
-              nextIdx = Math.max(0, updatedQ.length - 1);
-            }
+            nextIdx = Math.max(0, updatedQ.length - 1);
           }
         }
       } else {
@@ -1557,43 +1534,41 @@ export class AudioService {
             nextIdx = 0;
           } else {
             // Бесконечное автовоспроизведение: если очередь закончилась (например, доиграли треки или играл 1 трек),
-            // бесшовно подхватываем следующие похожие треки, чтобы музыка никогда не затихала и не крутила одно и то же!
+            // бесшовно подхватываем следующие похожие треки, которые могут понравиться пользователю,
+            // И СТРОГО ИСКЛЮЧАЕМ ЛЮБЫЕ ТРЕКИ ИЗ ЕГО МЕДИАТЕКИ!
             const recentIds = new Set<string>(q.map((t) => t.id));
-            const libraryCandidates = this.libraryService.tracks().filter((t) => !recentIds.has(t.id));
+            const recentArtists = new Set<string>(q.slice(-4).map((t) => t.artist).filter(Boolean));
+            const cur = this.currentTrack();
 
-            if (libraryCandidates.length > 0) {
-              const nextBatch = libraryCandidates.slice(0, 6);
-              this.queue.update((curQ) => [...curQ, ...nextBatch]);
+            let recs: Track[] = [];
+            try {
+              recs = await this.recService.fetchOnlineDiscoveryTracks(4, recentIds, recentArtists, cur || null);
+            } catch (e) {
+              console.warn('[AudioService] Failed to fetch discovery tracks for auto-advance:', e);
+            }
+
+            if (recs.length === 0 && cur && (cur.title || cur.artist)) {
+              try {
+                const similar = await this.libraryService.getSimilarTracks(cur.title, cur.artist, 8, cur.genre);
+                recs = similar.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t) && !this.recService.isLibraryTrack(t));
+              } catch (e) {
+                console.warn('[AudioService] Failed to fetch online similar tracks for auto-advance:', e);
+              }
+            }
+
+            if (recs.length === 0) {
+              const mood = this.recService.currentMood();
+              const lang = this.recService.mixConfig().language;
+              const starters = this.recService.getStarterCandidates(mood, 6, lang);
+              recs = starters.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t) && !this.recService.isLibraryTrack(t));
+            }
+
+            const pureRecs = recs.filter((t) => !this.recService.isLibraryTrack(t));
+
+            if (pureRecs.length > 0) {
+              this.queue.update((curQ) => [...curQ, ...pureRecs]);
             } else {
-              const recentArtists = new Set<string>(q.slice(-4).map((t) => t.artist).filter(Boolean));
-              let recs = this.recService.pickNextTracks(4, recentIds, this.currentTrack() || null, recentArtists);
-
-              if (recs.length === 0) {
-                // Если в локальной медиатеке ничего нет — ищем похожие треки онлайн (радио по треку/артисту)!
-                const cur = this.currentTrack();
-                if (cur && (cur.title || cur.artist)) {
-                  try {
-                    const similar = await this.libraryService.getSimilarTracks(cur.title, cur.artist, 8, cur.genre);
-                    recs = similar.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t));
-                  } catch (e) {
-                    console.warn('[AudioService] Failed to fetch online similar tracks for auto-advance:', e);
-                  }
-                }
-              }
-
-              if (recs.length === 0) {
-                // Fallback: подтягиваем стартовые треки или Spotify чарт
-                const mood = this.recService.currentMood();
-                const lang = this.recService.mixConfig().language;
-                const starters = this.recService.getStarterCandidates(mood, 6, lang);
-                recs = starters.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t));
-              }
-
-              if (recs.length > 0) {
-                this.queue.update((curQ) => [...curQ, ...recs]);
-              } else {
-                nextIdx = 0;
-              }
+              nextIdx = 0;
             }
           }
         }
@@ -1962,33 +1937,22 @@ export class AudioService {
 
     let newTracks: Track[] = [];
 
-    if (source === 'library_only') {
-      newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-    } else {
-      // Discovery Wave: strictly new online discovery tracks calibrated against user's library taste!
-      const discovery = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists, curTrack);
-      const pureDiscovery = discovery.filter((d) => !this.recService.isLibraryTrack(d));
-      newTracks.push(...pureDiscovery);
-      pureDiscovery.forEach((d) => {
-        excludeIds.add(d.id);
-        if (d.artist) recentArtists.add(d.artist);
-      });
-    }
+    // Discovery Wave: strictly new online discovery tracks calibrated against user's library taste!
+    const discovery = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists, curTrack);
+    const pureDiscovery = discovery.filter((d) => !this.recService.isLibraryTrack(d));
+    newTracks.push(...pureDiscovery);
+    pureDiscovery.forEach((d) => {
+      excludeIds.add(d.id);
+      if (d.artist) recentArtists.add(d.artist);
+    });
 
     if (newTracks.length === 0) {
-      if (source === 'library_only') {
-        newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-        if (newTracks.length === 0) {
-          newTracks = this.recService.pickNextTracks(needed, new Set(curTrack ? [curTrack.id] : []));
-        }
-      } else {
-        const starters = this.recService.getStarterCandidates(mood, needed * 3, effectiveLang);
-        const freshStarters = starters.filter(
-          (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && !this.recService.isLibraryTrack(t)
-        );
-        if (freshStarters.length > 0) {
-          newTracks = freshStarters.slice(0, needed);
-        }
+      const starters = this.recService.getStarterCandidates(mood, needed * 3, effectiveLang);
+      const freshStarters = starters.filter(
+        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && !this.recService.isLibraryTrack(t)
+      );
+      if (freshStarters.length > 0) {
+        newTracks = freshStarters.slice(0, needed);
       }
     }
 
@@ -1998,7 +1962,7 @@ export class AudioService {
              !this.recService.isSessionDuplicate(t) &&
              isTrackLanguageMatch(t, effectiveLang) &&
              this.recService.doesTrackMatchMood(t, mood) &&
-             (source === 'library_only' || !this.recService.isLibraryTrack(t))
+             !this.recService.isLibraryTrack(t)
     );
 
     if (strictlyUniqueTracks.length > 0) {
@@ -2023,45 +1987,9 @@ export class AudioService {
     this.recService.setMixMood(mood);
 
     const curTrack = this.currentTrack() || null;
-    const localCandidates = this.recService.getAllLocalCandidates();
     const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
-    const source = this.recService.mixConfig().source;
 
-    // 1. Library-only mode: only play tracks from user's local catalog
-    if (source === 'library_only') {
-      let immediateTrack: Track | null = null;
-      if (curTrack && isTrackLanguageMatch(curTrack, effectiveLang) && this.recService.isLibraryTrack(curTrack)) {
-        immediateTrack = curTrack;
-      } else if (localCandidates.length > 0) {
-        const initialPick = this.recService.pickNextTracks(1, new Set(), null);
-        if (initialPick.length > 0) {
-          immediateTrack = initialPick[0];
-        } else {
-          const matching = localCandidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
-          const candPool = matching.length > 0 ? matching : localCandidates;
-          immediateTrack = candPool[Math.floor(Math.random() * candPool.length)];
-        }
-      }
-
-      if (immediateTrack) {
-        // Pick dynamic smart next tracks using weighted taste & similarity - NEVER in linear catalog order!
-        const nextTracks = this.recService.pickNextTracks(5, new Set([immediateTrack.id]), immediateTrack);
-        const initialQueue: Track[] = [immediateTrack, ...nextTracks];
-        if (curTrack && curTrack.id === immediateTrack.id) {
-          this.queue.set(initialQueue);
-          this.queueIndex.set(0);
-        } else {
-          this.playTrack(immediateTrack, initialQueue, true, 0);
-        }
-        this.preloadNextTrack();
-        this.ensureSmartQueue().catch(() => {});
-        return true;
-      }
-      this.recService.isMixActive.set(false);
-      return false;
-    }
-
-    // 2. Discovery Wave (Default):
+    // Discovery Wave:
     // All tracks played in Моя Волна MUST be new discovery tracks that match user taste from their library!
     // NEVER put user library tracks in the queue!
     let discoveryTracks = this.recService.getBufferedDiscoveries(effectiveLang)
@@ -2104,11 +2032,10 @@ export class AudioService {
     if (this.recService.isMixActive()) {
       const cur = this.currentTrack();
       const curMatchesMood = cur ? this.recService.doesTrackMatchMood(cur, mood) : false;
-      const source = this.recService.mixConfig().source;
       const curIsLibrary = cur ? this.recService.isLibraryTrack(cur) : false;
 
-      // If current track violates new mood or violates discovery source rules, immediately jump to a fresh matching starter!
-      if (!curMatchesMood || (source === 'discovery_heavy' && curIsLibrary)) {
+      // If current track violates new mood or is a library track, immediately jump to a fresh matching starter!
+      if (!curMatchesMood || curIsLibrary) {
         this.queue.set([]);
         this.queueIndex.set(0);
         this.startSmartMix(mood).catch(() => {});
@@ -2128,12 +2055,11 @@ export class AudioService {
     this.recService.clearDiscoveryBuffer();
     const cur = this.currentTrack();
     const effectiveLang = this.recService.getEffectiveLanguage(cur);
-    const source = this.recService.mixConfig().source;
 
     const curMatchesLang = !cur || isTrackLanguageMatch(cur, effectiveLang);
-    const curMatchesSource = !cur || (source === 'library_only' ? this.recService.isLibraryTrack(cur) : (source === 'discovery_heavy' ? !this.recService.isLibraryTrack(cur) : true));
+    const curIsLibrary = cur ? this.recService.isLibraryTrack(cur) : false;
 
-    if (!curMatchesLang || !curMatchesSource) {
+    if (!curMatchesLang || curIsLibrary) {
       this.queue.set([]);
       this.queueIndex.set(0);
       await this.startSmartMix(this.recService.currentMood());

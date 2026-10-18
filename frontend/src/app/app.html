@@ -222,8 +222,7 @@
                     @else if (recService.mixConfig().mood === 'favorites') { {{ i18n.t('wave.moodFavorites') }} }
                     @else { {{ i18n.t('wave.moodAll') }} }
                     •
-                    @if (recService.mixConfig().source === 'library_only') { {{ i18n.t('wave.myMusic') }} }
-                    @else { {{ i18n.t('wave.discoveryFlow') }} }
+                    {{ i18n.t('wave.discoveryFlow') }}
                   </span>
 
                   @if (recService.isFetchingDiscovery()) {
@@ -3617,11 +3616,10 @@
               <span class="mix-group-title">{{ i18n.currentLang() === 'ru' ? 'Источник музыки' : 'Music Source' }}</span>
             </div>
             <div class="mix-grid-cards mix-grid-source">
-              <!-- Discovery (Default, no library tracks) -->
+              <!-- Discovery (Pure discovery, no library tracks) -->
               <button 
                 type="button"
-                class="mix-card-item" 
-                [class.active]="recService.mixConfig().source !== 'library_only'" 
+                class="mix-card-item active" 
                 (click)="updateMixSource('discovery_heavy')"
               >
                 <div class="mix-card-head-row">
@@ -3634,35 +3632,11 @@
                     </div>
                     <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Поток открытий' : 'Discovery Flow' }}</span>
                   </div>
-                  <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source !== 'library_only'">
+                  <div class="mix-radio-circle checked">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
                 <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Только новые похожие треки по вкусу, без песен из вашей медиатеки' : 'Fresh matching tracks only, excluding your library tracks' }}</span>
-              </button>
-
-              <!-- Library Only -->
-              <button 
-                type="button"
-                class="mix-card-item" 
-                [class.active]="recService.mixConfig().source === 'library_only'" 
-                (click)="updateMixSource('library_only')"
-              >
-                <div class="mix-card-head-row">
-                  <div class="mix-card-title-group">
-                    <div class="mix-card-icon-box">
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
-                        <path d="M6 6h10"/>
-                      </svg>
-                    </div>
-                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Моя медиатека' : 'My Library Only' }}</span>
-                  </div>
-                  <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source === 'library_only'">
-                    <div class="mix-radio-dot"></div>
-                  </div>
-                </div>
-                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Исключительно треки из вашего каталога и плейлистов' : 'Only tracks from your catalog and playlists' }}</span>
               </button>
             </div>
           </div>
