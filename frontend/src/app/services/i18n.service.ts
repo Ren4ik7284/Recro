@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject, ApplicationRef } from '@angular/core';
 
 export type SupportedLanguage = 'ru' | 'en';
 
@@ -721,6 +721,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
   providedIn: 'root',
 })
 export class I18nService {
+  private readonly appRef = inject(ApplicationRef, { optional: true });
   private readonly STORAGE_KEY = 'recro_ui_lang';
 
   readonly currentLang = signal<SupportedLanguage>(this.loadInitialLang());
@@ -743,6 +744,9 @@ export class I18nService {
         localStorage.setItem(this.STORAGE_KEY, lang);
       } catch {}
     }
+    try {
+      this.appRef?.tick();
+    } catch {}
   }
 
   toggleLanguage() {

@@ -31,6 +31,7 @@ export class HeaderComponent {
   @Output() openHistoryModal = new EventEmitter<void>();
   @Output() openProfileModal = new EventEmitter<void>();
   @Output() openInstallModal = new EventEmitter<'android' | 'ios' | void>();
+  @Output() openMyMusic = new EventEmitter<void>();
 
   readonly isUserMenuOpen = signal<boolean>(false);
 

@@ -2004,7 +2004,7 @@ export class AudioService {
       }
     }
 
-    if (newTracks.length === 0) {
+    if (newTracks.length === 0 && localCandidates.length === 0) {
       const starters = this.recService.getStarterCandidates(mood, needed * 3, effectiveLang);
       const freshStarters = starters.filter(
         (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t)
@@ -2092,7 +2092,10 @@ export class AudioService {
     const curIsDisliked = curTrack ? (this.recService.isDisliked(curTrack) || this.libraryService.isArtistDisliked(curTrack.artist)) : false;
 
     if (curTrack && isActivelyPlaying && isTrackLanguageMatch(curTrack, effectiveLang) && curMatchesMood && !curIsDisliked && (source !== 'discovery_heavy' || !curIsLibrary)) {
-      const initialQueue = [curTrack];
+      const immediateNext = localCandidates.length > 0
+        ? this.recService.pickNextTracks(4, new Set([curTrack.id]), curTrack)
+        : [];
+      const initialQueue = [curTrack, ...immediateNext];
       this.queue.set(initialQueue);
       this.queueIndex.set(0);
       this.preloadNextTrack();
@@ -2114,21 +2117,27 @@ export class AudioService {
       const seedPool = favs.length > 0 ? favs : pool;
       if (seedPool.length > 0) {
         immediateTrack = seedPool[Math.floor(Math.random() * seedPool.length)];
-        initialQueue = [immediateTrack];
+        const immediateNext = this.recService.pickNextTracks(4, new Set([immediateTrack.id]), immediateTrack);
+        initialQueue = [immediateTrack, ...immediateNext];
       }
     }
 
     if (!immediateTrack) {
-      const starters = this.recService.getStarterCandidates(mood, 12, effectiveLang);
-      if (starters.length > 0) {
-        const randIdx = Math.floor(Math.random() * starters.length);
-        immediateTrack = starters[randIdx];
-        initialQueue = [immediateTrack];
+      if (localCandidates.length > 0) {
+        immediateTrack = localCandidates[Math.floor(Math.random() * localCandidates.length)];
+        const immediateNext = this.recService.pickNextTracks(4, new Set([immediateTrack.id]), immediateTrack);
+        initialQueue = [immediateTrack, ...immediateNext];
       } else {
         const freshOnline = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), null);
         if (freshOnline.length > 0) {
           immediateTrack = freshOnline[0];
           initialQueue = freshOnline;
+        } else {
+          const starters = this.recService.getStarterCandidates(mood, 12, effectiveLang);
+          if (starters.length > 0) {
+            immediateTrack = starters[0];
+            initialQueue = starters.slice(0, 4);
+          }
         }
       }
     }

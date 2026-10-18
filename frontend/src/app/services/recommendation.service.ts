@@ -1917,22 +1917,25 @@ export class RecommendationService {
         );
       }
 
-      const langTopArtists = Array.from(topArtistsMap.entries())
+      const allUserTopArtists = Array.from(topArtistsMap.entries())
         .sort((a, b) => b[1] - a[1])
         .map(([name]) => name)
-        .filter((a) => !this.libraryService.isArtistDisliked(a))
-        .filter((a) => {
-          if (this.isCyrillicUserLibrary()) return true;
-          const isRu = isRussianArtist(a);
-          return effectiveLang === 'ru' ? isRu : !isRu;
-        });
+        .filter((a) => !this.libraryService.isArtistDisliked(a));
+
+      const langTopArtists = allUserTopArtists.filter((a) => {
+        if (effectiveLang === 'all' || this.isCyrillicUserLibrary()) return true;
+        const isRu = isRussianArtist(a);
+        return effectiveLang === 'ru' ? isRu : !isRu;
+      });
+
+      const artistsToQuery = langTopArtists.length > 0 ? langTopArtists : allUserTopArtists;
 
       // 2. Multi-artist taste expansion: query top 2-3 favorite artists from user's history
-      if (langTopArtists.length > 0) {
-        const takeCount = Math.min(3, langTopArtists.length);
+      if (artistsToQuery.length > 0) {
+        const takeCount = Math.min(3, artistsToQuery.length);
         for (let i = 0; i < takeCount; i++) {
-          const offset = (this.artistSeedOffset + i) % langTopArtists.length;
-          const art = langTopArtists[offset];
+          const offset = (this.artistSeedOffset + i) % artistsToQuery.length;
+          const art = artistsToQuery[offset];
           if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
             tasks.push(
               this.libraryService.getRecommendations(art, dominantGenre, 15, undefined, dominantGenre).catch(() => [] as Track[])
@@ -1940,18 +1943,18 @@ export class RecommendationService {
           }
         }
         this.artistSeedOffset = (this.artistSeedOffset + takeCount) % 1000;
-      } else {
+      } else if (candidates.length === 0) {
         const curatedRu = (mood === 'energetic'
-          ? ['Кино', 'Король и Шут', 'Би-2', 'Три дня дождя', 'Shortparis', 'Oxxxymiron', 'Хаски', 'SALUKI', 'Порнофильмы', 'DVRST', 'The Hatters', 'Noize MC']
+          ? ['Shortparis', 'Oxxxymiron', 'Хаски', 'SALUKI', 'DVRST', 'The Hatters', 'Noize MC']
           : mood === 'chill'
-          ? ['Сироткин', 'Молчат Дома', 'Скриптонит', 'polnalyubvi', 'Моя Мишель', 'Zivert', 'Mnogoznaal', 'Антоха МС', 'Буерак', 'Дайте танк (!)']
-          : ['Кино', 'Король и Шут', 'Би-2', 'Скриптонит', 'SALUKI', 'Три дня дождя', 'Сироткин', 'Молчат Дома', 'polnalyubvi', 'Oxxxymiron']
+          ? ['Сироткин', 'Молчат Дома', 'Скриптонит', 'polnalyubvi', 'Моя Мишель', 'Zivert', 'Mnogoznaal']
+          : ['Скриптонит', 'SALUKI', 'Три дня дождя', 'Сироткин', 'Молчат Дома', 'polnalyubvi', 'Oxxxymiron']
         ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curatedEn = (mood === 'energetic'
-          ? ['The Prodigy', 'Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Nirvana', 'Muse', 'Kasabian', 'Pendulum', 'Chase Atlantic']
+          ? ['The Prodigy', 'The Weeknd', 'Travis Scott', 'Chase Atlantic', 'Metro Boomin']
           : mood === 'chill'
-          ? ['Joji', 'Radiohead', 'Massive Attack', 'Depeche Mode', 'Tame Impala', 'Cigarettes After Sex', 'Mac Miller', 'Frank Ocean', 'Lana Del Rey']
-          : ['Queen', 'Daft Punk', 'Arctic Monkeys', 'The Weeknd', 'Nirvana', 'Radiohead', 'Gorillaz', 'Linkin Park', 'The Neighbourhood']
+          ? ['Joji', 'Frank Ocean', 'Cigarettes After Sex', 'Mac Miller', 'Lana Del Rey']
+          : ['The Weeknd', 'Travis Scott', 'Drake', 'Post Malone', 'Gorillaz']
         ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curated = effectiveLang === 'ru' ? curatedRu : curatedEn;
         const art = curated[Math.floor(Math.random() * curated.length)];

@@ -170,9 +170,6 @@ export class App implements OnInit {
     return this.libraryService.playlists().find((p) => p.id === id) || null;
   });
 
-  readonly favoriteCount = computed(() => this.libraryService.tracks().filter((t) => t.isFavorite).length);
-  readonly recentUserTracks = computed(() => this.libraryService.tracks().slice(0, 8));
-
   readonly activePlaylistPickerTrackId = signal<string | null>(null);
 
   readonly youtubeUrlInput = signal<string>('');
@@ -923,12 +920,6 @@ export class App implements OnInit {
       this.navService.setTab(view, playlistId, true);
     }
     this.cdr.markForCheck();
-  }
-
-  playAllUserTracks() {
-    const tracks = this.libraryService.tracks();
-    if (tracks.length === 0) return;
-    this.audioService.playTrack(tracks[0], tracks, true, 0);
   }
 
   async loadHomeData() {

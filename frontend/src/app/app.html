@@ -22,6 +22,7 @@
     (openHistoryModal)="openHistoryModal()"
     (openProfileModal)="openProfileModal()"
     (openInstallModal)="installPwa($event)"
+    (openMyMusic)="setView('library')"
   ></app-header-bar>
 
   <div class="app-body">
@@ -47,22 +48,22 @@
           <div class="guest-welcome-banner">
             <div class="guest-banner-info">
               <div class="guest-banner-tag-row">
-                <span class="guest-banner-badge font-mono">РЕЖИМ ГОСТЯ</span>
-                <span class="guest-banner-hint font-mono">МУЗЫКА БЕЗ ОГРАНИЧЕНИЙ</span>
+                <span class="guest-banner-badge font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕЖИМ ГОСТЯ' : 'GUEST MODE' }}</span>
+                <span class="guest-banner-hint font-mono">{{ i18n.currentLang() === 'ru' ? 'МУЗЫКА БЕЗ ОГРАНИЧЕНИЙ' : 'UNLIMITED MUSIC' }}</span>
               </div>
-              <h2 class="guest-banner-title">Слушайте треки, радио и потоки свободно</h2>
+              <h2 class="guest-banner-title">{{ i18n.currentLang() === 'ru' ? 'Слушайте треки, радио и потоки свободно' : 'Stream tracks, radio & playlists freely' }}</h2>
               <p class="guest-banner-sub">
-                Вам доступен полный плеер, поиск и радио. Войдите в аккаунт, чтобы сохранять треки в избранное, создавать плейлисты и слушать оффлайн.
+                {{ i18n.currentLang() === 'ru' ? 'Вам доступен полный плеер, поиск и радио. Войдите в аккаунт, чтобы сохранять треки в избранное, создавать плейлисты и слушать оффлайн.' : 'Enjoy the full player, search & radio. Log in to save favorites, build playlists, and listen offline.' }}
               </p>
             </div>
             <div class="guest-banner-actions">
               <button type="button" class="btn-guest-action btn-guest-reg" (click)="openAuthModal('register')">
-                Создать аккаунт
+                {{ i18n.t('header.register') }}
               </button>
               <button type="button" class="btn-guest-action btn-guest-login" (click)="openAuthModal('login')">
-                Войти
+                {{ i18n.t('header.login') }}
               </button>
-              <button type="button" class="btn-guest-dismiss" (click)="dismissGuestBanner()" title="Скрыть подсказку">
+              <button type="button" class="btn-guest-dismiss" (click)="dismissGuestBanner()" [title]="i18n.t('common.close')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
@@ -278,7 +279,7 @@
                   <!-- Direct Track Controls (Prev, Dislike, Play/Pause, Like, Next, Playlist) -->
                   <div class="wave-player-controls">
                     <!-- Previous track -->
-                    <button class="wave-ctrl-btn" (click)="audioService.prev()" title="Предыдущий трек">
+                    <button class="wave-ctrl-btn" (click)="audioService.prev()" [title]="i18n.t('player.prev')">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="19 20 9 12 19 4 19 20"/>
                         <line x1="5" y1="19" x2="5" y2="5"/>
@@ -286,14 +287,14 @@
                     </button>
 
                     <!-- Dislike (Exclude & Skip) -->
-                    <button class="wave-ctrl-btn wave-btn-dislike" (click)="dislikeCurrentTrack()" title="Не нравится (больше не рекомендовать)">
+                    <button class="wave-ctrl-btn wave-btn-dislike" (click)="dislikeCurrentTrack()" [title]="i18n.t('player.dislike')">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
                       </svg>
                     </button>
 
                     <!-- Play / Pause -->
-                    <button class="wave-ctrl-btn wave-btn-play" (click)="audioService.togglePlay()" [title]="audioService.isPlaying() ? 'Пауза' : 'Воспроизведение'">
+                    <button class="wave-ctrl-btn wave-btn-play" (click)="audioService.togglePlay()" [title]="audioService.isPlaying() ? i18n.t('player.pause') : i18n.t('player.play')">
                       @if (audioService.isPlaying()) {
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
                           <rect width="4" height="16" x="6" y="4" rx="1"/>
@@ -311,7 +312,7 @@
                       class="wave-ctrl-btn wave-btn-like" 
                       [class.active]="libraryService.isTrackFavorite(audioService.currentTrack())"
                       (click)="toggleFavorite(audioService.currentTrack()!, $event)" 
-                      title="Нравится (в избранное)"
+                      [title]="i18n.t('player.like')"
                     >
                       <svg width="20" height="20" viewBox="0 0 24 24" [attr.fill]="libraryService.isTrackFavorite(audioService.currentTrack()) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                         <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
@@ -319,7 +320,7 @@
                     </button>
 
                     <!-- Next track -->
-                    <button class="wave-ctrl-btn" (click)="audioService.next()" title="Следующий трек">
+                    <button class="wave-ctrl-btn" (click)="audioService.next()" [title]="i18n.t('player.next')">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="5 4 15 12 5 20 5 4"/>
                         <line x1="19" y1="5" x2="19" y2="19"/>
@@ -327,7 +328,7 @@
                     </button>
 
                     <!-- Add to playlist -->
-                    <button class="wave-ctrl-btn" (click)="openAddToPlaylistModal(audioService.currentTrack()!)" title="Добавить в плейлист">
+                    <button class="wave-ctrl-btn" (click)="openAddToPlaylistModal(audioService.currentTrack()!)" [title]="i18n.t('player.addToPlaylist')">
                       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15V6"/>
                         <path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
@@ -380,7 +381,7 @@
               <div class="radio-search-wrap">
                 <input 
                   type="text" 
-                  placeholder="Поиск по радиостанциям мира..."
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'Поиск по радиостанциям мира...' : 'Search global radio stations...'"
                   [ngModel]="radioSearchInput()"
                   (ngModelChange)="radioSearchInput.set($event)"
                   (keyup.enter)="searchRadio()"
@@ -388,9 +389,9 @@
                 />
                 <button class="btn-radio-search" (click)="searchRadio()" [disabled]="isSearchingRadio()">
                   @if (isSearchingRadio()) {
-                    <span>Поиск...</span>
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Поиск...' : 'Searching...' }}</span>
                   } @else {
-                    <span>Найти</span>
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Найти' : 'Search' }}</span>
                   }
                 </button>
               </div>
@@ -400,14 +401,14 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
-                  <span>Добавить станцию</span>
+                  <span>{{ i18n.currentLang() === 'ru' ? 'Добавить станцию' : 'Add Station' }}</span>
                 </button>
-                <button class="btn-secondary-action" (click)="resetRadioStations()" title="Сбросить к исходным станциям">
+                <button class="btn-secondary-action" (click)="resetRadioStations()" [title]="i18n.currentLang() === 'ru' ? 'Сбросить к исходным станциям' : 'Reset to default stations'">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                     <path d="M3 3v5h5"/>
                   </svg>
-                  <span>Сброс</span>
+                  <span>{{ i18n.currentLang() === 'ru' ? 'Сброс' : 'Reset' }}</span>
                 </button>
               </div>
             </div>
@@ -415,7 +416,7 @@
             
             @if (radioSearchResults().length > 0) {
               <div class="radio-search-results-block">
-                <div class="block-title font-mono">РЕЗУЛЬТАТЫ ПОИСКА ({{ radioSearchResults().length }})</div>
+                <div class="block-title font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕЗУЛЬТАТЫ ПОИСКА' : 'SEARCH RESULTS' }} ({{ radioSearchResults().length }})</div>
                 <div class="radio-grid">
                   @for (st of radioSearchResults(); track st.id) {
                     <div class="station-card">
@@ -431,12 +432,12 @@
                         <div class="station-meta">{{ st.genre }} • {{ st.country || 'Live' }} • {{ st.bitrate }}</div>
                       </div>
                       <div class="station-card-actions">
-                        <button class="btn-play-station" (click)="playRadioStation(st)" title="Слушать">
+                        <button class="btn-play-station" (click)="playRadioStation(st)" [title]="i18n.t('player.play')">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <polygon points="6 3 20 12 6 21 6 3"/>
                           </svg>
                         </button>
-                        <button class="btn-add-station-lib" (click)="addRadioStationToMyList(st)" title="Сохранить в мои станции">
+                        <button class="btn-add-station-lib" (click)="addRadioStationToMyList(st)" [title]="i18n.currentLang() === 'ru' ? 'Сохранить в мои станции' : 'Save to my stations'">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                           </svg>
@@ -450,7 +451,7 @@
 
             
             <div class="my-stations-block">
-              <div class="block-title font-mono">МОИ РАДИОСТАНЦИИ ({{ libraryService.radioStations().length }})</div>
+              <div class="block-title font-mono">{{ i18n.currentLang() === 'ru' ? 'МОИ РАДИОСТАНЦИИ' : 'MY STATIONS' }} ({{ libraryService.radioStations().length }})</div>
               <div class="radio-grid">
                 @for (st of libraryService.radioStations(); track st.id) {
                   <div class="station-card" [class.playing]="audioService.currentTrack()?.audioUrl === st.streamUrl">
@@ -468,12 +469,12 @@
                       <div class="station-meta">{{ st.genre }} • {{ st.country || 'Live' }} • {{ st.bitrate }}</div>
                     </div>
                     <div class="station-card-actions">
-                      <button class="btn-play-station" (click)="playRadioStation(st)" title="Слушать">
+                      <button class="btn-play-station" (click)="playRadioStation(st)" [title]="i18n.t('player.play')">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                           <polygon points="6 3 20 12 6 21 6 3"/>
                         </svg>
                       </button>
-                      <button class="btn-del-station" (click)="deleteRadioStation(st.id)" title="Удалить станцию">
+                      <button class="btn-del-station" (click)="deleteRadioStation(st.id)" [title]="i18n.currentLang() === 'ru' ? 'Удалить станцию' : 'Delete station'">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
@@ -496,7 +497,7 @@
                 </svg>
                 <input
                   type="text"
-                  placeholder="Поиск по исполнителям, трекам, альбомам (Linkin Park, Кино, Король и Шут...)"
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'Поиск по исполнителям, трекам, альбомам (Linkin Park, The Weeknd...)' : 'Search artists, tracks, albums (Linkin Park, The Weeknd...)'"
                   [ngModel]="libraryService.searchQuery()"
                   (ngModelChange)="libraryService.searchQuery.set($event)"
                   (keyup.enter)="triggerOnlineSearch()"
@@ -504,7 +505,7 @@
                   autofocus
                 />
                 @if (libraryService.searchQuery()) {
-                  <button class="search-hero-clear-btn" (click)="libraryService.searchQuery.set(''); libraryService.onlineSearchResults.set([])" title="Очистить поиск">
+                  <button class="search-hero-clear-btn" (click)="libraryService.searchQuery.set(''); libraryService.onlineSearchResults.set([])" [title]="i18n.currentLang() === 'ru' ? 'Очистить поиск' : 'Clear search'">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="18" y1="6" x2="6" y2="18"/>
                       <line x1="6" y1="6" x2="18" y2="18"/>
@@ -517,36 +518,35 @@
                   (click)="triggerOnlineSearch()"
                 >
                   @if (libraryService.isSearchingOnline()) {
-                    <span>Поиск...</span>
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Поиск...' : 'Searching...' }}</span>
                   } @else {
-                    <span>Искать</span>
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Искать' : 'Search' }}</span>
                   }
                 </button>
               </div>
 
               <div class="search-quick-tags">
-                <span class="quick-tags-label font-mono">РЕКОМЕНДУЕМ:</span>
+                <span class="quick-tags-label font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕКОМЕНДУЕМ:' : 'RECOMMENDED:' }}</span>
                 <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Linkin Park')">Linkin Park</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Кино')">Кино</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Король и Шут')">Король и Шут</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Три дня дождя')">Три дня дождя</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Phonk')">Phonk</button>
                 <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('The Weeknd')">The Weeknd</button>
+                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Phonk')">Phonk</button>
                 <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Lo-Fi')">Lo-Fi</button>
+                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Travis Scott')">Travis Scott</button>
+                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Shortparis')">Shortparis</button>
               </div>
             </div>
 
             @if (libraryService.isSearchingOnline()) {
               <div class="search-state-card">
                 <div class="loading-spinner-circle"></div>
-                <div class="search-state-title">Идет поиск треков в сети...</div>
-                <div class="search-state-sub">Сканируем каталоги и онлайн-источники</div>
+                <div class="search-state-title">{{ i18n.currentLang() === 'ru' ? 'Идет поиск треков в сети...' : 'Searching tracks online...' }}</div>
+                <div class="search-state-sub">{{ i18n.currentLang() === 'ru' ? 'Сканируем каталоги и онлайн-источники' : 'Scanning catalogs and online sources' }}</div>
               </div>
             } @else if (libraryService.onlineSearchResults().length > 0) {
               <div class="search-results-container">
                 <div class="search-results-meta-bar">
-                  <span class="results-count-tag font-mono">НАЙДЕНО {{ libraryService.onlineSearchResults().length }} ТРЕКОВ</span>
-                  <span class="results-hint-tag">Кликните по треку для прослушивания</span>
+                  <span class="results-count-tag font-mono">{{ i18n.currentLang() === 'ru' ? ('НАЙДЕНО ' + libraryService.onlineSearchResults().length + ' ТРЕКОВ') : ('FOUND ' + libraryService.onlineSearchResults().length + ' TRACKS') }}</span>
+                  <span class="results-hint-tag">{{ i18n.currentLang() === 'ru' ? 'Кликните по треку для прослушивания' : 'Click a track to play' }}</span>
                 </div>
 
                 <!-- Desktop Table -->
@@ -613,30 +613,30 @@
                           <td class="cell-actions" (click)="$event.stopPropagation()">
                             <div class="row-actions-group">
                               @if (libraryService.isTrackFavorite(track)) {
-                                <button class="action-icon-btn btn-fav favorited" (click)="toggleFavorite(track, $event)" title="Удалить из избранного">
+                                <button class="action-icon-btn btn-fav favorited" (click)="toggleFavorite(track, $event)" [title]="i18n.currentLang() === 'ru' ? 'Удалить из избранного' : 'Remove from favorites'">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
                                     <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
                                   </svg>
                                 </button>
                               } @else {
-                                <button class="action-icon-btn btn-fav" (click)="toggleFavorite(track, $event)" title="В избранное">
+                                <button class="action-icon-btn btn-fav" (click)="toggleFavorite(track, $event)" [title]="i18n.t('player.like')">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
                                   </svg>
                                 </button>
                               }
 
-                              <button class="btn-res-add" (click)="addOnlineTrackToLib(track)" title="Сохранить в мою медиатеку">
-                                + В медиатеку
+                              <button class="btn-res-add" (click)="addOnlineTrackToLib(track)" [title]="i18n.currentLang() === 'ru' ? 'Сохранить в мою медиатеку' : 'Save to my library'">
+                                + {{ i18n.currentLang() === 'ru' ? 'В медиатеку' : 'To Library' }}
                               </button>
 
-                              <button class="action-icon-btn" (click)="openAddToPlaylistModal(track, $event)" title="Добавить в плейлист">
+                              <button class="action-icon-btn" (click)="openAddToPlaylistModal(track, $event)" [title]="i18n.t('player.addToPlaylist')">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                   <path d="M4 6h16M4 12h10M4 18h7M17 14v8M21 18h-8"/>
                                 </svg>
                               </button>
 
-                              <button class="action-icon-btn btn-dislike" (click)="dislikeTrack(track, $event)" title="Скрыть трек">
+                              <button class="action-icon-btn btn-dislike" (click)="dislikeTrack(track, $event)" [title]="i18n.t('player.dislike')">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                   <circle cx="12" cy="12" r="10"/>
                                   <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
@@ -676,10 +676,10 @@
                       </div>
 
                       <div class="mobile-track-actions" (click)="$event.stopPropagation()">
-                        <button class="btn-res-add" (click)="addOnlineTrackToLib(track)" title="В медиатеку">
+                        <button class="btn-res-add" (click)="addOnlineTrackToLib(track)" [title]="i18n.currentLang() === 'ru' ? 'В медиатеку' : 'Save to library'">
                           +
                         </button>
-                        <button class="action-icon-btn" (click)="openAddToPlaylistModal(track, $event)" title="В плейлист">
+                        <button class="action-icon-btn" (click)="openAddToPlaylistModal(track, $event)" [title]="i18n.t('player.addToPlaylist')">
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 6h16M4 12h10M4 18h7"/>
                           </svg>
@@ -697,18 +697,18 @@
                     <path d="m21 21-4.3-4.3"/>
                   </svg>
                 </div>
-                <div class="search-state-title">По запросу «{{ libraryService.searchQuery() }}» ничего не найдено</div>
-                <div class="search-state-sub">Вы можете добавить этот трек вручную прямо в медиатеку:</div>
+                <div class="search-state-title">{{ i18n.currentLang() === 'ru' ? ('По запросу «' + libraryService.searchQuery() + '» ничего не найдено') : ('No results found for «' + libraryService.searchQuery() + '»') }}</div>
+                <div class="search-state-sub">{{ i18n.currentLang() === 'ru' ? 'Вы можете добавить этот трек вручную прямо в медиатеку:' : 'You can add this track manually to your library:' }}</div>
                 <button class="btn-hero-add-manual" (click)="addManualFromSearch()">
-                  + Добавить «{{ libraryService.searchQuery() }}» в медиатеку
+                  + {{ i18n.currentLang() === 'ru' ? ('Добавить «' + libraryService.searchQuery() + '» в медиатеку') : ('Add «' + libraryService.searchQuery() + '» to library') }}
                 </button>
               </div>
             } @else {
               <div class="search-empty-start">
                 <div class="explore-hero-card">
-                  <div class="explore-badge font-mono">ГЛОБАЛЬНЫЙ КАТАЛОГ</div>
-                  <h2 class="explore-title">Миллионы треков без скачивания</h2>
-                  <p class="explore-sub">Введите название композиции или исполнителя в поисковую строку выше. Прямой стриминг любого трека без ограничений.</p>
+                  <div class="explore-badge font-mono">{{ i18n.currentLang() === 'ru' ? 'ГЛОБАЛЬНЫЙ КАТАЛОГ' : 'GLOBAL CATALOG' }}</div>
+                  <h2 class="explore-title">{{ i18n.currentLang() === 'ru' ? 'Миллионы треков без скачивания' : 'Millions of tracks without downloading' }}</h2>
+                  <p class="explore-sub">{{ i18n.currentLang() === 'ru' ? 'Введите название композиции или исполнителя в поисковую строку выше. Прямой стриминг любого трека без ограничений.' : 'Enter a song title or artist in the search bar above. Stream any track with zero restrictions.' }}</p>
                 </div>
               </div>
             }
@@ -1024,148 +1024,10 @@
                 }
               </div>
             } @else {
-              <!-- Quick Navigation Chips for Home (especially on mobile) -->
-              <div class="home-quick-nav">
-                <button class="home-quick-chip" (click)="setView('library')">
-                  <span class="chip-icon">🎵</span>
-                  <span class="chip-label">Мои треки</span>
-                  @if (libraryService.tracks().length > 0) {
-                    <span class="chip-badge font-mono">{{ libraryService.tracks().length }}</span>
-                  }
-                </button>
-
-                <button class="home-quick-chip" (click)="setView('favorites')">
-                  <span class="chip-icon">❤️</span>
-                  <span class="chip-label">Любимые</span>
-                  @if (favoriteCount() > 0) {
-                    <span class="chip-badge font-mono">{{ favoriteCount() }}</span>
-                  }
-                </button>
-
-                <button class="home-quick-chip" (click)="setView('playlist')">
-                  <span class="chip-icon">📁</span>
-                  <span class="chip-label">Плейлисты</span>
-                  @if (libraryService.playlists().length > 0) {
-                    <span class="chip-badge font-mono">{{ libraryService.playlists().length }}</span>
-                  }
-                </button>
-
-                <button class="home-quick-chip" (click)="setView('streams')">
-                  <span class="chip-icon">📻</span>
-                  <span class="chip-label">Радио</span>
-                </button>
-
-                <button class="home-quick-chip" (click)="setView('offline')">
-                  <span class="chip-icon">⬇️</span>
-                  <span class="chip-label">Оффлайн</span>
-                </button>
-
-                <button class="home-quick-chip" (click)="setView('charts')">
-                  <span class="chip-icon">🔥</span>
-                  <span class="chip-label">Чарты</span>
-                </button>
-              </div>
-
-              <!-- User Library Section on Home -->
-              @if (libraryService.tracks().length > 0) {
-                <section class="home-section home-user-library-section">
-                  <div class="home-section-header">
-                    <div>
-                      <div class="home-section-badge font-mono">МОЯ МЕДИАТЕКА</div>
-                      <h2 class="home-section-title">Мои треки</h2>
-                      <p class="home-section-sub">{{ libraryService.tracks().length }} треков в вашей коллекции</p>
-                    </div>
-                    <div class="home-section-actions">
-                      <button class="btn-home-play-all" (click)="playAllUserTracks()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                          <polygon points="6 3 20 12 6 21 6 3"/>
-                        </svg>
-                        <span>Слушать</span>
-                      </button>
-                      <button class="btn-home-view-all" (click)="setView('library')">
-                        <span>Все ({{ libraryService.tracks().length }})</span>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Quick Track Cards List (Mobile & Compact View) -->
-                  <div class="mobile-tracks-list home-user-tracks-list">
-                    @for (track of recentUserTracks(); track track.id; let i = $index) {
-                      <div 
-                        class="mobile-track-card" 
-                        [class.playing]="audioService.currentTrack()?.id === track.id"
-                        (click)="playTrack(track)"
-                      >
-                        <div class="card-cover-wrap">
-                          @if (track.coverUrl) {
-                            <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="card-cover-img" loading="lazy" decoding="async" />
-                          } @else {
-                            <div class="card-cover-empty">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <polygon points="6 3 20 12 6 21 6 3"/>
-                              </svg>
-                            </div>
-                          }
-                          @if (audioService.currentTrack()?.id === track.id && audioService.isPlaying()) {
-                            <div class="card-playing-indicator">
-                              <div class="audio-bar-anim"><span></span><span></span><span></span></div>
-                            </div>
-                          }
-                        </div>
-
-                        <div class="card-content">
-                          <div class="card-title notranslate" translate="no">{{ track.title }}</div>
-                          <div class="card-subtitle">
-                            <span class="card-artist notranslate" translate="no">{{ track.artist }}</span>
-                            <span class="dot-sep">•</span>
-                            <span class="card-duration font-mono">{{ track.isLiveStream ? 'LIVE' : formatTime(track.duration) }}</span>
-                          </div>
-                        </div>
-
-                        <div class="card-actions" (click)="$event.stopPropagation()">
-                          <button 
-                            class="m-action-btn" 
-                            [class.favorited]="track.isFavorite"
-                            (click)="toggleFavorite(track, $event)"
-                            title="В избранное"
-                          >
-                            <svg width="17" height="17" viewBox="0 0 24 24" [attr.fill]="track.isFavorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
-                              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-                            </svg>
-                          </button>
-
-                          <button 
-                            class="m-action-btn" 
-                            (click)="openAddToPlaylistModal(track, $event)"
-                            title="Добавить в плейлист"
-                          >
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                              <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    }
-                  </div>
-
-                  @if (libraryService.tracks().length > 8) {
-                    <div class="home-user-tracks-more">
-                      <button class="btn-more-tracks" (click)="setView('library')">
-                        Показать все {{ libraryService.tracks().length }} треков →
-                      </button>
-                    </div>
-                  }
-                </section>
-              }
-
               @if (isLoadingHome() && !homeData()) {
                 <div class="home-loading-box font-mono">
                   <div class="chart-spinner"></div>
-                  <span>Загрузка каталога...</span>
+                  <span>{{ i18n.currentLang() === 'ru' ? 'Загрузка каталога...' : 'Loading catalog...' }}</span>
                 </div>
               }
 
@@ -1175,16 +1037,16 @@
                   <div class="home-section-header">
                     <div>
                       <h2 class="home-section-title">{{ i18n.t('home.popularTracks') }}</h2>
-                      <p class="home-section-sub">Главные треки и хиты прямо сейчас</p>
+                      <p class="home-section-sub">{{ i18n.currentLang() === 'ru' ? 'Главные треки и хиты прямо сейчас' : 'Trending tracks and top hits right now' }}</p>
                     </div>
                     <div class="home-section-actions">
                       <div class="home-nav-arrows">
-                        <button class="btn-home-nav-arrow" (click)="scrollPopularTracks('left')" title="Назад" aria-label="Назад">
+                        <button class="btn-home-nav-arrow" (click)="scrollPopularTracks('left')" [title]="i18n.currentLang() === 'ru' ? 'Назад' : 'Back'" [attr.aria-label]="i18n.currentLang() === 'ru' ? 'Назад' : 'Back'">
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <polyline points="15 18 9 12 15 6"/>
                           </svg>
                         </button>
-                        <button class="btn-home-nav-arrow" (click)="scrollPopularTracks('right')" title="Вперед" aria-label="Вперед">
+                        <button class="btn-home-nav-arrow" (click)="scrollPopularTracks('right')" [title]="i18n.currentLang() === 'ru' ? 'Вперед' : 'Forward'" [attr.aria-label]="i18n.currentLang() === 'ru' ? 'Вперед' : 'Forward'">
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <polyline points="9 18 15 12 9 6"/>
                           </svg>
@@ -1221,15 +1083,15 @@
                             </button>
                           </div>
                           <div class="home-track-info">
-                            <div class="home-track-title">{{ track.title }}</div>
-                            <div class="home-track-artist">{{ track.artist }}</div>
+                            <div class="home-track-title notranslate" translate="no">{{ track.title }}</div>
+                            <div class="home-track-artist notranslate" translate="no">{{ track.artist }}</div>
                           </div>
                           <div class="home-track-actions" (click)="$event.stopPropagation()">
                             <button 
                               class="btn-track-action" 
                               [class.active]="libraryService.isTrackInLibrary(track.id)"
                               (click)="toggleHomeTrackLibrary(track)"
-                              [title]="libraryService.isTrackInLibrary(track.id) ? 'В медиатеке' : 'Добавить в медиатеку'"
+                              [title]="libraryService.isTrackInLibrary(track.id) ? (i18n.currentLang() === 'ru' ? 'В медиатеке' : 'In Library') : (i18n.currentLang() === 'ru' ? 'Добавить в медиатеку' : 'Add to Library')"
                             >
                               @if (libraryService.isTrackInLibrary(track.id)) {
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1257,7 +1119,7 @@
                   <div class="home-section-header">
                     <div>
                       <h2 class="home-section-title">{{ i18n.t('home.popularArtists') }}</h2>
-                      <p class="home-section-sub">Самые прослушиваемые мировые артисты</p>
+                      <p class="home-section-sub">{{ i18n.currentLang() === 'ru' ? 'Самые прослушиваемые мировые артисты' : 'Most listened artists globally' }}</p>
                     </div>
                   </div>
 
@@ -1276,7 +1138,7 @@
                             </svg>
                           </div>
                         </div>
-                        <div class="artist-card-name">{{ artist.name }}</div>
+                        <div class="artist-card-name notranslate" translate="no">{{ artist.name }}</div>
                         <div class="artist-card-role">{{ i18n.t('home.artist') }}</div>
                         @if (artist.monthly_listeners) {
                           <div class="artist-card-listeners font-mono">{{ artist.monthly_listeners }} {{ i18n.t('home.monthlyListeners') }}</div>
@@ -1293,7 +1155,7 @@
                   <div class="home-section-header">
                     <div>
                       <h2 class="home-section-title">{{ i18n.t('home.popularAlbums') }}</h2>
-                      <p class="home-section-sub">Популярные альбомы и свежие релизы</p>
+                      <p class="home-section-sub">{{ i18n.currentLang() === 'ru' ? 'Популярные альбомы и свежие релизы' : 'Popular albums and fresh releases' }}</p>
                     </div>
                   </div>
 
@@ -1317,8 +1179,8 @@
                             </svg>
                           </div>
                         </div>
-                        <div class="album-card-title" [title]="album.title">{{ album.title }}</div>
-                        <div class="album-card-artist" [title]="album.artist">{{ album.artist }}</div>
+                        <div class="album-card-title notranslate" translate="no" [title]="album.title">{{ album.title }}</div>
+                        <div class="album-card-artist notranslate" translate="no" [title]="album.artist">{{ album.artist }}</div>
                         @if (album.release_date) {
                           <div class="album-card-year font-mono">{{ album.release_date.split('-')[0] }}</div>
                         }
@@ -1334,7 +1196,7 @@
                   <div class="home-section-header">
                     <div>
                       <h2 class="home-section-title">{{ i18n.t('home.charts') }}</h2>
-                      <p class="home-section-sub">Топ-50 чарты с ежедневным обновлением</p>
+                      <p class="home-section-sub">{{ i18n.currentLang() === 'ru' ? 'Топ-50 чарты с ежедневным обновлением' : 'Top 50 charts updated daily' }}</p>
                     </div>
                   </div>
 
@@ -1353,7 +1215,7 @@
                               </svg>
                             </div>
                           }
-                          <button class="chart-card-play-btn" (click)="$event.stopPropagation(); openChart(c.id)" title="Открыть чарт">
+                          <button class="chart-card-play-btn" (click)="$event.stopPropagation(); openChart(c.id)" [title]="i18n.currentLang() === 'ru' ? 'Открыть чарт' : 'Open chart'">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                               <polygon points="6 3 20 12 6 21 6 3"/>
                             </svg>
@@ -1362,7 +1224,7 @@
                         <div class="chart-card-info">
                           <div class="chart-card-title">{{ c.title }}</div>
                           <div class="chart-card-sub">{{ c.subtitle }}</div>
-                          <div class="chart-card-meta font-mono">{{ c.track_count }} треков • {{ c.updated_at }}</div>
+                          <div class="chart-card-meta font-mono">{{ c.track_count }} {{ i18n.t('common.tracks') }} • {{ c.updated_at }}</div>
                         </div>
                       </div>
                     }
@@ -1410,7 +1272,7 @@
                     <td class="cell-index">
                       <div class="cell-index-wrap">
                         @if (activeTab() === 'playlist') {
-                          <span class="drag-handle-grip desktop-only" [attr.draggable]="'true'" (dragstart)="onTrackDragStart($event, track.id)" title="Зажмите ЛКМ для перемещения трека">
+                          <span class="drag-handle-grip desktop-only" [attr.draggable]="'true'" (dragstart)="onTrackDragStart($event, track.id)" [title]="i18n.currentLang() === 'ru' ? 'Зажмите ЛКМ для перемещения трека' : 'Drag to reorder'">
                             <svg width="10" height="14" viewBox="0 0 24 24" fill="currentColor">
                               <circle cx="9" cy="5" r="2.2"/><circle cx="15" cy="5" r="2.2"/>
                               <circle cx="9" cy="12" r="2.2"/><circle cx="15" cy="12" r="2.2"/>
@@ -1423,7 +1285,7 @@
                             <span></span><span></span><span></span>
                           </div>
                         } @else {
-                          <button class="row-play-btn" (click)="playTrack(track); $event.stopPropagation()" title="Воспроизвести">
+                          <button class="row-play-btn" (click)="playTrack(track); $event.stopPropagation()" [title]="i18n.t('player.play')">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                               <polygon points="6 3 20 12 6 21 6 3"/>
                             </svg>
@@ -1440,7 +1302,7 @@
                         }
                         <span class="track-title-text notranslate" translate="no">{{ track.title }}</span>
                         @if (offlineService.isTrackOffline(track.id)) {
-                          <span class="badge-tag" style="color: #60a5fa; border-color: rgba(59, 130, 246, 0.4);" title="Доступен оффлайн">OFFLINE</span>
+                          <span class="badge-tag" style="color: #60a5fa; border-color: rgba(59, 130, 246, 0.4);" [title]="i18n.currentLang() === 'ru' ? 'Доступен оффлайн' : 'Available offline'">OFFLINE</span>
                         }
                         @if (track.isLiveStream) {
                           <span class="badge-tag live-tag">LIVE</span>
@@ -1467,7 +1329,7 @@
                           class="action-icon-btn" 
                           [class.favorited]="track.isFavorite"
                           (click)="toggleFavorite(track, $event)"
-                          title="В избранное"
+                          [title]="i18n.t('player.like')"
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" [attr.fill]="track.isFavorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                             <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
@@ -1478,7 +1340,7 @@
                           <button 
                             class="action-icon-btn" 
                             (click)="toggleOfflineTrack(track, $event)"
-                            [title]="offlineService.isTrackOffline(track.id) ? 'Удалить из оффлайн-кэша' : 'Скачать для оффлайн-прослушивания'"
+                            [title]="offlineService.isTrackOffline(track.id) ? (i18n.currentLang() === 'ru' ? 'Удалить из оффлайн-кэша' : 'Remove from offline cache') : (i18n.currentLang() === 'ru' ? 'Скачать для оффлайн-прослушивания' : 'Download for offline listening')"
                           >
                             @if (offlineService.isDownloading(track.id)) {
                               <svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1501,7 +1363,7 @@
                         <button 
                           class="action-icon-btn" 
                           (click)="addToQueue(track, $event)"
-                          title="В очередь"
+                          [title]="i18n.currentLang() === 'ru' ? 'В очередь' : 'Add to queue'"
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -1511,7 +1373,7 @@
                         <button 
                           class="action-icon-btn" 
                           (click)="openAddToPlaylistModal(track, $event)"
-                          title="Добавить в плейлист"
+                          [title]="i18n.t('player.addToPlaylist')"
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
@@ -1522,7 +1384,7 @@
                         <button 
                           class="action-icon-btn btn-dislike" 
                           (click)="dislikeTrack(track, $event)" 
-                          title="Скрыть / не рекомендовать (дизлайк)"
+                          [title]="i18n.t('player.dislike')"
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
@@ -1530,7 +1392,7 @@
                           </svg>
                         </button>
 
-                        <button class="action-icon-btn btn-delete" (click)="deleteTrack(track, $event)" title="Удалить">
+                        <button class="action-icon-btn btn-delete" (click)="deleteTrack(track, $event)" [title]="i18n.t('common.delete')">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -1577,7 +1439,7 @@
                     <span class="card-duration font-mono">{{ track.isLiveStream ? 'LIVE' : formatTime(track.duration) }}</span>
                     @if (offlineService.isTrackOffline(track.id)) {
                       <span class="dot-sep">•</span>
-                      <span class="offline-badge-tag font-mono">ОФФЛАЙН</span>
+                      <span class="offline-badge-tag font-mono">{{ i18n.currentLang() === 'ru' ? 'ОФФЛАЙН' : 'OFFLINE' }}</span>
                     }
                   </div>
                 </div>
@@ -1588,7 +1450,7 @@
                       class="m-action-btn"
                       [class.favorited]="offlineService.isTrackOffline(track.id)"
                       (click)="toggleOfflineTrack(track, $event)"
-                      [title]="offlineService.isTrackOffline(track.id) ? 'Удалить из памяти' : 'Скачать для оффлайн'"
+                      [title]="offlineService.isTrackOffline(track.id) ? (i18n.currentLang() === 'ru' ? 'Удалить из памяти' : 'Remove download') : (i18n.currentLang() === 'ru' ? 'Скачать для оффлайн' : 'Download offline')"
                     >
                       @if (offlineService.isDownloading(track.id)) {
                         <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1612,7 +1474,7 @@
                     class="m-action-btn" 
                     [class.favorited]="track.isFavorite"
                     (click)="toggleFavorite(track, $event)"
-                    title="В избранное"
+                    [title]="i18n.t('player.like')"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" [attr.fill]="track.isFavorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                       <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
@@ -1622,7 +1484,7 @@
                   <button 
                     class="m-action-btn" 
                     (click)="openAddToPlaylistModal(track, $event)"
-                    title="Добавить в плейлист"
+                    [title]="i18n.t('player.addToPlaylist')"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
@@ -1633,7 +1495,7 @@
                   <button 
                     class="m-action-btn btn-dislike" 
                     (click)="dislikeTrack(track, $event)" 
-                    title="Скрыть / не рекомендовать (дизлайк)"
+                    [title]="i18n.t('player.dislike')"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <circle cx="12" cy="12" r="10"/>
@@ -1643,8 +1505,8 @@
 
                   <button 
                     class="m-action-btn btn-delete" 
-                    (click)="deleteTrack(track, $event)"
-                    title="Удалить"
+                    (click)="deleteTrack(track, $event)" 
+                    [title]="i18n.t('common.delete')"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"/>
@@ -1667,27 +1529,27 @@
               </div>
 
               @if (libraryService.allTracksCount() === 0) {
-                <h3 class="empty-title">Ваша медиатека пуста</h3>
-                <p class="empty-desc">Вставьте ссылку на YouTube (видео или плейлист) или найдите треки через поиск.</p>
+                <h3 class="empty-title">{{ i18n.currentLang() === 'ru' ? 'Ваша медиатека пуста' : 'Your library is empty' }}</h3>
+                <p class="empty-desc">{{ i18n.currentLang() === 'ru' ? 'Вставьте ссылку на YouTube (видео или плейлист) или найдите треки через поиск.' : 'Paste a YouTube video/playlist link or search for tracks online.' }}</p>
                 <div class="empty-actions-row">
                   <button class="btn-empty-action" (click)="openAddModalGuarded('youtube')">
-                    <span>Добавить ссылку с YouTube</span>
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Добавить ссылку с YouTube' : 'Add YouTube Link' }}</span>
                   </button>
                 </div>
                 @if (!authService.isAuthenticated()) {
                   <p class="empty-desc" style="margin-top: 16px; opacity: 0.6; font-size: 12px;">
-                    <span (click)="openAuthModal('register')" style="cursor: pointer; text-decoration: underline; opacity: 1;">Создайте аккаунт</span>,
-                    чтобы сохранять избранное, плейлисты и историю
+                    <span (click)="openAuthModal('register')" style="cursor: pointer; text-decoration: underline; opacity: 1;">{{ i18n.currentLang() === 'ru' ? 'Создайте аккаунт' : 'Create an account' }}</span>,
+                    {{ i18n.currentLang() === 'ru' ? 'чтобы сохранять избранное, плейлисты и историю' : 'to save favorites, playlists and history' }}
                   </p>
                 }
               } @else if (activeTab() === 'playlist') {
-                <h3 class="empty-title">В этом плейлисте нет треков</h3>
-                <p class="empty-desc">Перейдите в каталог и добавьте нужные треки, или добавьте YouTube-плейлист.</p>
-                <button class="btn-empty-action" (click)="setView('all')">В каталог музыки</button>
+                <h3 class="empty-title">{{ i18n.currentLang() === 'ru' ? 'В этом плейлисте нет треков' : 'No tracks in this playlist' }}</h3>
+                <p class="empty-desc">{{ i18n.currentLang() === 'ru' ? 'Перейдите в каталог и добавьте нужные треки, или добавьте YouTube-плейлист.' : 'Go to the catalog to add tracks, or import a YouTube playlist.' }}</p>
+                <button class="btn-empty-action" (click)="setView('all')">{{ i18n.currentLang() === 'ru' ? 'В каталог музыки' : 'To Music Catalog' }}</button>
               } @else {
-                <h3 class="empty-title">Ничего не найдено</h3>
+                <h3 class="empty-title">{{ i18n.currentLang() === 'ru' ? 'Ничего не найдено' : 'Nothing found' }}</h3>
                 <button class="btn-empty-action" (click)="openOnlineSearchWithQuery(libraryService.searchQuery())">
-                  Искать «{{ libraryService.searchQuery() }}» онлайн
+                  {{ i18n.currentLang() === 'ru' ? ('Искать «' + libraryService.searchQuery() + '» онлайн') : ('Search «' + libraryService.searchQuery() + '» online') }}
                 </button>
               }
             </div>
@@ -1717,12 +1579,13 @@
       <span>{{ i18n.t('nav.home') }}</span>
     </button>
 
-    <button class="m-nav-item" [class.active]="activeTab() === 'search'" (click)="setView('search')">
+    <button class="m-nav-item" [class.active]="activeTab() === 'library'" (click)="setView('library')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="m21 21-4.3-4.3"/>
+        <path d="M9 18V5l12-2v13"/>
+        <circle cx="6" cy="18" r="3"/>
+        <circle cx="18" cy="16" r="3"/>
       </svg>
-      <span>{{ i18n.t('nav.search') }}</span>
+      <span>{{ i18n.t('nav.myMusic') }}</span>
     </button>
 
     <button class="m-nav-item m-nav-wave" [class.active]="recService.isMixActive()" (click)="toggleSmartMix()">
@@ -1737,13 +1600,12 @@
       <span>{{ i18n.t('nav.waveMobile') }}</span>
     </button>
 
-    <button class="m-nav-item" [class.active]="activeTab() === 'library'" (click)="setView('library')">
+    <button class="m-nav-item" [class.active]="activeTab() === 'search'" (click)="setView('search')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 18V5l12-2v13"/>
-        <circle cx="6" cy="18" r="3"/>
-        <circle cx="18" cy="16" r="3"/>
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.3-4.3"/>
       </svg>
-      <span>{{ i18n.t('nav.myMusic') }}</span>
+      <span>{{ i18n.t('nav.search') }}</span>
     </button>
 
     <button class="m-nav-item" [class.active]="isProfileModalOpen()" (click)="openProfileModal()">
@@ -1764,21 +1626,21 @@
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
-        <span class="sheet-title-center font-mono">СЕЙЧАС ИГРАЕТ</span>
+        <span class="sheet-title-center font-mono">{{ i18n.currentLang() === 'ru' ? 'СЕЙЧАС ИГРАЕТ' : 'NOW PLAYING' }}</span>
         <div style="display: flex; align-items: center; gap: 4px;">
-          <button class="btn-sheet-close" (click)="lyricsService.openLyrics()" title="Текст песни (караоке)">
+          <button class="btn-sheet-close" (click)="lyricsService.openLyrics()" [title]="i18n.t('player.lyricsKaraoke')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               <line x1="8" y1="9" x2="16" y2="9"/>
               <line x1="8" y1="13" x2="14" y2="13"/>
             </svg>
           </button>
-          <button class="btn-sheet-close" (click)="audioService.toggleVisualizer()" title="Визуализатор (V)">
+          <button class="btn-sheet-close" (click)="audioService.toggleVisualizer()" [title]="i18n.t('player.visualizer')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 20V10M18 20V4M6 20v-4"/>
             </svg>
           </button>
-          <button class="btn-sheet-close" (click)="openQueueDrawer()">
+          <button class="btn-sheet-close" (click)="openQueueDrawer()" [title]="i18n.t('player.queueDrawer')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
             </svg>
@@ -1806,7 +1668,7 @@
           class="sheet-fav-btn" 
           [class.favorited]="libraryService.isTrackFavorite(cur)"
           (click)="toggleFavorite(cur, $event)"
-          title="В избранное"
+          [title]="i18n.t('player.like')"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" [attr.fill]="libraryService.isTrackFavorite(cur) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
             <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
@@ -1818,25 +1680,25 @@
         <button 
           class="sheet-util-btn" 
           (click)="openAddToPlaylistModal(cur)"
-          title="Добавить в плейлист"
+          [title]="i18n.t('player.addToPlaylist')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
             <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
           </svg>
-          <span>В плейлист</span>
+          <span>{{ i18n.currentLang() === 'ru' ? 'В плейлист' : 'Playlist' }}</span>
         </button>
 
         <button 
           class="sheet-util-btn sheet-dislike-btn" 
           (click)="dislikeCurrentTrack()"
-          title="Не моё (пропустить)"
+          [title]="i18n.t('player.dislike')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
           </svg>
-          <span>Не моё</span>
+          <span>{{ i18n.currentLang() === 'ru' ? 'Не моё' : 'Dislike' }}</span>
         </button>
 
         @if (!cur.isLiveStream) {
@@ -1844,25 +1706,25 @@
             class="sheet-util-btn" 
             [class.favorited]="offlineService.isTrackOffline(cur.id)"
             (click)="toggleOfflineTrack(cur, $event)"
-            [title]="offlineService.isTrackOffline(cur.id) ? 'Удалить из памяти' : 'Скачать для оффлайн'"
+            [title]="offlineService.isTrackOffline(cur.id) ? (i18n.currentLang() === 'ru' ? 'Удалить из памяти' : 'Remove download') : (i18n.currentLang() === 'ru' ? 'Скачать для оффлайн' : 'Download offline')"
           >
             @if (offlineService.isDownloading(cur.id)) {
               <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
               </svg>
-              <span>Загрузка...</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Загрузка...' : 'Loading...' }}</span>
             } @else if (offlineService.isTrackOffline(cur.id)) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5">
                 <path d="M20 6 9 17l-5-5"/>
               </svg>
-              <span style="color: #60a5fa;">Оффлайн</span>
+              <span style="color: #60a5fa;">{{ i18n.currentLang() === 'ru' ? 'Оффлайн' : 'Offline' }}</span>
             } @else {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Скачать</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Скачать' : 'Download' }}</span>
             }
           </button>
         }
@@ -1956,9 +1818,9 @@
       <!-- Spotify-style Live Lyrics Card in Mobile Sheet -->
       <div class="sheet-lyrics-card" (click)="lyricsService.openLyrics()">
         <div class="sheet-lyrics-card-header">
-          <span class="sheet-lyrics-title font-mono">ТЕКСТ ПЕСНИ</span>
+          <span class="sheet-lyrics-title font-mono">{{ i18n.currentLang() === 'ru' ? 'ТЕКСТ ПЕСНИ' : 'LYRICS' }}</span>
           <button type="button" class="sheet-lyrics-expand-btn font-mono">
-            НА ВЕСЬ ЭКРАН
+            {{ i18n.currentLang() === 'ru' ? 'НА ВЕСЬ ЭКРАН' : 'FULLSCREEN' }}
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="15 3 21 3 21 9"/>
               <polyline points="9 21 3 21 3 15"/>
@@ -1970,7 +1832,7 @@
 
         <div class="sheet-lyrics-preview">
           @if (lyricsService.isLoading()) {
-            <p class="sheet-lyrics-loading font-mono">Поиск текста песни...</p>
+            <p class="sheet-lyrics-loading font-mono">{{ i18n.currentLang() === 'ru' ? 'Поиск текста песни...' : 'Searching lyrics...' }}</p>
           } @else if (lyricsService.currentLyrics(); as lyrics) {
             @if (lyrics.lines.length > 0) {
               @for (line of lyrics.lines; track $index; let i = $index) {
@@ -1985,10 +1847,10 @@
                 }
               }
             } @else {
-              <p class="sheet-lyrics-line active">{{ lyrics.plainText || 'Текст доступен' }}</p>
+              <p class="sheet-lyrics-line active">{{ lyrics.plainText || (i18n.currentLang() === 'ru' ? 'Текст доступен' : 'Lyrics available') }}</p>
             }
           } @else {
-            <p class="sheet-lyrics-line past">Нажмите, чтобы открыть или загрузить текст песни</p>
+            <p class="sheet-lyrics-line past">{{ i18n.currentLang() === 'ru' ? 'Нажмите, чтобы открыть или загрузить текст песни' : 'Tap to open or load lyrics' }}</p>
           }
         </div>
       </div>
@@ -2000,8 +1862,8 @@
     <div class="modal-backdrop" (click)="closeMobilePlaylists()">
       <div class="modal-dialog mobile-playlists-sheet" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <h3 class="modal-title">Ваши плейлисты</h3>
-          <button class="btn-create-pl-mini" (click)="openCreatePlaylistModal(); closeMobilePlaylists()">
+          <h3 class="modal-title">{{ i18n.currentLang() === 'ru' ? 'Ваши плейлисты' : 'Your Playlists' }}</h3>
+          <button class="btn-create-pl-mini" (click)="openCreatePlaylistModal(); closeMobilePlaylists()" [title]="i18n.t('nav.createPlaylist')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
@@ -2017,11 +1879,11 @@
               }
               <div class="pl-meta">
                 <span class="pl-name">{{ pl.title }}</span>
-                <span class="pl-count font-mono">{{ pl.trackIds.length }} треков</span>
+                <span class="pl-count font-mono">{{ pl.trackIds.length }} {{ i18n.t('common.tracks') }}</span>
               </div>
             </div>
           } @empty {
-            <div class="empty-sidebar-note">Нет плейлистов. Создайте первый!</div>
+            <div class="empty-sidebar-note">{{ i18n.currentLang() === 'ru' ? 'Нет плейлистов. Создайте первый!' : 'No playlists yet. Create one!' }}</div>
           }
         </div>
         <div class="modal-footer mobile-backup-row">
@@ -2030,27 +1892,27 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>{{ isIos() ? 'Установить на iPhone' : 'Скачать приложение' }}</span>
+              <span>{{ isIos() ? (i18n.currentLang() === 'ru' ? 'Установить на iPhone' : 'Install on iPhone') : (i18n.currentLang() === 'ru' ? 'Скачать приложение' : 'Download App') }}</span>
             </button>
           }
 
           <div class="mobile-sync-badge font-mono" [class.synced]="libraryService.isCloudSynced()">
             <span class="sync-dot"></span>
-            <span>{{ libraryService.isCloudSynced() ? 'Облако синхронизировано' : 'Синхронизация...' }}</span>
+            <span>{{ libraryService.isCloudSynced() ? (i18n.currentLang() === 'ru' ? 'Облако синхронизировано' : 'Cloud synced') : (i18n.currentLang() === 'ru' ? 'Синхронизация...' : 'Syncing...') }}</span>
           </div>
           <div class="mobile-backup-actions">
             <button class="btn-backup-mini" (click)="exportLibrary()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Экспорт JSON</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Экспорт JSON' : 'Export JSON' }}</span>
             </button>
             <label class="btn-backup-mini">
               <input type="file" accept=".json" (change)="onBackupFileSelected($event)" style="display: none;" />
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              <span>Импорт JSON</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Импорт JSON' : 'Import JSON' }}</span>
             </label>
           </div>
         </div>
@@ -2064,12 +1926,12 @@
       <div class="drawer-panel" (click)="$event.stopPropagation()">
         <div class="drawer-header">
           <div>
-            <h3 class="drawer-title">Очередь воспроизведения</h3>
-            <span class="drawer-subtitle font-mono text-muted">{{ audioService.queue().length }} треков в очереди</span>
+            <h3 class="drawer-title">{{ i18n.currentLang() === 'ru' ? 'Очередь воспроизведения' : 'Playback Queue' }}</h3>
+            <span class="drawer-subtitle font-mono text-muted">{{ audioService.queue().length }} {{ i18n.currentLang() === 'ru' ? 'треков в очереди' : 'tracks in queue' }}</span>
           </div>
           <div class="drawer-actions">
-            <button class="btn-text-sm" (click)="audioService.clearQueue()">Очистить</button>
-            <button class="btn-close-sm" (click)="closeQueueDrawer()">
+            <button class="btn-text-sm" (click)="audioService.clearQueue()">{{ i18n.currentLang() === 'ru' ? 'Очистить' : 'Clear' }}</button>
+            <button class="btn-close-sm" (click)="closeQueueDrawer()" [title]="i18n.t('common.close')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -2099,7 +1961,7 @@
                 (touchmove)="onQueueTouchMove($event)"
                 (touchend)="onQueueTouchEnd()"
                 (click)="$event.stopPropagation()"
-                title="Перетащите для изменения порядка треков"
+                [title]="i18n.currentLang() === 'ru' ? 'Перетащите для изменения порядка треков' : 'Drag to reorder tracks'"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="9" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>
@@ -2117,7 +1979,7 @@
               <button 
                 class="q-remove-btn" 
                 (click)="$event.stopPropagation(); dislikeTrack(track, $event)"
-                title="Скрыть и больше не воспроизводить (дизлайк)"
+                [title]="i18n.t('player.dislike')"
                 style="margin-right: 4px;"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2128,7 +1990,7 @@
               <button 
                 class="q-remove-btn" 
                 (click)="$event.stopPropagation(); audioService.removeFromQueue(i)"
-                title="Удалить из очереди"
+                [title]="i18n.currentLang() === 'ru' ? 'Удалить из очереди' : 'Remove from queue'"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -2136,7 +1998,7 @@
               </button>
             </div>
           } @empty {
-            <div class="empty-queue">Очередь воспроизведения пуста</div>
+            <div class="empty-queue">{{ i18n.currentLang() === 'ru' ? 'Очередь воспроизведения пуста' : 'Playback queue is empty' }}</div>
           }
         </div>
       </div>
@@ -2149,10 +2011,10 @@
       <div class="modal-dialog add-music-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
-            <h3 class="modal-title">Добавить музыку</h3>
-            <p class="modal-subtitle">YouTube видео и плейлисты, поиск онлайн, файлы или радио</p>
+            <h3 class="modal-title">{{ i18n.t('header.addMusic') }}</h3>
+            <p class="modal-subtitle">{{ i18n.currentLang() === 'ru' ? 'YouTube видео и плейлисты, поиск онлайн, файлы или радио' : 'YouTube videos & playlists, online search, files or radio' }}</p>
           </div>
-          <button class="btn-close-sm" (click)="closeAddModal()">
+          <button class="btn-close-sm" (click)="closeAddModal()" [title]="i18n.t('common.close')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -2168,7 +2030,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
             </svg>
-            <span>YouTube & Плейлисты</span>
+            <span>{{ i18n.currentLang() === 'ru' ? 'YouTube & Плейлисты' : 'YouTube & Playlists' }}</span>
           </button>
 
           <button 
@@ -2179,7 +2041,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <span>Поиск онлайн →</span>
+            <span>{{ i18n.currentLang() === 'ru' ? 'Поиск онлайн →' : 'Online Search →' }}</span>
           </button>
 
           <button 
@@ -2190,7 +2052,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
             </svg>
-            <span>Радио</span>
+            <span>{{ i18n.currentLang() === 'ru' ? 'Радио' : 'Radio' }}</span>
           </button>
 
           <button 
@@ -2201,7 +2063,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            <span>Файл</span>
+            <span>{{ i18n.currentLang() === 'ru' ? 'Файл' : 'File' }}</span>
           </button>
 
           <button 
@@ -2212,7 +2074,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
             </svg>
-            <span>Вручную / URL</span>
+            <span>{{ i18n.currentLang() === 'ru' ? 'Вручную / URL' : 'Manual / URL' }}</span>
           </button>
         </div>
 
@@ -2222,11 +2084,11 @@
           @if (addModalTab() === 'youtube') {
             <div class="tab-youtube-content">
               <div class="input-field">
-                <label class="field-label">Ссылка на видео или плейлист с YouTube</label>
+                <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Ссылка на видео или плейлист с YouTube' : 'YouTube video or playlist link' }}</label>
                 <div class="youtube-input-row">
                   <input 
                     type="url" 
-                    placeholder="https://www.youtube.com/watch?v=... или https://www.youtube.com/playlist?list=..."
+                    [placeholder]="i18n.currentLang() === 'ru' ? 'https://www.youtube.com/watch?v=... или https://www.youtube.com/playlist?list=...' : 'https://www.youtube.com/watch?v=... or https://www.youtube.com/playlist?list=...'"
                     [ngModel]="youtubeUrlInput()"
                     (ngModelChange)="youtubeUrlInput.set($event)"
                     (keyup.enter)="extractYouTubeUrl()"
@@ -2239,13 +2101,13 @@
                     (click)="extractYouTubeUrl()"
                   >
                     @if (isExtractingUrl()) {
-                      <span>Загрузка...</span>
+                      <span>{{ i18n.currentLang() === 'ru' ? 'Загрузка...' : 'Loading...' }}</span>
                     } @else {
-                      <span>Извлечь</span>
+                      <span>{{ i18n.currentLang() === 'ru' ? 'Извлечь' : 'Extract' }}</span>
                     }
                   </button>
                 </div>
-                <span class="field-hint">Поддерживаются видео, shorts и любые плейлисты</span>
+                <span class="field-hint">{{ i18n.currentLang() === 'ru' ? 'Поддерживаются видео, shorts и любые плейлисты' : 'Supports videos, shorts and public playlists' }}</span>
               </div>
 
               @if (extractError()) {
@@ -2957,12 +2819,12 @@
             <!-- Alternative PWA without certificate -->
             <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px;">
               <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
-                🌐 Или установить без сертификата через Safari (PWA):
+                {{ i18n.currentLang() === 'ru' ? 'Или установить без сертификата через Safari (PWA):' : 'Or install via Safari (PWA):' }}
               </div>
               <div class="pwa-step-item">
                 <div class="pwa-step-num font-mono">1</div>
                 <div class="pwa-step-text">
-                  В <strong>Safari</strong> нажмите кнопку <strong>«Поделиться»</strong> (квадрат со стрелкой ⬆ внизу).
+                  {{ i18n.currentLang() === 'ru' ? 'В Safari нажмите кнопку «Поделиться» (квадрат со стрелкой внизу).' : 'In Safari, tap the Share button (square with arrow).' }}
                 </div>
               </div>
               <div class="pwa-step-item">
@@ -3005,12 +2867,6 @@
               </div>
             </div>
 
-            <div style="border: 1px solid rgba(234, 179, 8, 0.3); background: rgba(234, 179, 8, 0.08); border-radius: 8px; padding: 10px 12px; margin-top: 10px; text-align: left;">
-              <div style="color: #facc15; font-size: 12px; line-height: 1.45;">
-                ⚠️ <strong>Если пишет «Приложение не установлено»:</strong> удалите старую версию Recro с телефона и установите скачанный файл заново.
-              </div>
-            </div>
-
             @if (canInstallPwa()) {
               <button class="btn-cancel-action font-mono" style="width: 100%; margin-top: 12px; font-size: 12px; padding: 10px 12px;" (click)="pwaService.promptInstall()">
                 Или установить в 1 клик через браузер (PWA)
@@ -3034,16 +2890,16 @@
           <div>
             <h3 class="modal-title">
               @if (authModalTab() === 'login') {
-                Вход в аккаунт
+                {{ i18n.currentLang() === 'ru' ? 'Вход в аккаунт' : 'Account Sign In' }}
               } @else {
-                Регистрация в Recro
+                {{ i18n.currentLang() === 'ru' ? 'Регистрация в Recro' : 'Register for Recro' }}
               }
             </h3>
             <p class="modal-subtitle">
               @if (authModalTab() === 'login') {
-                Вход по имени пользователя или Email
+                {{ i18n.currentLang() === 'ru' ? 'Вход по имени пользователя или Email' : 'Sign in with username or Email' }}
               } @else {
-                Создание нового профиля в Recro
+                {{ i18n.currentLang() === 'ru' ? 'Создание нового профиля в Recro' : 'Create a new Recro profile' }}
               }
             </p>
           </div>
@@ -3062,7 +2918,7 @@
             [class.active]="authModalTab() === 'login'"
             (click)="authModalTab.set('login'); authService.authError.set(null)"
           >
-            Вход
+            {{ i18n.currentLang() === 'ru' ? 'Вход' : 'Sign In' }}
           </button>
           <button 
             type="button"
@@ -3070,7 +2926,7 @@
             [class.active]="authModalTab() === 'register'"
             (click)="authModalTab.set('register'); authService.authError.set(null)"
           >
-            Регистрация
+            {{ i18n.currentLang() === 'ru' ? 'Регистрация' : 'Register' }}
           </button>
         </div>
 
@@ -3084,7 +2940,7 @@
                 </svg>
               </div>
               <div class="reason-text-block">
-                <span class="reason-badge font-mono">РЕЖИМ ГОСТЯ</span>
+                <span class="reason-badge font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕЖИМ ГОСТЯ' : 'GUEST MODE' }}</span>
                 <p class="reason-message">{{ reason }}</p>
               </div>
             </div>
@@ -3100,7 +2956,7 @@
             @if (err.includes('уже существует')) {
               <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                 <button type="button" class="btn-text-sm" (click)="authModalTab.set('login'); authService.authError.set(null)">
-                  Перейти ко входу
+                  {{ i18n.currentLang() === 'ru' ? 'Перейти ко входу' : 'Go to Sign In' }}
                 </button>
               </div>
             }
@@ -3108,10 +2964,10 @@
 
           @if (authModalTab() === 'login') {
             <div class="input-field">
-              <label class="field-label">Логин или Email</label>
+              <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Логин или Email' : 'Username or Email' }}</label>
               <input 
                 type="text" 
-                placeholder="Имя пользователя или Email..." 
+                [placeholder]="i18n.currentLang() === 'ru' ? 'Имя пользователя или Email...' : 'Username or Email...'" 
                 [ngModel]="authUsernameInput()"
                 (ngModelChange)="authUsernameInput.set($event)"
                 (keyup.enter)="submitAuth()"
@@ -3125,11 +2981,11 @@
             </div>
 
             <div class="input-field">
-              <label class="field-label">Пароль</label>
+              <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Пароль' : 'Password' }}</label>
               <div class="password-input-wrap">
                 <input 
                   [type]="showPassword() ? 'text' : 'password'" 
-                  placeholder="Ваш пароль..." 
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'Ваш пароль...' : 'Your password...'" 
                   [ngModel]="authPasswordInput()"
                   (ngModelChange)="authPasswordInput.set($event)"
                   (keyup.enter)="submitAuth()"
@@ -3143,7 +2999,7 @@
                   type="button" 
                   class="btn-toggle-password" 
                   (click)="showPassword.update(v => !v)"
-                  title="Показать / скрыть пароль"
+                  [title]="i18n.currentLang() === 'ru' ? 'Показать / скрыть пароль' : 'Show / hide password'"
                 >
                   @if (showPassword()) {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -3161,10 +3017,10 @@
             </div>
           } @else {
             <div class="input-field">
-              <label class="field-label">Имя пользователя (Логин)</label>
+              <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Имя пользователя (Логин)' : 'Username (Login)' }}</label>
               <input 
                 type="text" 
-                placeholder="Никнейм (от 3 символов)..." 
+                [placeholder]="i18n.currentLang() === 'ru' ? 'Никнейм (от 3 символов)...' : 'Nickname (min 3 chars)...'" 
                 [ngModel]="authUsernameInput()"
                 (ngModelChange)="authUsernameInput.set($event)"
                 (keyup.enter)="submitAuth()"
@@ -3175,15 +3031,15 @@
                 class="form-text-input"
                 autofocus
               />
-              <span class="field-hint">Только латиница, цифры, дефис и подчеркивание</span>
+              <span class="field-hint">{{ i18n.currentLang() === 'ru' ? 'Только латиница, цифры, дефис и подчеркивание' : 'Latin letters, numbers, hyphens and underscores only' }}</span>
             </div>
 
             <div class="input-field">
-              <label class="field-label">Пароль</label>
+              <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Пароль' : 'Password' }}</label>
               <div class="password-input-wrap">
                 <input 
                   [type]="showPassword() ? 'text' : 'password'" 
-                  placeholder="Минимум 6 символов..." 
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'Минимум 6 символов...' : 'Min 6 characters...'" 
                   [ngModel]="authPasswordInput()"
                   (ngModelChange)="authPasswordInput.set($event)"
                   (keyup.enter)="submitAuth()"
@@ -3197,7 +3053,7 @@
                   type="button" 
                   class="btn-toggle-password" 
                   (click)="showPassword.update(v => !v)"
-                  title="Показать / скрыть пароль"
+                  [title]="i18n.currentLang() === 'ru' ? 'Показать / скрыть пароль' : 'Show / hide password'"
                 >
                   @if (showPassword()) {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -3212,13 +3068,13 @@
                   }
                 </button>
               </div>
-              <span class="field-hint">Пароль для безопасного входа в аккаунт</span>
+              <span class="field-hint">{{ i18n.currentLang() === 'ru' ? 'Пароль для безопасного входа в аккаунт' : 'Password for secure account access' }}</span>
             </div>
           }
         </div>
 
         <div class="modal-footer auth-modal-footer">
-          <button type="button" class="btn-cancel" (click)="closeAuthModal()">Отмена</button>
+          <button type="button" class="btn-cancel" (click)="closeAuthModal()">{{ i18n.t('common.cancel') }}</button>
           
           @if (authModalTab() === 'login') {
             <button 
@@ -3228,9 +3084,9 @@
               (click)="submitAuth()"
             >
               @if (authService.isAuthLoading()) {
-                <span>Вход...</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Вход...' : 'Signing in...' }}</span>
               } @else {
-                <span>Войти</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Войти' : 'Sign In' }}</span>
               }
             </button>
           } @else {
@@ -3241,9 +3097,9 @@
               (click)="submitAuth()"
             >
               @if (authService.isAuthLoading()) {
-                <span>Регистрация...</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Регистрация...' : 'Registering...' }}</span>
               } @else {
-                <span>Зарегистрироваться</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Зарегистрироваться' : 'Register' }}</span>
               }
             </button>
           }
@@ -3495,7 +3351,7 @@
 
         <div class="modal-body quick-start-body">
           <p class="quick-start-desc">
-            В вашей медиатеке пока нет треков. Выберите, с чего начать персональный поток, или укажите ваш любимый стиль:
+            {{ i18n.currentLang() === 'ru' ? 'В вашей медиатеке пока нет треков. Выберите, с чего начать персональный поток, или укажите ваш любимый стиль:' : 'Your library has no tracks yet. Choose how to start your personal flow, or pick your favorite style:' }}
           </p>
 
           <!-- 3 Primary Action Tiles -->
@@ -3509,8 +3365,8 @@
                 </svg>
               </div>
               <div class="qs-card-info">
-                <span class="qs-card-title">Загрузить треки</span>
-                <span class="qs-card-sub">MP3, FLAC, WAV с устройства</span>
+                <span class="qs-card-title">{{ i18n.currentLang() === 'ru' ? 'Загрузить треки' : 'Upload Tracks' }}</span>
+                <span class="qs-card-sub">{{ i18n.currentLang() === 'ru' ? 'MP3, FLAC, WAV с устройства' : 'MP3, FLAC, WAV from device' }}</span>
               </div>
             </button>
 
@@ -3522,8 +3378,8 @@
                 </svg>
               </div>
               <div class="qs-card-info">
-                <span class="qs-card-title">Импорт плейлиста</span>
-                <span class="qs-card-sub">YouTube или SoundCloud</span>
+                <span class="qs-card-title">{{ i18n.currentLang() === 'ru' ? 'Импорт плейлиста' : 'Import Playlist' }}</span>
+                <span class="qs-card-sub">{{ i18n.currentLang() === 'ru' ? 'YouTube или SoundCloud' : 'YouTube or SoundCloud' }}</span>
               </div>
             </button>
 
@@ -3535,14 +3391,14 @@
                 </svg>
               </div>
               <div class="qs-card-info">
-                <span class="qs-card-title">Поиск исполнителя</span>
-                <span class="qs-card-sub">Найти любимую песню</span>
+                <span class="qs-card-title">{{ i18n.currentLang() === 'ru' ? 'Поиск исполнителя' : 'Search Artist' }}</span>
+                <span class="qs-card-sub">{{ i18n.currentLang() === 'ru' ? 'Найти любимую песню' : 'Find your favorite song' }}</span>
               </div>
             </button>
           </div>
 
           <div class="qs-divider">
-            <span class="qs-divider-label font-mono">ИЛИ ВЫБЕРИТЕ СТАРТОВЫЙ ВАЙБ</span>
+            <span class="qs-divider-label font-mono">{{ i18n.currentLang() === 'ru' ? 'ИЛИ ВЫБЕРИТЕ СТАРТОВЫЙ ВАЙБ' : 'OR CHOOSE A STARTER VIBE' }}</span>
           </div>
 
           <!-- Genre Vibe Tiles (Clean SVG Icons, Strictly NO EMOJIS) -->
@@ -3552,8 +3408,8 @@
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
               </svg>
               <div class="qs-vibe-meta">
-                <span class="qs-vibe-name">Фонк &amp; Bass</span>
-                <span class="qs-vibe-desc">Дрифт, бас, тяжелый бит</span>
+                <span class="qs-vibe-name">{{ i18n.currentLang() === 'ru' ? 'Фонк & Bass' : 'Phonk & Bass' }}</span>
+                <span class="qs-vibe-desc">{{ i18n.currentLang() === 'ru' ? 'Дрифт, бас, тяжелый бит' : 'Drift, bass, heavy beats' }}</span>
               </div>
             </button>
 
@@ -3565,8 +3421,8 @@
                 <line x1="8" y1="23" x2="16" y2="23"/>
               </svg>
               <div class="qs-vibe-meta">
-                <span class="qs-vibe-name">Хип-хоп &amp; Рэп</span>
-                <span class="qs-vibe-desc">Качевый флоу и биты</span>
+                <span class="qs-vibe-name">{{ i18n.currentLang() === 'ru' ? 'Хип-хоп & Рэп' : 'Hip-Hop & Rap' }}</span>
+                <span class="qs-vibe-desc">{{ i18n.currentLang() === 'ru' ? 'Качевый флоу и биты' : 'Groovy flow and beats' }}</span>
               </div>
             </button>
 
@@ -3575,8 +3431,8 @@
                 <path d="m18 2-7 7-3-3L1 13l7 7 7-7-3-3 7-7Z"/>
               </svg>
               <div class="qs-vibe-meta">
-                <span class="qs-vibe-name">Рок &amp; Драйв</span>
-                <span class="qs-vibe-desc">Гитары, энергия, альтернатива</span>
+                <span class="qs-vibe-name">{{ i18n.currentLang() === 'ru' ? 'Рок & Драйв' : 'Rock & Drive' }}</span>
+                <span class="qs-vibe-desc">{{ i18n.currentLang() === 'ru' ? 'Гитары, энергия, альтернатива' : 'Guitars, energy, alternative' }}</span>
               </div>
             </button>
 
@@ -3588,8 +3444,8 @@
                 <line x1="10" y1="1" x2="10" y2="4"/>
               </svg>
               <div class="qs-vibe-meta">
-                <span class="qs-vibe-name">Lo-Fi &amp; Чилл</span>
-                <span class="qs-vibe-desc">Мягкие синты, кофе, релакс</span>
+                <span class="qs-vibe-name">{{ i18n.currentLang() === 'ru' ? 'Lo-Fi & Чилл' : 'Lo-Fi & Chill' }}</span>
+                <span class="qs-vibe-desc">{{ i18n.currentLang() === 'ru' ? 'Мягкие синты, кофе, релакс' : 'Warm synths, coffee, relax' }}</span>
               </div>
             </button>
 
@@ -3599,8 +3455,8 @@
                 <polygon points="10 8 16 12 10 16 10 8"/>
               </svg>
               <div class="qs-vibe-meta">
-                <span class="qs-vibe-name">Поп &amp; Танцы</span>
-                <span class="qs-vibe-desc">Мировые хиты и ритм</span>
+                <span class="qs-vibe-name">{{ i18n.currentLang() === 'ru' ? 'Поп & Танцы' : 'Pop & Dance' }}</span>
+                <span class="qs-vibe-desc">{{ i18n.currentLang() === 'ru' ? 'Мировые хиты и ритм' : 'Global hits and rhythm' }}</span>
               </div>
             </button>
 
@@ -3610,8 +3466,8 @@
                 <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
               </svg>
               <div class="qs-vibe-meta">
-                <span class="qs-vibe-name">Инди &amp; Вайб</span>
-                <span class="qs-vibe-desc">Атмосферное звучание</span>
+                <span class="qs-vibe-name">{{ i18n.currentLang() === 'ru' ? 'Инди & Вайб' : 'Indie & Vibe' }}</span>
+                <span class="qs-vibe-desc">{{ i18n.currentLang() === 'ru' ? 'Атмосферное звучание' : 'Atmospheric sound' }}</span>
               </div>
             </button>
           </div>
@@ -3619,7 +3475,7 @@
 
         <div class="modal-footer">
           <button class="btn-cancel" style="width: 100%; text-align: center;" (click)="isQuickStartMixModalOpen.set(false)">
-            Отмена
+            {{ i18n.t('common.cancel') }}
           </button>
         </div>
       </div>
@@ -3655,7 +3511,7 @@
           <!-- Section 1: Mood & Tempo -->
           <div class="mix-group">
             <div class="mix-group-header">
-              <span class="mix-group-title">Настроение и темп</span>
+              <span class="mix-group-title">{{ i18n.currentLang() === 'ru' ? 'Настроение и темп' : 'Mood & Tempo' }}</span>
             </div>
             <div class="mix-grid-cards mix-grid-mood">
               <!-- All Styles -->
@@ -3672,13 +3528,13 @@
                         <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 1 0 0-8c-2 0-4 1.33-6 4Z"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Все стили</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Все стили' : 'All Styles' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().mood === 'all'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Сбалансированный поток любого темпа</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Сбалансированный поток любого темпа' : 'Balanced flow of any tempo' }}</span>
               </button>
 
               <!-- Energetic -->
@@ -3695,13 +3551,13 @@
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Бодрое</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Бодрое' : 'Energetic' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().mood === 'energetic'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Драйв, высокий темп, фонк, рок, EDM</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Драйв, высокий темп, фонк, рок, EDM' : 'Drive, high tempo, phonk, rock, EDM' }}</span>
               </button>
 
               <!-- Chill -->
@@ -3721,13 +3577,13 @@
                         <line x1="10" y1="1" x2="10" y2="4"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Спокойное</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Спокойное' : 'Chill' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().mood === 'chill'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Чиллаут, лоуфай, эмбиент, расслабление</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Чиллаут, лоуфай, эмбиент, расслабление' : 'Chillout, lo-fi, ambient, relaxation' }}</span>
               </button>
 
               <!-- Favorites -->
@@ -3744,13 +3600,13 @@
                         <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Только любимое</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Только любимое' : 'Only Favorites' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().mood === 'favorites'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Избранное и часто прослушиваемые треки</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Избранное и часто прослушиваемые треки' : 'Favorites and most listened tracks' }}</span>
               </button>
             </div>
           </div>
@@ -3758,7 +3614,7 @@
           <!-- Section 2: Source Balance -->
           <div class="mix-group">
             <div class="mix-group-header">
-              <span class="mix-group-title">Источник музыки</span>
+              <span class="mix-group-title">{{ i18n.currentLang() === 'ru' ? 'Источник музыки' : 'Music Source' }}</span>
             </div>
             <div class="mix-grid-cards mix-grid-source">
               <!-- Discovery (Default, no library tracks) -->
@@ -3776,13 +3632,13 @@
                         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Поток открытий</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Поток открытий' : 'Discovery Flow' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source !== 'library_only'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Только новые похожие треки по вкусу, без песен из вашей медиатеки</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Только новые похожие треки по вкусу, без песен из вашей медиатеки' : 'Fresh matching tracks only, excluding your library tracks' }}</span>
               </button>
 
               <!-- Library Only -->
@@ -3800,13 +3656,13 @@
                         <path d="M6 6h10"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Моя медиатека</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Моя медиатека' : 'My Library Only' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().source === 'library_only'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Исключительно треки из вашего каталога и плейлистов</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Исключительно треки из вашего каталога и плейлистов' : 'Only tracks from your catalog and playlists' }}</span>
               </button>
             </div>
           </div>
@@ -3814,7 +3670,7 @@
           <!-- Section 3: Language Preference -->
           <div class="mix-group">
             <div class="mix-group-header">
-              <span class="mix-group-title">Язык и направление</span>
+              <span class="mix-group-title">{{ i18n.currentLang() === 'ru' ? 'Язык и направление' : 'Language & Origin' }}</span>
             </div>
             <div class="mix-grid-cards mix-grid-lang">
               <!-- Any Language -->
@@ -3833,13 +3689,13 @@
                         <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"/>
                       </svg>
                     </div>
-                    <span class="mix-card-name">Любой язык</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Любой язык' : 'Any Language' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().language === 'all'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Без ограничений</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Без ограничений' : 'No restrictions' }}</span>
               </button>
 
               <!-- Russian -->
@@ -3854,13 +3710,13 @@
                     <div class="mix-card-icon-box">
                       <span class="mix-icon-text font-mono">RU</span>
                     </div>
-                    <span class="mix-card-name">Русская музыка</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Русская музыка' : 'Russian Music' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().language === 'ru'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Преимущественно на русском</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Преимущественно на русском' : 'Predominantly in Russian' }}</span>
               </button>
 
               <!-- Foreign -->
@@ -3875,13 +3731,13 @@
                     <div class="mix-card-icon-box">
                       <span class="mix-icon-text font-mono">EN</span>
                     </div>
-                    <span class="mix-card-name">Зарубежная</span>
+                    <span class="mix-card-name">{{ i18n.currentLang() === 'ru' ? 'Зарубежная' : 'International' }}</span>
                   </div>
                   <div class="mix-radio-circle" [class.checked]="recService.mixConfig().language === 'en'">
                     <div class="mix-radio-dot"></div>
                   </div>
                 </div>
-                <span class="mix-card-description">Иностранные и англоязычные</span>
+                <span class="mix-card-description">{{ i18n.currentLang() === 'ru' ? 'Иностранные и англоязычные' : 'International and English-language' }}</span>
               </button>
             </div>
           </div>
@@ -3890,10 +3746,10 @@
         <!-- Footer -->
         <div class="modal-footer mix-settings-footer">
           <button type="button" class="btn-cancel" (click)="resetMixConfig()">
-            Сбросить
+            {{ i18n.currentLang() === 'ru' ? 'Сбросить' : 'Reset' }}
           </button>
           <button type="button" class="btn-primary" (click)="closeMixSettings()">
-            Готово
+            {{ i18n.currentLang() === 'ru' ? 'Готово' : 'Done' }}
           </button>
         </div>
       </div>

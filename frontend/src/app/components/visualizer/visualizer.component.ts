@@ -18,6 +18,7 @@ import { AudioService } from '../../services/audio.service';
 import { LibraryService } from '../../services/library.service';
 import { LyricsService } from '../../services/lyrics.service';
 import { Track } from '../../models/track.model';
+import { I18nService } from '../../services/i18n.service';
 
 export type VisualizerType = 'bars' | 'wave' | 'circle' | 'lyrics';
 export type VisualizerTheme = 'mono' | 'blue' | 'album' | 'green';
@@ -34,6 +35,7 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly audioService = inject(AudioService);
   readonly libraryService = inject(LibraryService);
   readonly lyricsService = inject(LyricsService);
+  readonly i18n = inject(I18nService);
 
   readonly mode = input<'mini' | 'full'>('full');
 
