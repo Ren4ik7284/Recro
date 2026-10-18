@@ -310,14 +310,21 @@ export class LibraryService implements OnDestroy {
 
   constructor() {
     this.initLibrary();
-    this.checkBackendHealth().then(() => {
-      this.syncWithBackendOnStartup();
-      this.startAutoSync();
-    });
-
     if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        this.checkBackendHealth().then(() => {
+          this.syncWithBackendOnStartup();
+          this.startAutoSync();
+        });
+      }, 50);
+
       window.addEventListener('online', () => {
         this.checkBackendHealth();
+      });
+    } else {
+      this.checkBackendHealth().then(() => {
+        this.syncWithBackendOnStartup();
+        this.startAutoSync();
       });
     }
 
@@ -574,68 +581,82 @@ export class LibraryService implements OnDestroy {
     return `${activeBase}/api/cover?title=${encodeURIComponent(title || 'Track')}&artist=${encodeURIComponent(artist || 'Artist')}`;
   }
 
-  async checkBackendHealth(): Promise<string> {
-    const urlsToTest: string[] = [];
+  private activeHealthCheckPromise: Promise<string> | null = null;
 
-    if (typeof window !== 'undefined') {
-      const host = window.location.hostname || '';
-      if (host === 'localhost' || host === '127.0.0.1') {
-        urlsToTest.push(`http://${host}:8085`);
-      }
-      if (host.includes('80.87.202.157') || host.includes('177.3.217.64')) {
-        urlsToTest.push(window.location.origin);
-      }
-      urlsToTest.push(...CLUSTER_BACKENDS);
-      if (window.location.origin) {
-        urlsToTest.push(window.location.origin);
-      }
-    } else {
-      urlsToTest.push('http://127.0.0.1:8085');
+  checkBackendHealth(): Promise<string> {
+    if (this.activeHealthCheckPromise) {
+      return this.activeHealthCheckPromise;
     }
 
-    const uniqueUrls = Array.from(new Set(urlsToTest));
+    this.activeHealthCheckPromise = (async () => {
+      try {
+        const urlsToTest: string[] = [];
 
-    try {
-      const winner = await new Promise<string>((resolve, reject) => {
-        let finished = false;
-        let failCount = 0;
-        const total = uniqueUrls.length;
-
-        for (const testUrl of uniqueUrls) {
-          fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(2000) })
-            .then((res) => {
-              if (res.ok && !finished) {
-                finished = true;
-                resolve(testUrl);
-              } else {
-                failCount++;
-                if (failCount >= total && !finished) {
-                  reject(new Error('All nodes unreachable'));
-                }
-              }
-            })
-            .catch(() => {
-              failCount++;
-              if (failCount >= total && !finished) {
-                reject(new Error('All nodes unreachable'));
-              }
-            });
+        if (typeof window !== 'undefined') {
+          const host = window.location.hostname || '';
+          if (host === 'localhost' || host === '127.0.0.1') {
+            urlsToTest.push(`http://${host}:8085`);
+          }
+          if (host.includes('80.87.202.157') || host.includes('177.3.217.64')) {
+            urlsToTest.push(window.location.origin);
+          }
+          urlsToTest.push(...CLUSTER_BACKENDS);
+          if (window.location.origin) {
+            urlsToTest.push(window.location.origin);
+          }
+        } else {
+          urlsToTest.push('http://127.0.0.1:8085');
         }
-      });
 
-      this.activeBackendUrl = winner;
-      this.isBackendOnline.set(true);
-      this.authService.setActiveBackendUrl(this.activeBackendUrl);
-      this.authService.verifyRemoteSession(this.activeBackendUrl);
-      return winner;
-    } catch {
-      const fallback = this.defaultBackendUrl;
-      this.activeBackendUrl = fallback;
-      this.isBackendOnline.set(true);
-      this.authService.setActiveBackendUrl(this.activeBackendUrl);
-      this.authService.verifyRemoteSession(this.activeBackendUrl);
-      return fallback;
-    }
+        const uniqueUrls = Array.from(new Set(urlsToTest));
+
+        try {
+          const winner = await new Promise<string>((resolve, reject) => {
+            let finished = false;
+            let failCount = 0;
+            const total = uniqueUrls.length;
+
+            for (const testUrl of uniqueUrls) {
+              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(1500) })
+                .then((res) => {
+                  if (res.ok && !finished) {
+                    finished = true;
+                    resolve(testUrl);
+                  } else {
+                    failCount++;
+                    if (failCount >= total && !finished) {
+                      reject(new Error('All nodes unreachable'));
+                    }
+                  }
+                })
+                .catch(() => {
+                  failCount++;
+                  if (failCount >= total && !finished) {
+                    reject(new Error('All nodes unreachable'));
+                  }
+                });
+            }
+          });
+
+          this.activeBackendUrl = winner;
+          this.isBackendOnline.set(true);
+          this.authService.setActiveBackendUrl(this.activeBackendUrl);
+          this.authService.verifyRemoteSession(this.activeBackendUrl);
+          return winner;
+        } catch {
+          const fallback = this.defaultBackendUrl;
+          this.activeBackendUrl = fallback;
+          this.isBackendOnline.set(true);
+          this.authService.setActiveBackendUrl(this.activeBackendUrl);
+          this.authService.verifyRemoteSession(this.activeBackendUrl);
+          return fallback;
+        }
+      } finally {
+        this.activeHealthCheckPromise = null;
+      }
+    })();
+
+    return this.activeHealthCheckPromise;
   }
 
   async failoverBackend(): Promise<string> {

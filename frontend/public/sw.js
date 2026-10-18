@@ -1,4 +1,4 @@
-const CACHE_NAME = 'recro-pwa-v46';
+const CACHE_NAME = 'recro-pwa-v47';
 const OFFLINE_AUDIO_CACHE = 'recro-offline-tracks-v1';
 
 const ASSETS_TO_CACHE = [
@@ -73,24 +73,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. For Navigation / HTML: ALWAYS NETWORK-FIRST so updates appear instantly!
+  // 3. For Navigation / HTML: Stale-While-Revalidate (instant render from cache, silent background update)
   if (
     event.request.mode === 'navigate' ||
     url.pathname === '/' ||
     url.pathname === '/index.html'
   ) {
     event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          return caches.match('/index.html').then((cached) => cached || caches.match('/'));
-        })
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = (await cache.match('/index.html')) || (await cache.match('/'));
+
+        const networkFetch = fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const clone = networkResponse.clone();
+              cache.put(event.request, clone);
+              cache.put('/index.html', networkResponse.clone());
+            }
+            return networkResponse;
+          })
+          .catch(() => cached);
+
+        if (cached) {
+          // Deliver cached HTML immediately for instant <50ms F5 / reload
+          event.waitUntil(networkFetch);
+          return cached;
+        }
+
+        // First load fallback if cache not yet populated
+        return networkFetch;
+      })
     );
     return;
   }

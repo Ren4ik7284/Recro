@@ -250,13 +250,13 @@ export class App implements OnInit {
       if (cachedHome.charts && cachedHome.charts.length > 0) {
         this.charts.set(cachedHome.charts);
       }
+      // Silently revalidate home data in background without showing loading screen
+      this.refreshHomeDataSilently();
+    } else {
+      this.loadHomeData();
     }
 
-    this.libraryService.checkBackendHealth().then(() => {
-      this.libraryService.syncWithBackendOnStartup();
-    });
     this.authService.fetchAuthConfig(this.libraryService.getBackendUrl());
-    this.loadHomeData();
 
     // Background auto-refresh of charts and popular music catalog every 20 minutes
     setInterval(() => {
