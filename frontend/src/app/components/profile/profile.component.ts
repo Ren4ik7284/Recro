@@ -817,11 +817,20 @@ export class ProfileComponent {
   scrollReleasesCarousel(direction: 'left' | 'right') {
     if (!this.releasesCarouselRef?.nativeElement) return;
     const el = this.releasesCarouselRef.nativeElement;
-    const step = 220;
+    const step = 280;
     el.scrollBy({
       left: direction === 'left' ? -step : step,
       behavior: 'smooth',
     });
+  }
+
+  onReleasesWheel(event: WheelEvent) {
+    if (!this.releasesCarouselRef?.nativeElement) return;
+    const el = this.releasesCarouselRef.nativeElement;
+    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+      el.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }
   }
 
   async fetchNewReleases() {
@@ -836,6 +845,16 @@ export class ProfileComponent {
         const score = (t.plays || 1) + (t.isFavorite ? 5 : 0);
         artistScores.set(art, (artistScores.get(art) || 0) + score);
       }
+
+      // Also include playback history to prioritize artists the user actively listens to
+      try {
+        const history = await this.libraryService.getHistory();
+        for (const h of history) {
+          if (!h.track_artist || this.libraryService.isArtistDisliked(h.track_artist)) continue;
+          const art = h.track_artist.trim();
+          artistScores.set(art, (artistScores.get(art) || 0) + 3);
+        }
+      } catch {}
 
       const sortedArtists = Array.from(artistScores.entries())
         .sort((a, b) => b[1] - a[1])
@@ -856,11 +875,7 @@ export class ProfileComponent {
   }
 
   onReleaseClick(item: ReleaseItem) {
-    if (item.is_playlist) {
-      this.searchArtist.emit(item.title);
-    } else {
-      this.searchArtist.emit(`${item.artist} ${item.title}`);
-    }
+    this.searchArtist.emit(`${item.artist} ${item.title}`);
   }
 
   onArtistClick(artistName: string) {

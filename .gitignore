@@ -29,3 +29,6 @@ recro-tui/target/
 *.pdf
 signal-audio-backend
 dist_frontend/vercel-deploy/
+charts_cache/
+spotify_top_artists.json
+backend/spotify_top_artists.json

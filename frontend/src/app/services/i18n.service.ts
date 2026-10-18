@@ -5,8 +5,13 @@ export type SupportedLanguage = 'ru' | 'en';
 export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
   ru: {
     // Navigation / Sidebar
-    'nav.sources': 'ИСТОЧНИКИ',
+    'nav.sources': 'ГЛАВНОЕ',
+    'nav.home': 'Главная',
+    'nav.search': 'Поиск',
+    'nav.myLibrary': 'МОЯ МЕДИАТЕКА',
+    'nav.myMusic': 'Моя музыка',
     'nav.allMusic': 'Вся музыка',
+    'nav.charts': 'Чарты',
     'nav.onlineSearch': 'Поиск онлайн',
     'nav.offline': 'Оффлайн',
     'nav.streamsRadio': 'Онлайн-потоки & Радио',
@@ -22,6 +27,22 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'nav.createPlaylist': 'Создать плейлист',
     'nav.themes': 'Темы оформления',
     'nav.wave': 'Моя Волна',
+
+    // Home / Explore
+    'home.popularTracks': 'Популярные песни',
+    'home.popularArtists': 'Популярные артисты',
+    'home.popularAlbums': 'Популярные альбомы и синглы',
+    'home.charts': 'Чарты и тренды',
+    'home.waveTitle': 'Моя Волна',
+    'home.waveSubtitle': 'Персональный бесконечный поток музыки под ваш вкус',
+    'home.waveStart': 'Включить Мою Волну',
+    'home.waveActive': 'Волна играет',
+    'home.artist': 'Исполнитель',
+    'home.album': 'Альбом',
+    'home.single': 'Сингл',
+    'home.monthlyListeners': 'слушателей за месяц',
+    'home.showAll': 'Смотреть все',
+    'home.playAll': 'Слушать всё',
 
     // Header
     'header.searchPlaceholder': 'Поиск по медиатеке (Enter: глобальный поиск онлайн)...',
@@ -256,6 +277,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Catalog & Views
     'catalog.all': 'Каталог музыки',
+    'catalog.charts': 'Чарты',
     'catalog.search': 'Поиск музыки',
     'catalog.offline': 'Оффлайн музыка',
     'catalog.streams': 'Онлайн-радио',
@@ -266,6 +288,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'catalog.refresh': 'Обновить',
     'catalog.clearAll': 'Очистить всё',
     'catalog.deletePlaylist': 'Удалить плейлист',
+    'charts.title': 'Чарты и тренды',
+    'charts.subtitle': 'Главные треки и мировые чарты с ежедневным обновлением',
+    'charts.playAll': 'Воспроизвести всё',
+    'charts.back': 'Ко всем чартам',
+    'charts.daily': 'Ежедневное обновление',
+    'charts.loading': 'Загрузка чарта...',
+    'charts.empty': 'Треки чарта временно недоступны',
 
     // Badges
     'badge.endurance.name': 'Марафонец',
@@ -332,8 +361,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
   },
   en: {
     // Navigation / Sidebar
-    'nav.sources': 'SOURCES',
+    'nav.sources': 'MAIN',
+    'nav.home': 'Home',
+    'nav.search': 'Search',
+    'nav.myLibrary': 'YOUR LIBRARY',
+    'nav.myMusic': 'My Music',
     'nav.allMusic': 'All Music',
+    'nav.charts': 'Charts',
     'nav.onlineSearch': 'Online Search',
     'nav.offline': 'Offline',
     'nav.streamsRadio': 'Live Streams & Radio',
@@ -349,6 +383,22 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'nav.createPlaylist': 'Create Playlist',
     'nav.themes': 'Themes',
     'nav.wave': 'My Wave',
+
+    // Home / Explore
+    'home.popularTracks': 'Popular Tracks',
+    'home.popularArtists': 'Popular Artists',
+    'home.popularAlbums': 'Popular Albums & Singles',
+    'home.charts': 'Charts & Trends',
+    'home.waveTitle': 'Smart Wave',
+    'home.waveSubtitle': 'Personalized endless music stream tailored to your taste',
+    'home.waveStart': 'Start Smart Wave',
+    'home.waveActive': 'Smart Wave is playing',
+    'home.artist': 'Artist',
+    'home.album': 'Album',
+    'home.single': 'Single',
+    'home.monthlyListeners': 'monthly listeners',
+    'home.showAll': 'Show all',
+    'home.playAll': 'Play all',
 
     // Header
     'header.searchPlaceholder': 'Search library (Enter: global online search)...',
@@ -583,6 +633,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
 
     // Catalog & Views
     'catalog.all': 'Music Library',
+    'catalog.charts': 'Charts',
     'catalog.search': 'Music Search',
     'catalog.offline': 'Offline Music',
     'catalog.streams': 'Online Radio',
@@ -593,6 +644,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     'catalog.refresh': 'Refresh',
     'catalog.clearAll': 'Clear All',
     'catalog.deletePlaylist': 'Delete Playlist',
+    'charts.title': 'Charts & Trends',
+    'charts.subtitle': 'Global and regional top charts updated daily',
+    'charts.playAll': 'Play All',
+    'charts.back': 'Back to Charts',
+    'charts.daily': 'Updated daily',
+    'charts.loading': 'Loading chart...',
+    'charts.empty': 'Chart tracks are currently unavailable',
 
     // Badges
     'badge.endurance.name': 'Marathoner',

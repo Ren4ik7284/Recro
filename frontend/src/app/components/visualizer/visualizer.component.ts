@@ -60,7 +60,7 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private smoothedPulse = 0;
   private roadOffset = 0;
-  private lastTrackCover: string | null = null;
+  private lastTrackId: string | null = null;
 
   private readonly bufferLength = 128;
   private readonly freqData = new Uint8Array(this.bufferLength);
@@ -75,6 +75,9 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     effect(() => {
       const isPlaying = this.audioService.isPlaying();
       const curTrack = this.audioService.currentTrack();
+      if (curTrack && curTrack.id !== this.lastTrackId) {
+        this.updateTrackColor(curTrack);
+      }
       if (isPlaying || curTrack) {
         this.startRenderLoop();
       }
@@ -86,8 +89,8 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.capHoldFrames = new Array(this.bufferLength).fill(0);
 
     const cur = this.audioService.currentTrack();
-    if (cur?.coverUrl) {
-      this.extractAlbumColor(cur.coverUrl);
+    if (cur) {
+      this.updateTrackColor(cur);
     }
   }
 
@@ -132,12 +135,36 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.colorTheme.set(theme);
   }
 
-  private extractAlbumColor(coverUrl: string) {
-    if (!coverUrl || typeof window === 'undefined') return;
-    this.lastTrackCover = coverUrl;
+  private generatePaletteFromText(title?: string, artist?: string): { primary: string; secondary: string; glow: string; peak: string } {
+    const str = `${title || 'Track'} ${artist || 'Artist'}`.trim();
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    const hue = Math.abs(hash) % 360;
+    return {
+      primary: `hsl(${hue}, 85%, 62%)`,
+      secondary: `hsla(${hue}, 80%, 45%, 0.3)`,
+      glow: `hsla(${hue}, 90%, 65%, 0.6)`,
+      peak: `hsl(${(hue + 25) % 360}, 95%, 82%)`,
+    };
+  }
+
+  private updateTrackColor(track: Track | null) {
+    if (!track || typeof window === 'undefined') return;
+    this.lastTrackId = track.id;
+
+    if (!track.coverUrl) {
+      this.albumColor.set(this.generatePaletteFromText(track.title, track.artist));
+      return;
+    }
 
     const img = new Image();
     img.crossOrigin = 'Anonymous';
+    img.onerror = () => {
+      this.albumColor.set(this.generatePaletteFromText(track.title, track.artist));
+    };
     img.onload = () => {
       try {
         const cvs = document.createElement('canvas');
@@ -177,20 +204,25 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
           }
         }
 
-        const fR = maxSat > 0.2 ? bestR : (count > 0 ? Math.round(avgR / count) : 255);
-        const fG = maxSat > 0.2 ? bestG : (count > 0 ? Math.round(avgG / count) : 255);
-        const fB = maxSat > 0.2 ? bestB : (count > 0 ? Math.round(avgB / count) : 255);
+        if (maxSat > 0.18 || count > 0) {
+          const fR = maxSat > 0.18 ? bestR : Math.round(avgR / count);
+          const fG = maxSat > 0.18 ? bestG : Math.round(avgG / count);
+          const fB = maxSat > 0.18 ? bestB : Math.round(avgB / count);
 
-        this.albumColor.set({
-          primary: `rgb(${fR}, ${fG}, ${fB})`,
-          secondary: `rgba(${fR}, ${fG}, ${fB}, 0.25)`,
-          glow: `rgba(${fR}, ${fG}, ${fB}, 0.6)`,
-          peak: `rgb(${Math.min(255, fR + 60)}, ${Math.min(255, fG + 60)}, ${Math.min(255, fB + 60)})`,
-        });
-      } catch {}
+          this.albumColor.set({
+            primary: `rgb(${fR}, ${fG}, ${fB})`,
+            secondary: `rgba(${fR}, ${fG}, ${fB}, 0.25)`,
+            glow: `rgba(${fR}, ${fG}, ${fB}, 0.6)`,
+            peak: `rgb(${Math.min(255, fR + 60)}, ${Math.min(255, fG + 60)}, ${Math.min(255, fB + 60)})`,
+          });
+        } else {
+          this.albumColor.set(this.generatePaletteFromText(track.title, track.artist));
+        }
+      } catch {
+        this.albumColor.set(this.generatePaletteFromText(track.title, track.artist));
+      }
     };
-    const cur = this.audioService.currentTrack();
-    img.src = this.libraryService.formatCoverUrl(coverUrl, cur?.title, cur?.artist) || coverUrl;
+    img.src = this.libraryService.formatCoverUrl(track.coverUrl, track.title, track.artist) || track.coverUrl;
   }
 
   onCoverError(event: Event, track?: Track | null) {
@@ -287,13 +319,23 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
       };
     }
 
-    if (theme === 'green' || theme === 'blue') {
+    if (theme === 'green') {
       return {
-        primary: '#2563eb',
+        primary: '#10b981',
+        secondary: '#047857',
+        glow: 'rgba(16, 185, 129, 0.55)',
+        gradient: '#059669',
+        peak: '#6ee7b7',
+      };
+    }
+
+    if (theme === 'blue') {
+      return {
+        primary: '#3b82f6',
         secondary: '#1d4ed8',
-        glow: 'rgba(59, 130, 246, 0.5)',
-        gradient: '#3b82f6',
-        peak: '#fafafa',
+        glow: 'rgba(59, 130, 246, 0.55)',
+        gradient: '#2563eb',
+        peak: '#93c5fd',
       };
     }
 
@@ -312,8 +354,8 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Автоматическое обновление цвета альбома при смене трека
     const curTrack = this.audioService.currentTrack();
-    if (curTrack && curTrack.coverUrl && curTrack.coverUrl !== this.lastTrackCover) {
-      this.extractAlbumColor(curTrack.coverUrl);
+    if (curTrack && curTrack.id !== this.lastTrackId) {
+      this.updateTrackColor(curTrack);
     }
 
     const ctx = canvas.getContext('2d');

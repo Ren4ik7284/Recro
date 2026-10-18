@@ -8,12 +8,14 @@ import {
   HostListener,
   ViewEncapsulation,
   ChangeDetectorRef,
+  ElementRef,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AudioService } from './services/audio.service';
 import { LibraryService, ExtractedResult } from './services/library.service';
-import { Track, Playlist, RadioStation, MixMood, MixSource, MixLanguage, MixConfig, DEFAULT_MIX_CONFIG } from './models/track.model';
+import { Track, Playlist, RadioStation, MixMood, MixSource, MixLanguage, MixConfig, DEFAULT_MIX_CONFIG, ChartSummary, ChartDetail, ReleaseItem, ChartArtist, HomeExploreData } from './models/track.model';
 import { HeaderComponent } from './components/header/header.component';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { PlayerBarComponent } from './components/player-bar/player-bar.component';
@@ -93,6 +95,20 @@ export class App implements OnInit {
         document.title = 'Recro - Аудиоплеер';
       }
     });
+
+    // Horizontal wheel scrolling without jitter
+    effect(() => {
+      const el = this.popularTracksRef()?.nativeElement;
+      if (el) {
+        const onWheel = (e: WheelEvent) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.preventDefault();
+            el.scrollLeft += e.deltaY;
+          }
+        };
+        el.addEventListener('wheel', onWheel, { passive: false });
+      }
+    });
   }
 
   readonly draggedQueueIndex = signal<number | null>(null);
@@ -126,7 +142,13 @@ export class App implements OnInit {
   readonly addModalTab = signal<'youtube' | 'search' | 'radio' | 'url' | 'file'>('youtube');
   readonly isPlaylistModalOpen = signal<boolean>(false);
   readonly isQueueDrawerOpen = signal<boolean>(false);
-  readonly activeTab = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search'>('all');
+  readonly activeTab = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' | 'charts' | 'library'>('all');
+  readonly homeData = signal<HomeExploreData | null>(null);
+  readonly isLoadingHome = signal<boolean>(false);
+  readonly charts = signal<ChartSummary[]>([]);
+  readonly isLoadingCharts = signal<boolean>(false);
+  readonly selectedChart = signal<ChartDetail | null>(null);
+  readonly isLoadingChartDetail = signal<boolean>(false);
   readonly toastMessage = signal<string | null>(null);
 
   readonly isMobilePlayerExpanded = signal<boolean>(false);
@@ -226,6 +248,12 @@ export class App implements OnInit {
       this.libraryService.syncWithBackendOnStartup();
     });
     this.authService.fetchAuthConfig(this.libraryService.getBackendUrl());
+    this.loadHomeData();
+
+    // Background auto-refresh of charts and popular music catalog every 20 minutes
+    setInterval(() => {
+      this.refreshHomeDataSilently();
+    }, 20 * 60 * 1000);
 
     this.navService.init((state) => {
       this.setView(state.tab, state.playlistId || undefined, false);
@@ -308,6 +336,11 @@ export class App implements OnInit {
         this.timerService.isFinishModalOpen.set(true);
       } else {
         this.timerService.isFinishModalOpen.set(false);
+      }
+
+      // Chart overlay
+      if (o !== 'chart' && this.selectedChart()) {
+        this.selectedChart.set(null);
       }
 
       this.cdr.markForCheck();
@@ -590,6 +623,8 @@ export class App implements OnInit {
         this.timerService.closeFinishModal();
       } else if (this.isMobilePlayerExpanded()) {
         this.collapseMobilePlayer();
+      } else if (this.selectedChart()) {
+        this.backToChartsList();
       }
     }
   }
@@ -844,7 +879,11 @@ export class App implements OnInit {
     return date.toLocaleDateString(isRu ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
-  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search', playlistId?: string, pushHistory = true) {
+  setView(view: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' | 'charts' | 'library', playlistId?: string, pushHistory = true) {
+    this.selectedChart.set(null);
+    if (this.navService.currentOverlay() === 'chart') {
+      this.navService.closeOverlay('chart');
+    }
     this.activeTab.set(view);
     this.libraryService.selectedView.set(view);
     if (playlistId) {
@@ -857,10 +896,170 @@ export class App implements OnInit {
       this.isProfileModalOpen.set(false);
     }
 
+    if (view === 'all') {
+      if (!this.homeData()) {
+        this.loadHomeData();
+      }
+    }
+
+    if (view === 'charts') {
+      if (this.charts().length === 0) {
+        this.loadCharts();
+      }
+    }
+
     if (pushHistory) {
       this.navService.setTab(view, playlistId, true);
     }
     this.cdr.markForCheck();
+  }
+
+  async loadHomeData() {
+    this.isLoadingHome.set(true);
+    try {
+      const data = await this.libraryService.getHomeExplore();
+      if (data) {
+        this.homeData.set(data);
+        if (data.charts && data.charts.length > 0) {
+          this.charts.set(data.charts);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading home data:', e);
+    } finally {
+      this.isLoadingHome.set(false);
+      this.cdr.markForCheck();
+    }
+  }
+
+  private lastHomeFetchTime = Date.now();
+
+  async refreshHomeDataSilently() {
+    try {
+      const data = await this.libraryService.getHomeExplore();
+      if (data) {
+        this.homeData.set(data);
+        if (data.charts && data.charts.length > 0) {
+          this.charts.set(data.charts);
+        }
+        this.lastHomeFetchTime = Date.now();
+        this.cdr.markForCheck();
+      }
+    } catch {
+      // silent background refresh failure is non-fatal
+    }
+  }
+
+  @HostListener('document:visibilitychange')
+  onDocumentVisibilityChange() {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      const now = Date.now();
+      if (now - this.lastHomeFetchTime > 15 * 60 * 1000) {
+        this.refreshHomeDataSilently();
+      }
+    }
+  }
+
+  readonly popularTracksRef = viewChild<ElementRef<HTMLDivElement>>('popularTracksTrack');
+
+  scrollPopularTracks(direction: 'left' | 'right') {
+    const el = this.popularTracksRef()?.nativeElement;
+    if (!el) return;
+    const step = Math.max(320, el.clientWidth * 0.7);
+    el.scrollBy({
+      left: direction === 'left' ? -step : step,
+      behavior: 'smooth',
+    });
+  }
+
+  onPopularTracksWheel(event: WheelEvent) {
+    const el = this.popularTracksRef()?.nativeElement;
+    if (!el) return;
+    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+      el.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }
+  }
+
+  playPopularTrack(track: Track, index: number) {
+    const tracks = this.homeData()?.popular_tracks || [];
+    this.audioService.playTrack(track, tracks, false, index);
+    this.showToast(`Воспроизведение: ${track.title}`);
+  }
+
+  playAllPopularTracks() {
+    const tracks = this.homeData()?.popular_tracks || [];
+    if (tracks.length === 0) return;
+    this.audioService.playTrack(tracks[0], tracks, false, 0);
+    this.showToast('Воспроизведение: Популярные песни');
+  }
+
+  toggleHomeTrackLibrary(track: Track) {
+    const wasInLib = this.libraryService.isTrackInLibrary(track.id);
+    this.libraryService.toggleTrackInLibrary(track);
+    if (wasInLib) {
+      this.showToast(`Трек "${track.title}" удален из медиатеки`);
+    } else {
+      this.showToast(`Трек "${track.title}" добавлен в медиатеку`);
+    }
+  }
+
+  selectArtist(artist: ChartArtist) {
+    this.openOnlineSearchWithQuery(artist.name);
+  }
+
+  selectAlbum(album: ReleaseItem) {
+    this.openOnlineSearchWithQuery(`${album.title} ${album.artist}`);
+  }
+
+  async loadCharts() {
+    this.isLoadingCharts.set(true);
+    try {
+      const res = await this.libraryService.getCharts();
+      this.charts.set(res);
+    } finally {
+      this.isLoadingCharts.set(false);
+      this.cdr.markForCheck();
+    }
+  }
+
+  async openChart(chartId: string, pushHistory = true) {
+    this.isLoadingChartDetail.set(true);
+    this.selectedChart.set(null);
+    if (pushHistory) {
+      this.navService.pushOverlay('chart');
+    }
+    try {
+      const detail = await this.libraryService.getChartDetail(chartId);
+      this.selectedChart.set(detail);
+    } finally {
+      this.isLoadingChartDetail.set(false);
+      this.cdr.markForCheck();
+    }
+  }
+
+  backToChartsList() {
+    this.selectedChart.set(null);
+    if (this.navService.currentOverlay() === 'chart') {
+      this.navService.closeOverlay('chart');
+    }
+    this.cdr.markForCheck();
+  }
+
+  playAllFromChart(chart: ChartDetail) {
+    if (!chart.tracks || chart.tracks.length === 0) return;
+    this.audioService.playTrack(chart.tracks[0], chart.tracks, false, 0);
+    this.showToast(`Воспроизведение: ${chart.title}`);
+  }
+
+  playChartTrack(track: Track, chart: ChartDetail, index: number) {
+    this.audioService.playTrack(track, chart.tracks, false, index);
+    this.showToast(`Воспроизведение: ${track.title}`);
+  }
+
+  isChartTrackPlaying(track: Track): boolean {
+    const cur = this.audioService.currentTrack();
+    return !!cur && cur.id === track.id && this.audioService.isPlaying();
   }
 
   expandMobilePlayer() {

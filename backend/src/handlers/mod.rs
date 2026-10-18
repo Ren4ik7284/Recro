@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod charts;
 pub mod cover;
 pub mod history;
 pub mod library;

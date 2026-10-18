@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::services::{ServeDir, ServeFile};
 
 use config::{ensure_cookies_on_start, init_cookies_from_env};
 use db::{init_db, DbPool};
@@ -105,8 +106,19 @@ async fn main() {
         CorsLayer::permissive()
     };
 
-    let app = Router::new()
-        .route("/", get(|| async { "Recro // Audio Backend is running" }))
+    let static_dir_path = std::env::var("STATIC_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            if std::path::Path::new("dist_frontend").exists() {
+                std::path::PathBuf::from("dist_frontend")
+            } else if std::path::Path::new("../dist_frontend").exists() {
+                std::path::PathBuf::from("../dist_frontend")
+            } else {
+                std::path::PathBuf::from("/home/ren4ik7284/music-player/dist_frontend")
+            }
+        });
+
+    let mut app = Router::new()
         .route("/api/health", get(health_check))
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(login))
@@ -121,6 +133,9 @@ async fn main() {
         .route("/api/stats/wrapped", get(get_wrapped))
         .route("/api/cover", get(proxy_cover))
         .route("/api/resolve-media", get(handlers::cover::resolve_media))
+        .route("/api/home", get(handlers::charts::get_home_explore))
+        .route("/api/charts", get(handlers::charts::list_charts))
+        .route("/api/charts/{id}", get(handlers::charts::get_chart_by_id))
         .route("/api/search", get(search_music))
         .route("/api/top-artists", get(get_top_artists))
         .route("/api/new-releases", get(handlers::search::get_new_releases))
@@ -135,6 +150,16 @@ async fn main() {
         .layer(cors)
         .with_state(state);
 
+    if static_dir_path.exists() {
+        let index_file = static_dir_path.join("index.html");
+        if index_file.exists() {
+            println!("Serving static frontend from {}", static_dir_path.display());
+            app = app.fallback_service(
+                ServeDir::new(&static_dir_path).not_found_service(ServeFile::new(index_file)),
+            );
+        }
+    }
+
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
@@ -144,6 +169,9 @@ async fn main() {
     let ip: std::net::IpAddr = host.parse().unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
     let addr = SocketAddr::from((ip, port));
     println!("Server running on http://{}:{}", ip, port);
+
+    // Start background auto-refresher for all charts, viral trends and popular catalogs
+    handlers::charts::spawn_charts_background_refresher();
 
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,

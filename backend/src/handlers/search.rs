@@ -1320,6 +1320,99 @@ pub struct ReleaseItem {
     pub is_playlist: bool,
 }
 
+async fn fetch_artist_latest_albums(client: &reqwest::Client, artist_name: &str) -> Vec<ReleaseItem> {
+    let mut albums = Vec::new();
+    let encoded = urlencoding::encode(artist_name);
+
+    // 1. Deezer: resolve artist ID -> get artist discography
+    let search_url = format!("https://api.deezer.com/search/artist?q={}&limit=1", encoded);
+    if let Ok(resp) = client.get(&search_url).header("User-Agent", "Mozilla/5.0").send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            if let Some(first_artist) = json["data"].as_array().and_then(|arr| arr.first()) {
+                if let Some(artist_id) = first_artist["id"].as_i64() {
+                    let canon_name = first_artist["name"].as_str().unwrap_or(artist_name).trim().to_string();
+                    let discog_url = format!("https://api.deezer.com/artist/{}/albums?limit=8", artist_id);
+                    if let Ok(discog_resp) = client.get(&discog_url).header("User-Agent", "Mozilla/5.0").send().await {
+                        if let Ok(discog_json) = discog_resp.json::<serde_json::Value>().await {
+                            if let Some(arr) = discog_json["data"].as_array() {
+                                for item in arr {
+                                    let title = item["title"].as_str().unwrap_or("").trim().to_string();
+                                    if title.is_empty() {
+                                        continue;
+                                    }
+                                    let cover = item["cover_xl"].as_str()
+                                        .or_else(|| item["cover_big"].as_str())
+                                        .or_else(|| item["cover_medium"].as_str())
+                                        .map(|s| s.to_string());
+                                    let id = item["id"].to_string();
+                                    let track_count = item["nb_tracks"].as_u64().map(|n| n as u32);
+                                    let rel_date = item["release_date"].as_str().map(|s| s.to_string());
+
+                                    albums.push(ReleaseItem {
+                                        id,
+                                        title,
+                                        artist: canon_name.clone(),
+                                        cover_url: cover,
+                                        track_count,
+                                        release_date: rel_date,
+                                        is_playlist: false,
+                                    });
+
+                                    if albums.len() >= 2 {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Fallback to iTunes if Deezer returned nothing
+    if albums.is_empty() {
+        let itunes_url = format!("https://itunes.apple.com/search?term={}&entity=album&attribute=artistTerm&limit=6", encoded);
+        if let Ok(resp) = client.get(&itunes_url).header("User-Agent", "Mozilla/5.0").send().await {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(results) = json["results"].as_array() {
+                    for item in results {
+                        let title = item["collectionName"].as_str().unwrap_or("").trim().to_string();
+                        let art = item["artistName"].as_str().unwrap_or(artist_name).trim().to_string();
+                        if title.is_empty() {
+                            continue;
+                        }
+                        let cover = item["artworkUrl100"].as_str().map(|s| {
+                            s.replace("100x100bb.jpg", "600x600bb.jpg")
+                        });
+                        let id = item["collectionId"].to_string();
+                        let track_count = item["trackCount"].as_u64().map(|n| n as u32);
+                        let rel_date = item["releaseDate"].as_str().map(|s| {
+                            s.split('T').next().unwrap_or(s).to_string()
+                        });
+
+                        albums.push(ReleaseItem {
+                            id,
+                            title,
+                            artist: art,
+                            cover_url: cover,
+                            track_count,
+                            release_date: rel_date,
+                            is_playlist: false,
+                        });
+
+                        if albums.len() >= 2 {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    albums
+}
+
 pub async fn get_new_releases(
     Query(query): Query<NewReleasesQuery>,
 ) -> Result<Json<Vec<ReleaseItem>>, StatusCode> {
@@ -1329,76 +1422,55 @@ pub async fn get_new_releases(
         .unwrap_or_default();
 
     let artists_raw = query.artists.unwrap_or_default();
-    let artist_list: Vec<&str> = artists_raw
+    let mut artist_list: Vec<String> = artists_raw
         .split(',')
-        .map(|s| s.trim())
+        .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
-        .take(6)
+        .take(8)
         .collect();
 
-    let mut releases = Vec::new();
-    let mut seen_titles = HashSet::new();
+    if artist_list.is_empty() {
+        artist_list = vec![
+            "CUPSIZE".to_string(),
+            "MACAN".to_string(),
+            "The Weeknd".to_string(),
+            "Travis Scott".to_string(),
+            "VILLIAN & madk1d".to_string(),
+            "Taylor Swift".to_string(),
+        ];
+    }
 
-    if !artist_list.is_empty() {
-        for artist in artist_list {
-            let encoded = urlencoding::encode(artist);
-            let url = format!("https://api.deezer.com/search/album?q={}&limit=3", encoded);
-            if let Ok(resp) = client.get(&url).header("User-Agent", "Mozilla/5.0").send().await {
-                if let Ok(json) = resp.json::<serde_json::Value>().await {
-                    if let Some(data) = json["data"].as_array() {
-                        for item in data {
-                            let title = item["title"].as_str().unwrap_or("").trim().to_string();
-                            let art_name = item["artist"]["name"].as_str().unwrap_or(artist).trim().to_string();
-                            let norm_key = format!("{}::{}", art_name.to_lowercase(), title.to_lowercase());
-                            if !title.is_empty() && seen_titles.insert(norm_key) {
-                                let cover = item["cover_big"].as_str()
-                                    .or_else(|| item["cover_medium"].as_str())
-                                    .map(|s| s.to_string());
-                                let id = item["id"].to_string();
-                                let track_count = item["nb_tracks"].as_u64().map(|n| n as u32);
-                                let rel_date = item["release_date"].as_str().map(|s| s.to_string());
-                                releases.push(ReleaseItem {
-                                    id,
-                                    title,
-                                    artist: art_name,
-                                    cover_url: cover,
-                                    track_count,
-                                    release_date: rel_date,
-                                    is_playlist: false,
-                                });
-                            }
-                        }
-                    }
-                }
+    let mut fetch_tasks = Vec::new();
+    for artist in &artist_list {
+        let c = client.clone();
+        let art = artist.clone();
+        fetch_tasks.push(async move {
+            fetch_artist_latest_albums(&c, &art).await
+        });
+    }
+
+    let results = futures_util::future::join_all(fetch_tasks).await;
+
+    let mut releases = Vec::new();
+    let mut seen_keys = HashSet::new();
+
+    for artist_albums in results {
+        for album in artist_albums {
+            let key = format!("{}::{}", album.artist.to_lowercase(), album.title.to_lowercase());
+            if seen_keys.insert(key) {
+                releases.push(album);
             }
         }
     }
 
-    // Fallback: If no artists or no albums found, fetch top chart playlists from Deezer
     if releases.is_empty() {
-        let url = "https://api.deezer.com/chart/0/playlists?limit=8";
-        if let Ok(resp) = client.get(url).header("User-Agent", "Mozilla/5.0").send().await {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
-                if let Some(data) = json["data"].as_array() {
-                    for item in data {
-                        let title = item["title"].as_str().unwrap_or("").trim().to_string();
-                        if !title.is_empty() && seen_titles.insert(title.to_lowercase()) {
-                            let cover = item["picture_big"].as_str()
-                                .or_else(|| item["picture_medium"].as_str())
-                                .map(|s| s.to_string());
-                            let id = item["id"].to_string();
-                            let track_count = item["nb_tracks"].as_u64().map(|n| n as u32);
-                            releases.push(ReleaseItem {
-                                id,
-                                title,
-                                artist: "Чарт плейлист".to_string(),
-                                cover_url: cover,
-                                track_count,
-                                release_date: None,
-                                is_playlist: true,
-                            });
-                        }
-                    }
+        let defaults = vec!["CUPSIZE", "MACAN", "The Weeknd", "Travis Scott"];
+        for def_art in defaults {
+            let albums = fetch_artist_latest_albums(&client, def_art).await;
+            for album in albums {
+                let key = format!("{}::{}", album.artist.to_lowercase(), album.title.to_lowercase());
+                if seen_keys.insert(key) {
+                    releases.push(album);
                 }
             }
         }

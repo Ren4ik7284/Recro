@@ -7701,3 +7701,1050 @@ app-header-bar {
     border: none;
   }
 }
+
+/* ==========================================================================
+   CHARTS & TRENDS (Minimalist Monochrome Design)
+   ========================================================================== */
+
+.charts-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 12px 4px 60px 4px;
+  animation: fadeInCharts 0.2s ease;
+}
+
+@keyframes fadeInCharts {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.charts-overview-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+
+  .charts-badge {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #71717a;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .charts-main-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #f4f4f5;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  .charts-main-sub {
+    font-size: 13px;
+    color: #a1a1aa;
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+.charts-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 0;
+  color: #71717a;
+  font-size: 13px;
+
+  .chart-spinner {
+    width: 28px;
+    height: 28px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #f4f4f5;
+    border-radius: 50%;
+    animation: chartSpin 0.7s linear infinite;
+  }
+}
+
+@keyframes chartSpin {
+  to { transform: rotate(360deg); }
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+}
+
+.chart-card {
+  background: #121214;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    background: #18181b;
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-2px);
+
+    .chart-card-play-btn {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .chart-card-cover-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #18181b;
+
+    .chart-card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .chart-card-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #3f3f46;
+      background: #18181b;
+    }
+
+    .chart-card-play-btn {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #ffffff;
+      color: #09090b;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.15s ease, transform 0.15s ease, background 0.1s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+
+      &:hover {
+        background: #e4e4e7;
+        transform: scale(1.05);
+      }
+
+      svg {
+        margin-left: 2px;
+      }
+    }
+  }
+
+  .chart-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .chart-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f4f4f5;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chart-card-sub {
+      font-size: 12px;
+      color: #a1a1aa;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 31px;
+    }
+
+    .chart-card-meta {
+      font-size: 11px;
+      color: #71717a;
+      margin-top: 4px;
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   CHART DETAIL VIEW
+   -------------------------------------------------------------------------- */
+
+.chart-detail-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  .chart-detail-top-nav {
+    display: flex;
+    align-items: center;
+
+    .chart-back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #a1a1aa;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+
+      &:hover {
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.04);
+      }
+    }
+  }
+
+  .chart-detail-header {
+    display: flex;
+    align-items: flex-end;
+    gap: 24px;
+    padding-bottom: 8px;
+
+    @media (max-width: 640px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .chart-detail-cover-box {
+      width: 160px;
+      height: 160px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #18181b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+
+      @media (max-width: 640px) {
+        width: 120px;
+        height: 120px;
+      }
+
+      .chart-detail-cover-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .chart-detail-cover-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #3f3f46;
+      }
+    }
+
+    .chart-detail-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      .chart-meta-tag {
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        color: #71717a;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+
+      .chart-detail-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+
+        @media (max-width: 640px) {
+          font-size: 20px;
+        }
+      }
+
+      .chart-detail-sub {
+        font-size: 13px;
+        color: #a1a1aa;
+        margin: 0;
+        line-height: 1.4;
+      }
+
+      .chart-detail-stats {
+        font-size: 12px;
+        color: #71717a;
+        margin-top: 2px;
+      }
+
+      .chart-detail-actions {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        .btn-chart-play-all {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: #ffffff;
+          color: #09090b;
+          border: none;
+          border-radius: 9999px;
+          padding: 10px 22px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.12s ease, transform 0.12s ease;
+
+          &:hover {
+            background: #e4e4e7;
+            transform: scale(1.02);
+          }
+
+          svg {
+            margin-left: 2px;
+          }
+        }
+      }
+    }
+  }
+
+  .chart-empty-state {
+    padding: 40px 0;
+    text-align: center;
+    color: #71717a;
+    font-size: 13px;
+  }
+
+  .chart-tracks-table {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+
+    .chart-table-header {
+      display: grid;
+      grid-template-columns: 44px 1fr 90px 48px;
+      align-items: center;
+      padding: 10px 12px;
+      color: #71717a;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+      .th-dur {
+        text-align: right;
+      }
+    }
+
+    .chart-table-body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 4px;
+    }
+
+    .chart-track-row {
+      display: grid;
+      grid-template-columns: 44px 1fr 90px 48px;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.05);
+
+        .cell-num {
+          .num-text {
+            display: none;
+          }
+          .num-play-icon {
+            display: block;
+          }
+        }
+
+        .cell-actions .btn-chart-add-lib {
+          opacity: 1;
+        }
+      }
+
+      &.playing {
+        background: rgba(255, 255, 255, 0.08);
+
+        .cell-track-info .chart-track-titles .track-name {
+          color: #ffffff;
+          font-weight: 600;
+        }
+      }
+
+      .cell-num {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        font-size: 13px;
+        color: #71717a;
+
+        .num-text {
+          display: block;
+        }
+
+        .num-play-icon {
+          display: none;
+          color: #ffffff;
+        }
+
+        .chart-playing-indicator {
+          display: flex;
+          align-items: flex-end;
+          gap: 2px;
+          height: 12px;
+
+          span {
+            width: 2px;
+            background: #ffffff;
+            border-radius: 1px;
+            animation: chartBarAnim 0.8s ease-in-out infinite alternate;
+
+            &:nth-child(1) { height: 60%; animation-delay: 0s; }
+            &:nth-child(2) { height: 100%; animation-delay: 0.2s; }
+            &:nth-child(3) { height: 40%; animation-delay: 0.4s; }
+          }
+        }
+      }
+
+      .cell-track-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+
+        .chart-track-thumb {
+          width: 38px;
+          height: 38px;
+          border-radius: 4px;
+          object-fit: cover;
+          flex-shrink: 0;
+          background: #18181b;
+        }
+
+        .chart-track-thumb-placeholder {
+          width: 38px;
+          height: 38px;
+          border-radius: 4px;
+          background: #18181b;
+          color: #3f3f46;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .chart-track-titles {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
+
+          .track-name {
+            font-size: 13.5px;
+            color: #f4f4f5;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .track-artist {
+            font-size: 12px;
+            color: #a1a1aa;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+        }
+      }
+
+      .cell-dur {
+        font-size: 12px;
+        color: #71717a;
+        text-align: right;
+      }
+
+      .cell-actions {
+        display: flex;
+        justify-content: flex-end;
+
+        .btn-chart-add-lib {
+          background: transparent;
+          border: none;
+          color: #71717a;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: color 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+
+          &:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+          }
+
+          &.active {
+            opacity: 1;
+            color: #ffffff;
+          }
+        }
+      }
+    }
+  }
+}
+
+@keyframes chartBarAnim {
+  0% { height: 20%; }
+  100% { height: 100%; }
+}
+
+/* ==========================================================================
+   Home Explore View (Spotify-like Minimalist Monochrome)
+   ========================================================================== */
+
+.home-explore-view {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  padding: 12px 0 60px 0;
+  width: 100%;
+
+  .home-loading-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 60px 0;
+    color: #71717a;
+    font-size: 13px;
+  }
+
+  .home-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .home-section-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+
+      .home-section-title {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+        margin: 0;
+      }
+
+      .home-section-sub {
+        font-size: 13px;
+        color: #71717a;
+        margin: 4px 0 0 0;
+      }
+
+      .home-section-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .home-nav-arrows {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .btn-home-nav-arrow {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #18181b;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #a1a1aa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+
+        &:hover {
+          background: #27272a;
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        &:active {
+          transform: scale(0.94);
+        }
+      }
+
+      .btn-home-play-all {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #ffffff;
+        color: #09090b;
+        border: none;
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.12s ease, opacity 0.12s ease;
+        flex-shrink: 0;
+
+        &:hover {
+          opacity: 0.9;
+          transform: scale(1.02);
+        }
+
+        &:active {
+          transform: scale(0.98);
+        }
+      }
+    }
+  }
+
+  /* 1. Popular Tracks List: 5 tracks tall, scrollable horizontally with wheel & buttons */
+  .home-tracks-carousel-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .home-tracks-list {
+    display: grid;
+    grid-template-rows: repeat(5, 52px);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(320px, 390px);
+    gap: 4px 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 2px 0 6px 0;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      grid-auto-columns: minmax(280px, 86vw);
+      grid-template-rows: repeat(5, 48px);
+    }
+
+    .home-track-row {
+      scroll-snap-align: start;
+      height: 52px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+      transition: background 0.12s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.05);
+
+        .home-track-play-hover {
+          opacity: 1;
+        }
+
+        .home-track-cover {
+          filter: brightness(0.6);
+        }
+
+        .btn-track-action {
+          opacity: 1;
+        }
+      }
+
+      &.playing {
+        background: rgba(255, 255, 255, 0.07);
+
+        .home-track-title {
+          color: #ffffff;
+          font-weight: 600;
+        }
+
+        .home-track-rank {
+          color: #ffffff;
+        }
+      }
+
+      .home-track-rank {
+        width: 18px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #71717a;
+        text-align: center;
+        flex-shrink: 0;
+      }
+
+      .home-track-cover-wrap {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 4px;
+        overflow: hidden;
+        flex-shrink: 0;
+        background: #18181b;
+
+        .home-track-cover {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: filter 0.12s ease;
+        }
+
+        .home-track-play-hover {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.4);
+          border: none;
+          color: #ffffff;
+          opacity: 0;
+          cursor: pointer;
+          transition: opacity 0.12s ease;
+        }
+      }
+
+      .home-track-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+
+        .home-track-title {
+          font-size: 13px;
+          font-weight: 500;
+          color: #f4f4f5;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .home-track-artist {
+          font-size: 12px;
+          color: #71717a;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      .home-track-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        .btn-track-action {
+          background: transparent;
+          border: none;
+          color: #71717a;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: color 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+
+          &:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+          }
+
+          &.active {
+            opacity: 1;
+            color: #ffffff;
+          }
+        }
+      }
+
+      .home-track-duration {
+        font-size: 12px;
+        color: #71717a;
+        width: 40px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  /* 2. Popular Artists Grid */
+  .artists-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 16px;
+
+    @media (max-width: 640px) {
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 12px;
+    }
+
+    .artist-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 14px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      background: transparent;
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.04);
+
+        .artist-avatar-wrap .artist-play-overlay {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .artist-avatar-wrap .artist-avatar-img {
+          transform: scale(1.04);
+        }
+      }
+
+      .artist-avatar-wrap {
+        position: relative;
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-bottom: 12px;
+        background: #18181b;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+
+        @media (max-width: 640px) {
+          width: 86px;
+          height: 86px;
+        }
+
+        .artist-avatar-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.2s ease;
+        }
+
+        .artist-avatar-placeholder {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 36px;
+          font-weight: 700;
+          color: #71717a;
+          background: #27272a;
+        }
+
+        .artist-play-overlay {
+          position: absolute;
+          bottom: 8px;
+          right: 8px;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: #ffffff;
+          color: #09090b;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transform: translateY(6px);
+          transition: opacity 0.18s ease, transform 0.18s ease;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+      }
+
+      .artist-card-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #f4f4f5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+
+      .artist-card-role {
+        font-size: 11px;
+        color: #71717a;
+        margin-top: 2px;
+      }
+
+      .artist-card-listeners {
+        font-size: 10px;
+        color: #52525b;
+        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+    }
+  }
+
+  /* 3. Popular Albums Grid */
+  .albums-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+
+    @media (max-width: 640px) {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .album-card {
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      transition: background 0.15s ease, border-color 0.15s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.09);
+
+        .album-cover-wrap .album-play-overlay {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .album-cover-wrap {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 10px;
+        background: #18181b;
+
+        .album-cover-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .album-cover-placeholder {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #52525b;
+          background: #18181b;
+        }
+
+        .album-play-overlay {
+          position: absolute;
+          bottom: 8px;
+          right: 8px;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: #ffffff;
+          color: #09090b;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transform: translateY(6px);
+          transition: opacity 0.18s ease, transform 0.18s ease;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+      }
+
+      .album-card-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #f4f4f5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .album-card-artist {
+        font-size: 12px;
+        color: #71717a;
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .album-card-year {
+        font-size: 11px;
+        color: #52525b;
+        margin-top: 4px;
+      }
+    }
+  }
+}

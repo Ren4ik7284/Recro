@@ -295,18 +295,10 @@
       <div class="section-header-compact">
         <div class="section-title-wrap">
           <h2 class="profile-section-title font-mono">
-            @if (newReleases().length > 0 && newReleases()[0].is_playlist) {
-              Популярные чарты и плейлисты
-            } @else {
-              Новые альбомы ваших артистов
-            }
+            Новые альбомы ваших артистов
           </h2>
           <span class="section-subtitle-tag font-mono">
-            @if (newReleases().length > 0 && newReleases()[0].is_playlist) {
-              В тренде Deezer
-            } @else {
-              На основе ваших предпочтений
-            }
+            На основе ваших предпочтений
           </span>
         </div>
       </div>
@@ -323,12 +315,12 @@
             </svg>
           </button>
 
-          <div class="releases-carousel-track" #releasesCarouselRef>
+          <div class="releases-carousel-track" #releasesCarouselRef (wheel)="onReleasesWheel($event)">
             @for (item of newReleases(); track item.id + $index) {
               <div 
                 class="release-card-item" 
                 (click)="onReleaseClick(item)"
-                [title]="(item.is_playlist ? 'Включить плейлист: ' : 'Включить альбом: ') + item.title + ' — ' + item.artist"
+                [title]="'Включить альбом: ' + item.title + ' — ' + item.artist"
               >
                 <div class="release-cover-box">
                   @if (item.cover_url) {

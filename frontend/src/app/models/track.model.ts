@@ -66,3 +66,38 @@ export interface ChartArtist {
   peak?: string;
   spotify_id?: string;
 }
+
+export interface ChartSummary {
+  id: string;
+  title: string;
+  subtitle: string;
+  cover_url?: string;
+  track_count: number;
+  updated_at: string;
+}
+
+export interface ChartDetail {
+  id: string;
+  title: string;
+  subtitle: string;
+  cover_url?: string;
+  updated_at: string;
+  tracks: Track[];
+}
+
+export interface ReleaseItem {
+  id: string;
+  title: string;
+  artist: string;
+  cover_url?: string;
+  track_count?: number;
+  release_date?: string;
+  is_playlist: boolean;
+}
+
+export interface HomeExploreData {
+  popular_tracks: Track[];
+  popular_artists: ChartArtist[];
+  popular_albums: ReleaseItem[];
+  charts: ChartSummary[];
+}

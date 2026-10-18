@@ -118,11 +118,12 @@
                   </button>
                 </div>
               </div>
-            } @else {
+            } @else if (activeTab() !== 'all') {
               <div class="catalog-header-layout">
                 <div>
                   <h1 class="view-title">
-                    @if (activeTab() === 'all') { {{ i18n.t('catalog.all') }} }
+                    @if (activeTab() === 'library') { {{ i18n.t('nav.myMusic') }} }
+                    @else if (activeTab() === 'charts') { {{ i18n.t('catalog.charts') }} }
                     @else if (activeTab() === 'search') { {{ i18n.t('catalog.search') }} }
                     @else if (activeTab() === 'offline') { {{ i18n.t('catalog.offline') }} }
                     @else if (activeTab() === 'streams') { {{ i18n.t('catalog.streams') }} }
@@ -131,7 +132,11 @@
                     @else { {{ i18n.t('catalog.playlist') }} }
                   </h1>
                   <p class="view-subtitle">
-                    @if (activeTab() === 'search') {
+                    @if (activeTab() === 'library') {
+                      {{ libraryService.allTracksCount() }} {{ i18n.currentLang() === 'ru' ? 'треков сохранено в медиатеке' : 'tracks in your library' }}
+                    } @else if (activeTab() === 'charts') {
+                      {{ i18n.currentLang() === 'ru' ? 'Актуальные региональные и мировые рейтинги' : 'Current regional and global top charts' }}
+                    } @else if (activeTab() === 'search') {
                       {{ i18n.currentLang() === 'ru' ? 'Глобальный онлайн-каталог треков без скачивания' : 'Global online track catalog without downloading' }}
                     } @else if (activeTab() === 'streams') {
                       {{ libraryService.radioStations().length }} {{ i18n.currentLang() === 'ru' ? 'станций доступно для онлайн-вещания' : 'live stations available for streaming' }}
@@ -161,7 +166,7 @@
                     <span>{{ i18n.t('catalog.refresh') }}</span>
                   </button>
 
-                  @if (activeTab() === 'all' && libraryService.allTracksCount() > 0) {
+                  @if (activeTab() === 'library' && libraryService.allTracksCount() > 0) {
                     <button 
                       class="btn-header-action btn-danger-soft" 
                       (click)="clearAllLibraryTracks()" 
@@ -179,8 +184,7 @@
             }
           </div>
 
-          
-          @if (activeTab() !== 'playlist' && activeTab() !== 'streams' && activeTab() !== 'search' && libraryService.availableGenres().length > 1) {
+          @if (activeTab() !== 'playlist' && activeTab() !== 'streams' && activeTab() !== 'search' && activeTab() !== 'charts' && activeTab() !== 'all' && libraryService.availableGenres().length > 1) {
             <div class="genre-filter-row">
               @for (g of libraryService.availableGenres(); track g) {
                 <button 
@@ -711,8 +715,528 @@
           </div>
         }
 
+        @if (activeTab() === 'charts') {
+          <div class="charts-view-container">
+            @if (!selectedChart()) {
+              <div class="charts-overview-header">
+                <div class="charts-badge font-mono">РЕЙТИНГИ</div>
+                <h2 class="charts-main-title">Чарты и тренды</h2>
+                <p class="charts-main-sub">Актуальные сводки прослушиваний. Ежедневное обновление.</p>
+              </div>
+
+              @if (isLoadingCharts()) {
+                <div class="charts-loading-state">
+                  <div class="chart-spinner"></div>
+                  <span>{{ i18n.t('charts.loading') }}</span>
+                </div>
+              } @else {
+                <div class="charts-grid">
+                  @for (c of charts(); track c.id) {
+                    <div class="chart-card" (click)="openChart(c.id)">
+                      <div class="chart-card-cover-wrap">
+                        @if (c.cover_url) {
+                          <img [src]="c.cover_url" class="chart-card-img" alt="" loading="lazy" />
+                        } @else {
+                          <div class="chart-card-placeholder">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                              <line x1="18" y1="20" x2="18" y2="10"/>
+                              <line x1="12" y1="20" x2="12" y2="4"/>
+                              <line x1="6" y1="20" x2="6" y2="14"/>
+                            </svg>
+                          </div>
+                        }
+                        <button class="chart-card-play-btn" (click)="$event.stopPropagation(); openChart(c.id)" title="Открыть">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="6 3 20 12 6 21 6 3"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="chart-card-info">
+                        <div class="chart-card-title">{{ c.title }}</div>
+                        <div class="chart-card-sub">{{ c.subtitle }}</div>
+                        <div class="chart-card-meta font-mono">{{ c.track_count }} треков • {{ c.updated_at }}</div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            } @else {
+              @if (selectedChart(); as chart) {
+                <div class="chart-detail-view">
+                  <div class="chart-detail-top-nav">
+                    <button class="chart-back-btn" (click)="backToChartsList()">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                      </svg>
+                      <span>{{ i18n.t('charts.back') }}</span>
+                    </button>
+                  </div>
+
+                  <div class="chart-detail-header">
+                    <div class="chart-detail-cover-box">
+                      @if (chart.cover_url) {
+                        <img [src]="chart.cover_url" class="chart-detail-cover-img" alt="" />
+                      } @else {
+                        <div class="chart-detail-cover-placeholder">
+                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                          </svg>
+                        </div>
+                      }
+                    </div>
+
+                    <div class="chart-detail-meta">
+                      <div class="chart-meta-tag font-mono">РЕЙТИНГ</div>
+                      <h1 class="chart-detail-title">{{ chart.title }}</h1>
+                      <p class="chart-detail-sub">{{ chart.subtitle }}</p>
+                      <div class="chart-detail-stats font-mono">
+                        {{ chart.tracks.length }} треков • {{ chart.updated_at }}
+                      </div>
+
+                      <div class="chart-detail-actions">
+                        <button class="btn-chart-play-all" (click)="playAllFromChart(chart)">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="6 3 20 12 6 21 6 3"/>
+                          </svg>
+                          <span>{{ i18n.t('charts.playAll') }}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  @if (isLoadingChartDetail()) {
+                    <div class="charts-loading-state">
+                      <div class="chart-spinner"></div>
+                      <span>{{ i18n.t('charts.loading') }}</span>
+                    </div>
+                  } @else if (chart.tracks.length === 0) {
+                    <div class="chart-empty-state">
+                      <p>{{ i18n.t('charts.empty') }}</p>
+                    </div>
+                  } @else {
+                    <div class="chart-tracks-table">
+                      <div class="chart-table-header">
+                        <div class="th-num">#</div>
+                        <div class="th-info">ТРЕК</div>
+                        <div class="th-dur">ВРЕМЯ</div>
+                        <div class="th-act"></div>
+                      </div>
+
+                      <div class="chart-table-body">
+                        @for (track of chart.tracks; track track.id; let i = $index) {
+                          <div 
+                            class="chart-track-row" 
+                            [class.playing]="isChartTrackPlaying(track)"
+                            (click)="playChartTrack(track, chart, i)"
+                          >
+                            <div class="cell-num font-mono">
+                              @if (isChartTrackPlaying(track)) {
+                                <div class="chart-playing-indicator">
+                                  <span></span><span></span><span></span>
+                                </div>
+                              } @else {
+                                <span class="num-text">{{ i + 1 }}</span>
+                                <svg class="num-play-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                  <polygon points="6 3 20 12 6 21 6 3"/>
+                                </svg>
+                              }
+                            </div>
+
+                            <div class="cell-track-info">
+                              @if (track.coverUrl) {
+                                <img [src]="track.coverUrl" class="chart-track-thumb" alt="" loading="lazy" />
+                              } @else {
+                                <div class="chart-track-thumb-placeholder">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 18V5l12-2v13"/>
+                                    <circle cx="6" cy="18" r="3"/>
+                                    <circle cx="18" cy="16" r="3"/>
+                                  </svg>
+                                </div>
+                              }
+                              <div class="chart-track-titles">
+                                <span class="track-name">{{ track.title }}</span>
+                                <span class="track-artist">{{ track.artist }}</span>
+                              </div>
+                            </div>
+
+                            <div class="cell-dur font-mono">
+                              {{ track.duration > 0 ? formatTime(track.duration) : '--:--' }}
+                            </div>
+
+                            <div class="cell-actions" (click)="$event.stopPropagation()">
+                              <button 
+                                class="btn-chart-add-lib" 
+                                [class.active]="libraryService.isTrackInLibrary(track.id)"
+                                (click)="libraryService.toggleTrackInLibrary(track)"
+                                [title]="libraryService.isTrackInLibrary(track.id) ? 'Удалить из медиатеки' : 'Сохранить в медиатеку'"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  @if (libraryService.isTrackInLibrary(track.id)) {
+                                    <polyline points="20 6 9 17 4 12"/>
+                                  } @else {
+                                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                                  }
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            }
+          </div>
+        }
+
+        @if (activeTab() === 'all') {
+          <div class="home-explore-view">
+            @if (selectedChart(); as chart) {
+              <!-- Chart Detail View inside Home -->
+              <div class="chart-detail-view">
+                <div class="chart-detail-top-nav">
+                  <button class="chart-back-btn" (click)="backToChartsList()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    <span>{{ i18n.t('charts.back') }}</span>
+                  </button>
+                </div>
+
+                <div class="chart-detail-header">
+                  <div class="chart-detail-cover-box">
+                    @if (chart.cover_url) {
+                      <img [src]="chart.cover_url" class="chart-detail-cover-img" alt="" />
+                    } @else {
+                      <div class="chart-detail-cover-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                          <line x1="18" y1="20" x2="18" y2="10"/>
+                          <line x1="12" y1="20" x2="12" y2="4"/>
+                          <line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="chart-detail-meta">
+                    <div class="chart-meta-tag font-mono">РЕЙТИНГ</div>
+                    <h1 class="chart-detail-title">{{ chart.title }}</h1>
+                    <p class="chart-detail-sub">{{ chart.subtitle }}</p>
+                    <div class="chart-detail-stats font-mono">
+                      {{ chart.tracks.length }} треков • {{ chart.updated_at }}
+                    </div>
+
+                    <div class="chart-detail-actions">
+                      <button class="btn-chart-play-all" (click)="playAllFromChart(chart)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="6 3 20 12 6 21 6 3"/>
+                        </svg>
+                        <span>{{ i18n.t('charts.playAll') }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                @if (isLoadingChartDetail()) {
+                  <div class="charts-loading-state">
+                    <div class="chart-spinner"></div>
+                    <span>{{ i18n.t('charts.loading') }}</span>
+                  </div>
+                } @else if (chart.tracks.length === 0) {
+                  <div class="chart-empty-state">
+                    <p>{{ i18n.t('charts.empty') }}</p>
+                  </div>
+                } @else {
+                  <div class="chart-tracks-table">
+                    <div class="chart-table-header">
+                      <div class="th-num">#</div>
+                      <div class="th-info">ТРЕК</div>
+                      <div class="th-dur">ВРЕМЯ</div>
+                      <div class="th-act"></div>
+                    </div>
+
+                    <div class="chart-table-body">
+                      @for (track of chart.tracks; track track.id; let i = $index) {
+                        <div 
+                          class="chart-track-row" 
+                          [class.playing]="isChartTrackPlaying(track)"
+                          (click)="playChartTrack(track, chart, i)"
+                        >
+                          <div class="cell-num font-mono">
+                            @if (isChartTrackPlaying(track)) {
+                              <div class="chart-playing-indicator">
+                                <span></span><span></span><span></span>
+                              </div>
+                            } @else {
+                              <span class="num-text">{{ i + 1 }}</span>
+                              <svg class="num-play-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="6 3 20 12 6 21 6 3"/>
+                              </svg>
+                            }
+                          </div>
+
+                          <div class="cell-track-info">
+                            @if (track.coverUrl) {
+                              <img [src]="track.coverUrl" class="chart-track-thumb" alt="" loading="lazy" />
+                            } @else {
+                              <div class="chart-track-thumb-placeholder">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <path d="M9 18V5l12-2v13"/>
+                                  <circle cx="6" cy="18" r="3"/>
+                                  <circle cx="18" cy="16" r="3"/>
+                                </svg>
+                              </div>
+                            }
+                            <div class="chart-track-titles">
+                              <span class="track-name">{{ track.title }}</span>
+                              <span class="track-artist">{{ track.artist }}</span>
+                            </div>
+                          </div>
+
+                          <div class="cell-dur font-mono">
+                            {{ track.duration > 0 ? formatTime(track.duration) : '--:--' }}
+                          </div>
+
+                          <div class="cell-actions" (click)="$event.stopPropagation()">
+                            <button 
+                              class="btn-chart-add-lib" 
+                              [class.active]="libraryService.isTrackInLibrary(track.id)"
+                              (click)="libraryService.toggleTrackInLibrary(track)"
+                              [title]="libraryService.isTrackInLibrary(track.id) ? 'Удалить из медиатеки' : 'Сохранить в медиатеку'"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                @if (libraryService.isTrackInLibrary(track.id)) {
+                                  <polyline points="20 6 9 17 4 12"/>
+                                } @else {
+                                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                                }
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              @if (isLoadingHome() && !homeData()) {
+                <div class="home-loading-box font-mono">
+                  <div class="chart-spinner"></div>
+                  <span>Загрузка каталога...</span>
+                </div>
+              }
+
+              <!-- 1. Популярные песни -->
+              @if (homeData()?.popular_tracks?.length) {
+                <section class="home-section popular-tracks-section">
+                  <div class="home-section-header">
+                    <div>
+                      <h2 class="home-section-title">{{ i18n.t('home.popularTracks') }}</h2>
+                      <p class="home-section-sub">Главные треки и хиты прямо сейчас</p>
+                    </div>
+                    <div class="home-section-actions">
+                      <div class="home-nav-arrows">
+                        <button class="btn-home-nav-arrow" (click)="scrollPopularTracks('left')" title="Назад" aria-label="Назад">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="15 18 9 12 15 6"/>
+                          </svg>
+                        </button>
+                        <button class="btn-home-nav-arrow" (click)="scrollPopularTracks('right')" title="Вперед" aria-label="Вперед">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="9 18 15 12 9 6"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <button class="btn-home-play-all" (click)="playAllPopularTracks()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="6 3 20 12 6 21 6 3"/>
+                        </svg>
+                        <span>{{ i18n.t('home.playAll') }}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="home-tracks-carousel-wrap">
+                    <div 
+                      class="home-tracks-list" 
+                      #popularTracksTrack
+                      (wheel)="onPopularTracksWheel($event)"
+                    >
+                      @for (track of homeData()!.popular_tracks; track track.id; let i = $index) {
+                        <div 
+                          class="home-track-row" 
+                          [class.playing]="audioService.currentTrack()?.id === track.id"
+                          (click)="playPopularTrack(track, i)"
+                        >
+                          <div class="home-track-rank font-mono">{{ i + 1 }}</div>
+                          <div class="home-track-cover-wrap">
+                            <img [src]="track.coverUrl" (error)="onCoverError($event, track)" class="home-track-cover" alt="" loading="lazy" />
+                            <button class="home-track-play-hover" (click)="$event.stopPropagation(); playPopularTrack(track, i)">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="6 3 20 12 6 21 6 3"/>
+                              </svg>
+                            </button>
+                          </div>
+                          <div class="home-track-info">
+                            <div class="home-track-title">{{ track.title }}</div>
+                            <div class="home-track-artist">{{ track.artist }}</div>
+                          </div>
+                          <div class="home-track-actions" (click)="$event.stopPropagation()">
+                            <button 
+                              class="btn-track-action" 
+                              [class.active]="libraryService.isTrackInLibrary(track.id)"
+                              (click)="toggleHomeTrackLibrary(track)"
+                              [title]="libraryService.isTrackInLibrary(track.id) ? 'В медиатеке' : 'Добавить в медиатеку'"
+                            >
+                              @if (libraryService.isTrackInLibrary(track.id)) {
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                              } @else {
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <line x1="12" y1="5" x2="12" y2="19"/>
+                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                              }
+                            </button>
+                          </div>
+                          <div class="home-track-duration font-mono">{{ formatTime(track.duration) }}</div>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </section>
+              }
+
+              <!-- 2. Популярные артисты -->
+              @if (homeData()?.popular_artists?.length) {
+                <section class="home-section popular-artists-section">
+                  <div class="home-section-header">
+                    <div>
+                      <h2 class="home-section-title">{{ i18n.t('home.popularArtists') }}</h2>
+                      <p class="home-section-sub">Самые прослушиваемые мировые артисты</p>
+                    </div>
+                  </div>
+
+                  <div class="artists-grid">
+                    @for (artist of homeData()!.popular_artists; track artist.name) {
+                      <div class="artist-card" (click)="selectArtist(artist)">
+                        <div class="artist-avatar-wrap">
+                          @if (artist.picture) {
+                            <img [src]="artist.picture" class="artist-avatar-img" alt="" loading="lazy" />
+                          } @else {
+                            <div class="artist-avatar-placeholder font-mono">{{ artist.name.charAt(0) }}</div>
+                          }
+                          <div class="artist-play-overlay">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="6 3 20 12 6 21 6 3"/>
+                            </svg>
+                          </div>
+                        </div>
+                        <div class="artist-card-name">{{ artist.name }}</div>
+                        <div class="artist-card-role">{{ i18n.t('home.artist') }}</div>
+                        @if (artist.monthly_listeners) {
+                          <div class="artist-card-listeners font-mono">{{ artist.monthly_listeners }} {{ i18n.t('home.monthlyListeners') }}</div>
+                        }
+                      </div>
+                    }
+                  </div>
+                </section>
+              }
+
+              <!-- 3. Популярные альбомы и синглы -->
+              @if (homeData()?.popular_albums?.length) {
+                <section class="home-section popular-albums-section">
+                  <div class="home-section-header">
+                    <div>
+                      <h2 class="home-section-title">{{ i18n.t('home.popularAlbums') }}</h2>
+                      <p class="home-section-sub">Популярные альбомы и свежие релизы</p>
+                    </div>
+                  </div>
+
+                  <div class="albums-grid">
+                    @for (album of homeData()!.popular_albums; track album.id) {
+                      <div class="album-card" (click)="selectAlbum(album)">
+                        <div class="album-cover-wrap">
+                          @if (album.cover_url) {
+                            <img [src]="album.cover_url" class="album-cover-img" alt="" loading="lazy" />
+                          } @else {
+                            <div class="album-cover-placeholder">
+                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <circle cx="12" cy="12" r="3"/>
+                              </svg>
+                            </div>
+                          }
+                          <div class="album-play-overlay">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="6 3 20 12 6 21 6 3"/>
+                            </svg>
+                          </div>
+                        </div>
+                        <div class="album-card-title" [title]="album.title">{{ album.title }}</div>
+                        <div class="album-card-artist" [title]="album.artist">{{ album.artist }}</div>
+                        @if (album.release_date) {
+                          <div class="album-card-year font-mono">{{ album.release_date.split('-')[0] }}</div>
+                        }
+                      </div>
+                    }
+                  </div>
+                </section>
+              }
+
+              <!-- 4. Чарты и тренды -->
+              @if ((homeData()?.charts || charts()).length) {
+                <section class="home-section popular-charts-section">
+                  <div class="home-section-header">
+                    <div>
+                      <h2 class="home-section-title">{{ i18n.t('home.charts') }}</h2>
+                      <p class="home-section-sub">Топ-50 чарты с ежедневным обновлением</p>
+                    </div>
+                  </div>
+
+                  <div class="charts-grid">
+                    @for (c of (homeData()?.charts || charts()); track c.id) {
+                      <div class="chart-card" (click)="openChart(c.id)">
+                        <div class="chart-card-cover-wrap">
+                          @if (c.cover_url) {
+                            <img [src]="c.cover_url" class="chart-card-img" alt="" loading="lazy" />
+                          } @else {
+                            <div class="chart-card-placeholder">
+                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <line x1="18" y1="20" x2="18" y2="10"/>
+                                <line x1="12" y1="20" x2="12" y2="4"/>
+                                <line x1="6" y1="20" x2="6" y2="14"/>
+                              </svg>
+                            </div>
+                          }
+                          <button class="chart-card-play-btn" (click)="$event.stopPropagation(); openChart(c.id)" title="Открыть чарт">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="6 3 20 12 6 21 6 3"/>
+                            </svg>
+                          </button>
+                        </div>
+                        <div class="chart-card-info">
+                          <div class="chart-card-title">{{ c.title }}</div>
+                          <div class="chart-card-sub">{{ c.subtitle }}</div>
+                          <div class="chart-card-meta font-mono">{{ c.track_count }} треков • {{ c.updated_at }}</div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </section>
+              }
+            }
+          </div>
+        }
+
         
-        @if (activeTab() !== 'streams' && activeTab() !== 'search' && libraryService.filteredTracks().length > 0) {
+        @if (activeTab() !== 'streams' && activeTab() !== 'search' && activeTab() !== 'charts' && activeTab() !== 'all' && libraryService.filteredTracks().length > 0) {
           
           
           <div class="tracks-table-wrapper desktop-only">
@@ -993,7 +1517,7 @@
               </div>
             }
           </div>
-        } @else if (activeTab() !== 'streams' && activeTab() !== 'search') {
+        } @else if (activeTab() !== 'streams' && activeTab() !== 'search' && activeTab() !== 'charts' && activeTab() !== 'all') {
           
           
           <div class="empty-state-card">
@@ -1049,10 +1573,10 @@
   <nav class="mobile-bottom-nav mobile-only">
     <button class="m-nav-item" [class.active]="activeTab() === 'all' && !recService.isMixActive()" (click)="setView('all')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/>
-        <rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
-      <span>Треки</span>
+      <span>{{ i18n.t('nav.home') }}</span>
     </button>
 
     <button class="m-nav-item" [class.active]="activeTab() === 'search'" (click)="setView('search')">
@@ -1060,7 +1584,7 @@
         <circle cx="11" cy="11" r="8"/>
         <path d="m21 21-4.3-4.3"/>
       </svg>
-      <span>Поиск</span>
+      <span>{{ i18n.t('nav.search') }}</span>
     </button>
 
     <button class="m-nav-item m-nav-wave" [class.active]="recService.isMixActive()" (click)="toggleSmartMix()">
@@ -1075,18 +1599,13 @@
       <span>{{ i18n.t('nav.waveMobile') }}</span>
     </button>
 
-    <button class="m-nav-item" [class.active]="activeTab() === 'favorites'" (click)="setView('favorites')">
+    <button class="m-nav-item" [class.active]="activeTab() === 'library'" (click)="setView('library')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+        <path d="M9 18V5l12-2v13"/>
+        <circle cx="6" cy="18" r="3"/>
+        <circle cx="18" cy="16" r="3"/>
       </svg>
-      <span>Любимое</span>
-    </button>
-
-    <button class="m-nav-item" [class.active]="activeTab() === 'playlist'" (click)="openMobilePlaylists()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M4 6h16M4 12h16M4 18h7"/>
-      </svg>
-      <span>{{ i18n.t('nav.playlistsMobile') }}</span>
+      <span>{{ i18n.t('nav.myMusic') }}</span>
     </button>
 
     <button class="m-nav-item" [class.active]="isProfileModalOpen()" (click)="openProfileModal()">
@@ -1094,7 +1613,7 @@
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
       </svg>
-      <span>Профиль</span>
+      <span>{{ i18n.t('nav.profile') }}</span>
     </button>
   </nav>
 

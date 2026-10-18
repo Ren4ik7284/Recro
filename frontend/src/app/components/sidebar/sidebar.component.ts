@@ -27,7 +27,7 @@ export class SidebarComponent {
   readonly i18n = inject(I18nService);
   readonly bgService = inject(LiveBackgroundService);
 
-  @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' = 'all';
+  @Input() activeTab: 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' | 'charts' | 'library' = 'all';
   @Input() isProfileOpen = false;
 
   @Output() viewChange = new EventEmitter<{ view: string; playlistId?: string }>();

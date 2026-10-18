@@ -72,6 +72,8 @@ export class AudioService {
   private lastNativeBridgeSyncTime = 0;
   private wakeLockSentinel: any = null;
   private activeStreamAbortController: AbortController | null = null;
+  private endSilenceStreakSeconds = 0;
+  private prematureEndedRetryCount = 0;
 
   private async requestWakeLock() {
     if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
@@ -494,6 +496,35 @@ export class AudioService {
       this.currentTime.set(actual);
 
       const total = this.duration();
+
+      // 1. Natural end when actual playback exceeds track duration (prevent hanging in outro silence)
+      if (total > 15 && actual >= total + 0.8 && !this.isLiveStream()) {
+        console.warn(`[AudioService] Playback reached track end (${actual.toFixed(1)}s / ${total}s), advancing to next track`);
+        this.handleTrackEnded();
+        return;
+      }
+
+      // 2. Intelligent silence detector at the end of track (skips dead YouTube/SoundCloud outros)
+      if (total > 20 && actual >= total * 0.75 && !this.isLiveStream()) {
+        if (this.analyserNode) {
+          const testBuffer = new Uint8Array(32);
+          this.analyserNode.getByteFrequencyData(testBuffer as any);
+          let sum = 0;
+          for (let i = 0; i < 32; i++) sum += testBuffer[i];
+          if (sum <= 3) {
+            this.endSilenceStreakSeconds += 0.25;
+            if (this.endSilenceStreakSeconds >= 3.5) {
+              console.warn(`[AudioService] Detected 3.5s of silence near track end (${actual.toFixed(1)}s / ${total}s), auto-advancing`);
+              this.endSilenceStreakSeconds = 0;
+              this.handleTrackEnded();
+              return;
+            }
+          } else {
+            this.endSilenceStreakSeconds = 0;
+          }
+        }
+      }
+
       // Record track completion at 80% of playback
       const cur = this.currentTrack();
       if (cur && total > 10 && actual >= total * 0.8 && !this.hasRecordedCompletion) {
@@ -611,6 +642,7 @@ export class AudioService {
     });
 
     this.audio.addEventListener('ended', () => {
+      this.endSilenceStreakSeconds = 0;
       if (this.isLiveStream()) {
         console.warn('[AudioService] Live stream ended event, attempting reconnect in 2s');
         this.handlePlaybackFailure('live_stream_ended');
@@ -628,15 +660,26 @@ export class AudioService {
         return;
       }
 
-      // 2. Если трек оборвался на середине (сыграно меньше duration - 3.5 сек) — это обрыв стрима!
-      // НЕ скипаем трек, а восстанавливаем воспроизведение с текущей секунды!
-      if (dur > 15 && totalPlayed < dur - 3.5) {
-        console.warn(`[AudioService] Stream cut off prematurely (${totalPlayed.toFixed(1)}s / ${dur}s), auto-recovering stream from current position without skipping...`);
-        this.seek(totalPlayed);
-        this.audio.play().catch(() => {});
+      // 2. Если сыграно >= 70% трека, или осталось меньше 12 секунд до конца,
+      // либо длительность не задана / короткая — трек завершился полностью!
+      if (dur <= 20 || totalPlayed >= dur * 0.7 || totalPlayed >= dur - 12) {
+        this.prematureEndedRetryCount = 0;
+        this.handleTrackEnded();
         return;
       }
 
+      // 3. Реальный неожиданный обрыв потока в первой половине трека — пробуем восстановить ровно 1 раз
+      if (this.prematureEndedRetryCount < 1) {
+        this.prematureEndedRetryCount++;
+        console.warn(`[AudioService] Stream cut off early (${totalPlayed.toFixed(1)}s / ${dur}s), auto-recovering once...`);
+        this.seek(totalPlayed);
+        this.audio.play().catch(() => {
+          this.handleTrackEnded();
+        });
+        return;
+      }
+
+      this.prematureEndedRetryCount = 0;
       // Всегда переключаемся на следующий трек при естественном завершении трека!
       this.handleTrackEnded();
     });
@@ -1102,6 +1145,8 @@ export class AudioService {
     this.recService.registerSessionPlayed(track);
     this.streamSeekOffset.set(0);
     this.currentTime.set(0);
+    this.endSilenceStreakSeconds = 0;
+    this.prematureEndedRetryCount = 0;
     this.hasAudioStartedPlaying = false;
     this.hasRecordedCompletion = false;
     this.hasPreloadedNextTrack = false;
@@ -2148,20 +2193,13 @@ export class AudioService {
   }
 
   updateTrackFavoriteStatus(trackId: string, isFavorite: boolean, trackObj?: Track) {
+    if (!trackId) return;
     const cur = this.currentTrack();
-    if (cur) {
-      const match = cur.id === trackId || 
-        (trackObj && (cur.audioUrl === trackObj.audioUrl || (cur.title.toLowerCase() === trackObj.title.toLowerCase() && cur.artist.toLowerCase() === trackObj.artist.toLowerCase())));
-      if (match) {
-        this.currentTrack.set({ ...cur, isFavorite });
-      }
+    if (cur && cur.id === trackId) {
+      this.currentTrack.set({ ...cur, isFavorite });
     }
     this.queue.update((q) =>
-      q.map((t) => {
-        const match = t.id === trackId || 
-          (trackObj && (t.audioUrl === trackObj.audioUrl || (t.title.toLowerCase() === trackObj.title.toLowerCase() && t.artist.toLowerCase() === trackObj.artist.toLowerCase())));
-        return match ? { ...t, isFavorite } : t;
-      })
+      q.map((t) => (t.id === trackId ? { ...t, isFavorite } : t))
     );
   }
 

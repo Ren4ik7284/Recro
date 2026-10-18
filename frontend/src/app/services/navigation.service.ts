@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-export type AppTab = 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search';
+export type AppTab = 'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' | 'charts' | 'library';
 export type AppOverlay =
   | 'lyrics'
   | 'visualizer'
@@ -16,7 +16,8 @@ export type AppOverlay =
   | 'wrapped'
   | 'pwa'
   | 'timer'
-  | 'timer-finish';
+  | 'timer-finish'
+  | 'chart';
 
 export interface RouteState {
   tab: AppTab;
@@ -27,9 +28,9 @@ export interface RouteState {
 const KNOWN_OVERLAYS = new Set<string>([
   'lyrics', 'visualizer', 'player', 'queue', 'add', 'playlists',
   'playlist-new', 'playlist-add', 'history', 'mix-settings', 'auth', 'wrapped', 'pwa',
-  'timer', 'timer-finish',
+  'timer', 'timer-finish', 'chart',
 ]);
-const KNOWN_TABS = new Set<string>(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline', 'profile', 'search']);
+const KNOWN_TABS = new Set<string>(['all', 'favorites', 'uploads', 'streams', 'playlist', 'offline', 'profile', 'search', 'charts', 'library']);
 
 @Injectable({
   providedIn: 'root',

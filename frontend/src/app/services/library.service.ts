@@ -1,5 +1,5 @@
 import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angular/core';
-import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist } from '../models/track.model';
+import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist, ChartSummary, ChartDetail, ReleaseItem, HomeExploreData } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
 
@@ -22,12 +22,6 @@ export const BUILTIN_DISLIKED_ARTISTS: string[] = [
   'бигбейби тейп',
   'kizaru',
   'кизару',
-  'madk1d',
-  'madkid',
-  'мэдкид',
-  'мадкид',
-  'cupsize',
-  'капсайз',
   'серега пират',
   'серёга пират',
   'serega pirat',
@@ -39,14 +33,16 @@ export const BUILTIN_DISLIKED_ARTISTS: string[] = [
   providedIn: 'root',
 })
 export class LibraryService implements OnDestroy {
-  private activeBackendUrl =
-    typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-      ? window.location.origin
-      : 'https://recro.onrender.com';
-  private readonly FALLBACK_BACKEND_URL =
-    typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-      ? window.location.origin
-      : 'https://recro.onrender.com';
+  private get defaultBackendUrl(): string {
+    if (typeof window === 'undefined') return 'http://127.0.0.1:8085';
+    if (window.location.port === '8085' || !window.location.port || window.location.port === '80' || window.location.port === '443') {
+      return window.location.origin;
+    }
+    const hostname = window.location.hostname || '127.0.0.1';
+    return `${window.location.protocol}//${hostname}:8085`;
+  }
+
+  private activeBackendUrl = '';
 
   readonly offlineService = inject(OfflineService);
   readonly authService = inject(AuthService);
@@ -108,7 +104,10 @@ export class LibraryService implements OnDestroy {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return new Set([...defaults, ...parsed]);
+          const filtered = parsed.filter(
+            (k) => typeof k === 'string' && !k.toLowerCase().includes('cupsize') && !k.toLowerCase().includes('капсайз')
+          );
+          return new Set([...defaults, ...filtered]);
         }
       }
     } catch {}
@@ -227,7 +226,7 @@ export class LibraryService implements OnDestroy {
   readonly radioStations = signal<RadioStation[]>([]);
   readonly searchQuery = signal<string>('');
   readonly selectedGenre = signal<string>('all');
-  readonly selectedView = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search'>('all');
+  readonly selectedView = signal<'all' | 'favorites' | 'uploads' | 'streams' | 'playlist' | 'offline' | 'profile' | 'search' | 'charts' | 'library'>('all');
   readonly activePlaylistId = signal<string | null>(null);
 
   readonly onlineSearchResults = signal<Track[]>([]);
@@ -280,7 +279,7 @@ export class LibraryService implements OnDestroy {
     }
 
     return this.tracks().filter((track) => {
-      if (view === 'all' && track.playlistOnly) return false;
+      if ((view === 'all' || view === 'library') && track.playlistOnly) return false;
       if (view === 'favorites' && !track.isFavorite) return false;
       if (view === 'uploads' && !track.isLocalUpload) return false;
       if (view === 'streams' && !track.isLiveStream && track.format !== 'stream') return false;
@@ -391,11 +390,7 @@ export class LibraryService implements OnDestroy {
   }
 
   getBackendUrl(): string {
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    if (isHttps && this.activeBackendUrl.startsWith('http://')) {
-      return this.FALLBACK_BACKEND_URL;
-    }
-    return this.activeBackendUrl || this.FALLBACK_BACKEND_URL;
+    return this.activeBackendUrl || this.defaultBackendUrl;
   }
 
   startAutoSync() {
@@ -566,25 +561,26 @@ export class LibraryService implements OnDestroy {
   }
 
   async checkBackendHealth() {
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const isRemoteHost = hostname !== 'localhost' && hostname !== '127.0.0.1';
+    const hostname = typeof window !== 'undefined' ? (window.location.hostname || '127.0.0.1') : '127.0.0.1';
     const urlsToTest: string[] = [];
 
-    if (isRemoteHost && typeof window !== 'undefined') {
-      urlsToTest.push(window.location.origin);
-      urlsToTest.push(this.FALLBACK_BACKEND_URL);
-    } else if (isHttps) {
-      urlsToTest.push(this.FALLBACK_BACKEND_URL);
-    } else {
+    if (typeof window !== 'undefined') {
+      urlsToTest.push(this.defaultBackendUrl);
+      if (window.location.origin !== this.defaultBackendUrl) {
+        urlsToTest.push(window.location.origin);
+      }
+      urlsToTest.push(`http://${hostname}:8085`);
+      urlsToTest.push('http://127.0.0.1:8085');
       urlsToTest.push('http://localhost:8085');
-      urlsToTest.push(this.FALLBACK_BACKEND_URL);
+    } else {
+      urlsToTest.push('http://127.0.0.1:8085');
     }
 
-    for (const testUrl of urlsToTest) {
+    const uniqueUrls = Array.from(new Set(urlsToTest));
+
+    for (const testUrl of uniqueUrls) {
       try {
-        // Увеличен таймаут до 8 секунд для надежного прохождения через VPN-соединения
-        const res = await fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(8000) });
+        const res = await fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           this.activeBackendUrl = testUrl;
           this.isBackendOnline.set(true);
@@ -594,8 +590,7 @@ export class LibraryService implements OnDestroy {
       } catch {}
     }
 
-    // Если оба таймаутнулись на медленном VPN-рукопожатии, на проде всегда держим Same-Origin (nginx /api/)
-    this.activeBackendUrl = isRemoteHost && typeof window !== 'undefined' ? window.location.origin : this.FALLBACK_BACKEND_URL;
+    this.activeBackendUrl = this.defaultBackendUrl;
     this.isBackendOnline.set(true);
     this.authService.verifyRemoteSession(this.activeBackendUrl);
   }
@@ -1225,44 +1220,23 @@ export class LibraryService implements OnDestroy {
   }
 
   isTrackFavorite(track: Track | null | undefined): boolean {
-    if (!track) return false;
+    if (!track || !track.id) return false;
     const all = this.tracks();
     const tId = track.id;
-    const audioUrl = track.audioUrl;
-    const normTitle = track.title ? track.title.trim().toLowerCase() : '';
-    const normArtist = track.artist ? track.artist.trim().toLowerCase() : '';
 
-    return all.some((t) => {
-      if (!t.isFavorite) return false;
-      if (t.id === tId) return true;
-      if (audioUrl && t.audioUrl && t.audioUrl === audioUrl) return true;
-      if (normTitle && normArtist && t.title && t.artist) {
-        if (t.title.trim().toLowerCase() === normTitle && t.artist.trim().toLowerCase() === normArtist) {
-          return true;
-        }
-      }
-      return false;
-    });
+    const match = all.find((t) => t.id === tId);
+    if (match) return !!match.isFavorite;
+    return !!track.isFavorite;
   }
 
   toggleFavorite(trackId: string, trackObj?: Track): boolean {
+    if (!trackId) return false;
     const all = this.tracks();
-    const audioUrl = trackObj?.audioUrl;
-    const normTitle = trackObj?.title ? trackObj.title.trim().toLowerCase() : '';
-    const normArtist = trackObj?.artist ? trackObj.artist.trim().toLowerCase() : '';
-
-    const existing = all.find((t) => {
-      if (t.id === trackId) return true;
-      if (audioUrl && t.audioUrl && t.audioUrl === audioUrl) return true;
-      if (normTitle && normArtist && t.title && t.artist) {
-        return t.title.trim().toLowerCase() === normTitle && t.artist.trim().toLowerCase() === normArtist;
-      }
-      return false;
-    });
+    const existing = all.find((t) => t.id === trackId);
 
     let newStatus = true;
     if (!existing && trackObj) {
-      const newTrack: Track = { ...trackObj, isFavorite: true, playlistOnly: false };
+      const newTrack: Track = { ...trackObj, id: trackId, isFavorite: true, playlistOnly: false };
       trackObj.isFavorite = true;
       this.tracks.update((cur) => [newTrack, ...cur]);
       newStatus = true;
@@ -1274,14 +1248,14 @@ export class LibraryService implements OnDestroy {
       }
       this.tracks.update((current) =>
         current.map((t) => {
-          if (t.id === existing.id || (audioUrl && t.audioUrl === audioUrl)) {
+          if (t.id === trackId) {
             return { ...t, isFavorite: newStatus };
           }
           return t;
         })
       );
     } else if (trackObj) {
-      const newTrack: Track = { ...trackObj, isFavorite: true, playlistOnly: false };
+      const newTrack: Track = { ...trackObj, id: trackId, isFavorite: true, playlistOnly: false };
       trackObj.isFavorite = true;
       this.tracks.update((cur) => [newTrack, ...cur]);
       newStatus = true;
@@ -2159,6 +2133,91 @@ export class LibraryService implements OnDestroy {
       return await res.json();
     } catch {
       return [];
+    }
+  }
+
+  async getHomeExplore(): Promise<HomeExploreData | null> {
+    try {
+      const res = await fetch(`${this.getBackendUrl()}/api/home`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const popular_tracks: Track[] = (data.popular_tracks || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        artist: item.artist,
+        duration: Math.round(item.duration || 0),
+        audioUrl: item.audio_url,
+        coverUrl: this.formatCoverUrl(item.cover_url),
+        genre: 'Top',
+        format: 'mp3',
+        bitrate: '320 kbps',
+        plays: item.plays || 0,
+        isFavorite: this.isTrackInLibrary(item.id),
+        addedAt: new Date().toISOString().split('T')[0],
+      }));
+
+      const popular_albums: ReleaseItem[] = (data.popular_albums || []).map((item: any) => ({
+        ...item,
+        cover_url: this.formatCoverUrl(item.cover_url),
+      }));
+
+      return {
+        ...data,
+        popular_tracks,
+        popular_albums,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async getCharts(): Promise<ChartSummary[]> {
+    try {
+      const res = await fetch(`${this.getBackendUrl()}/api/charts`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  async getChartDetail(chartId: string): Promise<ChartDetail | null> {
+    try {
+      const res = await fetch(`${this.getBackendUrl()}/api/charts/${encodeURIComponent(chartId)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const tracks: Track[] = (data.tracks || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        artist: item.artist,
+        duration: Math.round(item.duration || 0),
+        audioUrl: item.audio_url,
+        coverUrl: this.formatCoverUrl(item.cover_url),
+        genre: 'Chart',
+        format: 'mp3',
+        bitrate: '320 kbps',
+        plays: item.plays || 0,
+        isFavorite: false,
+        addedAt: new Date().toISOString().split('T')[0],
+      }));
+      return {
+        ...data,
+        tracks,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  isTrackInLibrary(trackId: string): boolean {
+    return this.tracks().some((t) => (t.id === trackId || (trackId && t.id.endsWith(trackId))) && !t.playlistOnly);
+  }
+
+  toggleTrackInLibrary(track: Track) {
+    if (this.isTrackInLibrary(track.id)) {
+      this.deleteTrack(track.id);
+    } else {
+      this.addTrackToLibrary(track);
     }
   }
 
