@@ -1,6 +1,7 @@
 import { Injectable, signal, inject, effect, untracked } from '@angular/core';
 import { ThemeService } from './theme.service';
 import { AuthService } from './auth.service';
+import { LibraryService } from './library.service';
 
 export interface BgPreset {
   id: 'off' | 'default' | 'grid' | 'waves' | 'rain' | 'custom';
@@ -40,6 +41,7 @@ const KEY_SAVED_URLS = 'recro_saved_bg_urls_v1';
 export class LiveBackgroundService {
   private readonly themeService = inject(ThemeService);
   private readonly authService = inject(AuthService, { optional: true });
+  private readonly libraryService = inject(LibraryService, { optional: true });
 
   readonly presets = BG_PRESETS;
 
@@ -454,6 +456,31 @@ export class LiveBackgroundService {
 
     if (this.syncThemeWithBg()) {
       this.extractPaletteAndApply(objectUrl, isVideo);
+    }
+
+    // Upload to server storage (compressed via ffmpeg) for cross-device persistence
+    const backendUrl = this.libraryService?.getBackendUrl() || '';
+    if (backendUrl) {
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+
+      fetch(`${backendUrl}/api/background/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.url) {
+            const fullUrl = data.url.startsWith('/') ? `${backendUrl}${data.url}` : data.url;
+            console.log('[LiveBackground] Server compressed & stored background:', fullUrl);
+            this.customMediaUrl.set(fullUrl);
+            this.customMediaType.set(data.mediaType || mediaType);
+            this.saveStorage('recro_bg_custom_url', fullUrl);
+            this.saveStorage('recro_bg_custom_type', data.mediaType || mediaType);
+            this.syncBgToCloud();
+          }
+        })
+        .catch((err) => console.warn('[LiveBackground] Server upload failed:', err));
     }
   }
 

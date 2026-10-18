@@ -1964,8 +1964,7 @@ export class AudioService {
 
     if (source === 'library_only') {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
-    } else {
-      // Pure Discovery Flow: Strictly NO tracks from user's library!
+    } else if (source === 'discovery_heavy') {
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(needed, excludeIds, recentArtists, curTrack);
       const pureDiscovery = discovery.filter((d) => !this.recService.isLibraryTrack(d));
       newTracks.push(...pureDiscovery);
@@ -1973,19 +1972,42 @@ export class AudioService {
         excludeIds.add(d.id);
         if (d.artist) recentArtists.add(d.artist);
       });
+    } else {
+      // Balanced mode: interweave user's favorite/library tracks with online discovery recommendations
+      const userPickCount = localCandidates.length > 0 ? Math.min(2, Math.max(1, Math.floor(needed * 0.4))) : 0;
+      const discoveryCount = needed - userPickCount;
+
+      const discoveryPromise = this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists, curTrack);
+      const localPicks = userPickCount > 0 ? this.recService.pickNextTracks(userPickCount, excludeIds, curTrack, recentArtists) : [];
+
+      const discovery = await discoveryPromise;
+      let dIdx = 0;
+      let lIdx = 0;
+      while (dIdx < discovery.length || lIdx < localPicks.length) {
+        if (dIdx < discovery.length) {
+          newTracks.push(discovery[dIdx++]);
+        }
+        if (lIdx < localPicks.length) {
+          newTracks.push(localPicks[lIdx++]);
+        }
+      }
+      newTracks.forEach((d) => {
+        excludeIds.add(d.id);
+        if (d.artist) recentArtists.add(d.artist);
+      });
     }
 
-    if (newTracks.length === 0 && source === 'library_only' && localCandidates.length > 0) {
+    if (newTracks.length === 0 && localCandidates.length > 0) {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
       if (newTracks.length === 0) {
         newTracks = this.recService.pickNextTracks(needed, new Set(curTrack ? [curTrack.id] : []));
       }
     }
 
-    if (newTracks.length === 0 && source !== 'library_only') {
+    if (newTracks.length === 0) {
       const starters = this.recService.getStarterCandidates(mood, needed * 3, effectiveLang);
       const freshStarters = starters.filter(
-        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t) && !this.recService.isLibraryTrack(t)
+        (t) => !excludeIds.has(t.id) && !this.recService.isSessionDuplicate(t)
       );
       if (freshStarters.length > 0) {
         newTracks = freshStarters.slice(0, needed);
@@ -1998,7 +2020,7 @@ export class AudioService {
              !this.recService.isSessionDuplicate(t) &&
              isTrackLanguageMatch(t, effectiveLang) &&
              this.recService.doesTrackMatchMood(t, mood) &&
-             (source === 'library_only' || !this.recService.isLibraryTrack(t))
+             (source !== 'discovery_heavy' || !this.recService.isLibraryTrack(t))
     );
 
     if (strictlyUniqueTracks.length > 0) {
@@ -2062,46 +2084,52 @@ export class AudioService {
       return false;
     }
 
-    // 2. Pure Discovery / Balanced Flow (source !== 'library_only'):
-    // Only continue playing curTrack as seed if curTrack is ACTIVELY playing AND matches mood AND is not a library track!
+    // 2. Discovery / Balanced Flow:
+    // If a track is already playing and matches mood, keep it as seed!
     const isActivelyPlaying = this.isPlaying();
     const curIsLibrary = curTrack ? this.recService.isLibraryTrack(curTrack) : false;
     const curMatchesMood = curTrack ? this.recService.doesTrackMatchMood(curTrack, mood) : false;
     const curIsDisliked = curTrack ? (this.recService.isDisliked(curTrack) || this.libraryService.isArtistDisliked(curTrack.artist)) : false;
 
-    if (curTrack && isActivelyPlaying && isTrackLanguageMatch(curTrack, effectiveLang) && !curIsLibrary && curMatchesMood && !curIsDisliked) {
-      // Clear the upcoming linear queue (no more library tracks following in list order!)
-      const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
-        .filter((t) => t.id !== curTrack.id && !this.recService.isLibraryTrack(t));
-      const initialQueue = [curTrack, ...starters.slice(0, 3)];
+    if (curTrack && isActivelyPlaying && isTrackLanguageMatch(curTrack, effectiveLang) && curMatchesMood && !curIsDisliked && (source !== 'discovery_heavy' || !curIsLibrary)) {
+      const initialQueue = [curTrack];
       this.queue.set(initialQueue);
       this.queueIndex.set(0);
       this.preloadNextTrack();
-      // Fetch pure online discovery tracks seeded by the current track:
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
 
-    // Launch from IDLE or fresh start (ensure starter is never a library track and never repetitive):
-    const starters = this.recService.getStarterCandidates(mood, 12, effectiveLang)
-      .filter((t) => !this.recService.isLibraryTrack(t));
-
+    // Launch from IDLE or fresh start:
     let immediateTrack: Track | null = null;
     let initialQueue: Track[] = [];
 
-    if (starters.length > 0) {
-      const randIdx = Math.floor(Math.random() * starters.length);
-      immediateTrack = starters[randIdx];
-      const remainingStarters = starters.filter(
-        (t) => t.id !== immediateTrack!.id && normalizeArtist(t.artist) !== normalizeArtist(immediateTrack!.artist)
+    // Prioritize user's own favorites / library tracks as the starter seed in balanced mode
+    if (localCandidates.length > 0 && source !== 'discovery_heavy') {
+      const moodMatching = localCandidates.filter(
+        (t) => isTrackLanguageMatch(t, effectiveLang) && this.recService.doesTrackMatchMood(t, mood) && !this.recService.isDisliked(t)
       );
-      initialQueue = [immediateTrack, ...remainingStarters.slice(0, 3)];
-    } else {
-      const freshOnline = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), null);
-      const pureOnline = freshOnline.filter((t) => !this.recService.isLibraryTrack(t));
-      if (pureOnline.length > 0) {
-        immediateTrack = pureOnline[0];
-        initialQueue = pureOnline;
+      const pool = moodMatching.length > 0 ? moodMatching : localCandidates.filter((t) => !this.recService.isDisliked(t));
+      const favs = pool.filter((t) => t.isFavorite);
+      const seedPool = favs.length > 0 ? favs : pool;
+      if (seedPool.length > 0) {
+        immediateTrack = seedPool[Math.floor(Math.random() * seedPool.length)];
+        initialQueue = [immediateTrack];
+      }
+    }
+
+    if (!immediateTrack) {
+      const starters = this.recService.getStarterCandidates(mood, 12, effectiveLang);
+      if (starters.length > 0) {
+        const randIdx = Math.floor(Math.random() * starters.length);
+        immediateTrack = starters[randIdx];
+        initialQueue = [immediateTrack];
+      } else {
+        const freshOnline = await this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), null);
+        if (freshOnline.length > 0) {
+          immediateTrack = freshOnline[0];
+          initialQueue = freshOnline;
+        }
       }
     }
 
@@ -2130,7 +2158,7 @@ export class AudioService {
       const curIsLibrary = cur ? this.recService.isLibraryTrack(cur) : false;
 
       // If current track violates new mood or violates discovery source rules, immediately jump to a fresh matching starter!
-      if (!curMatchesMood || (source !== 'library_only' && curIsLibrary)) {
+      if (!curMatchesMood || (source === 'discovery_heavy' && curIsLibrary)) {
         this.queue.set([]);
         this.queueIndex.set(0);
         this.startSmartMix(mood).catch(() => {});
@@ -2153,7 +2181,7 @@ export class AudioService {
     const source = this.recService.mixConfig().source;
 
     const curMatchesLang = !cur || isTrackLanguageMatch(cur, effectiveLang);
-    const curMatchesSource = !cur || (source === 'library_only' ? this.recService.isLibraryTrack(cur) : true);
+    const curMatchesSource = !cur || (source === 'library_only' ? this.recService.isLibraryTrack(cur) : (source === 'discovery_heavy' ? !this.recService.isLibraryTrack(cur) : true));
 
     if (!curMatchesLang || !curMatchesSource) {
       this.queue.set([]);

@@ -145,8 +145,9 @@ async fn main() {
         .route("/api/stream", get(stream_audio))
         .route("/api/lyrics", get(get_lyrics))
         .route("/api/track/meta", get(get_track_meta).post(save_track_meta))
+        .route("/api/background/upload", post(handlers::background::upload_background))
         .layer(axum::middleware::from_fn(security_headers_middleware))
-        .layer(RequestBodyLimitLayer::new(15 * 1024 * 1024))
+        .layer(RequestBodyLimitLayer::new(60 * 1024 * 1024))
         .layer(cors)
         .with_state(state);
 

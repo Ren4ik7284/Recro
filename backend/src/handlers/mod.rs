@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod background;
 pub mod charts;
 pub mod cover;
 pub mod history;
