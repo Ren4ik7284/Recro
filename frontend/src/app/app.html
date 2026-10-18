@@ -86,11 +86,11 @@
             @if (activeTab() === 'playlist' && currentPlaylist(); as pl) {
               <div class="playlist-header-details">
                 @if (pl.coverUrl) {
-                  <div class="playlist-cover-clickable" (click)="playlistHeaderCoverInput.click()" title="Нажмите для смены обложки">
+                  <div class="playlist-cover-clickable" (click)="playlistHeaderCoverInput.click()" [title]="i18n.currentLang() === 'ru' ? 'Нажмите для смены обложки' : 'Click to change cover'">
                     <img [src]="pl.coverUrl" class="playlist-badge-avatar-img" alt="" />
                   </div>
                 } @else {
-                  <div class="playlist-badge-avatar playlist-badge-clickable" (click)="playlistHeaderCoverInput.click()" title="Нажмите для загрузки обложки">
+                  <div class="playlist-badge-avatar playlist-badge-clickable" (click)="playlistHeaderCoverInput.click()" [title]="i18n.currentLang() === 'ru' ? 'Нажмите для загрузки обложки' : 'Click to upload cover'">
                     {{ pl.coverText }}
                   </div>
                 }
@@ -575,7 +575,7 @@
                                   <span></span><span></span><span></span>
                                 </div>
                               } @else {
-                                <button class="row-play-btn" (click)="playOnlineTrack(track); $event.stopPropagation()" title="Слушать">
+                                <button class="row-play-btn" (click)="playOnlineTrack(track); $event.stopPropagation()" [title]="i18n.t('player.play')">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                     <polygon points="6 3 20 12 6 21 6 3"/>
                                   </svg>
@@ -719,9 +719,9 @@
           <div class="charts-view-container">
             @if (!selectedChart()) {
               <div class="charts-overview-header">
-                <div class="charts-badge font-mono">РЕЙТИНГИ</div>
-                <h2 class="charts-main-title">Чарты и тренды</h2>
-                <p class="charts-main-sub">Актуальные сводки прослушиваний. Ежедневное обновление.</p>
+                <div class="charts-badge font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕЙТИНГИ' : 'CHARTS' }}</div>
+                <h2 class="charts-main-title">{{ i18n.t('home.charts') }}</h2>
+                <p class="charts-main-sub">{{ i18n.currentLang() === 'ru' ? 'Актуальные сводки прослушиваний. Ежедневное обновление.' : 'Current listening summaries. Updated daily.' }}</p>
               </div>
 
               @if (isLoadingCharts()) {
@@ -745,7 +745,7 @@
                             </svg>
                           </div>
                         }
-                        <button class="chart-card-play-btn" (click)="$event.stopPropagation(); openChart(c.id)" title="Открыть">
+                        <button class="chart-card-play-btn" (click)="$event.stopPropagation(); openChart(c.id)" [title]="i18n.currentLang() === 'ru' ? 'Открыть' : 'Open'">
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <polygon points="6 3 20 12 6 21 6 3"/>
                           </svg>
@@ -754,7 +754,7 @@
                       <div class="chart-card-info">
                         <div class="chart-card-title">{{ c.title }}</div>
                         <div class="chart-card-sub">{{ c.subtitle }}</div>
-                        <div class="chart-card-meta font-mono">{{ c.track_count }} треков • {{ c.updated_at }}</div>
+                        <div class="chart-card-meta font-mono">{{ c.track_count }} {{ i18n.currentLang() === 'ru' ? 'треков' : 'tracks' }} • {{ c.updated_at }}</div>
                       </div>
                     </div>
                   }
@@ -788,11 +788,11 @@
                     </div>
 
                     <div class="chart-detail-meta">
-                      <div class="chart-meta-tag font-mono">РЕЙТИНГ</div>
+                      <div class="chart-meta-tag font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕЙТИНГ' : 'CHART' }}</div>
                       <h1 class="chart-detail-title">{{ chart.title }}</h1>
                       <p class="chart-detail-sub">{{ chart.subtitle }}</p>
                       <div class="chart-detail-stats font-mono">
-                        {{ chart.tracks.length }} треков • {{ chart.updated_at }}
+                        {{ chart.tracks.length }} {{ i18n.currentLang() === 'ru' ? 'треков' : 'tracks' }} • {{ chart.updated_at }}
                       </div>
 
                       <div class="chart-detail-actions">
@@ -819,8 +819,8 @@
                     <div class="chart-tracks-table">
                       <div class="chart-table-header">
                         <div class="th-num">#</div>
-                        <div class="th-info">ТРЕК</div>
-                        <div class="th-dur">ВРЕМЯ</div>
+                        <div class="th-info">{{ i18n.currentLang() === 'ru' ? 'ТРЕК' : 'TRACK' }}</div>
+                        <div class="th-dur">{{ i18n.currentLang() === 'ru' ? 'ВРЕМЯ' : 'TIME' }}</div>
                         <div class="th-act"></div>
                       </div>
 
@@ -871,7 +871,7 @@
                                 class="btn-chart-add-lib" 
                                 [class.active]="libraryService.isTrackInLibrary(track.id)"
                                 (click)="libraryService.toggleTrackInLibrary(track)"
-                                [title]="libraryService.isTrackInLibrary(track.id) ? 'Удалить из медиатеки' : 'Сохранить в медиатеку'"
+                                [title]="libraryService.isTrackInLibrary(track.id) ? (i18n.currentLang() === 'ru' ? 'Удалить из медиатеки' : 'Remove from library') : (i18n.currentLang() === 'ru' ? 'Сохранить в медиатеку' : 'Save to library')"
                               >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                   @if (libraryService.isTrackInLibrary(track.id)) {
@@ -923,11 +923,11 @@
                   </div>
 
                   <div class="chart-detail-meta">
-                    <div class="chart-meta-tag font-mono">РЕЙТИНГ</div>
+                    <div class="chart-meta-tag font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕЙТИНГ' : 'CHART' }}</div>
                     <h1 class="chart-detail-title">{{ chart.title }}</h1>
                     <p class="chart-detail-sub">{{ chart.subtitle }}</p>
                     <div class="chart-detail-stats font-mono">
-                      {{ chart.tracks.length }} треков • {{ chart.updated_at }}
+                      {{ chart.tracks.length }} {{ i18n.currentLang() === 'ru' ? 'треков' : 'tracks' }} • {{ chart.updated_at }}
                     </div>
 
                     <div class="chart-detail-actions">
@@ -954,8 +954,8 @@
                   <div class="chart-tracks-table">
                     <div class="chart-table-header">
                       <div class="th-num">#</div>
-                      <div class="th-info">ТРЕК</div>
-                      <div class="th-dur">ВРЕМЯ</div>
+                      <div class="th-info">{{ i18n.currentLang() === 'ru' ? 'ТРЕК' : 'TRACK' }}</div>
+                      <div class="th-dur">{{ i18n.currentLang() === 'ru' ? 'ВРЕМЯ' : 'TIME' }}</div>
                       <div class="th-act"></div>
                     </div>
 
@@ -1006,7 +1006,7 @@
                               class="btn-chart-add-lib" 
                               [class.active]="libraryService.isTrackInLibrary(track.id)"
                               (click)="libraryService.toggleTrackInLibrary(track)"
-                              [title]="libraryService.isTrackInLibrary(track.id) ? 'Удалить из медиатеки' : 'Сохранить в медиатеку'"
+                              [title]="libraryService.isTrackInLibrary(track.id) ? (i18n.currentLang() === 'ru' ? 'Удалить из медиатеки' : 'Remove from library') : (i18n.currentLang() === 'ru' ? 'Сохранить в медиатеку' : 'Save to library')"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 @if (libraryService.isTrackInLibrary(track.id)) {
@@ -1735,7 +1735,7 @@
           @if (audioService.isLiveStream()) {
             <div class="live-stream-bar">
               <span class="live-pulse-dot"></span>
-              <span class="live-stream-label">ПРЯМОЙ ЭФИР • LIVE STREAM</span>
+              <span class="live-stream-label">{{ i18n.currentLang() === 'ru' ? 'ПРЯМОЙ ЭФИР • ОНЛАЙН-ПОТОК' : 'LIVE STREAM' }}</span>
             </div>
           } @else {
             <input 
@@ -2124,7 +2124,7 @@
                         </svg>
                       </span>
                       <div class="notice-text">
-                        <strong>YouTube Radio Mix:</strong> YouTube прикрепил авто-микс рекомендаций. Вы можете сохранить видео как цельный трек/микс или перенести треки в отдельный плейлист.
+                        <strong>YouTube Radio Mix:</strong> {{ i18n.currentLang() === 'ru' ? 'YouTube прикрепил авто-микс рекомендаций. Вы можете сохранить видео как цельный трек/микс или перенести треки в отдельный плейлист.' : 'YouTube attached an auto-mix of recommendations. You can save as a single track/mix or import tracks into a playlist.' }}
                       </div>
                     </div>
                   }
@@ -2140,7 +2140,7 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
                         </svg>
-                        <span>Цельный микс / трек ({{ formatTime(res.mainVideo.duration) }})</span>
+                        <span>{{ i18n.currentLang() === 'ru' ? 'Цельный микс / трек' : 'Single mix / track' }} ({{ formatTime(res.mainVideo.duration) }})</span>
                       </button>
                       <button 
                         type="button"
@@ -2151,7 +2151,7 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M4 6h16M4 12h16M4 18h7"/>
                         </svg>
-                        <span>Плейлист ({{ res.tracks.length }} треков)</span>
+                        <span>{{ i18n.currentLang() === 'ru' ? 'Плейлист' : 'Playlist' }} ({{ res.tracks.length }} {{ i18n.currentLang() === 'ru' ? 'треков' : 'tracks' }})</span>
                       </button>
                     </div>
                   }
@@ -2171,7 +2171,7 @@
                       </div>
                       <div class="mix-info">
                         <span class="mix-badge font-mono">
-                          {{ (res.mainVideo?.duration || 0) > 600 ? 'ЦЕЛЬНЫЙ МИКС / СБОРНИК' : 'АУДИОТРЕК' }}
+                          {{ (res.mainVideo?.duration || 0) > 600 ? (i18n.currentLang() === 'ru' ? 'ЦЕЛЬНЫЙ МИКС / СБОРНИК' : 'FULL MIX / COMPILATION') : (i18n.currentLang() === 'ru' ? 'АУДИОТРЕК' : 'AUDIO TRACK') }}
                         </span>
                         <h4 class="mix-title notranslate" translate="no">{{ res.mainVideo?.title || res.tracks[0]?.title }}</h4>
                         <p class="mix-artist"><span class="notranslate" translate="no">{{ res.mainVideo?.artist || res.tracks[0]?.artist }}</span> • <span class="font-mono">{{ formatTime(res.mainVideo?.duration || res.tracks[0]?.duration || 0) }}</span></p>
@@ -2181,13 +2181,13 @@
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                           </svg>
-                          <span>Сохранить в медиатеку</span>
+                          <span>{{ i18n.currentLang() === 'ru' ? 'Сохранить в медиатеку' : 'Save to library' }}</span>
                         </button>
                         <button type="button" class="btn-mix-secondary" (click)="addExtractedSingleTrack(true)">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <polygon points="6 3 20 12 6 21 6 3"/>
                           </svg>
-                          <span>Слушать сразу</span>
+                          <span>{{ i18n.currentLang() === 'ru' ? 'Слушать сразу' : 'Play now' }}</span>
                         </button>
                       </div>
                     </div>
@@ -2196,20 +2196,20 @@
                       <div class="extracted-header">
                         <div class="extracted-header-info">
                           <span class="extracted-badge font-mono">
-                            {{ res.hasChapters ? 'ГЛАВЫ / ТАЙМКОДЫ ВИДЕО' : (res.isRadioMix ? 'МИКС YOUTUBE' : 'ПЛЕЙЛИСТ') }}
+                            {{ res.hasChapters ? (i18n.currentLang() === 'ru' ? 'ГЛАВЫ / ТАЙМКОДЫ ВИДЕО' : 'CHAPTERS / TIMECODES') : (res.isRadioMix ? (i18n.currentLang() === 'ru' ? 'МИКС YOUTUBE' : 'YOUTUBE MIX') : (i18n.currentLang() === 'ru' ? 'ПЛЕЙЛИСТ' : 'PLAYLIST')) }}
                           </span>
-                          <h4 class="extracted-title">{{ res.playlistTitle || res.mainVideo?.title || 'Плейлист' }}</h4>
+                          <h4 class="extracted-title">{{ res.playlistTitle || res.mainVideo?.title || (i18n.currentLang() === 'ru' ? 'Плейлист' : 'Playlist') }}</h4>
                           <p class="extracted-sub">
-                            Выбрано {{ selectedExtractedTrackIds().size }} из {{ res.tracks.length }} треков
+                            {{ i18n.currentLang() === 'ru' ? 'Выбрано' : 'Selected' }} {{ selectedExtractedTrackIds().size }} {{ i18n.currentLang() === 'ru' ? 'из' : 'of' }} {{ res.tracks.length }} {{ i18n.currentLang() === 'ru' ? 'треков' : 'tracks' }}
                           </p>
                         </div>
 
                         <div class="extracted-batch-actions">
                           <button type="button" class="btn-select-all" (click)="toggleSelectAllExtractedTracks()">
-                            {{ selectedExtractedTrackIds().size === res.tracks.length ? 'Снять все' : 'Выбрать все' }}
+                            {{ selectedExtractedTrackIds().size === res.tracks.length ? (i18n.currentLang() === 'ru' ? 'Снять все' : 'Deselect all') : (i18n.currentLang() === 'ru' ? 'Выбрать все' : 'Select all') }}
                           </button>
                           <button type="button" class="btn-import-pl" (click)="importAllExtractedTracks(true)">
-                            <span>Создать плейлист ({{ selectedExtractedTrackIds().size }})</span>
+                            <span>{{ i18n.currentLang() === 'ru' ? 'Создать плейлист' : 'Create playlist' }} ({{ selectedExtractedTrackIds().size }})</span>
                           </button>
                         </div>
                       </div>
@@ -2242,7 +2242,7 @@
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                 <polygon points="6 3 20 12 6 21 6 3"/>
                               </svg>
-                              <span>Слушать</span>
+                              <span>{{ i18n.currentLang() === 'ru' ? 'Слушать' : 'Play' }}</span>
                             </button>
                           </div>
                         }
@@ -2260,7 +2260,7 @@
               <div class="online-search-bar">
                 <input 
                   type="text" 
-                  placeholder="Название трека или исполнителя (Linkin Park, Кино, Король и Шут...)"
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'Название трека или исполнителя (Linkin Park, Кино, Король и Шут...)' : 'Track title or artist (Linkin Park, Arctic Monkeys, The Weeknd...)'"
                   [ngModel]="modalSearchInput()"
                   (ngModelChange)="modalSearchInput.set($event)"
                   (keyup.enter)="triggerOnlineSearch()"
@@ -2273,9 +2273,9 @@
                   (click)="triggerOnlineSearch()"
                 >
                   @if (libraryService.isSearchingOnline()) {
-                    <span>Поиск...</span>
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Поиск...' : 'Searching...' }}</span>
                   } @else {
-                    <span>Найти</span>
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Найти' : 'Search' }}</span>
                   }
                 </button>
               </div>
@@ -2283,7 +2283,7 @@
               <div class="search-results-box">
                 @if (libraryService.isSearchingOnline()) {
                   <div class="search-loading-state font-mono">
-                    <span class="loading-pulse"></span> Идет поиск в сети...
+                    <span class="loading-pulse"></span> {{ i18n.currentLang() === 'ru' ? 'Идет поиск в сети...' : 'Searching online...' }}
                   </div>
                 } @else if (libraryService.onlineSearchResults().length > 0) {
                   <div class="search-results-list">
@@ -2307,20 +2307,20 @@
                         </div>
 
                         <div class="res-actions">
-                          <button class="btn-res-play" (click)="playOnlineTrack(item)" title="Слушать">
+                          <button class="btn-res-play" (click)="playOnlineTrack(item)" [title]="i18n.t('player.play')">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                               <polygon points="6 3 20 12 6 21 6 3"/>
                             </svg>
-                            <span>Слушать</span>
+                            <span>{{ i18n.currentLang() === 'ru' ? 'Слушать' : 'Play' }}</span>
                           </button>
-                          <button class="btn-res-add" (click)="addOnlineTrackToLib(item)" title="Добавить">
-                            + В медиатеку
+                          <button class="btn-res-add" (click)="addOnlineTrackToLib(item)" [title]="i18n.currentLang() === 'ru' ? 'Добавить' : 'Add'">
+                            {{ i18n.currentLang() === 'ru' ? '+ В медиатеку' : '+ To Library' }}
                           </button>
                           <button 
                             class="action-icon-btn btn-dislike" 
                             style="margin-left: 4px; padding: 6px; border-radius: 6px; background: rgba(255,255,255,0.05); color: #71717a;"
                             (click)="dislikeTrack(item, $event)" 
-                            title="Скрыть / заблокировать трек (дизлайк)"
+                            [title]="i18n.t('player.dislike')"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                               <circle cx="12" cy="12" r="10"/>
@@ -2333,16 +2333,16 @@
                   </div>
                 } @else if (modalSearchInput().trim()) {
                   <div class="search-hint-box">
-                    <p class="hint-title">По запросу «{{ modalSearchInput() }}» ничего не найдено</p>
-                    <p class="hint-desc">Вы можете добавить этот трек вручную прямо в медиатеку:</p>
+                    <p class="hint-title">{{ i18n.currentLang() === 'ru' ? 'По запросу «' + modalSearchInput() + '» ничего не найдено' : 'No results found for "' + modalSearchInput() + '"' }}</p>
+                    <p class="hint-desc">{{ i18n.currentLang() === 'ru' ? 'Вы можете добавить этот трек вручную прямо в медиатеку:' : 'You can add this track manually to your library:' }}</p>
                     <button class="btn-res-add" style="margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; cursor: pointer;" (click)="addManualFromSearch()">
-                      + Добавить «{{ modalSearchInput() }}» в медиатеку
+                      {{ i18n.currentLang() === 'ru' ? '+ Добавить «' + modalSearchInput() + '» в медиатеку' : '+ Add "' + modalSearchInput() + '" to library' }}
                     </button>
                   </div>
                 } @else {
                   <div class="search-hint-box">
-                    <p class="hint-title">Быстрый поиск треков:</p>
-                    <p class="hint-desc">Прямой стриминг найденных композиций без предварительного скачивания.</p>
+                    <p class="hint-title">{{ i18n.currentLang() === 'ru' ? 'Быстрый поиск треков:' : 'Quick Track Search:' }}</p>
+                    <p class="hint-desc">{{ i18n.currentLang() === 'ru' ? 'Прямой стриминг найденных композиций без предварительного скачивания.' : 'Direct streaming of found music without downloading.' }}</p>
                   </div>
                 }
               </div>
@@ -2353,8 +2353,8 @@
           @if (addModalTab() === 'radio') {
             <div class="tab-presets-content">
               <div class="radio-modal-top">
-                <p class="presets-desc">Выберите станцию для прослушивания:</p>
-                <button class="btn-text-sm" (click)="isAddStationModalOpen.set(true)">+ Своя станция</button>
+                <p class="presets-desc">{{ i18n.currentLang() === 'ru' ? 'Выберите станцию для прослушивания:' : 'Choose a station to listen to:' }}</p>
+                <button class="btn-text-sm" (click)="isAddStationModalOpen.set(true)">{{ i18n.currentLang() === 'ru' ? '+ Своя станция' : '+ Custom Station' }}</button>
               </div>
               <div class="presets-grid">
                 @for (station of libraryService.radioStations(); track station.id) {
@@ -2365,7 +2365,7 @@
                     </div>
                     <div class="preset-action">
                       <span class="preset-bitrate font-mono">{{ station.bitrate }}</span>
-                      <button class="btn-connect-stream" title="Включить">
+                      <button class="btn-connect-stream" [title]="i18n.t('player.play')">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                           <polygon points="6 3 20 12 6 21 6 3"/>
                         </svg>
@@ -2382,10 +2382,10 @@
             <div class="tab-url-content">
               <div class="upload-fields-grid">
                 <div class="input-field">
-                  <label class="field-label">Название трека</label>
+                  <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Название трека' : 'Track title' }}</label>
                   <input 
                     type="text" 
-                    placeholder="Название трека (например: Numb, Группа крови)..."
+                    [placeholder]="i18n.currentLang() === 'ru' ? 'Название трека (например: Numb, Группа крови)...' : 'Track title (e.g. Numb, In The End)...'"
                     [ngModel]="inputTitle()"
                     (ngModelChange)="inputTitle.set($event)"
                     class="form-text-input"
@@ -2393,10 +2393,10 @@
                 </div>
 
                 <div class="input-field">
-                  <label class="field-label">Исполнитель</label>
+                  <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Исполнитель' : 'Artist' }}</label>
                   <input 
                     type="text" 
-                    placeholder="Исполнитель (Linkin Park, Кино)..."
+                    [placeholder]="i18n.currentLang() === 'ru' ? 'Исполнитель (Linkin Park, Кино)...' : 'Artist (Linkin Park, Arctic Monkeys)...'"
                     [ngModel]="inputArtist()"
                     (ngModelChange)="inputArtist.set($event)"
                     class="form-text-input"
@@ -2405,15 +2405,15 @@
               </div>
 
               <div class="input-field" style="margin-top: 12px;">
-                <label class="field-label">Ссылка на аудиопоток или видео (опционально)</label>
+                <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Ссылка на аудиопоток или видео (опционально)' : 'Audio stream or video URL (optional)' }}</label>
                 <input 
                   type="url" 
-                  placeholder="https://... (YouTube, SoundCloud, mp3 поток, радио)"
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'https://... (YouTube, SoundCloud, mp3 поток, радио)' : 'https://... (YouTube, SoundCloud, mp3 stream, radio)'"
                   [ngModel]="inputUrl()"
                   (ngModelChange)="inputUrl.set($event)"
                   class="form-text-input"
                 />
-                <span class="field-hint">Если ссылка не указана, аудиоплеер автоматически подберёт трек по названию и автору</span>
+                <span class="field-hint">{{ i18n.currentLang() === 'ru' ? 'Если ссылка не указана, аудиоплеер автоматически подберёт трек по названию и автору' : 'If link is omitted, the player will automatically search online by title & artist' }}</span>
               </div>
 
               <label class="checkbox-label" style="margin-top: 10px;">
@@ -2422,7 +2422,7 @@
                   [ngModel]="isLiveStreamCheckbox()"
                   (ngModelChange)="isLiveStreamCheckbox.set($event)"
                 />
-                <span>Это непрерывный прямой эфир (интернет-радио)</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Это непрерывный прямой эфир (интернет-радио)' : 'This is a continuous live stream (Internet radio)' }}</span>
               </label>
             </div>
           }
@@ -2452,22 +2452,22 @@
                 @if (uploadFileName()) {
                   <div class="selected-file-pill">
                     <span class="file-name-text font-mono">{{ uploadFileName() }}</span>
-                    <span class="file-ready-badge">Готов</span>
+                    <span class="file-ready-badge">{{ i18n.currentLang() === 'ru' ? 'Готов' : 'Ready' }}</span>
                   </div>
                 } @else {
-                  <p class="dropzone-prompt">Перетащите аудиофайл сюда или</p>
-                  <button class="btn-browse" (click)="fileInput.click()">Выберите файл на диске</button>
+                  <p class="dropzone-prompt">{{ i18n.currentLang() === 'ru' ? 'Перетащите аудиофайл сюда или' : 'Drag & drop audio file here or' }}</p>
+                  <button class="btn-browse" (click)="fileInput.click()">{{ i18n.currentLang() === 'ru' ? 'Выберите файл на диске' : 'Browse file on disk' }}</button>
                 }
               </div>
 
               <div class="upload-fields-grid" style="margin-top: 14px;">
                 <div class="input-field">
-                  <label class="field-label">Название</label>
-                  <input type="text" placeholder="Название..." [ngModel]="uploadTitle()" (ngModelChange)="uploadTitle.set($event)" class="form-text-input" />
+                  <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Название' : 'Title' }}</label>
+                  <input type="text" [placeholder]="i18n.currentLang() === 'ru' ? 'Название...' : 'Title...'" [ngModel]="uploadTitle()" (ngModelChange)="uploadTitle.set($event)" class="form-text-input" />
                 </div>
                 <div class="input-field">
-                  <label class="field-label">Исполнитель</label>
-                  <input type="text" placeholder="Исполнитель..." [ngModel]="uploadArtist()" (ngModelChange)="uploadArtist.set($event)" class="form-text-input" />
+                  <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Исполнитель' : 'Artist' }}</label>
+                  <input type="text" [placeholder]="i18n.currentLang() === 'ru' ? 'Исполнитель...' : 'Artist...'" [ngModel]="uploadArtist()" (ngModelChange)="uploadArtist.set($event)" class="form-text-input" />
                 </div>
               </div>
             </div>
@@ -2475,15 +2475,15 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" (click)="closeAddModal()">Закрыть</button>
+          <button class="btn-cancel" (click)="closeAddModal()">{{ i18n.currentLang() === 'ru' ? 'Закрыть' : 'Close' }}</button>
           
           @if (addModalTab() === 'url') {
             <button class="btn-confirm-action" [disabled]="(!inputUrl().trim() && !inputTitle().trim()) || isUrlValidating()" (click)="submitUrlTrack()">
-              Подключить
+              {{ i18n.currentLang() === 'ru' ? 'Подключить' : 'Connect' }}
             </button>
           } @else if (addModalTab() === 'file') {
             <button class="btn-confirm-action" [disabled]="!uploadFile()" (click)="submitUpload()">
-              Сохранить
+              {{ i18n.currentLang() === 'ru' ? 'Сохранить' : 'Save' }}
             </button>
           }
         </div>
@@ -2496,7 +2496,7 @@
     <div class="modal-backdrop" (click)="isAddStationModalOpen.set(false)">
       <div class="modal-dialog station-modal" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <h3 class="modal-title">Новая радиостанция</h3>
+          <h3 class="modal-title">{{ i18n.currentLang() === 'ru' ? 'Новая радиостанция' : 'New Radio Station' }}</h3>
           <button class="btn-close-sm" (click)="isAddStationModalOpen.set(false)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -2506,10 +2506,10 @@
 
         <div class="modal-body">
           <div class="input-field">
-            <label class="field-label">Название радиостанции</label>
+            <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Название радиостанции' : 'Station Name' }}</label>
             <input 
               type="text" 
-              placeholder="Например: Record Dance..." 
+              [placeholder]="i18n.currentLang() === 'ru' ? 'Например: Record Dance...' : 'E.g. Record Dance...'" 
               [ngModel]="newStationName()" 
               (ngModelChange)="newStationName.set($event)" 
               class="form-text-input"
@@ -2518,7 +2518,7 @@
           </div>
 
           <div class="input-field">
-            <label class="field-label">Прямой URL потока (Icecast, AAC, MP3)</label>
+            <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Прямой URL потока (Icecast, AAC, MP3)' : 'Direct Stream URL (Icecast, AAC, MP3)' }}</label>
             <input 
               type="url" 
               placeholder="https://stream.example.com/radio.mp3" 
@@ -2529,10 +2529,10 @@
           </div>
 
           <div class="input-field">
-            <label class="field-label">Жанр / Описание</label>
+            <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Жанр / Описание' : 'Genre / Description' }}</label>
             <input 
               type="text" 
-              placeholder="Например: Electronic, Rock, Jazz..." 
+              [placeholder]="i18n.currentLang() === 'ru' ? 'Например: Electronic, Rock, Jazz...' : 'E.g. Electronic, Rock, Jazz...'" 
               [ngModel]="newStationGenre()" 
               (ngModelChange)="newStationGenre.set($event)" 
               class="form-text-input"
@@ -2541,9 +2541,9 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" (click)="isAddStationModalOpen.set(false)">Отмена</button>
+          <button class="btn-cancel" (click)="isAddStationModalOpen.set(false)">{{ i18n.currentLang() === 'ru' ? 'Отмена' : 'Cancel' }}</button>
           <button class="btn-confirm-action" [disabled]="!newStationUrl().trim()" (click)="saveCustomStation()">
-            Добавить станцию
+            {{ i18n.currentLang() === 'ru' ? 'Добавить станцию' : 'Add Station' }}
           </button>
         </div>
       </div>
@@ -2726,8 +2726,8 @@
       <div class="modal-dialog pwa-install-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
-            <h3 class="modal-title">Приложение Recro</h3>
-            <p class="modal-subtitle">Слушайте музыку и радио без ограничений браузера</p>
+            <h3 class="modal-title">{{ i18n.currentLang() === 'ru' ? 'Приложение Recro' : 'Recro App' }}</h3>
+            <p class="modal-subtitle">{{ i18n.currentLang() === 'ru' ? 'Слушайте музыку и радио без ограничений браузера' : 'Listen to music & radio without browser limits' }}</p>
           </div>
           <button class="btn-close-sm" (click)="closePwaModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2775,17 +2775,17 @@
                 <img src="/icons/apple-touch-icon.png?v=recro3" style="width: 100%; height: 100%; object-fit: cover;" alt="Recro" />
               </div>
               <div style="flex: 1; min-width: 0;">
-                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Recro для iPhone & iPad</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Установка по сертификату (.IPA) или в 1 клик (PWA)</div>
+                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">{{ i18n.currentLang() === 'ru' ? 'Recro для iPhone & iPad' : 'Recro for iPhone & iPad' }}</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ i18n.currentLang() === 'ru' ? 'Установка по сертификату (.IPA) или в 1 клик (PWA)' : 'Install via certificate (.IPA) or 1-click (PWA)' }}</div>
               </div>
             </div>
 
             <!-- IPA Download button for users with certificates -->
-            <a href="/recro.ipa" download="recro.ipa" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 12px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast('Загрузка Recro IPA началась')">
+            <a href="/recro.ipa" download="recro.ipa" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 12px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка Recro IPA началась' : 'Recro IPA download started')">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Скачать Recro IPA (для сертификата)</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Скачать Recro IPA (для сертификата)' : 'Download Recro IPA (for certificate)' }}</span>
             </a>
 
             <!-- Certificate Guide -->
@@ -2794,24 +2794,24 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 </svg>
-                <span>Установка через сертификат (ESign, Scarlet, AltStore)</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Установка через сертификат (ESign, Scarlet, AltStore)' : 'Install via certificate (ESign, Scarlet, AltStore)' }}</span>
               </div>
               <div class="pwa-step-item" style="margin-bottom: 5px;">
                 <div class="pwa-step-num font-mono">1</div>
                 <div class="pwa-step-text">
-                  Нажмите <strong>«Скачать Recro IPA»</strong> выше и сохраните файл в «Файлы».
+                  {{ i18n.currentLang() === 'ru' ? 'Нажмите «Скачать Recro IPA» выше и сохраните файл в «Файлы».' : 'Tap "Download Recro IPA" above and save to "Files".' }}
                 </div>
               </div>
               <div class="pwa-step-item" style="margin-bottom: 5px;">
                 <div class="pwa-step-num font-mono">2</div>
                 <div class="pwa-step-text">
-                  Откройте <strong>ESign</strong>, <strong>Scarlet</strong>, <strong>Gbox</strong>, <strong>SideStore</strong> или <strong>AltStore</strong>.
+                  {{ i18n.currentLang() === 'ru' ? 'Откройте ESign, Scarlet, Gbox, SideStore или AltStore.' : 'Open ESign, Scarlet, Gbox, SideStore, or AltStore.' }}
                 </div>
               </div>
               <div class="pwa-step-item" style="margin-bottom: 5px;">
                 <div class="pwa-step-num font-mono">3</div>
                 <div class="pwa-step-text">
-                  Импортируйте <strong>recro.ipa</strong>, подпишите вашим сертификатом и нажмите <strong>«Установить»</strong>.
+                  {{ i18n.currentLang() === 'ru' ? 'Импортируйте recro.ipa, подпишите вашим сертификатом и нажмите «Установить».' : 'Import recro.ipa, sign with your certificate and tap "Install".' }}
                 </div>
               </div>
             </div>
@@ -2830,53 +2830,53 @@
               <div class="pwa-step-item">
                 <div class="pwa-step-num font-mono">2</div>
                 <div class="pwa-step-text">
-                  Пролистайте вниз и выберите <strong>«На экран "Домой"»</strong>.
+                  {{ i18n.currentLang() === 'ru' ? 'Пролистайте вниз и выберите «На экран "Домой"».' : 'Scroll down and tap "Add to Home Screen".' }}
                 </div>
               </div>
               <div class="pwa-step-item">
                 <div class="pwa-step-num font-mono">3</div>
                 <div class="pwa-step-text">
-                  Вверху справа нажмите <strong>«Добавить»</strong> — значок появится на рабочем столе.
+                  {{ i18n.currentLang() === 'ru' ? 'Вверху справа нажмите «Добавить» — значок появится на рабочем столе.' : 'Tap "Add" in top right — icon will appear on your home screen.' }}
                 </div>
               </div>
             </div>
           } @else {
-            <a href="/recro.apk" download="recro.apk" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 14px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast('Загрузка Recro APK началась')">
+            <a href="/recro.apk" download="recro.apk" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 14px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка Recro APK началась' : 'Recro APK download started')">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Скачать Recro APK</span>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Скачать Recro APK' : 'Download Recro APK' }}</span>
             </a>
 
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">1</div>
               <div class="pwa-step-text">
-                Нажмите синюю кнопку <strong>«Скачать Recro APK»</strong> выше.
+                {{ i18n.currentLang() === 'ru' ? 'Нажмите синюю кнопку «Скачать Recro APK» выше.' : 'Tap the blue button "Download Recro APK" above.' }}
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">2</div>
               <div class="pwa-step-text">
-                Откройте скачанный файл <strong>recro.apk</strong> в шторке телефона или папке «Загрузки».
+                {{ i18n.currentLang() === 'ru' ? 'Откройте скачанный файл recro.apk в шторке телефона или папке «Загрузки».' : 'Open the downloaded recro.apk file in notifications or "Downloads".' }}
               </div>
             </div>
             <div class="pwa-step-item">
               <div class="pwa-step-num font-mono">3</div>
               <div class="pwa-step-text">
-                Нажмите <strong>«Установить»</strong> (при необходимости подтвердите разрешение в браузере).
+                {{ i18n.currentLang() === 'ru' ? 'Нажмите «Установить» (при необходимости подтвердите разрешение в браузере).' : 'Tap "Install" (confirm permissions in browser if prompted).' }}
               </div>
             </div>
 
             @if (canInstallPwa()) {
               <button class="btn-cancel-action font-mono" style="width: 100%; margin-top: 12px; font-size: 12px; padding: 10px 12px;" (click)="pwaService.promptInstall()">
-                Или установить в 1 клик через браузер (PWA)
+                {{ i18n.currentLang() === 'ru' ? 'Или установить в 1 клик через браузер (PWA)' : 'Or install in 1 click via browser (PWA)' }}
               </button>
             }
           }
         </div>
         <div class="modal-footer" style="display: flex; gap: 8px;">
           <button class="btn-cancel-action" style="width: 100%; text-align: center;" (click)="closePwaModal()">
-            Закрыть
+            {{ i18n.currentLang() === 'ru' ? 'Закрыть' : 'Close' }}
           </button>
         </div>
       </div>
@@ -2953,7 +2953,7 @@
               </svg>
               <span>{{ err }}</span>
             </div>
-            @if (err.includes('уже существует')) {
+            @if (err.includes('уже существует') || err.toLowerCase().includes('already exists')) {
               <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                 <button type="button" class="btn-text-sm" (click)="authModalTab.set('login'); authService.authError.set(null)">
                   {{ i18n.currentLang() === 'ru' ? 'Перейти ко входу' : 'Go to Sign In' }}
@@ -3498,7 +3498,7 @@
               {{ i18n.t('wave.paramsSubtitle') }}
             </p>
           </div>
-          <button type="button" class="btn-close-sm" (click)="closeMixSettings()" title="Закрыть" aria-label="Закрыть параметры">
+          <button type="button" class="btn-close-sm" (click)="closeMixSettings()" [title]="i18n.currentLang() === 'ru' ? 'Закрыть' : 'Close'" [attr.aria-label]="i18n.currentLang() === 'ru' ? 'Закрыть параметры' : 'Close settings'">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>

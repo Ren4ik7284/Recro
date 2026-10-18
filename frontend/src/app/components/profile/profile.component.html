@@ -205,13 +205,13 @@
     <!-- Топ исполнителей Spotify -->
     <section class="profile-section top-artists-section">
       <div class="top-artists-header">
-        <h2 class="profile-section-title font-mono">ТОП ИСПОЛНИТЕЛЕЙ</h2>
+        <h2 class="profile-section-title font-mono">{{ i18n.currentLang() === 'ru' ? 'ТОП ИСПОЛНИТЕЛЕЙ' : 'TOP ARTISTS' }}</h2>
 
         <button 
           class="btn-refresh-charts font-mono" 
           (click)="refreshWorldTopArtists(true)" 
           [disabled]="isRefreshingTopArtists()" 
-          title="Принудительно обновить топ с серверов Spotify"
+          [title]="i18n.currentLang() === 'ru' ? 'Принудительно обновить топ с серверов Spotify' : 'Force refresh top from Spotify'"
         >
           <svg 
             width="14" 
@@ -224,13 +224,13 @@
           >
             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"/>
           </svg>
-          <span>{{ isRefreshingTopArtists() ? 'Обновление...' : 'Обновить чарт' }}</span>
+          <span>{{ isRefreshingTopArtists() ? (i18n.currentLang() === 'ru' ? 'Обновление...' : 'Refreshing...') : (i18n.currentLang() === 'ru' ? 'Обновить чарт' : 'Refresh Chart') }}</span>
         </button>
       </div>
 
       @if (topArtists().length > 0) {
         <div class="carousel-outer-wrapper">
-          <button class="carousel-arrow-btn left" (click)="scrollCarousel('left')" title="Назад">
+          <button class="carousel-arrow-btn left" (click)="scrollCarousel('left')" [title]="i18n.currentLang() === 'ru' ? 'Назад' : 'Back'">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
@@ -247,7 +247,7 @@
                 [style.--artist-glow]="getArtistGlow(artist.name)"
                 [style.--artist-border]="getArtistBorder(artist.name)"
                 (click)="onArtistClick(artist.name)"
-                [title]="'Нажмите, чтобы включить треки ' + artist.name + (artist.peak ? ' • Пик в чарте: #' + artist.peak : '')"
+                [title]="(i18n.currentLang() === 'ru' ? 'Нажмите, чтобы включить треки ' : 'Click to play tracks by ') + artist.name + (artist.peak ? (i18n.currentLang() === 'ru' ? ' • Пик в чарте: #' : ' • Peak in chart: #') + artist.peak : '')"
               >
                 <div class="artist-avatar-circle">
                   @if (artist.coverUrl) {
@@ -275,7 +275,7 @@
             }
           </div>
 
-          <button class="carousel-arrow-btn right" (click)="scrollCarousel('right')" title="Вперед">
+          <button class="carousel-arrow-btn right" (click)="scrollCarousel('right')" [title]="i18n.currentLang() === 'ru' ? 'Вперед' : 'Forward'">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -283,7 +283,7 @@
         </div>
       } @else {
         <div class="empty-artists-box">
-          <p class="empty-artists-text font-mono">Загрузка топ-исполнителей Spotify...</p>
+          <p class="empty-artists-text font-mono">{{ i18n.currentLang() === 'ru' ? 'Загрузка топ-исполнителей Spotify...' : 'Loading Spotify top artists...' }}</p>
         </div>
       }
 
@@ -295,21 +295,21 @@
       <div class="section-header-compact">
         <div class="section-title-wrap">
           <h2 class="profile-section-title font-mono">
-            Новые альбомы ваших артистов
+            {{ i18n.currentLang() === 'ru' ? 'Новые альбомы ваших артистов' : 'New Albums from Your Artists' }}
           </h2>
           <span class="section-subtitle-tag font-mono">
-            На основе ваших предпочтений
+            {{ i18n.currentLang() === 'ru' ? 'На основе ваших предпочтений' : 'Based on your preferences' }}
           </span>
         </div>
       </div>
 
       @if (isLoadingReleases()) {
         <div class="empty-releases-box">
-          <p class="empty-releases-text font-mono">Загрузка новых релизов...</p>
+          <p class="empty-releases-text font-mono">{{ i18n.currentLang() === 'ru' ? 'Загрузка новых релизов...' : 'Loading new releases...' }}</p>
         </div>
       } @else if (newReleases().length > 0) {
         <div class="carousel-outer-wrapper">
-          <button class="carousel-arrow-btn left" (click)="scrollReleasesCarousel('left')" title="Назад">
+          <button class="carousel-arrow-btn left" (click)="scrollReleasesCarousel('left')" [title]="i18n.currentLang() === 'ru' ? 'Назад' : 'Back'">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
@@ -320,7 +320,7 @@
               <div 
                 class="release-card-item" 
                 (click)="onReleaseClick(item)"
-                [title]="'Включить альбом: ' + item.title + ' — ' + item.artist"
+                [title]="(i18n.currentLang() === 'ru' ? 'Включить альбом: ' : 'Play album: ') + item.title + ' — ' + item.artist"
               >
                 <div class="release-cover-box">
                   @if (item.cover_url) {
@@ -351,11 +351,11 @@
                   </span>
                   <div class="release-badge font-mono">
                     @if (item.is_playlist) {
-                      Чарт
+                      {{ i18n.currentLang() === 'ru' ? 'Чарт' : 'Chart' }}
                     } @else if (item.release_date) {
                       {{ item.release_date.slice(0, 4) }}
                     } @else {
-                      Релиз
+                      {{ i18n.currentLang() === 'ru' ? 'Релиз' : 'Release' }}
                     }
                   </div>
                 </div>
@@ -363,7 +363,7 @@
             }
           </div>
 
-          <button class="carousel-arrow-btn right" (click)="scrollReleasesCarousel('right')" title="Вперед">
+          <button class="carousel-arrow-btn right" (click)="scrollReleasesCarousel('right')" [title]="i18n.currentLang() === 'ru' ? 'Вперед' : 'Forward'">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -409,7 +409,7 @@
                   class="btn-pin-toggle font-mono" 
                   [class.active]="isPinned(pl.id)"
                   (click)="togglePin(pl.id, $event)" 
-                  [title]="isPinned(pl.id) ? 'Убрать с полки избранного' : 'Закрепить на полку избранного'"
+                  [title]="isPinned(pl.id) ? (i18n.currentLang() === 'ru' ? 'Убрать с полки избранного' : 'Unpin from favorites shelf') : (i18n.currentLang() === 'ru' ? 'Закрепить на полку избранного' : 'Pin to favorites shelf')"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" [attr.fill]="isPinned(pl.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -418,7 +418,7 @@
                 <button 
                   class="btn-playlist-cover-edit font-mono"
                   (click)="openEditPlaylistCover(pl, $event)"
-                  title="Изменить обложку плейлиста"
+                  [title]="i18n.currentLang() === 'ru' ? 'Изменить обложку плейлиста' : 'Change playlist cover'"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -513,7 +513,7 @@
 
         <!-- Minimalist Presets List -->
         <div class="theme-presets-wrap">
-          <span class="presets-caption font-mono">ПРЕСЕТЫ:</span>
+          <span class="presets-caption font-mono">{{ i18n.currentLang() === 'ru' ? 'ПРЕСЕТЫ:' : 'PRESETS:' }}</span>
           <div class="presets-flex-row">
             @for (preset of themeService.presets; track preset.id) {
               <button 
@@ -536,15 +536,15 @@
     <div class="profile-modal-backdrop" (click)="closeAddTag()">
       <div class="profile-modal-dialog" (click)="$event.stopPropagation()">
         <div class="modal-dialog-header">
-          <h3>Добавить тег</h3>
+          <h3>{{ i18n.currentLang() === 'ru' ? 'Добавить тег' : 'Add Tag' }}</h3>
           <button class="btn-modal-close" (click)="closeAddTag()">&times;</button>
         </div>
         <div class="modal-dialog-body">
-          <label class="modal-input-label">Название тега (без эмодзи)</label>
+          <label class="modal-input-label">{{ i18n.currentLang() === 'ru' ? 'Название тега (без эмодзи)' : 'Tag Name (no emojis)' }}</label>
           <input 
             type="text" 
             class="modal-text-input font-mono"
-            placeholder="Например: Beatmaker, VIP, PRO"
+            [placeholder]="i18n.currentLang() === 'ru' ? 'Например: Beatmaker, VIP, PRO' : 'E.g.: Beatmaker, VIP, PRO'"
             maxlength="20"
             [ngModel]="newTagInput()"
             (ngModelChange)="newTagInput.set($event)"
@@ -552,7 +552,7 @@
             autofocus
           />
 
-          <label class="modal-input-label" style="margin-top: 14px;">Цвет тега</label>
+          <label class="modal-input-label" style="margin-top: 14px;">{{ i18n.currentLang() === 'ru' ? 'Цвет тега' : 'Tag Color' }}</label>
           <div class="tag-color-palette">
             @for (c of tagColorPresets; track c) {
               <button 
@@ -566,7 +566,7 @@
           </div>
 
           <div class="tag-custom-color-row">
-            <span class="font-mono custom-color-hint">Свой цвет:</span>
+            <span class="font-mono custom-color-hint">{{ i18n.currentLang() === 'ru' ? 'Свой цвет:' : 'Custom Color:' }}</span>
             <input 
               type="color" 
               class="tag-color-input" 
@@ -581,8 +581,8 @@
           }
         </div>
         <div class="modal-dialog-footer">
-          <button class="btn-modal-cancel font-mono" (click)="closeAddTag()">Отмена</button>
-          <button class="btn-modal-submit font-mono" (click)="createTag()">Сохранить</button>
+          <button class="btn-modal-cancel font-mono" (click)="closeAddTag()">{{ i18n.t('common.cancel') }}</button>
+          <button class="btn-modal-submit font-mono" (click)="createTag()">{{ i18n.currentLang() === 'ru' ? 'Сохранить' : 'Save' }}</button>
         </div>
       </div>
     </div>
@@ -640,14 +640,14 @@
                 type="button" 
                 class="btn-download-device font-mono" 
                 (click)="downloadMedia(editAvatarUrl(), 'recro-avatar.png')"
-                title="Скачать на телефон или ПК"
+                [title]="i18n.currentLang() === 'ru' ? 'Скачать на телефон или ПК' : 'Download to phone or PC'"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="7 10 12 15 17 10"/>
                   <line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
-                <span>Скачать</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Скачать' : 'Download' }}</span>
               </button>
 
               <button type="button" class="btn-upload-remove font-mono" (click)="removeAvatar()" [title]="i18n.currentLang() === 'ru' ? 'Сбросить фото' : 'Reset photo'">
@@ -772,14 +772,14 @@
                 type="button" 
                 class="btn-download-device font-mono" 
                 (click)="downloadMedia(editBannerUrl(), 'recro-banner.png')"
-                title="Скачать на телефон или ПК"
+                [title]="i18n.currentLang() === 'ru' ? 'Скачать на телефон или ПК' : 'Download to phone or PC'"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="7 10 12 15 17 10"/>
                   <line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
-                <span>Скачать</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Скачать' : 'Download' }}</span>
               </button>
 
               <button type="button" class="btn-upload-remove font-mono" (click)="removeBanner()" [title]="i18n.currentLang() === 'ru' ? 'Сбросить баннер' : 'Reset banner'">

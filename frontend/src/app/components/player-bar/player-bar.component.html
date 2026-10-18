@@ -337,10 +337,10 @@
       class="utility-btn desktop-only" 
       [class.active]="bgService.isSettingsOpen()"
       (click)="bgService.toggleSettings(); $event.stopPropagation()"
-      title="Анимированный фон и тема"
+      [title]="i18n.currentLang() === 'ru' ? 'Анимированный фон и тема' : 'Animated background and theme'"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
-      ФОН
+      {{ i18n.currentLang() === 'ru' ? 'ФОН' : 'BG' }}
     </button>
 
     <!-- Queue Drawer Toggle -->

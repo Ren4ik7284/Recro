@@ -619,6 +619,23 @@ export class RecommendationService {
     return pool;
   }
 
+  private prewarmTimer: any = null;
+
+  schedulePrewarmDiscovery(delayMs = 1200): void {
+    if (this.prewarmTimer) clearTimeout(this.prewarmTimer);
+    this.prewarmTimer = setTimeout(() => {
+      this.prewarmOnlineDiscovery();
+    }, delayMs);
+  }
+
+  async prewarmOnlineDiscovery(): Promise<void> {
+    if (this.onlineDiscoveryPool.length >= 6 || this.isFetchingDiscovery()) return;
+    try {
+      const needed = 8 - this.onlineDiscoveryPool.length;
+      await this.fetchOnlineDiscoveryTracks(needed, new Set(), new Set(), null);
+    } catch {}
+  }
+
   getEffectiveLanguage(currentTrack?: Track | null): MixLanguage {
     return resolveEffectiveLanguage(
       this.libraryService.mixConfig().language,
@@ -640,7 +657,10 @@ export class RecommendationService {
     if (!track) return false;
     const libTracks = this.libraryService.tracks();
     const localCandidates = this.getAllLocalCandidates();
-    const candidates = libTracks.length > 0 ? libTracks : localCandidates;
+    const map = new Map<string, Track>();
+    for (const t of libTracks) map.set(t.id, t);
+    for (const t of localCandidates) map.set(t.id, t);
+    const candidates = Array.from(map.values());
     if (candidates.length === 0) return false;
 
     // 1. Direct ID match
@@ -727,6 +747,7 @@ export class RecommendationService {
       untracked(() => {
         if (tracks.length > 0) {
           this.calibrateTasteFromLibrary();
+          this.schedulePrewarmDiscovery();
         }
       });
     });
@@ -2030,8 +2051,14 @@ export class RecommendationService {
         }
 
         let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        // Strict quality threshold: unrelated artists must share >= 0.48 taste similarity to user
-        if (!isDirectCircleMatch && sim < 0.48) continue;
+        // Strict quality threshold: 80%+ similarity to user taste profile!
+        // Direct circle matches (collaborations/related to top artists) must have >= 0.72 similarity,
+        // and all other candidate tracks must match user library taste by at least 80% (sim >= 0.80)!
+        if (isDirectCircleMatch) {
+          if (sim < 0.72) continue;
+        } else {
+          if (sim < 0.80) continue;
+        }
         sim += artistAffinityBonus;
 
         scoredCandidates.push({ track: t, sim });

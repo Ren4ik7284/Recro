@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from './auth.service';
 import { LibraryService } from './library.service';
@@ -76,11 +77,12 @@ describe('Cross-device Sync & Token Persistence', () => {
       },
     ];
 
+    vi.spyOn(libraryService, 'getBackendUrl').mockReturnValue('https://recro.80.87.202.157.sslip.io');
     const sanitized = libraryService.sanitizeTracks(testTracks);
     expect(sanitized[0].audioUrl).not.toContain('localhost:8085');
     expect(sanitized[0].coverUrl).not.toContain('localhost:8085');
-    expect(sanitized[0].audioUrl).toContain('/api/stream');
-    expect(sanitized[0].coverUrl).toContain('/api/cover');
+    expect(sanitized[0].audioUrl).toContain('https://recro.80.87.202.157.sslip.io/api/stream');
+    expect(sanitized[0].coverUrl).toContain('https://recro.80.87.202.157.sslip.io/api/cover');
   });
 
   it('should perform bidirectional track merge preserving both local and cloud tracks without loss', () => {
