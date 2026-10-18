@@ -75,6 +75,8 @@
     background: transparent !important;
 
     .mobile-track-card {
+      content-visibility: auto;
+      contain-intrinsic-size: 0 56px;
       background: rgba(12, 15, 24, 0.52) !important;
       backdrop-filter: blur(20px) saturate(160%);
       -webkit-backdrop-filter: blur(20px) saturate(160%);
@@ -972,6 +974,8 @@ app-header-bar {
 
       tbody tr.track-row {
         height: 50px;
+        content-visibility: auto;
+        contain-intrinsic-size: 0 50px;
         border-bottom: 1px solid var(--border-subtle);
         transition: background-color 0.1s ease;
         cursor: pointer;

@@ -1298,7 +1298,7 @@
                     <td class="cell-title">
                       <div class="track-title-box">
                         @if (track.coverUrl) {
-                          <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="row-cover-thumb" />
+                          <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="row-cover-thumb" loading="lazy" decoding="async" />
                         }
                         <span class="track-title-text notranslate" translate="no">{{ track.title }}</span>
                         @if (offlineService.isTrackOffline(track.id)) {
@@ -1416,7 +1416,7 @@
               >
                 <div class="card-cover-wrap">
                   @if (track.coverUrl) {
-                    <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="card-cover-img" />
+                    <img [src]="formatCover(track.coverUrl, track.title, track.artist)" alt="" class="card-cover-img" loading="lazy" decoding="async" />
                   } @else {
                     <div class="card-cover-empty">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

@@ -217,13 +217,6 @@ export class AudioService {
     this.setupEventListeners();
     this.setupMediaSession();
 
-    // Авто-прогрев серверного кэша для первых треков из медиатеки при загрузке приложения
-    effect(() => {
-      const tracks = this.libraryService.tracks();
-      if (tracks && tracks.length > 0) {
-        this.prewarmTracks(tracks);
-      }
-    });
   }
 
   /**
@@ -545,8 +538,8 @@ export class AudioService {
         this.ensureSmartQueue();
       }
 
-      // Preload next track audio stream in advance so transition is instantaneous
-      if (actual >= 3 && !this.hasPreloadedNextTrack) {
+      // Preload next track audio stream only when nearing completion (>75% played or 15s remaining)
+      if ((actual >= total * 0.75 || (total > 20 && actual >= total - 15)) && !this.hasPreloadedNextTrack) {
         this.hasPreloadedNextTrack = true;
         this.preloadNextTrack();
       }
@@ -1225,9 +1218,6 @@ export class AudioService {
     // Apply smooth immediate fade in
     this.applyFadeIn(0.12);
 
-    // Мгновенный конвейерный предзагруз следующего трека без задержки!
-    this.preloadNextTrack();
-
     this.audio
       .play()
       .then(() => {
@@ -1240,7 +1230,6 @@ export class AudioService {
         this.updateMediaSessionPosition();
         this.libraryService.recordHistoryPlay(track);
         this.requestWakeLock();
-        this.preloadNextTrack();
         if (this.recService.isMixActive()) {
           this.ensureSmartQueue();
         }
@@ -1890,7 +1879,7 @@ export class AudioService {
       const glue = targetUrl.includes('?') ? '&' : '?';
       const prefetchUrl = `${targetUrl}${glue}prefetch=true`;
       try {
-        fetch(prefetchUrl, { priority: 'high' as any })
+        fetch(prefetchUrl, { priority: 'low' as any })
           .then(() => {
             // Buffer into browser secondary audio element 300ms after backend starts transcoding
             setTimeout(() => {
@@ -1921,26 +1910,8 @@ export class AudioService {
     }
   }
 
-  /**
-   * Staggered pre-warming of top library tracks so they are cached on the server SSD before click
-   */
-  prewarmTracks(tracks: Track[]) {
-    if (typeof window === 'undefined' || !tracks || tracks.length === 0) return;
-    const candidates = tracks
-      .filter((t) => t && !t.isLiveStream && !t.audioUrl.startsWith('blob:') && t.audioUrl)
-      .slice(0, 10);
-
-    let delay = 500;
-    for (const track of candidates) {
-      setTimeout(() => {
-        const streamUrl = this.formatStreamUrl(track);
-        if (streamUrl.includes('/api/stream')) {
-          const glue = streamUrl.includes('?') ? '&' : '?';
-          fetch(`${streamUrl}${glue}prefetch=true`, { priority: 'low' as any }).catch(() => {});
-        }
-      }, delay);
-      delay += 500;
-    }
+  prewarmTracks(_tracks: Track[]) {
+    // No-op: do not flood server CPU or client connection pool with speculative stream downloads
   }
 
   async ensureSmartQueue(): Promise<void> {

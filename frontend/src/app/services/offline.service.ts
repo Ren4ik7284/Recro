@@ -137,6 +137,25 @@ export class OfflineService {
     this.blobUrlByTrackId.clear();
   }
 
+  async clearAllOfflineData(): Promise<void> {
+    this.revokeAllBlobUrls();
+    this.offlineTrackIds.set(new Set());
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(this.STORAGE_KEY_OFFLINE);
+    }
+    try {
+      const db = await openOfflineDb();
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).clear();
+    } catch {}
+    if (typeof caches !== 'undefined') {
+      try {
+        await caches.delete('recro-offline-tracks-v1');
+        await caches.delete('recro-bundle-v2');
+      } catch {}
+    }
+  }
+
   constructor() {
     this.loadOfflineIndex();
   }

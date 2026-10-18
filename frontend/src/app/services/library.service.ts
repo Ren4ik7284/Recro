@@ -393,23 +393,29 @@ export class LibraryService implements OnDestroy {
     return this.activeBackendUrl || this.defaultBackendUrl;
   }
 
+  private lastSyncTime = 0;
+
   startAutoSync() {
     if (this.syncPollInterval || typeof window === 'undefined') return;
 
-    // Регулярная авто-синхронизация библиотеки и профиля (плейлисты, обложки, бейджи, теги)
+    // Регулярная авто-синхронизация как резерв для SSE (раз в 3 минуты, если SSE отключен)
     this.syncPollInterval = setInterval(() => {
-      this.syncAllWithBackend();
-    }, 15_000);
+      if (!this.eventSource || this.eventSource.readyState !== EventSource.OPEN) {
+        this.syncAllWithBackend();
+      }
+    }, 180_000);
 
     this.visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        this.syncAllWithBackend();
+        const now = Date.now();
+        if (now - this.lastSyncTime > 120_000) {
+          this.lastSyncTime = now;
+          this.syncAllWithBackend();
+        }
       }
     };
-    this.focusHandler = () => this.syncAllWithBackend();
 
     document.addEventListener('visibilitychange', this.visibilityHandler);
-    window.addEventListener('focus', this.focusHandler);
   }
 
   private initLibrary() {
@@ -515,7 +521,14 @@ export class LibraryService implements OnDestroy {
     this.radioStations.set(savedStations);
   }
 
+  private readonly coverUrlCache = new Map<string, string | undefined>();
+
   formatCoverUrl(coverUrl?: string, title?: string, artist?: string): string | undefined {
+    const key = `${coverUrl || ''}|${title || ''}|${artist || ''}`;
+    if (this.coverUrlCache.has(key)) {
+      return this.coverUrlCache.get(key);
+    }
+
     const activeBase = this.getBackendUrl();
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const queryParams: string[] = [];
@@ -523,36 +536,35 @@ export class LibraryService implements OnDestroy {
     if (artist) queryParams.push(`artist=${encodeURIComponent(artist)}`);
     const glue = queryParams.length > 0 ? `&${queryParams.join('&')}` : '';
 
+    let result: string | undefined;
+
     if (!coverUrl) {
       if (title) {
-        return `${activeBase}/api/cover?title=${encodeURIComponent(title)}${artist ? `&artist=${encodeURIComponent(artist)}` : ''}`;
+        result = `${activeBase}/api/cover?title=${encodeURIComponent(title)}${artist ? `&artist=${encodeURIComponent(artist)}` : ''}`;
+      } else {
+        result = undefined;
       }
-      return undefined;
-    }
-
-    if (coverUrl.includes('/api/cover')) {
+    } else if (coverUrl.includes('/api/cover')) {
       const idx = coverUrl.indexOf('/api/cover');
-      return `${activeBase}${coverUrl.slice(idx)}`;
-    }
-
-    if (coverUrl.startsWith('/')) {
-      return `${activeBase}${coverUrl}`;
-    }
-
-    // Proxy YouTube, SoundCloud, and external CDNs through our backend RAM cache to guarantee CORS and zero-blocks
-    if (
+      result = `${activeBase}${coverUrl.slice(idx)}`;
+    } else if (coverUrl.startsWith('/')) {
+      result = `${activeBase}${coverUrl}`;
+    } else if (
       coverUrl.includes('ytimg.com') ||
       coverUrl.includes('sndcdn.com') ||
       coverUrl.includes('soundcloud.com')
     ) {
-      return `${activeBase}/api/cover?url=${encodeURIComponent(coverUrl)}${glue}`;
+      result = `${activeBase}/api/cover?url=${encodeURIComponent(coverUrl)}${glue}`;
+    } else if (isHttps && coverUrl.startsWith('http://')) {
+      result = coverUrl.replace(/^http:\/\//, 'https://');
+    } else {
+      result = coverUrl;
     }
 
-    if (isHttps && coverUrl.startsWith('http://')) {
-      return coverUrl.replace(/^http:\/\//, 'https://');
+    if (this.coverUrlCache.size < 3000) {
+      this.coverUrlCache.set(key, result);
     }
-
-    return coverUrl;
+    return result;
   }
 
   getFallbackCoverUrl(title?: string, artist?: string): string {
