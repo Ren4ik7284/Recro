@@ -344,5 +344,57 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       const libraryDumps = newQ.filter((t) => t.id === 'user-lib-2');
       expect(libraryDumps.length).toBe(0);
     });
+
+    it('getBufferedDiscoveries should enforce strict artist diversity with max 1 track per artist', () => {
+      // Simulate discovery pool having multiple tracks by the same artist
+      (recService as any).onlineDiscoveryPool = [
+        { id: 'd1', title: 'Song 1', artist: 'Loqiemean', audioUrl: '/a1', duration: 120, genre: 'Rap', format: 'mp3', plays: 0, isFavorite: false, addedAt: '' },
+        { id: 'd2', title: 'Song 2', artist: 'Loqiemean', audioUrl: '/a2', duration: 120, genre: 'Rap', format: 'mp3', plays: 0, isFavorite: false, addedAt: '' },
+        { id: 'd3', title: 'Song 3', artist: 'Oxxxymiron', audioUrl: '/a3', duration: 120, genre: 'Rap', format: 'mp3', plays: 0, isFavorite: false, addedAt: '' },
+        { id: 'd4', title: 'Song 4', artist: 'Loqiemean', audioUrl: '/a4', duration: 120, genre: 'Rap', format: 'mp3', plays: 0, isFavorite: false, addedAt: '' },
+      ];
+
+      const discoveries = recService.getBufferedDiscoveries('all');
+      const loqTracks = discoveries.filter((t) => t.artist.toLowerCase().includes('loq'));
+      // Must not repeat the same artist multiple times
+      expect(loqTracks.length).toBe(1);
+      expect(discoveries.length).toBe(2); // 1 Loqiemean, 1 Oxxxymiron
+    });
+
+    it('startSmartMix should start playback immediately from memory starters', async () => {
+      const mockOfflineService = {
+        isTrackOffline: () => false,
+        getCachedBlobUrlSync: () => null,
+        getOfflineBlobUrl: vi.fn().mockResolvedValue(null),
+        revokePreviousBlobUrls: vi.fn(),
+      };
+      const mockNavService = {};
+
+      TestBed.resetTestingModule();
+      const testBed = TestBed.configureTestingModule({
+        providers: [
+          RecommendationService,
+          {
+            provide: LibraryService,
+            useValue: {
+              ...mockLibraryService,
+              getBackendUrl: () => 'https://example.com',
+              formatCoverUrl: () => 'https://example.com/cover.jpg',
+            },
+          },
+          { provide: OfflineService, useValue: mockOfflineService },
+          { provide: NavigationService, useValue: mockNavService },
+        ],
+      });
+
+      const { AudioService } = await import('./audio.service');
+      const audioService = testBed.inject(AudioService);
+
+      // Start mix without any pre-warmed buffer: should immediately take starters from memory
+      const ok = await audioService.startSmartMix();
+      expect(ok).toBe(true);
+      expect(audioService.queue().length).toBeGreaterThan(0);
+      expect(audioService.currentTrack()).toBeTruthy();
+    });
   });
 });

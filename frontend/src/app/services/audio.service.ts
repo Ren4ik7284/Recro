@@ -2,7 +2,7 @@ import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { Track } from '../models/track.model';
 import { LibraryService } from './library.service';
 import { OfflineService } from './offline.service';
-import { RecommendationService, MixMood, isTrackLanguageMatch, normalizeArtist } from './recommendation.service';
+import { RecommendationService, MixMood, isTrackLanguageMatch, normalizeArtist, extractAllArtists } from './recommendation.service';
 import { NavigationService } from './navigation.service';
 
 @Injectable({
@@ -1925,9 +1925,17 @@ export class AudioService {
       ...this.recService.getSessionPlayedIds(),
     ]);
 
-    // Build context artists from current surroundings in queue
-    const contextSlice = q.slice(Math.max(0, idx - 4), Math.min(q.length, idx + 4));
-    const recentArtists = new Set<string>(contextSlice.map((t) => t.artist).filter(Boolean));
+    // Build context artists from queue surroundings (last 6 queued/played tracks)
+    const contextSlice = q.slice(Math.max(0, idx - 4), q.length);
+    const recentArtists = new Set<string>();
+    for (const t of contextSlice) {
+      if (t.artist) {
+        for (const a of extractAllArtists(t.artist, t.title)) {
+          const normA = normalizeArtist(a);
+          if (normA) recentArtists.add(normA);
+        }
+      }
+    }
 
     const source = this.recService.mixConfig().source;
     const mood = this.recService.currentMood();
@@ -1943,7 +1951,12 @@ export class AudioService {
     newTracks.push(...pureDiscovery);
     pureDiscovery.forEach((d) => {
       excludeIds.add(d.id);
-      if (d.artist) recentArtists.add(d.artist);
+      if (d.artist) {
+        for (const a of extractAllArtists(d.artist, d.title)) {
+          const normA = normalizeArtist(a);
+          if (normA) recentArtists.add(normA);
+        }
+      }
     });
 
     if (newTracks.length === 0) {
@@ -1957,13 +1970,26 @@ export class AudioService {
     }
 
     const existingQueueIds = new Set(q.map((t) => t.id));
-    const strictlyUniqueTracks = newTracks.filter(
-      (t) => !existingQueueIds.has(t.id) &&
-             !this.recService.isSessionDuplicate(t) &&
-             isTrackLanguageMatch(t, effectiveLang) &&
-             this.recService.doesTrackMatchMood(t, mood) &&
-             !this.recService.isLibraryTrack(t)
-    );
+    const strictlyUniqueTracks: Track[] = [];
+    for (const t of newTracks) {
+      if (existingQueueIds.has(t.id)) continue;
+      if (this.recService.isSessionDuplicate(t)) continue;
+      if (this.recService.isLibraryTrack(t)) continue;
+      if (!isTrackLanguageMatch(t, effectiveLang)) continue;
+      if (!this.recService.doesTrackMatchMood(t, mood)) continue;
+
+      // Enforce artist spacing: candidate artist cannot be in recentArtists!
+      const candArtists = extractAllArtists(t.artist, t.title).map((a) => normalizeArtist(a));
+      if (candArtists.some((a) => a && recentArtists.has(a))) {
+        continue;
+      }
+
+      strictlyUniqueTracks.push(t);
+      existingQueueIds.add(t.id);
+      for (const a of candArtists) {
+        if (a) recentArtists.add(a);
+      }
+    }
 
     if (strictlyUniqueTracks.length > 0) {
       this.queue.update((curQ) => [...curQ, ...strictlyUniqueTracks]);
@@ -1989,30 +2015,37 @@ export class AudioService {
     const curTrack = this.currentTrack() || null;
     const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
 
-    // Discovery Wave:
-    // All tracks played in Моя Волна MUST be new discovery tracks that match user taste from their library!
-    // NEVER put user library tracks in the queue!
-    let discoveryTracks = this.recService.getBufferedDiscoveries(effectiveLang)
+    // 1. Check if we have pre-buffered online discovery tracks
+    let discoveryTracks = this.recService.getBufferedDiscoveries(effectiveLang, 5)
       .filter((t) => !this.recService.isLibraryTrack(t));
 
-    if (discoveryTracks.length < 4) {
-      const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), curTrack);
-      const pureFetched = fetched.filter((t) => !this.recService.isLibraryTrack(t));
-      discoveryTracks = [...discoveryTracks, ...pureFetched];
-    }
-
+    // 2. If buffer is empty, IMMEDIATELY grab fresh taste-matched starters from memory in 0ms!
+    // ZERO BLOCKING NETWORK DELAY! Play instantly on click!
     if (discoveryTracks.length === 0) {
-      const starters = this.recService.getStarterCandidates(mood, 12, effectiveLang)
+      const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
         .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
       if (starters.length > 0) {
-        discoveryTracks = starters.slice(0, 5);
+        discoveryTracks = starters.slice(0, 4);
       }
     }
 
+    // 3. START PLAYBACK IMMEDIATELY without waiting for remote network roundtrips!
     if (discoveryTracks.length > 0) {
       const immediateTrack = discoveryTracks[0];
       const initialQueue = discoveryTracks;
       this.playTrack(immediateTrack, initialQueue, true, 0);
+      this.preloadNextTrack();
+
+      // Concurrently fetch and extend the queue with fresh online discoveries in the background
+      this.ensureSmartQueue().catch(() => {});
+      return true;
+    }
+
+    // 4. Absolute fallback only if memory starter pool was empty
+    const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), curTrack);
+    const pureFetched = fetched.filter((t) => !this.recService.isLibraryTrack(t));
+    if (pureFetched.length > 0) {
+      this.playTrack(pureFetched[0], pureFetched, true, 0);
       this.preloadNextTrack();
       this.ensureSmartQueue().catch(() => {});
       return true;

@@ -258,6 +258,11 @@ export class App implements OnInit {
 
     this.authService.fetchAuthConfig(this.libraryService.getBackendUrl());
 
+    // Prewarm online discovery buffer quietly in background so "Моя волна" starts instantaneously
+    setTimeout(() => {
+      this.recService.schedulePrewarmDiscovery(800);
+    }, 500);
+
     // Background auto-refresh of charts and popular music catalog every 20 minutes
     setInterval(() => {
       this.refreshHomeDataSilently();

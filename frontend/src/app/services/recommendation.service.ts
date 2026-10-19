@@ -609,7 +609,7 @@ export class RecommendationService {
     this.onlineDiscoveryPool = [];
   }
 
-  getBufferedDiscoveries(lang?: MixLanguage): Track[] {
+  getBufferedDiscoveries(lang?: MixLanguage, limit = 6): Track[] {
     if (this.onlineDiscoveryPool.length === 0) return [];
     let pool = this.onlineDiscoveryPool.filter(
       (t) => !this.isSessionDuplicate(t) && !this.isDisliked(t) && !this.isLibraryTrack(t)
@@ -617,7 +617,24 @@ export class RecommendationService {
     if (lang && lang !== 'all') {
       pool = pool.filter((t) => isTrackLanguageMatch(t, lang));
     }
-    return pool;
+
+    // Strict artist diversity: max 1 track per artist in any discovery batch!
+    const diverse: Track[] = [];
+    const seenArtists = new Set<string>();
+    const seenTitles = new Set<string>();
+
+    for (const t of pool) {
+      if (diverse.length >= limit) break;
+      const art = normalizeArtist(t.artist);
+      const title = normalizeTitle(t.title);
+      if (art && seenArtists.has(art)) continue;
+      if (title && seenTitles.has(title)) continue;
+
+      diverse.push(t);
+      if (art) seenArtists.add(art);
+      if (title) seenTitles.add(title);
+    }
+    return diverse;
   }
 
   private prewarmTimer: any = null;
@@ -1971,19 +1988,26 @@ export class RecommendationService {
 
       const artistsToQuery = langTopArtists.length > 0 ? langTopArtists : allUserTopArtists;
 
-      // 2. Multi-artist taste expansion: query top 2-3 favorite artists from user's history
+      // 2. Multi-artist taste expansion: query top favorite artists from user's history with rotation
       if (artistsToQuery.length > 0) {
-        const takeCount = Math.min(3, artistsToQuery.length);
-        for (let i = 0; i < takeCount; i++) {
-          const offset = (this.artistSeedOffset + i) % artistsToQuery.length;
-          const art = artistsToQuery[offset];
-          if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
+        const shuffledArtists = [...artistsToQuery];
+        for (let i = shuffledArtists.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffledArtists[i], shuffledArtists[j]] = [shuffledArtists[j], shuffledArtists[i]];
+        }
+        const queried = new Set<string>();
+        if (effectiveSeed?.artist) queried.add(normalizeArtist(effectiveSeed.artist));
+
+        for (const art of shuffledArtists) {
+          if (tasks.length >= 4) break;
+          const normA = normalizeArtist(art);
+          if (normA && !queried.has(normA) && !seenArtists.has(normA)) {
+            queried.add(normA);
             tasks.push(
               this.libraryService.getRecommendations(art, dominantGenre, 15, undefined, dominantGenre).catch(() => [] as Track[])
             );
           }
         }
-        this.artistSeedOffset = (this.artistSeedOffset + takeCount) % 1000;
       } else if (candidates.length === 0) {
         const curatedRu = (mood === 'energetic'
           ? ['Shortparis', 'Oxxxymiron', 'Хаски', 'SALUKI', 'DVRST', 'The Hatters', 'Noize MC']
@@ -2055,11 +2079,17 @@ export class RecommendationService {
         for (const [topArt, weight] of topArtistsMap.entries()) {
           if (candArtists.includes(topArt)) {
             isDirectCircleMatch = true;
-            artistAffinityBonus = Math.max(artistAffinityBonus, 0.55 + Math.min(0.40, weight * 0.06));
+            // Balanced bonus: gives preference to user's favorite artists without suffocating other discovery artists
+            artistAffinityBonus = Math.max(artistAffinityBonus, 0.10 + Math.min(0.08, weight * 0.02));
             if (candArtists.length > 1) {
-              artistAffinityBonus += 0.15;
+              artistAffinityBonus += 0.04;
             }
           }
+        }
+
+        // Heavy penalty if this artist is already present in recentArtists or seenArtists
+        if (candArtists.some((a) => a && (seenArtists.has(a) || this.isRecentlyPlayed(t, 240)))) {
+          artistAffinityBonus -= 0.40;
         }
 
         const trackVec = this.extractTrackVector(t);
@@ -2092,6 +2122,8 @@ export class RecommendationService {
         .sort((a, b) => b.finalScore - a.finalScore);
 
       const bufferPool: Track[] = [];
+      const bufferArtistCounts = new Map<string, number>();
+
       for (const item of rankedCandidates) {
         const t = item.track;
         const art = normalizeArtist(t.artist);
@@ -2099,7 +2131,11 @@ export class RecommendationService {
 
         if (selectedTracks.length < count) {
           if (art && seenArtists.has(art)) {
-            bufferPool.push(t);
+            const countForArt = bufferArtistCounts.get(art) || 0;
+            if (countForArt < 2) {
+              bufferPool.push(t);
+              bufferArtistCounts.set(art, countForArt + 1);
+            }
             continue;
           }
           if (title && seenTitles.has(title)) {
@@ -2110,6 +2146,12 @@ export class RecommendationService {
           if (art) seenArtists.add(art);
           if (title) seenTitles.add(title);
         } else {
+          // In discovery pool, limit any artist to maximum 2 tracks to guarantee variety
+          if (art) {
+            const countForArt = bufferArtistCounts.get(art) || 0;
+            if (countForArt >= 2) continue;
+            bufferArtistCounts.set(art, countForArt + 1);
+          }
           bufferPool.push(t);
         }
       }
@@ -2129,6 +2171,11 @@ export class RecommendationService {
         }
       }
 
+      // Shuffle bufferPool so the same artist never bunches up next to each other
+      for (let i = bufferPool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [bufferPool[i], bufferPool[j]] = [bufferPool[j], bufferPool[i]];
+      }
       this.onlineDiscoveryPool = bufferPool.slice(0, 60);
 
       if (selectedTracks.length < count) {
