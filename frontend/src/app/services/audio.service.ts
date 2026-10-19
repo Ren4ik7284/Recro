@@ -729,36 +729,15 @@ export class AudioService {
 
       const total = this.duration();
 
-      // 1. Natural end when actual playback exceeds track duration (prevent hanging in outro silence)
-      if (total > 15 && actual >= total + 0.8 && !this.isLiveStream()) {
-        console.warn(`[AudioService] Playback reached track end (${actual.toFixed(1)}s / ${total}s), advancing to next track`);
-        this.handleTrackEnded();
-        return;
-      }
-
-      // 2. Intelligent silence detector at the end of track (skips dead YouTube/SoundCloud outros)
-      // Only runs when the tab is visible; background tabs mute/freeze AnalyserNode and must not trigger false skips!
-      const isTabVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
-      if (isTabVisible && total > 20 && actual >= total * 0.75 && !this.isLiveStream()) {
-        if (this.analyserNode) {
-          const testBuffer = new Uint8Array(32);
-          this.analyserNode.getByteFrequencyData(testBuffer as any);
-          let sum = 0;
-          for (let i = 0; i < 32; i++) sum += testBuffer[i];
-          if (sum <= 3) {
-            this.endSilenceStreakSeconds += 0.25;
-            if (this.endSilenceStreakSeconds >= 3.5) {
-              console.warn(`[AudioService] Detected 3.5s of silence near track end (${actual.toFixed(1)}s / ${total}s), auto-advancing`);
-              this.endSilenceStreakSeconds = 0;
-              this.handleTrackEnded();
-              return;
-            }
-          } else {
-            this.endSilenceStreakSeconds = 0;
-          }
+      // 1. Natural end only when actual playback exceeds total track duration by at least 3.0s
+      // and decoded audio has truly finished (prevents hanging in dead outro, but never cuts music)
+      if (total > 15 && actual >= total + 3.0 && !this.isLiveStream()) {
+        const audioDur = this.audio.duration;
+        if (!audioDur || isNaN(audioDur) || actual >= this.streamSeekOffset() + audioDur - 0.5) {
+          console.warn(`[AudioService] Playback reached track end (${actual.toFixed(1)}s / ${total}s), advancing to next track`);
+          this.handleTrackEnded();
+          return;
         }
-      } else {
-        this.endSilenceStreakSeconds = 0;
       }
 
       // Record track completion at 80% of playback
@@ -801,12 +780,10 @@ export class AudioService {
     this.audio.addEventListener('loadedmetadata', () => {
       const d = this.audio.duration;
       const trackDur = this.currentTrack()?.duration;
-      if (trackDur && trackDur > 0) {
-        this.duration.set(trackDur);
-      } else if (this.streamSeekOffset() > 0 && d && !isNaN(d) && isFinite(d) && d > 0) {
+      if (d && !isNaN(d) && isFinite(d) && d > 0) {
         this.duration.set(this.streamSeekOffset() + d);
-      } else if (d && !isNaN(d) && isFinite(d) && d > 0) {
-        this.duration.set(d);
+      } else if (trackDur && trackDur > 0) {
+        this.duration.set(trackDur);
       }
       this.updateMediaSessionPosition();
       this.notifyNativeBridge(this.currentTrack(), this.isPlaying());
@@ -815,12 +792,10 @@ export class AudioService {
     this.audio.addEventListener('durationchange', () => {
       const d = this.audio.duration;
       const trackDur = this.currentTrack()?.duration;
-      if (trackDur && trackDur > 0) {
-        this.duration.set(trackDur);
-      } else if (this.streamSeekOffset() > 0 && d && !isNaN(d) && isFinite(d) && d > 0) {
+      if (d && !isNaN(d) && isFinite(d) && d > 0) {
         this.duration.set(this.streamSeekOffset() + d);
-      } else if (d && !isNaN(d) && isFinite(d) && d > 0) {
-        this.duration.set(d);
+      } else if (trackDur && trackDur > 0) {
+        this.duration.set(trackDur);
       }
       this.updateMediaSessionPosition();
       this.notifyNativeBridge(this.currentTrack(), this.isPlaying());
@@ -896,28 +871,26 @@ export class AudioService {
         return;
       }
 
-      // 2. Если сыграно >= 70% трека, или осталось меньше 12 секунд до конца,
-      // либо длительность не задана / короткая — трек завершился полностью!
-      if (dur <= 20 || totalPlayed >= dur * 0.7 || totalPlayed >= dur - 12) {
+      // 2. Трек завершился естественно ТОЛЬКО если доиграл практически до конца (в пределах 2.5с до duration)
+      // или если длительность трека неизвестна/очень короткая (<= 15с)
+      if (dur <= 15 || totalPlayed >= dur - 2.5) {
         this.prematureEndedRetryCount = 0;
         this.handleTrackEnded();
         return;
       }
 
-      // 3. Реальный неожиданный обрыв потока в первой половине трека — пробуем восстановить ровно 1 раз
-      if (this.prematureEndedRetryCount < 1) {
+      // 3. Преждевременный обрыв потока в середине/конце трека — бесшовно переподключаем с текущей секунды!
+      if (this.prematureEndedRetryCount < 3) {
         this.prematureEndedRetryCount++;
-        console.warn(`[AudioService] Stream cut off early (${totalPlayed.toFixed(1)}s / ${dur}s), auto-recovering once...`);
-        this.seek(totalPlayed);
-        this.audio.play().catch(() => {
-          this.handleTrackEnded();
-        });
+        console.warn(`[AudioService] Stream cut off prematurely at ${totalPlayed.toFixed(1)}s / ${dur}s, reconnecting from position (attempt ${this.prematureEndedRetryCount}/3)...`);
+        this.seek(totalPlayed, true);
         return;
       }
 
+      // Если 3 попытки переподключения не удались, не скипаем трек молча в медиатеке, а останавливаем воспроизведение
+      console.warn('[AudioService] Stream repeatedly cut off, pausing cleanly without skipping library queue');
       this.prematureEndedRetryCount = 0;
-      // Всегда переключаемся на следующий трек при естественном завершении трека!
-      this.handleTrackEnded();
+      this.pause();
     });
 
     this.audio.addEventListener('error', (e) => {
@@ -1611,7 +1584,7 @@ export class AudioService {
     this.recService.resetMixSession();
   }
 
-  seek(seconds: number) {
+  seek(seconds: number, forceNetwork = false) {
     if (this.isLiveStream()) return;
     const total = this.duration() || this.currentTrack()?.duration || 0;
     const clamped = Math.max(0, Math.min(seconds, total > 0 ? total : seconds));
@@ -1620,7 +1593,7 @@ export class AudioService {
     if (!track) return;
 
     // 1. If audio is playing from a local blob URL or direct static audio, seek natively without restarting stream
-    if (this.audio.src.startsWith('blob:') || !this.audio.src.includes('/api/stream')) {
+    if (!forceNetwork && (this.audio.src.startsWith('blob:') || !this.audio.src.includes('/api/stream'))) {
       try {
         this.audio.currentTime = clamped;
         this.currentTime.set(clamped);
@@ -1630,56 +1603,35 @@ export class AudioService {
       return;
     }
 
-    // 2. Fast In-Buffer Native Seeking:
-    // If target position is within the buffered ranges of the currently loaded audio, seek instantly without network request!
-    const currentOffset = this.streamSeekOffset();
-    const relTime = clamped - currentOffset;
-    if (relTime >= 0 && this.audio.buffered && this.audio.buffered.length > 0) {
-      let isBuffered = false;
-      for (let i = 0; i < this.audio.buffered.length; i++) {
-        if (relTime >= this.audio.buffered.start(i) && relTime <= this.audio.buffered.end(i)) {
-          isBuffered = true;
-          break;
+    // 2. Fast In-Buffer Native Seeking (skipped when recovering from stream end/drop):
+    if (!forceNetwork) {
+      const currentOffset = this.streamSeekOffset();
+      const relTime = clamped - currentOffset;
+      if (relTime >= 0 && this.audio.buffered && this.audio.buffered.length > 0) {
+        let isBuffered = false;
+        for (let i = 0; i < this.audio.buffered.length; i++) {
+          if (relTime >= this.audio.buffered.start(i) && relTime <= this.audio.buffered.end(i)) {
+            isBuffered = true;
+            break;
+          }
         }
-      }
-      if (isBuffered) {
-        try {
-          this.audio.currentTime = relTime;
-          this.currentTime.set(clamped);
-          this.updateMediaSessionPosition();
-          this.notifyNativeBridge(track, this.isPlaying());
-          return;
-        } catch {}
+        if (isBuffered) {
+          try {
+            this.audio.currentTime = relTime;
+            this.currentTime.set(clamped);
+            this.updateMediaSessionPosition();
+            this.notifyNativeBridge(track, this.isPlaying());
+            return;
+          } catch {}
+        }
       }
     }
 
     // 3. Fast Stream Range Seek via backend with ss parameter:
-    const activeBase = this.libraryService.getBackendUrl();
-    let baseStreamUrl: string;
-
-    if (track.audioUrl.includes('/api/stream')) {
-      const streamIdx = track.audioUrl.indexOf('/api/stream');
-      baseStreamUrl = `${activeBase}${track.audioUrl.slice(streamIdx)}`.split('&ss=')[0];
-    } else if (
-      track.audioUrl.includes('youtube.com') ||
-      track.audioUrl.includes('youtu.be') ||
-      track.audioUrl.includes('soundcloud.com')
-    ) {
-      baseStreamUrl = `${activeBase}/api/stream?url=${encodeURIComponent(track.audioUrl)}`;
-    } else if (track.audioUrl.startsWith('/api/')) {
-      baseStreamUrl = `${activeBase}${track.audioUrl}`.split('&ss=')[0];
-    } else {
-      baseStreamUrl = track.audioUrl.split('&ss=')[0];
-    }
-
-    if (!baseStreamUrl.includes('title=') && track.title) {
-      const glue = baseStreamUrl.includes('?') ? '&' : '?';
-      baseStreamUrl = `${baseStreamUrl}${glue}title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist || '')}`;
-    }
-
-    baseStreamUrl = baseStreamUrl.split('&_t=')[0];
-    const ssParam = clamped > 0 ? `&ss=${Math.round(clamped)}` : '';
-    const tsParam = `&_t=${Date.now()}`;
+    const baseStreamUrl = this.formatStreamUrl(track).split('&ss=')[0].split('&_t=')[0];
+    const glue = baseStreamUrl.includes('?') ? '&' : '?';
+    const ssParam = clamped > 0 ? `${glue}ss=${Math.round(clamped)}` : '';
+    const tsParam = `${ssParam ? '&' : glue}_t=${Date.now()}`;
     const newUrl = `${baseStreamUrl}${ssParam}${tsParam}`;
 
     this.streamSeekOffset.set(clamped);

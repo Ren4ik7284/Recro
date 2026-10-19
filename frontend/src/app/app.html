@@ -1736,9 +1736,6 @@
         <button 
           class="sheet-util-btn ls-sheet-btn" 
           [class.active]="audioService.isLosslessScalingActive()"
-          [class.ls-studio]="audioService.losslessScalingMode() === 'studio'"
-          [class.ls-spatial]="audioService.losslessScalingMode() === 'spatial'"
-          [class.ls-bass]="audioService.losslessScalingMode() === 'bass'"
           (click)="audioService.cycleLosslessScaling()"
           [title]="audioService.getLosslessScalingTooltip()"
         >

@@ -870,6 +870,10 @@ pub async fn stream_audio(
         "4xx,5xx".to_string(),
         "-reconnect_delay_max".to_string(),
         "5".to_string(),
+        "-seg_max_retry".to_string(),
+        "8".to_string(),
+        "-rw_timeout".to_string(),
+        "15000000".to_string(),
         "-i".to_string(),
         direct_url.clone(),
     ];

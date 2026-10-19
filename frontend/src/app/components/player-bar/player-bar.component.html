@@ -298,12 +298,9 @@
     <button 
       class="utility-btn ls-btn" 
       [class.active]="audioService.isLosslessScalingActive()"
-      [class.ls-studio]="audioService.losslessScalingMode() === 'studio'"
-      [class.ls-spatial]="audioService.losslessScalingMode() === 'spatial'"
-      [class.ls-bass]="audioService.losslessScalingMode() === 'bass'"
       (click)="audioService.cycleLosslessScaling()"
       [title]="audioService.getLosslessScalingTooltip()"
-      style="padding: 0 7px; font-size: 11px; font-weight: 800; font-family: monospace; display: inline-flex; align-items: center; gap: 4px;"
+      style="padding: 0 7px; font-size: 11px; font-weight: 700; font-family: monospace; display: inline-flex; align-items: center; gap: 4px;"
     >
       <span class="ls-icon">⚡</span>
       <span>{{ audioService.losslessScalingLabel() }}</span>
