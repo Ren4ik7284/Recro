@@ -187,8 +187,35 @@ export class LyricsService {
     this.lyricsCache.set(trackId, lyrics);
   }
 
+  resetAllOffsets(): void {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('signal_lyrics_offset_')) {
+            localStorage.removeItem(k);
+          }
+        }
+      } catch {}
+    }
+    this.syncOffsetMs.set(0);
+  }
+
   constructor() {
     if (typeof window !== 'undefined') {
+      // Clear legacy corrupted offsets from older versions once
+      if (!localStorage.getItem('recro_lyrics_clean_sync_v2')) {
+        try {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('signal_lyrics_offset_')) {
+              localStorage.removeItem(k);
+            }
+          }
+          localStorage.setItem('recro_lyrics_clean_sync_v2', 'true');
+        } catch {}
+      }
+
       // 1. Регулярный фоновый таймер — обновляет время пока текст закрыт (RAF берёт управление когда открыт)
       this.updateIntervalId = setInterval(() => {
         if (!this.isLyricsOpen()) {
@@ -601,16 +628,6 @@ export class LyricsService {
               this.setCachedLyrics(targetTrackId, parsed);
               this.currentLyrics.set(parsed);
               this.isLoading.set(false);
-              if (!hasExplicitOffset && parsed.duration && parsed.duration > 20) {
-                const trackDur = track.duration || this.audioService.duration();
-                if (trackDur && trackDur > 20) {
-                  const deltaSec = trackDur - parsed.duration;
-                  if (Math.abs(deltaSec) >= 0.8 && Math.abs(deltaSec) <= 15.0) {
-                    const autoOffsetMs = Math.round(deltaSec * 1000);
-                    this.syncOffsetMs.set(autoOffsetMs);
-                  }
-                }
-              }
 
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
@@ -650,17 +667,6 @@ export class LyricsService {
         this.isLoading.set(false);
         if (lyricsData.raw) {
           this.persistLyricsToCloud(track, lyricsData.raw);
-        }
-
-        if (!hasExplicitOffset && lyricsData.duration && lyricsData.duration > 20) {
-          const trackDur = track.duration || this.audioService.duration();
-          if (trackDur && trackDur > 20) {
-            const deltaSec = trackDur - lyricsData.duration;
-            if (Math.abs(deltaSec) >= 0.8 && Math.abs(deltaSec) <= 15.0) {
-              const autoOffsetMs = Math.round(deltaSec * 1000);
-              this.syncOffsetMs.set(autoOffsetMs);
-            }
-          }
         }
 
 

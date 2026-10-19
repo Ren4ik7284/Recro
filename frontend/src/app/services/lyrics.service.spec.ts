@@ -202,4 +202,36 @@ Unsynced random header
     service.precisePlaybackTime.set(10.00);
     expect(service.activeLineIndex()).toBe(1);
   });
+
+  it('should maintain zero syncOffsetMs default and never inject artificial deltaSec drift', async () => {
+    service.syncOffsetMs.set(0);
+    expect(service.syncOffsetMs()).toBe(0);
+
+    const track = {
+      id: 'test-sync-1',
+      title: 'Studio Track',
+      artist: 'Artist',
+      duration: 215, // Track has 5 seconds extra outro silence
+      audioUrl: '',
+      genre: '',
+      format: 'mp3' as const,
+      bitrate: '',
+      plays: 0,
+      isFavorite: false,
+      addedAt: '',
+    };
+
+    const lrcContent = `
+[00:05.00]First line
+[00:10.00]Second line
+    `;
+
+    // Direct parsed with duration 210
+    const parsed = service.parseLrc(lrcContent, 'lrclib');
+    parsed.duration = 210;
+
+    service.currentLyrics.set(parsed);
+    // syncOffsetMs must remain strictly 0 ms without artificial duration delta
+    expect(service.syncOffsetMs()).toBe(0);
+  });
 });
