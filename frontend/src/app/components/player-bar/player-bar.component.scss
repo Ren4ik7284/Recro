@@ -300,6 +300,42 @@
         border: 1px solid rgba(6, 182, 212, 0.5);
         box-shadow: 0 0 8px rgba(6, 182, 212, 0.3);
       }
+
+      &.ls-btn {
+        transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        border: 1px solid transparent;
+
+        &.active {
+          color: #fff;
+          font-weight: 800;
+        }
+
+        &.ls-studio {
+          color: #c084fc;
+          background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(139, 92, 246, 0.25) 100%);
+          border-color: rgba(168, 85, 247, 0.5);
+          box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
+        }
+
+        &.ls-spatial {
+          color: #38bdf8;
+          background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(59, 130, 246, 0.25) 100%);
+          border-color: rgba(56, 189, 248, 0.5);
+          box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+        }
+
+        &.ls-bass {
+          color: #fb7185;
+          background: linear-gradient(135deg, rgba(244, 63, 94, 0.2) 0%, rgba(225, 29, 72, 0.25) 100%);
+          border-color: rgba(244, 63, 94, 0.5);
+          box-shadow: 0 0 10px rgba(244, 63, 94, 0.35);
+        }
+
+        .ls-icon {
+          font-size: 11px;
+          line-height: 1;
+        }
+      }
     }
 
     .volume-group {

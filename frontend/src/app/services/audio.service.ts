@@ -5,6 +5,8 @@ import { OfflineService } from './offline.service';
 import { RecommendationService, MixMood, isTrackLanguageMatch, normalizeArtist, extractAllArtists } from './recommendation.service';
 import { NavigationService } from './navigation.service';
 
+export type LosslessScalingMode = 'studio' | 'spatial' | 'bass' | 'off';
+
 @Injectable({
   providedIn: 'root',
 })
@@ -15,9 +17,12 @@ export class AudioService {
   private navService = inject(NavigationService);
   private audio: HTMLAudioElement;
 
-  // Web Audio API Nodes for Normalization & Crossfade & Visualizer
+  // Web Audio API Nodes for Lossless Scaling DSP & Normalization & Crossfade & Visualizer
   private audioCtx: AudioContext | null = null;
   private sourceNode: MediaElementAudioSourceNode | null = null;
+  private lsBassFilter: BiquadFilterNode | null = null;
+  private lsClarityFilter: BiquadFilterNode | null = null;
+  private lsAirFilter: BiquadFilterNode | null = null;
   private compressorNode: DynamicsCompressorNode | null = null;
   private gainNode: GainNode | null = null;
   private analyserNode: AnalyserNode | null = null;
@@ -36,6 +41,7 @@ export class AudioService {
   private readonly STORAGE_KEY_REPEAT = 'signal_player_repeat';
   private readonly STORAGE_KEY_QUALITY = 'signal_player_audio_quality';
   private readonly STORAGE_KEY_BIT_PERFECT = 'signal_player_bit_perfect';
+  private readonly STORAGE_KEY_LS_MODE = 'signal_player_lossless_scaling';
 
   readonly volume = signal<number>(this.loadSavedVolume());
   readonly isMuted = signal<boolean>(false);
@@ -43,6 +49,18 @@ export class AudioService {
   readonly repeatMode = signal<'off' | 'all' | 'one'>(this.loadSavedRepeatMode());
   readonly audioQuality = signal<'lossless' | 'high' | 'auto' | 'data_saver'>(this.loadSavedQuality());
   readonly isBitPerfect = signal<boolean>(this.loadSavedBitPerfect());
+
+  readonly losslessScalingMode = signal<LosslessScalingMode>(this.loadSavedLosslessScaling());
+  readonly isLosslessScalingActive = computed(() => this.losslessScalingMode() !== 'off');
+  readonly losslessScalingLabel = computed(() => {
+    switch (this.losslessScalingMode()) {
+      case 'studio': return 'LS STUDIO';
+      case 'spatial': return 'LS 3D';
+      case 'bass': return 'LS BASS';
+      case 'off': default: return 'LS OFF';
+    }
+  });
+  readonly audioSampleRate = signal<number>(48000);
 
   readonly isLosslessPlayback = computed(() => {
     const track = this.currentTrack();
@@ -198,6 +216,17 @@ export class AudioService {
     return true;
   }
 
+  private loadSavedLosslessScaling(): LosslessScalingMode {
+    if (typeof localStorage === 'undefined') return 'studio';
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY_LS_MODE);
+      if (saved === 'studio' || saved === 'spatial' || saved === 'bass' || saved === 'off') {
+        return saved as LosslessScalingMode;
+      }
+    } catch {}
+    return 'studio';
+  }
+
   setAudioQuality(quality: 'lossless' | 'high' | 'auto' | 'data_saver') {
     this.audioQuality.set(quality);
     if (typeof localStorage !== 'undefined') {
@@ -237,6 +266,78 @@ export class AudioService {
     this.applyBitPerfectState();
   }
 
+  setLosslessScalingMode(mode: LosslessScalingMode) {
+    this.losslessScalingMode.set(mode);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(this.STORAGE_KEY_LS_MODE, mode);
+      } catch {}
+    }
+    this.ensureAudioContext();
+    this.applyLosslessScaling();
+  }
+
+  cycleLosslessScaling() {
+    const current = this.losslessScalingMode();
+    const modes: LosslessScalingMode[] = ['studio', 'spatial', 'bass', 'off'];
+    const nextIdx = (modes.indexOf(current) + 1) % modes.length;
+    this.setLosslessScalingMode(modes[nextIdx]);
+  }
+
+  getLosslessScalingTooltip(): string {
+    switch (this.losslessScalingMode()) {
+      case 'studio':
+        return 'Lossless Scaling: Studio Hi-Res (Кристальный воздух 11.8kHz+, выразительный вокал и упругий суб-бас 75Hz)';
+      case 'spatial':
+        return 'Lossless Scaling: Spatial 3D (Голографическая сцена, расширенная панорама и открытый верх)';
+      case 'bass':
+        return 'Lossless Scaling: Bass Impact (Глубокий клубный бас без искажений и грязи)';
+      case 'off':
+      default:
+        return 'Lossless Scaling: Выключено (Direct Bit-Perfect Bypass 0.0 dB)';
+    }
+  }
+
+  applyLosslessScaling(immediate = false) {
+    if (!this.lsBassFilter || !this.lsClarityFilter || !this.lsAirFilter || !this.audioCtx) return;
+    try {
+      const now = this.audioCtx.currentTime;
+      let bassGain = 0;
+      let clarityGain = 0;
+      let airGain = 0;
+
+      const mode = this.losslessScalingMode();
+      if (mode === 'studio') {
+        bassGain = 3.5;
+        clarityGain = 2.2;
+        airGain = 3.8;
+      } else if (mode === 'spatial') {
+        bassGain = 2.0;
+        clarityGain = 1.6;
+        airGain = 4.8;
+      } else if (mode === 'bass') {
+        bassGain = 6.0;
+        clarityGain = 0.8;
+        airGain = 2.0;
+      } else {
+        bassGain = 0;
+        clarityGain = 0;
+        airGain = 0;
+      }
+
+      if (immediate) {
+        this.lsBassFilter.gain.setValueAtTime(bassGain, now);
+        this.lsClarityFilter.gain.setValueAtTime(clarityGain, now);
+        this.lsAirFilter.gain.setValueAtTime(airGain, now);
+      } else {
+        // Smooth 50ms exponential glide: zero audible clicks or pops during active playback
+        this.lsBassFilter.gain.setTargetAtTime(bassGain, now, 0.05);
+        this.lsClarityFilter.gain.setTargetAtTime(clarityGain, now, 0.05);
+        this.lsAirFilter.gain.setTargetAtTime(airGain, now, 0.05);
+      }
+    } catch {}
+  }
+
   applyBitPerfectState() {
     if (!this.compressorNode || !this.audioCtx) return;
     try {
@@ -251,6 +352,7 @@ export class AudioService {
         this.compressorNode.ratio.setValueAtTime(4, now);
       }
     } catch {}
+    this.applyLosslessScaling();
   }
 
   constructor() {
@@ -314,18 +416,14 @@ export class AudioService {
 
   /**
    * Initializes Web Audio API graph:
-   * HTMLAudioElement -> MediaElementSourceNode -> DynamicsCompressorNode (Peak Limiting) -> GainNode (Fade) -> Destination
+   * HTMLAudioElement -> MediaElementSourceNode -> Lossless Scaling 3-Band DSP -> DynamicsCompressorNode (Peak Limiting) -> GainNode (Fade) -> AnalyserNode -> Destination
    */
   private initAudioContext() {
     if (this.isAudioGraphReady || typeof window === 'undefined') return;
 
     // Mobile browsers (Chrome Android / iOS Safari) kill WebAudio graphs on screen lock.
-    // Keeping native HTML5 audio output on mobile guarantees the Lock Screen & Notification widget stays active.
-    const isMobile = typeof window !== 'undefined' && (
-      /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-      Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
-      window.innerWidth <= 1024
-    );
+    // Keeping native HTML5 audio output on mobile smartphones guarantees the Lock Screen & Notification widget stays active.
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile) {
       return;
     }
@@ -337,6 +435,9 @@ export class AudioService {
       this.audioCtx = new AudioCtxClass({
         latencyHint: 'playback'
       });
+      if (this.audioCtx.sampleRate) {
+        this.audioSampleRate.set(this.audioCtx.sampleRate);
+      }
 
       this.audioCtx.onstatechange = () => {
         if (this.audioCtx && this.audioCtx.state === 'suspended' && this.isPlaying()) {
@@ -346,7 +447,24 @@ export class AudioService {
 
       this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
 
-      // 1. DynamicsCompressor for gentle peak leveling without squashing dynamics or causing pumping
+      // 1. Lossless Scaling DSP Engine: 3-band high-precision studio mastering filters
+      this.lsBassFilter = this.audioCtx.createBiquadFilter();
+      this.lsBassFilter.type = 'lowshelf';
+      this.lsBassFilter.frequency.setValueAtTime(75, this.audioCtx.currentTime);
+
+      this.lsClarityFilter = this.audioCtx.createBiquadFilter();
+      this.lsClarityFilter.type = 'peaking';
+      this.lsClarityFilter.frequency.setValueAtTime(3200, this.audioCtx.currentTime);
+      this.lsClarityFilter.Q.setValueAtTime(0.9, this.audioCtx.currentTime);
+
+      this.lsAirFilter = this.audioCtx.createBiquadFilter();
+      this.lsAirFilter.type = 'highshelf';
+      this.lsAirFilter.frequency.setValueAtTime(11800, this.audioCtx.currentTime);
+
+      // Apply initial DSP gains
+      this.applyLosslessScaling(true);
+
+      // 2. DynamicsCompressor for gentle peak leveling without squashing dynamics or causing pumping
       this.compressorNode = this.audioCtx.createDynamicsCompressor();
       this.compressorNode.threshold.setValueAtTime(-14, this.audioCtx.currentTime);
       this.compressorNode.knee.setValueAtTime(16, this.audioCtx.currentTime);
@@ -354,17 +472,20 @@ export class AudioService {
       this.compressorNode.attack.setValueAtTime(0.01, this.audioCtx.currentTime);
       this.compressorNode.release.setValueAtTime(0.18, this.audioCtx.currentTime);
 
-      // 2. GainNode for smooth crossfades and click-free track transitions
+      // 3. GainNode for smooth crossfades and click-free track transitions
       this.gainNode = this.audioCtx.createGain();
       this.gainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
 
-      // 3. AnalyserNode for real-time audio visualization
+      // 4. AnalyserNode for real-time audio visualization
       this.analyserNode = this.audioCtx.createAnalyser();
       this.analyserNode.fftSize = 256;
       this.analyserNode.smoothingTimeConstant = 0.82;
 
-      // Connect graph: Source -> Compressor -> Gain -> Analyser -> Destination
-      this.sourceNode.connect(this.compressorNode);
+      // Connect graph: Source -> LS Bass -> LS Clarity -> LS Air -> Compressor -> Gain -> Analyser -> Destination
+      this.sourceNode.connect(this.lsBassFilter);
+      this.lsBassFilter.connect(this.lsClarityFilter);
+      this.lsClarityFilter.connect(this.lsAirFilter);
+      this.lsAirFilter.connect(this.compressorNode);
       this.compressorNode.connect(this.gainNode);
       this.gainNode.connect(this.analyserNode);
       this.analyserNode.connect(this.audioCtx.destination);
@@ -522,21 +643,37 @@ export class AudioService {
     });
   }
 
-  toggleNormalization() {
-    this.isNormalizationEnabled.update((v) => !v);
+  private rebuildAudioGraphConnections() {
     if (!this.sourceNode || !this.gainNode || !this.audioCtx) return;
-
     try {
       this.sourceNode.disconnect();
+      if (this.lsBassFilter) this.lsBassFilter.disconnect();
+      if (this.lsClarityFilter) this.lsClarityFilter.disconnect();
+      if (this.lsAirFilter) this.lsAirFilter.disconnect();
       if (this.compressorNode) this.compressorNode.disconnect();
 
+      let lastNode: AudioNode = this.sourceNode;
+      if (this.lsBassFilter && this.lsClarityFilter && this.lsAirFilter) {
+        lastNode.connect(this.lsBassFilter);
+        this.lsBassFilter.connect(this.lsClarityFilter);
+        this.lsClarityFilter.connect(this.lsAirFilter);
+        lastNode = this.lsAirFilter;
+      }
+
       if (this.isNormalizationEnabled() && this.compressorNode) {
-        this.sourceNode.connect(this.compressorNode);
+        lastNode.connect(this.compressorNode);
         this.compressorNode.connect(this.gainNode);
       } else {
-        this.sourceNode.connect(this.gainNode);
+        lastNode.connect(this.gainNode);
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[AudioService] Failed to rebuild audio graph:', err);
+    }
+  }
+
+  toggleNormalization() {
+    this.isNormalizationEnabled.update((v) => !v);
+    this.rebuildAudioGraphConnections();
   }
 
   toggleCrossfade() {

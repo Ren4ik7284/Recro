@@ -1734,6 +1734,19 @@
         }
 
         <button 
+          class="sheet-util-btn ls-sheet-btn" 
+          [class.active]="audioService.isLosslessScalingActive()"
+          [class.ls-studio]="audioService.losslessScalingMode() === 'studio'"
+          [class.ls-spatial]="audioService.losslessScalingMode() === 'spatial'"
+          [class.ls-bass]="audioService.losslessScalingMode() === 'bass'"
+          (click)="audioService.cycleLosslessScaling()"
+          [title]="audioService.getLosslessScalingTooltip()"
+        >
+          <span style="font-size: 13px;">⚡</span>
+          <span style="font-weight: 700;">{{ audioService.losslessScalingLabel() }}</span>
+        </button>
+
+        <button 
           class="sheet-util-btn" 
           [class.favorited]="audioService.isLosslessPlayback()"
           (click)="audioService.cycleAudioQuality()"

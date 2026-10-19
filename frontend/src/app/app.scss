@@ -4311,6 +4311,27 @@ app-header-bar {
         &.favorited {
           border-color: rgba(59, 130, 246, 0.4);
         }
+
+        &.ls-sheet-btn {
+          font-family: monospace;
+          transition: all 0.2s ease;
+
+          &.ls-studio {
+            color: #c084fc;
+            border-color: rgba(168, 85, 247, 0.45);
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+          }
+          &.ls-spatial {
+            color: #38bdf8;
+            border-color: rgba(56, 189, 248, 0.45);
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+          }
+          &.ls-bass {
+            color: #fb7185;
+            border-color: rgba(244, 63, 94, 0.45);
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.15) 0%, rgba(225, 29, 72, 0.1) 100%);
+          }
+        }
       }
     }
 

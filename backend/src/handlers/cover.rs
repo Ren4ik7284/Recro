@@ -335,20 +335,43 @@ pub async fn proxy_cover(
     // 2. If valid HTTP target is supplied, attempt fetch with intelligent fallback
     if !raw_target.is_empty() && (raw_target.starts_with("http://") || raw_target.starts_with("https://")) {
         if check_url_ssrf(raw_target).await.is_ok() {
-            let mut candidate_urls = vec![raw_target.to_string()];
+            let mut candidate_urls = Vec::new();
 
-            // Fallback candidate for YouTube thumbnails
-            if raw_target.contains("maxresdefault.jpg") {
+            // 1. YouTube Lossless Visual Scaling: prefer maxresdefault (1080p) -> sddefault (640p) -> hqdefault (480p)
+            if raw_target.contains("hqdefault.jpg") || raw_target.contains("mqdefault.jpg") || raw_target.contains("sddefault.jpg") {
+                candidate_urls.push(raw_target.replace("hqdefault.jpg", "maxresdefault.jpg").replace("mqdefault.jpg", "maxresdefault.jpg").replace("sddefault.jpg", "maxresdefault.jpg"));
+                candidate_urls.push(raw_target.replace("hqdefault.jpg", "sddefault.jpg").replace("mqdefault.jpg", "sddefault.jpg"));
+                candidate_urls.push(raw_target.to_string());
+            } else if raw_target.contains("maxresdefault.jpg") {
+                candidate_urls.push(raw_target.to_string());
+                candidate_urls.push(raw_target.replace("maxresdefault.jpg", "sddefault.jpg"));
                 candidate_urls.push(raw_target.replace("maxresdefault.jpg", "hqdefault.jpg"));
-                candidate_urls.push(raw_target.replace("maxresdefault.jpg", "mqdefault.jpg"));
-            } else if raw_target.contains("sddefault.jpg") {
-                candidate_urls.push(raw_target.replace("sddefault.jpg", "hqdefault.jpg"));
             }
 
-            // Fallback candidate for SoundCloud artwork
-            if raw_target.contains("-original.jpg") {
-                candidate_urls.push(raw_target.replace("-original.jpg", "-t500x500.jpg"));
-                candidate_urls.push(raw_target.replace("-original.jpg", "-large.jpg"));
+            // 2. SoundCloud Lossless Visual Scaling: prefer -t500x500 (500x500) / -original -> -large (100x100)
+            if raw_target.contains("-large.") {
+                candidate_urls.push(raw_target.replace("-large.", "-t500x500."));
+                candidate_urls.push(raw_target.replace("-large.", "-original."));
+                candidate_urls.push(raw_target.to_string());
+            } else if raw_target.contains("-t500x500.") {
+                candidate_urls.push(raw_target.replace("-t500x500.", "-original."));
+                candidate_urls.push(raw_target.to_string());
+                candidate_urls.push(raw_target.replace("-t500x500.", "-large."));
+            } else if raw_target.contains("-original.") {
+                candidate_urls.push(raw_target.to_string());
+                candidate_urls.push(raw_target.replace("-original.", "-t500x500."));
+                candidate_urls.push(raw_target.replace("-original.", "-large."));
+            }
+
+            // 3. Deezer Lossless Visual Scaling: prefer 1000x1000 -> 500x500 -> 250x250
+            if raw_target.contains("/250x250-") || raw_target.contains("/120x120-") {
+                candidate_urls.push(raw_target.replace("/250x250-", "/1000x1000-").replace("/120x120-", "/1000x1000-"));
+                candidate_urls.push(raw_target.replace("/120x120-", "/500x500-").replace("/250x250-", "/500x500-"));
+                candidate_urls.push(raw_target.to_string());
+            }
+
+            if candidate_urls.is_empty() {
+                candidate_urls.push(raw_target.to_string());
             }
 
             let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
