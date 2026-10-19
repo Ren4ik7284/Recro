@@ -1017,7 +1017,8 @@ export class App implements OnInit {
   playAllPopularTracks() {
     const tracks = this.homeData()?.popular_tracks || [];
     if (tracks.length === 0) return;
-    this.audioService.playTrack(tracks[0], tracks, false, 0);
+    const startIdx = this.audioService.isShuffle() ? Math.floor(Math.random() * tracks.length) : 0;
+    this.audioService.playTrack(tracks[startIdx], tracks, false, startIdx);
     this.showToast('Воспроизведение: Популярные песни');
   }
 
@@ -1074,8 +1075,9 @@ export class App implements OnInit {
   }
 
   playAllFromChart(chart: ChartDetail) {
-    if (!chart.tracks || chart.tracks.length === 0) return;
-    this.audioService.playTrack(chart.tracks[0], chart.tracks, false, 0);
+    if (!chart || !chart.tracks || chart.tracks.length === 0) return;
+    const startIdx = this.audioService.isShuffle() ? Math.floor(Math.random() * chart.tracks.length) : 0;
+    this.audioService.playTrack(chart.tracks[startIdx], chart.tracks, false, startIdx);
     this.showToast(`Воспроизведение: ${chart.title}`);
   }
 

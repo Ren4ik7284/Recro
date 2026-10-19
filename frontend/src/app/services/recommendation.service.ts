@@ -629,6 +629,14 @@ export class RecommendationService {
     return `signal_recent_titles_${this.libraryService.getStorageUserId()}`;
   }
 
+  private get STORAGE_KEY_RECENT_STARTERS(): string {
+    return `signal_recent_starters_${this.libraryService.getStorageUserId()}`;
+  }
+
+  private get STORAGE_KEY_RECENT_STARTER_ARTISTS(): string {
+    return `signal_recent_starter_artists_${this.libraryService.getStorageUserId()}`;
+  }
+
   readonly isMixActive = signal<boolean>(false);
   readonly mixConfig = this.libraryService.mixConfig;
   readonly currentMood = computed<MixMood>(() => this.libraryService.mixConfig().mood);
@@ -636,6 +644,10 @@ export class RecommendationService {
 
   // User Taste Vector in reactive state
   readonly tasteVector = signal<TasteVector>(this.loadSavedTasteVector());
+
+  // Recent starter history (persisted) to guarantee the first track is never the same across starts and sessions
+  private recentStarterIds: string[] = [];
+  private recentStarterArtists: string[] = [];
 
   // Persistent play records to prevent repetition across sessions and days
   // Map of trackId -> PlayRecord
@@ -830,6 +842,7 @@ export class RecommendationService {
 
   constructor() {
     this.loadSavedRecentPlays();
+    this.loadSavedRecentStarters();
     this.cleanupOldPlays();
     this.syncWithListeningHistory();
 
@@ -951,6 +964,76 @@ export class RecommendationService {
       }
       localStorage.setItem(this.STORAGE_KEY_RECENT_TITLES, JSON.stringify(titlesObj));
     } catch {}
+  }
+
+  private loadSavedRecentStarters() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const rawIds = localStorage.getItem(this.STORAGE_KEY_RECENT_STARTERS);
+      if (rawIds) {
+        const parsed = JSON.parse(rawIds);
+        if (Array.isArray(parsed)) {
+          this.recentStarterIds = parsed.filter((id) => typeof id === 'string').slice(0, 50);
+        }
+      }
+      const rawArtists = localStorage.getItem(this.STORAGE_KEY_RECENT_STARTER_ARTISTS);
+      if (rawArtists) {
+        const parsed = JSON.parse(rawArtists);
+        if (Array.isArray(parsed)) {
+          this.recentStarterArtists = parsed.filter((a) => typeof a === 'string').slice(0, 30);
+        }
+      }
+    } catch {}
+  }
+
+  private saveRecentStarters() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(this.STORAGE_KEY_RECENT_STARTERS, JSON.stringify(this.recentStarterIds.slice(0, 50)));
+      localStorage.setItem(this.STORAGE_KEY_RECENT_STARTER_ARTISTS, JSON.stringify(this.recentStarterArtists.slice(0, 30)));
+    } catch {}
+  }
+
+  recordStarterUsed(track: Track | null | undefined): void {
+    if (!track) return;
+    this.recordTrackStarted(track);
+    this.registerSessionPlayed(track);
+
+    if (track.id) {
+      this.recentStarterIds = [track.id, ...this.recentStarterIds.filter((id) => id !== track.id)].slice(0, 50);
+    }
+
+    const primaryArtist = normalizeArtist(track.artist);
+    if (primaryArtist) {
+      this.recentStarterArtists = [primaryArtist, ...this.recentStarterArtists.filter((a) => a !== primaryArtist)].slice(0, 30);
+    }
+
+    this.saveRecentStarters();
+  }
+
+  isRecentStarter(track: Track | null | undefined, lookback = 30): boolean {
+    if (!track) return false;
+    const window = this.recentStarterIds.slice(0, lookback);
+    if (track.id && window.includes(track.id)) return true;
+    const titleKey = this.getTitleKey(track);
+    if (titleKey && window.some((id) => id.includes(titleKey))) return true;
+    return false;
+  }
+
+  isRecentStarterArtist(artist?: string | null, lookback = 12): boolean {
+    if (!artist) return false;
+    const norm = normalizeArtist(artist);
+    if (!norm) return false;
+    const window = this.recentStarterArtists.slice(0, lookback);
+    return window.includes(norm);
+  }
+
+  getRecentStarterIds(): Set<string> {
+    return new Set(this.recentStarterIds);
+  }
+
+  getRecentStarterArtists(): Set<string> {
+    return new Set(this.recentStarterArtists);
   }
 
   private cleanupOldPlays() {
@@ -2354,6 +2437,104 @@ export class RecommendationService {
     }
   }
 
+  /**
+   * Intelligently selects a starter track for "Моя Волна" / Smart Mix that is GUARANTEED to be diverse
+   * and different from recent sessions, avoiding repeating the first track over and over.
+   */
+  pickDiverseStarterTrack(
+    mood: MixMood = this.currentMood(),
+    effectiveLang: MixLanguage = this.getEffectiveLanguage(null)
+  ): Track | null {
+    const localCandidates = this.getAllLocalCandidates();
+    const source = this.mixConfig().source;
+
+    // 1. If library is available and mode is balanced or library_only: pick from user library
+    if ((source === 'balanced' || source === 'library_only') && localCandidates.length > 0) {
+      const valid = localCandidates.filter((t) => {
+        if (this.isDisliked(t) || this.libraryService.isArtistDisliked(t.artist)) return false;
+        const isFav = t.isFavorite || (typeof this.libraryService?.isTrackFavorite === 'function' && this.libraryService.isTrackFavorite(t));
+        if (mood === 'favorites' && !isFav) return false;
+        if (!isTrackLanguageMatch(t, effectiveLang)) return false;
+        if (!this.doesTrackMatchMood(t, mood)) return false;
+        return true;
+      });
+
+      if (valid.length > 0) {
+        // Pass 1: Strict freshness - not a recent starter (last 25), not a recent starter artist (last 10),
+        // not played in the last 4 hours (240 min), not session duplicate
+        let strictPool = valid.filter((t) =>
+          !this.isRecentStarter(t, 25) &&
+          !this.isRecentStarterArtist(t.artist, 10) &&
+          !this.isRecentlyPlayed(t, 240) &&
+          !this.isSessionDuplicate(t)
+        );
+
+        // Pass 2: Relax artist cooldown if strictPool is too small
+        if (strictPool.length === 0) {
+          strictPool = valid.filter((t) =>
+            !this.isRecentStarter(t, 15) &&
+            !this.isRecentlyPlayed(t, 90) &&
+            !this.isSessionDuplicate(t)
+          );
+        }
+
+        // Pass 3: Exclude only the last 3 starters and anything played in last 30 minutes
+        if (strictPool.length === 0) {
+          strictPool = valid.filter((t) =>
+            !this.isRecentStarter(t, 3) &&
+            !this.isRecentlyPlayed(t, 30)
+          );
+        }
+
+        // Pass 4: Fallback to any valid track not being the immediate last starter
+        if (strictPool.length === 0) {
+          const lastStarterId = this.recentStarterIds[0];
+          strictPool = valid.filter((t) => t.id !== lastStarterId);
+          if (strictPool.length === 0) strictPool = valid;
+        }
+
+        if (strictPool.length > 0) {
+          const shuffled = [...strictPool];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          const favs = shuffled.filter((t) => t.isFavorite || (typeof this.libraryService?.isTrackFavorite === 'function' && this.libraryService.isTrackFavorite(t)));
+          const pickFrom = favs.length > 0 && Math.random() < 0.75 ? favs : shuffled;
+          return pickFrom[Math.floor(Math.random() * pickFrom.length)];
+        }
+      }
+    }
+
+    // 2. Online Discovery Buffer: If pre-buffered discovery tracks exist
+    const buffered = this.getBufferedDiscoveries(effectiveLang, 10)
+      .filter((t) => !this.isLibraryTrack(t) && !this.isDisliked(t));
+    if (buffered.length > 0) {
+      const freshBuffered = buffered.filter((t) =>
+        !this.isRecentStarter(t, 25) &&
+        !this.isRecentStarterArtist(t.artist, 10) &&
+        !this.isRecentlyPlayed(t, 120)
+      );
+      const pool = freshBuffered.length > 0 ? freshBuffered : buffered;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    // 3. Fallback: Curated STARTER_MIX_TRACKS
+    const starters = this.getStarterCandidates(mood, 15, effectiveLang)
+      .filter((t) => !this.isLibraryTrack(t));
+    if (starters.length > 0) {
+      const freshStarters = starters.filter((t) =>
+        !this.isRecentStarter(t, 20) &&
+        !this.isRecentStarterArtist(t.artist, 8) &&
+        !this.isRecentlyPlayed(t, 240)
+      );
+      const candidateStarters = freshStarters.length > 0 ? freshStarters : starters;
+      return candidateStarters[Math.floor(Math.random() * candidateStarters.length)];
+    }
+
+    return null;
+  }
+
   getStarterCandidates(mood: MixMood = 'all', count = 5, lang: MixLanguage = this.libraryService.mixConfig().language): Track[] {
     let pool = STARTER_MIX_TRACKS.filter(
       (t) => !this.isDisliked(t) && !this.libraryService.isArtistDisliked(t.artist)
@@ -2378,13 +2559,21 @@ export class RecommendationService {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 
+    // Strict priority: exclude recent starters (last 20) and recent starter artists (last 8)
+    const freshNonStarters = shuffled.filter(
+      (t) => !this.isRecentStarter(t, 20) && !this.isRecentStarterArtist(t.artist, 8) && !this.isRecentlyPlayed(t, 1440)
+    );
+    if (freshNonStarters.length >= count) {
+      return freshNonStarters.slice(0, count).map((t) => ({ ...t }));
+    }
+
     // Deprioritize tracks played recently across 48 hours (2880 mins) so starter track NEVER repeats daily!
-    const fresh48h = shuffled.filter((t) => !this.isRecentlyPlayed(t, 2880));
+    const fresh48h = shuffled.filter((t) => !this.isRecentlyPlayed(t, 2880) && !this.isRecentStarter(t, 10));
     if (fresh48h.length >= count) {
       return fresh48h.slice(0, count).map((t) => ({ ...t }));
     }
 
-    const fresh24h = shuffled.filter((t) => !this.isRecentlyPlayed(t, 1440));
+    const fresh24h = shuffled.filter((t) => !this.isRecentlyPlayed(t, 1440) && !this.isRecentStarter(t, 3));
     if (fresh24h.length >= count) {
       return fresh24h.slice(0, count).map((t) => ({ ...t }));
     }

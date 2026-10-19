@@ -24,6 +24,7 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
       getStorageUserId: () => 'test_user',
       isDisliked: (id: string) => false,
       isArtistDisliked: vi.fn().mockReturnValue(false),
+      isTrackFavorite: vi.fn().mockImplementation((t: any) => !!t?.isFavorite),
       setMixConfig: vi.fn(),
       getHistory: vi.fn().mockResolvedValue([]),
       searchOnline: vi.fn().mockResolvedValue([]),
@@ -393,6 +394,88 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
 
       // Both tracks are hiphop/rap mood, similarity should be high (>= 0.75)
       expect(similarity).toBeGreaterThan(0.75);
+    });
+  });
+
+  describe('Starter Anti-Repetition and Diverse Wave Launch', () => {
+    it('should record starter used and persist to recentStarterIds and recentStarterArtists', () => {
+      const testTrack: Track = {
+        id: 'starter-test-1',
+        title: 'Би-2 Хит',
+        artist: 'Би-2',
+        duration: 180,
+        audioUrl: '/api/stream?title=test',
+        genre: 'Rock',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      expect(service.isRecentStarter(testTrack)).toBe(false);
+      expect(service.isRecentStarterArtist('Би-2')).toBe(false);
+
+      service.recordStarterUsed(testTrack);
+
+      expect(service.isRecentStarter(testTrack)).toBe(true);
+      expect(service.isRecentStarterArtist('Би-2')).toBe(true);
+      expect(service.getRecentStarterIds().has('starter-test-1')).toBe(true);
+    });
+
+    it('pickDiverseStarterTrack should never pick the same starter consecutively when user has library tracks', () => {
+      mockLibraryService.tracks.set([
+        {
+          id: 'lib-1',
+          title: 'Track One',
+          artist: 'Artist A',
+          duration: 180,
+          audioUrl: '/api/stream?1',
+          genre: 'Rock',
+          format: 'mp3',
+          plays: 50,
+          isFavorite: true,
+          addedAt: '2026-01-01',
+        },
+        {
+          id: 'lib-2',
+          title: 'Track Two',
+          artist: 'Artist B',
+          duration: 200,
+          audioUrl: '/api/stream?2',
+          genre: 'Rock',
+          format: 'mp3',
+          plays: 10,
+          isFavorite: false,
+          addedAt: '2026-01-01',
+        },
+      ]);
+      mockLibraryService.mixConfig.set({
+        mood: 'all',
+        source: 'balanced',
+        language: 'all',
+      });
+
+      const firstPick = service.pickDiverseStarterTrack('all', 'all');
+      expect(firstPick).toBeTruthy();
+
+      // Record first pick as consumed
+      service.recordStarterUsed(firstPick);
+
+      // Second pick must NOT be the exact same track!
+      const secondPick = service.pickDiverseStarterTrack('all', 'all');
+      expect(secondPick).toBeTruthy();
+      expect(secondPick?.id).not.toBe(firstPick?.id);
+    });
+
+    it('getStarterCandidates should strictly exclude recently used starters', () => {
+      const candidates = service.getStarterCandidates('all', 10);
+      expect(candidates.length).toBeGreaterThan(0);
+      const chosen = candidates[0];
+
+      service.recordStarterUsed(chosen);
+
+      const nextCandidates = service.getStarterCandidates('all', 10);
+      expect(nextCandidates.some((t) => t.id === chosen.id)).toBe(false);
     });
   });
 });

@@ -1279,9 +1279,12 @@ export class AudioService {
       if (this.recService.isMixActive()) {
         const mood = this.recService.currentMood();
         const lang = this.recService.mixConfig().language;
-        const starters = this.recService.getStarterCandidates(mood, 3, lang).filter((t) => !this.recService.isLibraryTrack(t));
+        const starters = this.recService.getStarterCandidates(mood, 6, lang).filter((t) => !this.recService.isLibraryTrack(t));
         if (starters.length > 0) {
-          this.playTrack(starters[0], undefined, true);
+          const randIdx = Math.floor(Math.random() * starters.length);
+          const chosen = starters[randIdx];
+          this.recService.recordStarterUsed(chosen);
+          this.playTrack(chosen, undefined, true);
         }
       }
       return;
@@ -2116,54 +2119,41 @@ export class AudioService {
 
       let starter: Track | null = null;
 
-      // 1. Offline Mode: Look through cached offline storage for the best personalized starter
+      // 1. Offline Mode: Look through cached offline storage for a diverse personalized starter
       if (isOffline || (offlineTracks.length > 0 && typeof navigator !== 'undefined' && !navigator.onLine)) {
         if (offlineTracks.length > 0) {
           let pool = offlineTracks.filter((t) => this.recService.doesTrackMatchMood(t, mood));
           if (pool.length === 0) pool = offlineTracks;
 
-          const notRecent = pool.filter((t) => !this.recService.isRecentlyPlayed(t, 60));
-          const candidatePool = notRecent.length > 0 ? notRecent : pool;
+          const nonRecent = pool.filter((t) =>
+            !this.recService.isRecentStarter(t, 15) &&
+            !this.recService.isRecentStarterArtist(t.artist, 6) &&
+            !this.recService.isRecentlyPlayed(t, 60)
+          );
+          const candidatePool = nonRecent.length > 0 ? nonRecent : pool.filter((t) => !this.recService.isRecentStarter(t, 2));
+          const finalPool = candidatePool.length > 0 ? candidatePool : pool;
 
-          const ranked = [...candidatePool].sort((a, b) => {
-            const favA = a.isFavorite || this.libraryService.isTrackFavorite(a) ? 1 : 0;
-            const favB = b.isFavorite || this.libraryService.isTrackFavorite(b) ? 1 : 0;
-            if (favA !== favB) return favB - favA;
-            return (b.plays || 0) - (a.plays || 0);
-          });
-          starter = ranked[0] || null;
+          const shuffled = [...finalPool];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          starter = shuffled[0] || null;
         }
       }
 
-      // 2. Online Mode: Look through user's library favorites / discovery buffer
+      // 2. Online Mode: Intelligently pick a diverse starter track
       if (!starter && (!isOffline || offlineTracks.length === 0)) {
-        const source = this.recService.mixConfig().source;
-        const localCandidates = this.recService.getAllLocalCandidates();
-
-        if (source === 'balanced' || source === 'library_only') {
-          if (localCandidates.length > 0) {
-            const favs = this.recService.pickNextTracks(1, new Set(), null);
-            if (favs.length > 0) {
-              starter = favs[0];
-            }
-          }
-        }
-
-        if (!starter) {
-          const effectiveLang = this.recService.getEffectiveLanguage(null);
-          const buffered = this.recService.getBufferedDiscoveries(effectiveLang, 1);
-          if (buffered.length > 0 && !this.recService.isLibraryTrack(buffered[0])) {
-            starter = buffered[0];
-          } else {
-            const starters = this.recService.getStarterCandidates(mood, 3, effectiveLang);
-            if (starters.length > 0) {
-              starter = starters[0];
-            }
-          }
-        }
+        const effectiveLang = this.recService.getEffectiveLanguage(null);
+        starter = this.recService.pickDiverseStarterTrack(mood, effectiveLang);
 
         if (!starter && offlineTracks.length > 0) {
-          starter = offlineTracks[0];
+          const shuffled = [...offlineTracks];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          starter = shuffled[0] || null;
         }
       }
 
@@ -2440,8 +2430,10 @@ export class AudioService {
     if (prewarmed) {
       const isMoodMatch = mood === 'all' || this.recService.doesTrackMatchMood(prewarmed, mood);
       const isNotDisliked = !this.recService.isDisliked(prewarmed.id) && !this.libraryService.isDisliked(prewarmed);
-      if (isMoodMatch && isNotDisliked) {
+      const isNotRecentStarter = !this.recService.isRecentStarter(prewarmed, 5);
+      if (isMoodMatch && isNotDisliked && isNotRecentStarter) {
         this.prewarmedWaveTrack.set(null);
+        this.recService.recordStarterUsed(prewarmed);
 
         let initialTracks: Track[] = [prewarmed];
         if (isOffline) {
@@ -2458,6 +2450,8 @@ export class AudioService {
         this.preloadNextTrack();
         this.ensureSmartQueue().catch(() => {});
         return true;
+      } else {
+        this.prewarmedWaveTrack.set(null);
       }
     }
 
@@ -2465,10 +2459,26 @@ export class AudioService {
     if (isOffline && offlineTracks.length > 0) {
       let pool = offlineTracks.filter((t) => this.recService.doesTrackMatchMood(t, mood));
       if (pool.length === 0) pool = offlineTracks;
-      const starter = pool[0];
+
+      const nonRecent = pool.filter((t) =>
+        !this.recService.isRecentStarter(t, 15) &&
+        !this.recService.isRecentStarterArtist(t.artist, 6) &&
+        !this.recService.isRecentlyPlayed(t, 60)
+      );
+      const candidatePool = nonRecent.length > 0 ? nonRecent : pool.filter((t) => !this.recService.isRecentStarter(t, 2));
+      const finalPool = candidatePool.length > 0 ? candidatePool : pool;
+      const shuffled = [...finalPool];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const starter = shuffled[0];
+      this.recService.recordStarterUsed(starter);
+
       const blobUrl = await this.offlineService.getOfflineBlobUrl(starter.id);
       const preparedStarter = blobUrl ? { ...starter, audioUrl: blobUrl, isOffline: true } : starter;
-      const initialTracks = [preparedStarter, ...pool.slice(1, 6)];
+      const remainingPool = pool.filter((t) => t.id !== starter.id);
+      const initialTracks = [preparedStarter, ...remainingPool.slice(0, 5)];
 
       this.playTrack(preparedStarter, initialTracks, true, 0);
       this.preloadNextTrack();
@@ -2482,28 +2492,28 @@ export class AudioService {
 
     let initialTracks: Track[] = [];
 
-    if (source === 'library_only' && candidates.length > 0) {
-      initialTracks = this.recService.pickNextTracks(6, new Set(), curTrack);
-    } else if (source === 'balanced' && candidates.length > 0) {
-      // Balanced mode: Start with a favorite track from user's library for instant personal start!
-      const favAnchor = this.recService.pickNextTracks(1, new Set(), curTrack);
-      const seedForDiscovery = favAnchor[0] || curTrack;
+    // Dynamically pick a diverse starter track that has NOT been played or started recently!
+    const starter = this.recService.pickDiverseStarterTrack(mood, effectiveLang);
 
-      // Get 3-4 discovery tracks tailored to this anchor
-      let discoveries = this.recService.getBufferedDiscoveries(effectiveLang, 4)
-        .filter((t) => !this.recService.isLibraryTrack(t));
-      if (discoveries.length === 0) {
-        const exclude = new Set<string>(favAnchor.map((t) => t.id));
-        const fetched = await this.recService.fetchOnlineDiscoveryTracks(4, exclude, new Set(), seedForDiscovery);
-        discoveries = fetched.filter((t) => !this.recService.isLibraryTrack(t));
-      }
+    if (starter) {
+      this.recService.recordStarterUsed(starter);
+      initialTracks.push(starter);
 
-      if (favAnchor.length > 0) {
-        initialTracks.push(favAnchor[0]);
+      if (source === 'library_only') {
+        const nextLib = this.recService.pickNextTracks(5, new Set([starter.id]), starter);
+        initialTracks.push(...nextLib);
+      } else {
+        let discoveries = this.recService.getBufferedDiscoveries(effectiveLang, 4)
+          .filter((t) => t.id !== starter.id && !this.recService.isLibraryTrack(t));
+        if (discoveries.length === 0) {
+          const exclude = new Set<string>([starter.id]);
+          const fetched = await this.recService.fetchOnlineDiscoveryTracks(4, exclude, new Set(), starter);
+          discoveries = fetched.filter((t) => !this.recService.isLibraryTrack(t));
+        }
+        initialTracks.push(...discoveries);
       }
-      initialTracks.push(...discoveries);
     } else {
-      // discovery_heavy mode or empty library
+      // Emergency online discovery
       let discoveryTracks = this.recService.getBufferedDiscoveries(effectiveLang, 5)
         .filter((t) => !this.recService.isLibraryTrack(t));
 
@@ -2519,7 +2529,14 @@ export class AudioService {
           }
         }
       }
-      initialTracks = discoveryTracks;
+
+      if (discoveryTracks.length > 0) {
+        const randIdx = Math.floor(Math.random() * discoveryTracks.length);
+        const first = discoveryTracks[randIdx];
+        this.recService.recordStarterUsed(first);
+        const rest = discoveryTracks.filter((t) => t.id !== first.id);
+        initialTracks = [first, ...rest];
+      }
     }
 
     if (initialTracks.length > 0) {
@@ -2534,7 +2551,12 @@ export class AudioService {
     const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), null);
     const pureFetched = fetched.filter((t) => !this.recService.isLibraryTrack(t));
     if (pureFetched.length > 0) {
-      this.playTrack(pureFetched[0], pureFetched, true, 0);
+      const randIdx = Math.floor(Math.random() * pureFetched.length);
+      const first = pureFetched[randIdx];
+      this.recService.recordStarterUsed(first);
+      const rest = pureFetched.filter((t) => t.id !== first.id);
+      const fallbackQueue = [first, ...rest];
+      this.playTrack(first, fallbackQueue, true, 0);
       this.preloadNextTrack();
       this.ensureSmartQueue().catch(() => {});
       return true;
