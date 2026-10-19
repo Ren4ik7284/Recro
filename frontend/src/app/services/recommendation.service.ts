@@ -354,7 +354,7 @@ export function normalizeArtist(artist?: string): string {
   if (!artist) return '';
   const cleaned = artist
     .toLowerCase()
-    .split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]|\s+[-–—+]\s+/i)[0]
+    .split(/\s+(?:feat\.?|ft\.?|with|[xх]|&|при\s+уч(?:\.|астии)?|с\s+участием|фит\.?)\s+|[&,/]|\s+[-–—+]\s+/iu)[0]
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -366,17 +366,19 @@ export function normalizeArtist(artist?: string): string {
   if (cleaned === 'фортуна 812') return 'fortuna 812';
   if (cleaned === 'темный принц') return 'тёмный принц';
   if (cleaned === 'аквакей') return 'aquakey';
+  if (cleaned === 'онда андар' || cleaned === 'онда андер' || cleaned === 'ондаандар' || cleaned === 'унда ундер' || cleaned === 'onda andar' || cleaned === 'onda under') return 'unda under';
   return cleaned;
 }
 
 export function extractAllArtists(artist?: string, title?: string): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
-  const addCandidate = (raw: string) => {
+  const addCandidate = (raw?: string) => {
+    if (!raw) return;
     const cleaned = raw
       .replace(/\.(mp3|wav|flac|m4a|aac|ogg)$/i, ' ')
       .replace(/\(.*?\)|\[.*?]|{.*?}/g, ' ')
-      .replace(/\b(prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера|slowed|reverb|speed up|sped up|remix|part|mp3)\b.*/i, ' ')
+      .replace(/\b(prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера|slowed|reverb|speed up|sped up|remix|part|mp3)\b.*/iu, ' ')
       .replace(/[^\p{L}\p{N}\s]/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -389,27 +391,78 @@ export function extractAllArtists(artist?: string, title?: string): string[] {
     }
   };
 
+  const splitPattern = /\s+(?:feat\.?|ft\.?|with|[xх]|&|при\s+уч(?:\.|астии)?|с\s+участием|фит\.?)\s+|[&,/]|\s+[-–—+]\s+/iu;
+
   if (artist && artist.trim()) {
-    const parts = artist.split(/\b(?:feat\.?|ft\.?|with|x)\b|[&,/]|\s+[-–—+]\s+/i);
+    const parts = artist.split(splitPattern);
     for (const part of parts) {
       addCandidate(part);
     }
   }
 
   if (title && title.trim()) {
-    const featMatches = title.match(/\b(?:feat\.?|ft\.?)\s+([^()\[\]\-,]+)/gi);
+    // 1. Explicit feat markers in title (feat, ft, при уч, с участием, фит)
+    const featMatches = title.match(/(?:feat\.?|ft\.?|при\s+уч(?:\.|астии)?|с\s+участием|фит\.?)\s+([^()\[\]\-,]+)/giu);
     if (featMatches) {
       for (const fm of featMatches) {
-        const stripped = fm.replace(/\b(?:feat\.?|ft\.?)\s+/i, '');
-        const parts = stripped.split(/\b(?:with|x)\b|[&,/]/i);
+        const stripped = fm.replace(/^(?:feat\.?|ft\.?|при\s+уч(?:\.|астии)?|с\s+участием|фит\.?)\s+/iu, '');
+        const parts = stripped.split(splitPattern);
         for (const part of parts) {
           addCandidate(part);
+        }
+      }
+    }
+
+    // 2. Title "х / x / &" co-artist (e.g. "Телепорт х Онда Андар", "Track & OtherArtist")
+    const titleCollabMatches = title.match(/\s+[-–—xх&]\s+([^\(\)\[\]]+)/giu);
+    if (titleCollabMatches) {
+      for (const tcm of titleCollabMatches) {
+        const stripped = tcm.replace(/^\s+[-–—xх&]\s+/iu, '');
+        const parts = stripped.split(splitPattern);
+        for (const part of parts) {
+          addCandidate(part);
+        }
+      }
+    }
+
+    // 3. Parentheses co-artist: e.g. "(x Онда Андар)", "(онда андар)"
+    const parenMatches = title.match(/\(([^)]+)\)|\[([^\]]+)\]/gu);
+    if (parenMatches) {
+      for (const pm of parenMatches) {
+        const inner = pm.slice(1, -1).trim();
+        if (/^(?:official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера|slowed|reverb|speed up|sped up|remix|part|prod)/i.test(inner)) {
+          continue;
+        }
+        if (/^(?:feat\.?|ft\.?|при\s+уч(?:\.|астии)?|с\s+участием|фит\.?|[xх&])\s+/iu.test(inner)) {
+          const stripped = inner.replace(/^(?:feat\.?|ft\.?|при\s+уч(?:\.|астии)?|с\s+участием|фит\.?|[xх&])\s+/iu, '');
+          for (const p of stripped.split(splitPattern)) {
+            addCandidate(p);
+          }
         }
       }
     }
   }
 
   return result;
+}
+
+export function isCollaborationTrack(
+  track: Track,
+  seedArtists: string[]
+): { isCollab: boolean; isDirectSeedFeat: boolean; coArtists: string[] } {
+  const allArtists = extractAllArtists(track.artist, track.title);
+  const normalizedAll = allArtists.map((a) => normalizeArtist(a)).filter(Boolean);
+  const normalizedSeeds = seedArtists.map((a) => normalizeArtist(a)).filter(Boolean);
+
+  const matchedSeed = normalizedAll.find((a) => normalizedSeeds.includes(a));
+  const isDirectSeedFeat = Boolean(matchedSeed && normalizedAll.length > 1);
+  const coArtists = normalizedAll.filter((a) => !normalizedSeeds.includes(a));
+
+  return {
+    isCollab: normalizedAll.length > 1,
+    isDirectSeedFeat,
+    coArtists,
+  };
 }
 
 export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
@@ -453,7 +506,7 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'madkid', 'madk1d', 'cupsize', 'zhanulka', 'unki', 'dakook', '13karat', 'polmateri',
   'aipfs', 'midix', 'serega pirat', 'fallen777angel', 'fortuna 812', 'doxxxelll', 'kristiee', 'bond s knopkoy',
   'villian', 'v!ll!an', 'aquakey', 'whole lotta swag', '4jaycard',
-  'onda andar', 'ivycraft', 'kudokushi', 'odasu', 'sh0tty', 'eryn martin',
+  'onda andar', 'unda under', 'ivycraft', 'kudokushi', 'odasu', 'sh0tty', 'eryn martin',
   'mapt0v', 'volhey', 'автоспорт', 'перемотка', 'буерак', 'дурной вкус',
   'увула', 'где фантом', 'где фантом?', 'ssshhhiiittt', 'ssshhhiiittt!',
   'щенки', 'свидетельство о смерти', 'конец солнечных дней', 'горемыка',
@@ -1404,14 +1457,14 @@ export class RecommendationService {
 
     if (currentTrack && !currentTrack.isLiveStream) {
       const curVec = this.extractTrackVector(currentTrack);
-      base.energy = base.energy * 0.75 + curVec.energy * 0.25;
-      base.tempo = base.tempo * 0.75 + curVec.tempo * 0.25;
-      base.acoustic = base.acoustic * 0.75 + curVec.acoustic * 0.25;
-      base.hiphop = base.hiphop * 0.75 + curVec.hiphop * 0.25;
-      base.rock = base.rock * 0.75 + curVec.rock * 0.25;
-      base.electronic = base.electronic * 0.75 + curVec.electronic * 0.25;
-      base.pop = base.pop * 0.75 + curVec.pop * 0.25;
-      base.chill = base.chill * 0.75 + curVec.chill * 0.25;
+      base.energy = base.energy * 0.55 + curVec.energy * 0.45;
+      base.tempo = base.tempo * 0.55 + curVec.tempo * 0.45;
+      base.acoustic = base.acoustic * 0.55 + curVec.acoustic * 0.45;
+      base.hiphop = base.hiphop * 0.55 + curVec.hiphop * 0.45;
+      base.rock = base.rock * 0.55 + curVec.rock * 0.45;
+      base.electronic = base.electronic * 0.55 + curVec.electronic * 0.45;
+      base.pop = base.pop * 0.55 + curVec.pop * 0.45;
+      base.chill = base.chill * 0.55 + curVec.chill * 0.45;
     }
 
     // Explicit mood parameters strictly dominate the final target vector:
@@ -1884,8 +1937,26 @@ export class RecommendationService {
       const candidates = this.getAllLocalCandidates();
       const mood = this.currentMood();
       const effectiveLang = this.getEffectiveLanguage(seedTrack);
-      const targetVec = this.getTargetVectorForMood(mood);
+
+      const langFilteredCandidates = candidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
+      let effectiveSeed = seedTrack && isTrackLanguageMatch(seedTrack, effectiveLang)
+        ? seedTrack
+        : (langFilteredCandidates.length > 0 ? langFilteredCandidates[Math.floor(Math.random() * langFilteredCandidates.length)] : null);
+
+      if (!effectiveSeed) {
+        const langStarters = this.getStarterCandidates(mood, 10, effectiveLang);
+        if (langStarters.length > 0) {
+          effectiveSeed = langStarters[Math.floor(Math.random() * langStarters.length)];
+        }
+      }
+
+      const targetVec = this.getTargetVectorForMood(mood, effectiveSeed);
       const targetNorm = this.computeVectorNorm(targetVec);
+
+      const seedVec = effectiveSeed ? this.extractTrackVector(effectiveSeed) : null;
+      const seedNorm = seedVec ? this.computeVectorNorm(seedVec) : 0;
+      const seedArtists = effectiveSeed ? extractAllArtists(effectiveSeed.artist, effectiveSeed.title) : [];
+      const primarySeedArtist = seedArtists[0] || effectiveSeed?.artist || '';
 
       // ALWAYS strictly exclude all library and playlist tracks from recommendations
       for (const t of candidates) {
@@ -1948,31 +2019,43 @@ export class RecommendationService {
         }
       }
 
-      const langFilteredCandidates = candidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
-      let effectiveSeed = seedTrack && isTrackLanguageMatch(seedTrack, effectiveLang)
-        ? seedTrack
-        : (langFilteredCandidates.length > 0 ? langFilteredCandidates[Math.floor(Math.random() * langFilteredCandidates.length)] : null);
-
-      if (!effectiveSeed) {
-        const langStarters = this.getStarterCandidates(mood, 10, effectiveLang);
-        if (langStarters.length > 0) {
-          effectiveSeed = langStarters[Math.floor(Math.random() * langStarters.length)];
-        }
-      }
-
       const seedGenre = effectiveSeed?.genre || dominantGenre;
       const tasks: Promise<Track[]>[] = [];
 
-      // 1. Seed track queries
-      if (effectiveSeed?.artist) {
-        if (effectiveSeed.title) {
+      // 1. Seed track queries: similar tracks + artist recommendations + collaborative features
+      if (primarySeedArtist) {
+        if (effectiveSeed?.title) {
           tasks.push(
-            this.libraryService.getSimilarTracks(effectiveSeed.title, effectiveSeed.artist, 15, seedGenre).catch(() => [] as Track[])
+            this.libraryService.getSimilarTracks(effectiveSeed.title, primarySeedArtist, 15, seedGenre).catch(() => [] as Track[])
           );
         }
         tasks.push(
-          this.libraryService.getRecommendations(effectiveSeed.artist, dominantGenre, 15, undefined, seedGenre).catch(() => [] as Track[])
+          this.libraryService.getRecommendations(primarySeedArtist, dominantGenre, 15, undefined, seedGenre).catch(() => [] as Track[])
         );
+
+        // Dedicated collaborative feature queries (фиты с артистом)
+        tasks.push(
+          this.libraryService.searchOnline(`${primarySeedArtist} feat`).catch(() => [] as Track[]),
+          this.libraryService.searchOnline(`${primarySeedArtist} ft`).catch(() => [] as Track[])
+        );
+        const isRuArtist = isRussianArtist(primarySeedArtist) || (effectiveSeed?.title && /[а-яё]/i.test(effectiveSeed.title));
+        if (isRuArtist) {
+          tasks.push(
+            this.libraryService.searchOnline(`${primarySeedArtist} фит`).catch(() => [] as Track[])
+          );
+        }
+
+        // If seed track is already a collaboration, also query related tracks for co-artists
+        if (seedArtists.length > 1) {
+          for (let i = 1; i < Math.min(3, seedArtists.length); i++) {
+            const coArt = seedArtists[i];
+            if (coArt && !this.libraryService.isArtistDisliked(coArt)) {
+              tasks.push(
+                this.libraryService.getRecommendations(coArt, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
+              );
+            }
+          }
+        }
       }
 
       const allUserTopArtists = Array.from(topArtistsMap.entries())
@@ -1996,10 +2079,10 @@ export class RecommendationService {
           [shuffledArtists[i], shuffledArtists[j]] = [shuffledArtists[j], shuffledArtists[i]];
         }
         const queried = new Set<string>();
-        if (effectiveSeed?.artist) queried.add(normalizeArtist(effectiveSeed.artist));
+        if (primarySeedArtist) queried.add(normalizeArtist(primarySeedArtist));
 
         for (const art of shuffledArtists) {
-          if (tasks.length >= 4) break;
+          if (tasks.length >= 7) break;
           const normA = normalizeArtist(art);
           if (normA && !queried.has(normA) && !seenArtists.has(normA)) {
             queried.add(normA);
@@ -2007,6 +2090,14 @@ export class RecommendationService {
               this.libraryService.getRecommendations(art, dominantGenre, 15, undefined, dominantGenre).catch(() => [] as Track[])
             );
           }
+        }
+
+        // Also query collab for top favorite artist if not seed
+        const topFavArtist = artistsToQuery[0];
+        if (topFavArtist && normalizeArtist(topFavArtist) !== normalizeArtist(primarySeedArtist) && tasks.length < 9) {
+          tasks.push(
+            this.libraryService.searchOnline(`${topFavArtist} feat`).catch(() => [] as Track[])
+          );
         }
       } else if (candidates.length === 0) {
         const curatedRu = (mood === 'energetic'
@@ -2023,7 +2114,7 @@ export class RecommendationService {
         ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curated = effectiveLang === 'ru' ? curatedRu : curatedEn;
         const art = curated[Math.floor(Math.random() * curated.length)];
-        if (art && (!effectiveSeed?.artist || normalizeArtist(art) !== normalizeArtist(effectiveSeed.artist))) {
+        if (art && (!primarySeedArtist || normalizeArtist(art) !== normalizeArtist(primarySeedArtist))) {
           tasks.push(
             this.libraryService.getRecommendations(art, dominantGenre, 15, undefined, dominantGenre).catch(() => [] as Track[])
           );
@@ -2056,6 +2147,7 @@ export class RecommendationService {
       const results = await Promise.all(tasks);
       const rawCandidates = results.flat();
       const scoredCandidates: { track: Track; sim: number }[] = [];
+      const activeSceneArtists = new Set<string>();
 
       for (const t of rawCandidates) {
         if (!t || !t.id || !t.audioUrl?.trim() || !t.title?.trim() || !t.artist?.trim()) continue;
@@ -2087,6 +2179,22 @@ export class RecommendationService {
           }
         }
 
+        // Collaboration & feat detection:
+        const collabInfo = isCollaborationTrack(t, seedArtists);
+        let collabBonus = 0;
+        if (collabInfo.isDirectSeedFeat) {
+          isDirectCircleMatch = true;
+          // Substantial boost for direct features with the seed artist
+          collabBonus = 0.22;
+          for (const ca of collabInfo.coArtists) {
+            if (ca) activeSceneArtists.add(ca);
+          }
+        } else if (collabInfo.coArtists.some((a) => activeSceneArtists.has(a)) || candArtists.some((a) => activeSceneArtists.has(a))) {
+          // Track from an artist collaborating within the same circle/scene
+          isDirectCircleMatch = true;
+          collabBonus = 0.12;
+        }
+
         // Heavy penalty if this artist is already present in recentArtists or seenArtists
         if (candArtists.some((a) => a && (seenArtists.has(a) || this.isRecentlyPlayed(t, 240)))) {
           artistAffinityBonus -= 0.40;
@@ -2100,14 +2208,24 @@ export class RecommendationService {
           if (trackVec.energy > 0.65 || (trackVec.chill < 0.35 && trackVec.acoustic < 0.35)) continue;
         }
 
-        let sim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
-        // Taste alignment threshold: preserves high musical relevance without dropping valid discovery tracks
-        if (isDirectCircleMatch) {
-          if (sim < 0.35) continue;
+        // Style-based similarity: compare sonic profile to seed track & mood/taste target (independent of text genre)
+        let styleSim: number;
+        if (seedVec && seedNorm > 0) {
+          const directSeedSim = this.cosineSimilarityFast(seedVec, seedNorm, trackVec);
+          const targetSim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
+          styleSim = directSeedSim * 0.55 + targetSim * 0.45;
         } else {
-          if (sim < 0.42) continue;
+          styleSim = this.cosineSimilarityFast(targetVec, targetNorm, trackVec);
         }
-        sim += artistAffinityBonus;
+
+        let sim = styleSim + artistAffinityBonus + collabBonus;
+
+        // Taste alignment threshold: preserves high musical relevance without dropping valid discovery tracks
+        if (collabInfo.isDirectSeedFeat || isDirectCircleMatch) {
+          if (sim < 0.32) continue;
+        } else {
+          if (sim < 0.40) continue;
+        }
 
         scoredCandidates.push({ track: t, sim });
       }

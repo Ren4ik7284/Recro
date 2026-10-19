@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { RecommendationService, normalizeArtist, normalizeTitle, isTrackLanguageMatch, isRussianArtist } from './recommendation.service';
+import { RecommendationService, normalizeArtist, normalizeTitle, isTrackLanguageMatch, isRussianArtist, extractAllArtists, isCollaborationTrack } from './recommendation.service';
 import { LibraryService } from './library.service';
 import { Track } from '../models/track.model';
 import { signal } from '@angular/core';
@@ -296,6 +296,103 @@ describe('RecommendationService & Mix Anti-Repetition', () => {
         expect(isTrackLanguageMatch(t, 'en')).toBe(true);
         expect(isTrackLanguageMatch(t, 'ru')).toBe(false);
       }
+    });
+  });
+
+  describe('Collaborations (feats) and Style-based matching', () => {
+    it('should normalize Unda Under / Onda Andar variations to unda under', () => {
+      expect(normalizeArtist('Онда Андар')).toBe('unda under');
+      expect(normalizeArtist('онда андер')).toBe('unda under');
+      expect(normalizeArtist('Унда Ундер')).toBe('unda under');
+      expect(normalizeArtist('Onda Andar')).toBe('unda under');
+      expect(normalizeArtist('Unda Under')).toBe('unda under');
+      expect(isRussianArtist('Unda Under')).toBe(true);
+      expect(isRussianArtist('Онда Андар')).toBe(true);
+    });
+
+    it('should extract all artists from complex feat patterns across artist and title', () => {
+      expect(extractAllArtists('163ONMYNECK', 'ПЕРЕВЕС (feat. SEEMEE)')).toEqual(['163ONMYNECK', 'SEEMEE']);
+      expect(extractAllArtists('MЮSLY', 'Телепорт х Онда Андар')).toEqual(['MЮSLY', 'Онда Андар']);
+      expect(extractAllArtists('Boulevard Depo', 'ВОТОНЯ (при уч. SEEMEE)')).toEqual(['Boulevard Depo', 'SEEMEE']);
+      expect(extractAllArtists('OG Buda feat. Mayot, 163onmyneck', 'Сайфер')).toEqual(['OG Buda', 'Mayot', '163onmyneck']);
+      expect(extractAllArtists('мор', 'кашалот (x онда андар)')).toEqual(['мор', 'онда андар']);
+      expect(extractAllArtists('Unda Under feat. Metox', 'Ночной')).toEqual(['Unda Under', 'Metox']);
+    });
+
+    it('should detect direct seed features with isCollaborationTrack', () => {
+      const seedArtists = ['unda under'];
+
+      const directFeat: Track = {
+        id: 'feat-1',
+        title: 'Телепорт',
+        artist: 'MЮSLY х Онда Андар',
+        duration: 160,
+        audioUrl: 'http://test/1.mp3',
+        genre: 'Underground Rap',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      const result = isCollaborationTrack(directFeat, seedArtists);
+      expect(result.isCollab).toBe(true);
+      expect(result.isDirectSeedFeat).toBe(true);
+      expect(result.coArtists).toContain('mюsly');
+
+      const nonFeat: Track = {
+        id: 'solo-1',
+        title: 'Соло',
+        artist: 'Unda Under',
+        duration: 150,
+        audioUrl: 'http://test/2.mp3',
+        genre: 'Rap',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      const soloResult = isCollaborationTrack(nonFeat, seedArtists);
+      expect(soloResult.isCollab).toBe(false);
+      expect(soloResult.isDirectSeedFeat).toBe(false);
+    });
+
+    it('should match tracks with similar sonic style vectors even when genre strings differ', () => {
+      const seedTrack: Track = {
+        id: 'seed-1',
+        title: 'Грустный бит',
+        artist: 'Unda Under',
+        duration: 170,
+        audioUrl: 'http://test/seed.mp3',
+        genre: 'Rap',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      const similarVibeTrack: Track = {
+        id: 'cand-1',
+        title: 'Ночной дождь',
+        artist: 'Metox',
+        duration: 165,
+        audioUrl: 'http://test/cand.mp3',
+        genre: 'Alternative / Hip-Hop', // Different genre label
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      const seedVec = service.extractTrackVector(seedTrack);
+      const candVec = service.extractTrackVector(similarVibeTrack);
+
+      const seedNorm = service.computeVectorNorm(seedVec);
+      const similarity = service.cosineSimilarityFast(seedVec, seedNorm, candVec);
+
+      // Both tracks are hiphop/rap mood, similarity should be high (>= 0.75)
+      expect(similarity).toBeGreaterThan(0.75);
     });
   });
 });
