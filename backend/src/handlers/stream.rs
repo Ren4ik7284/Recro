@@ -737,85 +737,91 @@ pub async fn stream_audio(
         "https://www.youtube.com/"
     };
 
-    // Background cache transcoding: write complete audio file to cache on non-cloud (VPS)
-    if !is_cloud_env() && params.ss.unwrap_or(0) == 0 && !is_live {
-        let is_already_transcoding = {
-            let mut guard = state.active_transcodes.lock().unwrap();
-            if guard.contains(&cache_filename) {
-                true
-            } else {
-                guard.insert(cache_filename.clone());
-                false
-            }
-        };
-
-        if !is_already_transcoding {
-            let active_transcodes = state.active_transcodes.clone();
-            let cfn = cache_filename.clone();
-            let cfp = cache_file_path.clone();
-            let d_url = direct_url.clone();
-            let ref_hdr = referer.to_string();
-
-            tokio::spawn(async move {
-                let codec_args = if d_url.contains(".mp3") {
-                    vec!["-c:a", "copy"]
+    // Background cache transcoding: only for explicit prefetch requests
+    if params.prefetch.unwrap_or(false) {
+        if !is_cloud_env() && params.ss.unwrap_or(0) == 0 && !is_live {
+            let is_already_transcoding = {
+                let mut guard = state.active_transcodes.lock().unwrap();
+                if guard.contains(&cache_filename) {
+                    true
                 } else {
-                    vec!["-c:a", "libmp3lame", "-b:a", "192k", "-threads", "0"]
-                };
+                    guard.insert(cache_filename.clone());
+                    false
+                }
+            };
 
-                let tmp_file_path = format!("{}.tmp.{}", cfp, std::process::id());
+            if !is_already_transcoding {
+                let active_transcodes = state.active_transcodes.clone();
+                let cfn = cache_filename.clone();
+                let cfp = cache_file_path.clone();
+                let d_url = direct_url.clone();
+                let ref_hdr = referer.to_string();
 
-                let mut conv_cmd = Command::new("ffmpeg");
-                conv_cmd.args([
-                    "-y",
-                    "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data,hls,applehttp",
-                    "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-                    "-referer", &ref_hdr,
-                    "-reconnect", "1",
-                    "-reconnect_streamed", "1",
-                    "-reconnect_on_network_error", "1",
-                    "-reconnect_delay_max", "5",
-                    "-i", &d_url,
-                    "-vn",
-                ]);
-                conv_cmd.args(&codec_args);
-                conv_cmd.args(["-f", "mp3", &tmp_file_path]);
-                conv_cmd.stdout(Stdio::null());
-                conv_cmd.stderr(Stdio::null());
+                tokio::spawn(async move {
+                    let codec_args = if d_url.contains(".mp3") {
+                        vec!["-c:a", "copy"]
+                    } else {
+                        vec!["-c:a", "libmp3lame", "-b:a", "192k"]
+                    };
 
-                let exit_status = if let Ok(mut child) = conv_cmd.spawn() {
-                    child.wait().await.ok()
-                } else {
-                    None
-                };
+                    let tmp_file_path = format!("{}.tmp.{}", cfp, fastrand::u64(..));
 
-                if let Some(status) = exit_status {
-                    if status.success() {
-                        if let Ok(meta) = std::fs::metadata(&tmp_file_path) {
-                            if meta.len() > 100_000 {
-                                let _ = std::fs::rename(&tmp_file_path, &cfp);
-                                if let Ok(mut guard) = active_transcodes.lock() {
-                                    guard.remove(&cfn);
+                    let mut conv_cmd = Command::new("ffmpeg");
+                    conv_cmd.args([
+                        "-y",
+                        "-probesize", "65536",
+                        "-analyzeduration", "500000",
+                        "-protocol_whitelist", "file,http,https,tcp,tls,crypto,data,hls,applehttp",
+                        "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                        "-referer", &ref_hdr,
+                        "-reconnect", "1",
+                        "-reconnect_streamed", "1",
+                        "-reconnect_on_network_error", "1",
+                        "-reconnect_delay_max", "5",
+                        "-i", &d_url,
+                        "-vn",
+                    ]);
+                    conv_cmd.args(&codec_args);
+                    conv_cmd.args(["-f", "mp3", &tmp_file_path]);
+                    conv_cmd.stdout(Stdio::null());
+                    conv_cmd.stderr(Stdio::null());
+
+                    let exit_status = if let Ok(mut child) = conv_cmd.spawn() {
+                        child.wait().await.ok()
+                    } else {
+                        None
+                    };
+
+                    if let Some(status) = exit_status {
+                        if status.success() {
+                            if let Ok(meta) = std::fs::metadata(&tmp_file_path) {
+                                if meta.len() > 100_000 {
+                                    let _ = std::fs::rename(&tmp_file_path, &cfp);
+                                    if let Ok(mut guard) = active_transcodes.lock() {
+                                        guard.remove(&cfn);
+                                    }
+                                    return;
                                 }
-                                return;
                             }
                         }
                     }
-                }
-                let _ = std::fs::remove_file(&tmp_file_path);
-                if let Ok(mut guard) = active_transcodes.lock() {
-                    guard.remove(&cfn);
-                }
-            });
+                    let _ = std::fs::remove_file(&tmp_file_path);
+                    if let Ok(mut guard) = active_transcodes.lock() {
+                        guard.remove(&cfn);
+                    }
+                });
+            }
         }
 
-        if params.prefetch.unwrap_or(false) {
-            return Ok(StatusCode::NO_CONTENT.into_response());
-        }
+        return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
-    // Direct immediate live streaming with ultra-fast startup
+    // Direct immediate live streaming with ultra-fast startup (<50ms probe time)
     let mut ffmpeg_args = vec![
+        "-probesize".to_string(),
+        "65536".to_string(),
+        "-analyzeduration".to_string(),
+        "500000".to_string(),
         "-protocol_whitelist".to_string(),
         "file,http,https,tcp,tls,crypto,data,hls,applehttp".to_string(),
         "-user_agent".to_string(),
@@ -862,8 +868,6 @@ pub async fn stream_audio(
             "libmp3lame".to_string(),
             "-b:a".to_string(),
             "192k".to_string(),
-            "-threads".to_string(),
-            "0".to_string(),
             "-f".to_string(),
             "mp3".to_string(),
             "-flush_packets".to_string(),
@@ -905,8 +909,62 @@ pub async fn stream_audio(
         }
     });
 
-    let stream = ReaderStream::new(stdout);
-    let body = Body::from_stream(stream);
+    let tmp_file_path = format!("{}.tmp.{}", cache_file_path, fastrand::u64(..));
+    let file_opt = if !is_cloud_env() && params.ss.unwrap_or(0) == 0 && !is_live {
+        tokio::fs::File::create(&tmp_file_path).await.ok()
+    } else {
+        None
+    };
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::io::Error>>(32);
+    let cfp = cache_file_path.clone();
+    let tmp_fp = tmp_file_path.clone();
+
+    tokio::spawn(async move {
+        use tokio::io::AsyncWriteExt;
+        use tokio_stream::StreamExt;
+
+        let mut reader_stream = ReaderStream::with_capacity(stdout, 64 * 1024);
+        let mut total_bytes = 0u64;
+        let mut write_error = false;
+        let mut file = file_opt;
+
+        while let Some(chunk_res) = reader_stream.next().await {
+            match chunk_res {
+                Ok(bytes) => {
+                    if let Some(ref mut f) = file {
+                        if !write_error {
+                            if f.write_all(&bytes).await.is_err() {
+                                write_error = true;
+                            } else {
+                                total_bytes += bytes.len() as u64;
+                            }
+                        }
+                    }
+                    if tx.send(Ok(bytes)).await.is_err() {
+                        // Client stopped listening or skipped
+                        break;
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(Err(e)).await;
+                    break;
+                }
+            }
+        }
+
+        if let Some(mut f) = file {
+            let _ = f.flush().await;
+            drop(f);
+            if !write_error && total_bytes > 100_000 {
+                let _ = tokio::fs::rename(&tmp_fp, &cfp).await;
+            } else {
+                let _ = tokio::fs::remove_file(&tmp_fp).await;
+            }
+        }
+    });
+
+    let body = Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(rx));
 
     let mut res_headers = HeaderMap::new();
     res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());

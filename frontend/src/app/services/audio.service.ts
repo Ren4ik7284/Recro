@@ -241,16 +241,25 @@ export class AudioService {
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtxClass) return;
 
-      this.audioCtx = new AudioCtxClass();
+      this.audioCtx = new AudioCtxClass({
+        latencyHint: 'playback'
+      });
+
+      this.audioCtx.onstatechange = () => {
+        if (this.audioCtx && this.audioCtx.state === 'suspended' && this.isPlaying()) {
+          this.audioCtx.resume().catch(() => {});
+        }
+      };
+
       this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
 
-      // 1. DynamicsCompressor for peak volume leveling across YouTube, SoundCloud, and Radio
+      // 1. DynamicsCompressor for gentle peak leveling without squashing dynamics or causing pumping
       this.compressorNode = this.audioCtx.createDynamicsCompressor();
-      this.compressorNode.threshold.setValueAtTime(-22, this.audioCtx.currentTime);
-      this.compressorNode.knee.setValueAtTime(28, this.audioCtx.currentTime);
-      this.compressorNode.ratio.setValueAtTime(10, this.audioCtx.currentTime);
-      this.compressorNode.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
-      this.compressorNode.release.setValueAtTime(0.25, this.audioCtx.currentTime);
+      this.compressorNode.threshold.setValueAtTime(-14, this.audioCtx.currentTime);
+      this.compressorNode.knee.setValueAtTime(16, this.audioCtx.currentTime);
+      this.compressorNode.ratio.setValueAtTime(4, this.audioCtx.currentTime);
+      this.compressorNode.attack.setValueAtTime(0.01, this.audioCtx.currentTime);
+      this.compressorNode.release.setValueAtTime(0.18, this.audioCtx.currentTime);
 
       // 2. GainNode for smooth crossfades and click-free track transitions
       this.gainNode = this.audioCtx.createGain();
@@ -498,7 +507,9 @@ export class AudioService {
       }
 
       // 2. Intelligent silence detector at the end of track (skips dead YouTube/SoundCloud outros)
-      if (total > 20 && actual >= total * 0.75 && !this.isLiveStream()) {
+      // Only runs when the tab is visible; background tabs mute/freeze AnalyserNode and must not trigger false skips!
+      const isTabVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
+      if (isTabVisible && total > 20 && actual >= total * 0.75 && !this.isLiveStream()) {
         if (this.analyserNode) {
           const testBuffer = new Uint8Array(32);
           this.analyserNode.getByteFrequencyData(testBuffer as any);
@@ -516,6 +527,8 @@ export class AudioService {
             this.endSilenceStreakSeconds = 0;
           }
         }
+      } else {
+        this.endSilenceStreakSeconds = 0;
       }
 
       // Record track completion at 80% of playback
@@ -716,27 +729,28 @@ export class AudioService {
     });
 
     if (typeof document !== 'undefined') {
-      const onTabActive = () => {
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      const keepAudioAlive = () => {
+        if (this.audioCtx && this.audioCtx.state === 'suspended' && this.isPlaying()) {
           this.audioCtx.resume().catch(() => {});
         }
         if (this.isPlaying()) {
-          this.requestWakeLock();
-          this.updateMediaSessionPosition();
-          // Если трек должен играть, но браузер заблокировал/поставил на паузу при переключении вкладок
+          // If track should play but browser tried to pause it on background/window blur
           if (this.audio.paused && !this.audio.ended && this.hasAudioStartedPlaying) {
-            console.log('[AudioService] Resuming audio after tab switch/focus');
+            console.log('[AudioService] Ensuring audio playback stays active during window/tab state change');
             this.audio.play().catch(() => {});
           }
         }
       };
 
       document.addEventListener('visibilitychange', () => {
+        keepAudioAlive();
         if (document.visibilityState === 'visible') {
-          onTabActive();
+          this.requestWakeLock();
+          this.updateMediaSessionPosition();
         }
       });
-      window.addEventListener('focus', onTabActive);
+      window.addEventListener('focus', keepAudioAlive);
+      window.addEventListener('blur', keepAudioAlive);
     }
   }
 
@@ -1855,40 +1869,18 @@ export class AudioService {
 
     const targetUrl = this.formatStreamUrl(nextTrack);
 
-    // 3. High priority request to warm backend yt-dlp transcoding cache
+    // 3. Low priority prefetch to warm backend cache without opening a competing stream connection
     if (targetUrl.includes('/api/stream')) {
       const glue = targetUrl.includes('?') ? '&' : '?';
       const prefetchUrl = `${targetUrl}${glue}prefetch=true`;
       try {
-        fetch(prefetchUrl, { priority: 'low' as any })
-          .then(() => {
-            // Buffer into browser secondary audio element 300ms after backend starts transcoding
-            setTimeout(() => {
-              this.bufferIntoPreloadAudio(targetUrl);
-            }, 300);
-          })
-          .catch(() => {
-            this.bufferIntoPreloadAudio(targetUrl);
-          });
-      } catch {
-        this.bufferIntoPreloadAudio(targetUrl);
-      }
-    } else {
-      this.bufferIntoPreloadAudio(targetUrl);
+        fetch(prefetchUrl, { priority: 'low' as any }).catch(() => {});
+      } catch {}
     }
   }
 
-  private bufferIntoPreloadAudio(targetUrl: string) {
-    if (typeof window === 'undefined') return;
-    this.initPreloadAudio();
-    if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
-      this.preloadedAudioUrl = targetUrl;
-      try {
-        this.preloadAudio.src = targetUrl;
-        this.preloadAudio.preload = 'auto';
-        this.preloadAudio.load();
-      } catch {}
-    }
+  private bufferIntoPreloadAudio(_targetUrl: string) {
+    // No-op: do not open concurrent stream downloads that compete for bandwidth with the active player
   }
 
   prewarmTracks(_tracks: Track[]) {
