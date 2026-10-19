@@ -1,4 +1,4 @@
-const CACHE_NAME = 'recro-pwa-v48';
+const CACHE_NAME = 'recro-pwa-v50';
 const OFFLINE_AUDIO_CACHE = 'recro-offline-tracks-v1';
 
 const ASSETS_TO_CACHE = [
@@ -73,36 +73,40 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. For Navigation / HTML: Stale-While-Revalidate (instant render from cache, silent background update)
+  // 3. For Navigation / HTML: Network-First with short timeout, fallback to cache
   if (
     event.request.mode === 'navigate' ||
     url.pathname === '/' ||
     url.pathname === '/index.html'
   ) {
     event.respondWith(
-      caches.open(CACHE_NAME).then(async (cache) => {
-        const cached = (await cache.match('/index.html')) || (await cache.match('/'));
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        try {
+          // Fetch fresh HTML from network with a 2-second timeout so slow network or offline still works
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-        const networkFetch = fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const clone = networkResponse.clone();
-              cache.put(event.request, clone);
-              cache.put('/index.html', networkResponse.clone());
-            }
+          const networkResponse = await fetch(event.request, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(event.request, networkResponse.clone());
+            cache.put('/index.html', networkResponse.clone());
             return networkResponse;
-          })
-          .catch(() => cached);
+          }
+        } catch (_err) {
+          // Network failed or timed out -> fall back to cache below
+        }
 
+        const cached = (await cache.match('/index.html')) || (await cache.match('/'));
         if (cached) {
-          // Deliver cached HTML immediately for instant <50ms F5 / reload
-          event.waitUntil(networkFetch);
           return cached;
         }
 
-        // First load fallback if cache not yet populated
-        return networkFetch;
-      })
+        // Final fallback if nothing in cache
+        return fetch(event.request);
+      })()
     );
     return;
   }
@@ -116,6 +120,17 @@ self.addEventListener('fetch', (event) => {
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          } else if (
+            networkResponse &&
+            networkResponse.status === 404 &&
+            (url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))
+          ) {
+            // A requested chunk is missing (likely after a new deployment).
+            // Invalidate cached index.html so next navigation fetches the latest index.html
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.delete('/index.html');
+              cache.delete('/');
+            });
           }
           return networkResponse;
         });

@@ -1500,29 +1500,34 @@ export class AudioService {
 
         let updatedQ = this.queue();
         if (nextIdx >= updatedQ.length) {
-          // Instant fallback without blocking on network: add starters immediately and replenish in background
-          const excludeIds = new Set<string>(updatedQ.map((t) => t.id));
-          const starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
-            (t) => !excludeIds.has(t.id) && !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t)
-          );
-          if (starters.length > 0) {
-            this.queue.update((curQ) => [...curQ, ...starters]);
+          // Check buffered discoveries first
+          const buffered = this.recService.getBufferedDiscoveries(lang, 4);
+          if (buffered.length > 0) {
+            this.queue.update((curQ) => [...curQ, ...buffered]);
+            this.ensureSmartQueue().catch(() => {});
+          } else {
+            // Await queue replenishment so we genuinely load fresh discoveries
+            await this.ensureSmartQueue();
           }
-          this.ensureSmartQueue().catch(() => {});
           updatedQ = this.queue();
         }
 
         if (nextIdx >= updatedQ.length) {
-          // Never loop back to index 0 in Smart Mix! Strictly NO library tracks in discovery mix!
+          // If queue is still empty (e.g. offline), grab unplayed starter candidates
           const cur = this.currentTrack();
-          let starters = this.recService.getStarterCandidates(mood, 6, lang).filter(
-            (t) => t.id !== cur?.id && !this.recService.isLibraryTrack(t)
+          const playedIds = this.recService.getSessionPlayedIds();
+          let starters = this.recService.getStarterCandidates(mood, 12, lang).filter(
+            (t) => t.id !== cur?.id && !playedIds.has(t.id) && !this.recService.isLibraryTrack(t)
           );
           if (starters.length === 0) {
-            starters = this.recService.getStarterCandidates(mood, 6, lang).filter((t) => !this.recService.isLibraryTrack(t));
+            starters = this.recService.getStarterCandidates(mood, 12, lang).filter(
+              (t) => t.id !== cur?.id && !this.recService.isLibraryTrack(t)
+            );
           }
           if (starters.length > 0) {
-            this.queue.update((curQ) => [...curQ, starters[0]]);
+            // Pick a random starter, never loop starters[0]!
+            const chosen = starters[Math.floor(Math.random() * starters.length)];
+            this.queue.update((curQ) => [...curQ, chosen]);
             nextIdx = this.queue().length - 1;
           } else {
             nextIdx = Math.max(0, updatedQ.length - 1);
@@ -1971,14 +1976,14 @@ export class AudioService {
 
     const existingQueueIds = new Set(q.map((t) => t.id));
     const strictlyUniqueTracks: Track[] = [];
+
+    // Pass 1: Strict artist diversity
     for (const t of newTracks) {
       if (existingQueueIds.has(t.id)) continue;
       if (this.recService.isSessionDuplicate(t)) continue;
       if (this.recService.isLibraryTrack(t)) continue;
       if (!isTrackLanguageMatch(t, effectiveLang)) continue;
-      if (!this.recService.doesTrackMatchMood(t, mood)) continue;
 
-      // Enforce artist spacing: candidate artist cannot be in recentArtists!
       const candArtists = extractAllArtists(t.artist, t.title).map((a) => normalizeArtist(a));
       if (candArtists.some((a) => a && recentArtists.has(a))) {
         continue;
@@ -1988,6 +1993,20 @@ export class AudioService {
       existingQueueIds.add(t.id);
       for (const a of candArtists) {
         if (a) recentArtists.add(a);
+      }
+    }
+
+    // Pass 2: If strict artist spacing filtered too aggressively, accept remaining unique discoveries
+    if (strictlyUniqueTracks.length === 0) {
+      for (const t of newTracks) {
+        if (existingQueueIds.has(t.id)) continue;
+        if (this.recService.isSessionDuplicate(t)) continue;
+        if (this.recService.isLibraryTrack(t)) continue;
+        if (!isTrackLanguageMatch(t, effectiveLang)) continue;
+
+        strictlyUniqueTracks.push(t);
+        existingQueueIds.add(t.id);
+        if (strictlyUniqueTracks.length >= 2) break;
       }
     }
 

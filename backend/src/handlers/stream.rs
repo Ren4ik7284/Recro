@@ -481,7 +481,7 @@ pub async fn stream_audio(
     };
     let _permit = match tokio::time::timeout(
         acquire_timeout,
-        state.heavy_process_semaphore.acquire(),
+        state.stream_semaphore.acquire(),
     )
     .await
     {
