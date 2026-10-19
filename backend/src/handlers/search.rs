@@ -831,9 +831,9 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
                             Some(n) => n,
                             None => continue,
                         };
-                        let raw_title = item["title_short"]
+                        let raw_title = item["title"]
                             .as_str()
-                            .or_else(|| item["title"].as_str())
+                            .or_else(|| item["title_short"].as_str())
                             .unwrap_or("")
                             .trim();
                         let raw_artist = item["artist"]["name"].as_str().unwrap_or("").trim();
@@ -1014,6 +1014,15 @@ pub async fn get_recommendations(
             }
         }
 
+        // Discover features and collaborations for this artist
+        let feat_query = format!("{} feat", artist);
+        let dz_feats = execute_deezer_search(&feat_query, 6, &base_url).await;
+        for t in dz_feats {
+            if seen_ids.insert(t.id.clone()) {
+                tracks.push(t);
+            }
+        }
+
         if tracks.len() < limit * 2 {
             let rel_names = fetch_deezer_related_artists(artist).await;
             for rel_name in rel_names.into_iter().take(3) {
@@ -1181,6 +1190,17 @@ pub async fn get_similar_tracks(
             if seen_artists.contains(&norm_art) {
                 continue;
             }
+            if seen_ids.insert(t.id.clone()) {
+                seen_artists.insert(norm_art);
+                tracks.push(t);
+            }
+        }
+
+        // Discover features and collaborations for this artist
+        let feat_query = format!("{} feat", artist);
+        let dz_feats = execute_deezer_search(&feat_query, 6, &base_url).await;
+        for t in dz_feats {
+            let norm_art = t.artist.to_lowercase();
             if seen_ids.insert(t.id.clone()) {
                 seen_artists.insert(norm_art);
                 tracks.push(t);

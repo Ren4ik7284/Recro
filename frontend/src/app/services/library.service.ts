@@ -85,8 +85,7 @@ export class LibraryService implements OnDestroy {
       const saved = localStorage.getItem(this.STORAGE_KEY_MIX_CONFIG);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.source === 'balanced' || parsed.source === 'library_only') parsed.source = 'discovery_heavy';
-        return { ...DEFAULT_MIX_CONFIG, ...parsed, source: 'discovery_heavy' };
+        return { ...DEFAULT_MIX_CONFIG, ...parsed };
       }
     } catch {}
     return { ...DEFAULT_MIX_CONFIG };
@@ -111,7 +110,7 @@ export class LibraryService implements OnDestroy {
   }
 
   setMixConfig(newConfig: Partial<MixConfig>) {
-    const updated = { ...this.mixConfig(), ...newConfig, source: 'discovery_heavy' as const };
+    const updated = { ...this.mixConfig(), ...newConfig };
     this.mixConfig.set(updated);
     try {
       localStorage.setItem(this.STORAGE_KEY_MIX_CONFIG, JSON.stringify(updated));
@@ -1109,8 +1108,7 @@ export class LibraryService implements OnDestroy {
       if (!data) return;
 
       if (data.mix_config) {
-        if (data.mix_config.source === 'balanced' || data.mix_config.source === 'library_only') data.mix_config.source = 'discovery_heavy';
-        const mergedConfig: MixConfig = { ...DEFAULT_MIX_CONFIG, ...data.mix_config, source: 'discovery_heavy' };
+        const mergedConfig: MixConfig = { ...DEFAULT_MIX_CONFIG, ...data.mix_config };
         this.mixConfig.set(mergedConfig);
         try {
           localStorage.setItem(this.STORAGE_KEY_MIX_CONFIG, JSON.stringify(mergedConfig));

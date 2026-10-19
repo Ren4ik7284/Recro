@@ -510,7 +510,11 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'mapt0v', 'volhey', 'автоспорт', 'перемотка', 'буерак', 'дурной вкус',
   'увула', 'где фантом', 'где фантом?', 'ssshhhiiittt', 'ssshhhiiittt!',
   'щенки', 'свидетельство о смерти', 'конец солнечных дней', 'горемыка',
-  'петля пристрастия', 'электрофорез', 'дайте танк', 'дайте танк (!)'
+  'петля пристрастия', 'электрофорез', 'дайте танк', 'дайте танк (!)',
+  'snow strippers', 'jaydes', 'mirele', 'mirel', 'crucify april', 'skullface', 'juicebox',
+  'fakemink', 'chasingwhiterabbits', 'lots of hands', 'jades', 'nowayback', 'yom', 'cult member',
+  'otuka', 'akkiemi', 'h4rtbrkr', 'sinister sane', 'laydownrot', 'auratoshi', 'duskydemise archive',
+  'bbygirl', 'kempachii', 'lil kidd', 'лилкидд', 'boogshi', 'locked23', 'cynipal', 'julia wolf'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
@@ -566,12 +570,7 @@ export function resolveEffectiveLanguage(
 ): MixLanguage {
   if (configuredLang === 'ru') return 'ru';
   if (configuredLang === 'en') return 'en';
-  if (isCyrillicLibrary) {
-    return 'ru';
-  }
-  if (currentTrack) {
-    return isRussianTrack(currentTrack) ? 'ru' : 'en';
-  }
+  // If configured as 'all' (default), respect 'all' so multilingual & Latin-titled tracks by CIS/underground artists aren't blocked!
   return 'all';
 }
 
@@ -1242,6 +1241,34 @@ export class RecommendationService {
       electronic += 0.72;
       hiphop += 0.45;
       acoustic -= 0.25;
+    }
+
+    const normArt = normalizeArtist(track.artist);
+    // Underground Hoodtrap / Jerk / Hyperpop / Soundcloud rap
+    const HOODTRAP_ARTISTS = new Set([
+      'onda andar', 'unda under', 'fortuna 812', '812', 'kristiee', 'kudokushi', 'odasu',
+      'sh0tty', 'boogshi', 'villian', 'cynipal', 'ivycraft', 'locked23', 'snow strippers',
+      'jaydes', 'sqwore', 'scally milano', 'uglystephan', 'shadowraze', 'zxcursed', 'dvrst'
+    ]);
+    if (HOODTRAP_ARTISTS.has(normArt) || text.includes('hoodtrap') || text.includes('hyperpop') || text.includes('glitchcore')) {
+      energy += 0.35;
+      tempo += 0.22;
+      electronic += 0.70;
+      hiphop += 0.65;
+      acoustic -= 0.20;
+    }
+
+    // Post-Punk / Russian Indie / Midwest Emo / Alt Rock
+    const INDIE_POSTPUNK_ARTISTS = new Set([
+      'автоспорт', 'cupsize', 'молчат дома', 'сироткин', 'перемотка', 'буерак', 'дурной вкус',
+      'увула', 'где фантом', 'ssshhhiiittt', 'щенки', 'свидетельство о смерти', 'дайте танк'
+    ]);
+    if (INDIE_POSTPUNK_ARTISTS.has(normArt) || text.includes('post-punk') || text.includes('пост-панк') || text.includes('midwest emo')) {
+      energy += 0.22;
+      tempo += 0.15;
+      rock += 0.80;
+      acoustic += 0.25;
+      chill += 0.25;
     }
 
     // Hip-Hop / Rap / Drill / Trap / RnB / Soul
@@ -2082,18 +2109,29 @@ export class RecommendationService {
 
       const artistsToQuery = langTopArtists.length > 0 ? langTopArtists : allUserTopArtists;
 
-      // 2. Multi-artist taste expansion: ALWAYS query user's top favorite artists using fast recommendations
+      // 2. Multi-artist taste expansion: Rotate through user's favorite artists and query collaborations
       if (artistsToQuery.length > 0) {
         const queried = new Set<string>();
         if (primarySeedArtist) queried.add(normalizeArtist(primarySeedArtist));
 
-        // Query top 2 favorite artists from user's library
-        for (const art of artistsToQuery.slice(0, 2)) {
+        this.artistSeedOffset = (this.artistSeedOffset + 2) % Math.max(1, artistsToQuery.length);
+        const sampledArtists: string[] = [];
+        for (let i = 0; i < Math.min(4, artistsToQuery.length); i++) {
+          const idx = (this.artistSeedOffset + i) % artistsToQuery.length;
+          sampledArtists.push(artistsToQuery[idx]);
+        }
+
+        for (const art of sampledArtists) {
           const normA = normalizeArtist(art);
           if (normA && !queried.has(normA) && !seenArtists.has(normA)) {
             queried.add(normA);
+            // Scene recommendations for artist
             tasks.push(
               this.libraryService.getRecommendations(art, dominantGenre, 15, undefined, dominantGenre).catch(() => [] as Track[])
+            );
+            // Search specifically for collaborations / feats with this artist
+            tasks.push(
+              this.libraryService.getRecommendations(`${art} feat`, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
             );
           }
         }
@@ -2119,26 +2157,16 @@ export class RecommendationService {
         }
       }
 
-      // 3. User favorite tracks expansion: query tracks similar to user's favorites
+      // 3. User favorite tracks expansion: sample multiple favorites to uncover scene gems
       const favTracks = langFilteredCandidates.filter((t) => t.isFavorite && !this.libraryService.isArtistDisliked(t.artist));
-      let sampleFav: Track | undefined;
       if (favTracks.length > 0 && typeof this.libraryService.getSimilarTracks === 'function') {
-        sampleFav = favTracks[Math.floor(Math.random() * favTracks.length)];
-        if (sampleFav.title && sampleFav.artist && (!effectiveSeed || sampleFav.id !== effectiveSeed.id)) {
-          tasks.push(
-            this.libraryService.getSimilarTracks(sampleFav.title, sampleFav.artist, 15, sampleFav.genre || dominantGenre).catch(() => [] as Track[])
-          );
-        }
-      }
-
-      // 4. Expanded favorite / history similar tracks expansion instead of generic charts
-      const extraFav = favTracks.filter((t) => !sampleFav || t.id !== sampleFav.id);
-      if (extraFav.length > 0 && typeof this.libraryService.getSimilarTracks === 'function') {
-        const sample2 = extraFav[Math.floor(Math.random() * extraFav.length)];
-        if (sample2?.title && sample2?.artist) {
-          tasks.push(
-            this.libraryService.getSimilarTracks(sample2.title, sample2.artist, 15, sample2.genre || dominantGenre).catch(() => [] as Track[])
-          );
+        const shuffledFavs = [...favTracks].sort(() => 0.5 - Math.random());
+        for (const sampleFav of shuffledFavs.slice(0, 3)) {
+          if (sampleFav.title && sampleFav.artist) {
+            tasks.push(
+              this.libraryService.getSimilarTracks(sampleFav.title, sampleFav.artist, 15, sampleFav.genre || dominantGenre).catch(() => [] as Track[])
+            );
+          }
         }
       }
 
@@ -2146,13 +2174,18 @@ export class RecommendationService {
       const rawCandidates = results.flat();
       const scoredCandidates: { track: Track; sim: number }[] = [];
       const activeSceneArtists = new Set<string>();
+      const userFavoriteArtistsList = Array.from(topArtistsMap.keys());
 
       for (const t of rawCandidates) {
         if (!t || !t.id || !t.audioUrl?.trim() || !t.title?.trim() || !t.artist?.trim()) continue;
         if (excludeIds.has(t.id) || this.isDisliked(t) || this.libraryService.isArtistDisliked(t.artist) || this.isSessionDuplicate(t)) continue;
         if (this.isLibraryTrack(t)) continue;
-        if (!isTrackLanguageMatch(t, effectiveLang)) continue;
-        if (t.duration > 0 && (t.duration < 55 || t.duration > 480)) continue;
+
+        const candArtists = extractAllArtists(t.artist, t.title).map((a) => normalizeArtist(a));
+        const isUserArtistCircle = candArtists.some((a) => a && userFavoriteArtistsList.includes(a));
+
+        if (!isUserArtistCircle && !isTrackLanguageMatch(t, effectiveLang)) continue;
+        if (t.duration > 0 && (t.duration < 50 || t.duration > 500)) continue;
 
         const textKey = `${t.genre || ''} ${t.title} ${t.artist}`;
         if (PLAYLIST_NOISE_REGEX.test(textKey) || BEDROOM_PRODUCER_REGEX.test(textKey)) continue;
@@ -2163,39 +2196,43 @@ export class RecommendationService {
         if (normTitle && seenTitles.has(normTitle)) continue;
         if (this.isRecentlyPlayed(t, 60)) continue;
 
-        const candArtists = extractAllArtists(t.artist, t.title).map((a) => normalizeArtist(a));
         let artistAffinityBonus = 0;
         let isDirectCircleMatch = false;
         for (const [topArt, weight] of topArtistsMap.entries()) {
           if (candArtists.includes(topArt)) {
             isDirectCircleMatch = true;
-            // Balanced bonus: gives preference to user's favorite artists without suffocating other discovery artists
-            artistAffinityBonus = Math.max(artistAffinityBonus, 0.10 + Math.min(0.08, weight * 0.02));
+            // Strong affinity bonus: ensures user's favorite artists and scene are prioritized!
+            artistAffinityBonus = Math.max(artistAffinityBonus, 0.16 + Math.min(0.12, weight * 0.025));
             if (candArtists.length > 1) {
-              artistAffinityBonus += 0.04;
+              artistAffinityBonus += 0.08;
             }
           }
         }
 
-        // Collaboration & feat detection:
-        const collabInfo = isCollaborationTrack(t, seedArtists);
+        // Collaboration & feat detection across ALL user's favorite artists:
+        const collabWithSeed = isCollaborationTrack(t, seedArtists);
+        const collabWithAnyFavorite = isCollaborationTrack(t, userFavoriteArtistsList);
         let collabBonus = 0;
-        if (collabInfo.isDirectSeedFeat) {
+        if (collabWithSeed.isDirectSeedFeat || collabWithAnyFavorite.isDirectSeedFeat) {
           isDirectCircleMatch = true;
-          // Substantial boost for direct features with the seed artist
-          collabBonus = 0.22;
-          for (const ca of collabInfo.coArtists) {
+          // Massive boost for direct features with any favorite artist
+          collabBonus = 0.35;
+          for (const ca of [...collabWithSeed.coArtists, ...collabWithAnyFavorite.coArtists]) {
             if (ca) activeSceneArtists.add(ca);
           }
-        } else if (collabInfo.coArtists.some((a) => activeSceneArtists.has(a)) || candArtists.some((a) => activeSceneArtists.has(a))) {
+        } else if (
+          collabWithSeed.coArtists.some((a) => activeSceneArtists.has(a)) ||
+          candArtists.some((a) => activeSceneArtists.has(a)) ||
+          collabWithAnyFavorite.coArtists.some((a) => activeSceneArtists.has(a))
+        ) {
           // Track from an artist collaborating within the same circle/scene
           isDirectCircleMatch = true;
-          collabBonus = 0.12;
+          collabBonus = 0.20;
         }
 
-        // Heavy penalty if this artist is already present in recentArtists or seenArtists
+        // Penalty if this artist is already present in recentArtists or seenArtists
         if (candArtists.some((a) => a && (seenArtists.has(a) || this.isRecentlyPlayed(t, 240)))) {
-          artistAffinityBonus -= 0.40;
+          artistAffinityBonus -= 0.35;
         }
 
         const trackVec = this.extractTrackVector(t);
@@ -2219,7 +2256,7 @@ export class RecommendationService {
         let sim = styleSim + artistAffinityBonus + collabBonus;
 
         // Taste alignment threshold: preserves high musical relevance without dropping valid discovery tracks
-        if (collabInfo.isDirectSeedFeat || isDirectCircleMatch) {
+        if (collabWithSeed.isDirectSeedFeat || collabWithAnyFavorite.isDirectSeedFeat || isDirectCircleMatch) {
           if (sim < 0.32) continue;
         } else {
           if (sim < 0.40) continue;

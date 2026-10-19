@@ -396,5 +396,56 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       expect(audioService.queue().length).toBeGreaterThan(0);
       expect(audioService.currentTrack()).toBeTruthy();
     });
+
+    it('should accept Latin-named CIS artists like ONDA ANDAR and FORTUNA 812', async () => {
+      const { isRussianArtist, isRussianTrack, resolveEffectiveLanguage, isTrackLanguageMatch } = await import('./recommendation.service');
+
+      // Default language 'all' must resolve to 'all'
+      expect(resolveEffectiveLanguage('all', null, true)).toBe('all');
+
+      // Underground Latin-named artists must be recognized as valid CIS artists
+      expect(isRussianArtist('ONDA ANDAR')).toBe(true);
+      expect(isRussianArtist('FORTUNA 812')).toBe(true);
+      expect(isRussianArtist('CUPSIZE')).toBe(true);
+
+      const trackOnda: Track = {
+        id: 'test-onda-1',
+        title: 'cachalot',
+        artist: 'ONDA ANDAR',
+        duration: 120,
+        audioUrl: '/api/stream?title=cachalot',
+        genre: 'Online',
+        format: 'mp3',
+        plays: 10,
+        isFavorite: true,
+        addedAt: '2026-01-01',
+      };
+
+      expect(isRussianTrack(trackOnda)).toBe(true);
+      expect(isTrackLanguageMatch(trackOnda, 'all')).toBe(true);
+      expect(isTrackLanguageMatch(trackOnda, 'ru')).toBe(true);
+    });
+
+    it('should detect collaborations / feats with user favorite artists', async () => {
+      const { isCollaborationTrack } = await import('./recommendation.service');
+
+      const collabTrack: Track = {
+        id: 'test-collab-1',
+        title: 'Телепорт (feat. ONDA ANDAR)',
+        artist: 'FORTUNA 812',
+        duration: 130,
+        audioUrl: '/api/stream?title=collab',
+        genre: 'Online',
+        format: 'mp3',
+        plays: 0,
+        isFavorite: false,
+        addedAt: '2026-01-01',
+      };
+
+      const result = isCollaborationTrack(collabTrack, ['onda andar', 'cupsize']);
+      expect(result.isCollab).toBe(true);
+      expect(result.isDirectSeedFeat).toBe(true);
+      expect(result.coArtists).toContain('fortuna 812');
+    });
   });
 });
