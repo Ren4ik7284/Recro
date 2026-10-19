@@ -1490,11 +1490,22 @@ export class LibraryService implements OnDestroy {
 
       const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
       if (isHttps) {
-        if (audioUrl.startsWith('http://') && !audioUrl.includes('localhost') && !audioUrl.includes('127.0.0.1')) {
+        if (audioUrl.includes('80.87.202.157')) {
+          audioUrl = audioUrl.replace(/https?:\/\/80\.87\.202\.157(:3000|:8085)?/, 'https://recro.80.87.202.157.sslip.io');
+        } else if (audioUrl.includes('177.3.217.64')) {
+          audioUrl = audioUrl.replace(/https?:\/\/177\.3\.217\.64(:3000|:8085)?/, 'https://recro.177.3.217.64.sslip.io');
+        } else if (audioUrl.startsWith('http://') && !audioUrl.includes('localhost') && !audioUrl.includes('127.0.0.1')) {
           audioUrl = audioUrl.replace(/^http:\/\//, 'https://');
         }
-        if (coverUrl && coverUrl.startsWith('http://')) {
-          coverUrl = coverUrl.replace(/^http:\/\//, 'https://');
+
+        if (coverUrl) {
+          if (coverUrl.includes('80.87.202.157')) {
+            coverUrl = coverUrl.replace(/https?:\/\/80\.87\.202\.157(:3000|:8085)?/, 'https://recro.80.87.202.157.sslip.io');
+          } else if (coverUrl.includes('177.3.217.64')) {
+            coverUrl = coverUrl.replace(/https?:\/\/177\.3\.217\.64(:3000|:8085)?/, 'https://recro.177.3.217.64.sslip.io');
+          } else if (coverUrl.startsWith('http://')) {
+            coverUrl = coverUrl.replace(/^http:\/\//, 'https://');
+          }
         }
       }
 

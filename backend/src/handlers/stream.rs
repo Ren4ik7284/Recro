@@ -636,7 +636,7 @@ pub async fn stream_audio(
                     "--",
                     &target,
                 ]);
-                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(5000), cmd_fast.output()).await {
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(9000), cmd_fast.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&out) {
                         direct_url = u;
                     }
@@ -664,7 +664,7 @@ pub async fn stream_audio(
                     "--",
                     &yt_query,
                 ]);
-                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(5000), yt_search_cmd.output()).await {
+                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(9000), yt_search_cmd.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&yt_out) {
                         direct_url = u;
                     }

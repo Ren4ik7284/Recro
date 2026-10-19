@@ -810,7 +810,12 @@ export class AudioService {
         if (retryUrl && !retryUrl.startsWith('blob:')) {
           try {
             this.audio.load();
-            this.audio.play().catch(() => {
+            this.audio.play().catch((err) => {
+              if (err && (err.name === 'NotAllowedError' || err.name === 'AbortError')) {
+                this.isPlaying.set(false);
+                this.updateMediaSessionPlaybackState('paused');
+                return;
+              }
               this.handlePlaybackFailure('native_error');
             });
             return;
@@ -869,32 +874,28 @@ export class AudioService {
 
     // Если воспроизведение идет из обычной очереди (альбом, плейлист, оффлайн)
     if (!this.recService.isMixActive()) {
-      const q = this.queue();
-      const nextIdx = this.queueIndex() + 1;
       this.consecutiveErrorCount++;
 
-      // Попытка 1: повторить текущий трек с задержкой 1.2с (дает бэкенду время завершить резолв под медленным VPN)
+      // Попытка 1: повторить текущий трек со свежим резолвом по названию/артисту и переключением на резервную ноду
       if (this.consecutiveErrorCount === 1) {
         const cur = this.currentTrack();
         if (cur) {
-          console.warn('[AudioService] Transient failure under VPN/slow connection, failing over cluster and retrying track in 1.2s...');
+          console.warn('[AudioService] Transient failure in queue, failing over cluster and retrying with fresh query in 800ms...');
           this.libraryService.failoverBackend();
+          const activeBase = this.libraryService.getBackendUrl();
+          const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
+          const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
+          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}`;
+          const updatedTrack = { ...cur, audioUrl: altUrl };
           this.errorTimeoutId = setTimeout(() => {
-            this.playTrack(cur, this.queue(), false, this.queueIndex());
-          }, 1200);
+            this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
+          }, 800);
           return;
         }
       }
 
-      if (nextIdx < q.length || this.repeatMode() === 'all') {
-        if (this.consecutiveErrorCount <= 4) {
-          console.warn('[AudioService] Track error in queue, auto-advancing to next track in 1.5s');
-          this.errorTimeoutId = setTimeout(() => {
-            this.next(true);
-          }, 1500);
-          return;
-        }
-      }
+      // Если и повтор не удался: аккуратно ставим на паузу, НЕ пропуская треки в библиотеке пачками!
+      console.warn('[AudioService] Track playback failed after retry, stopping gracefully without skipping user queue');
       this.isPlaying.set(false);
       this.updateMediaSessionPlaybackState('paused');
       this.consecutiveErrorCount = 0;
@@ -1881,7 +1882,23 @@ export class AudioService {
   formatStreamUrl(track: Track): string {
     let playUrl = (track.audioUrl || '').trim();
     if (!playUrl || playUrl.startsWith('blob:')) return playUrl;
-    const activeBase = this.libraryService.getBackendUrl();
+    let activeBase = this.libraryService.getBackendUrl();
+
+    // Vercel edge/proxy cannot reliably stream chunked audio to Russia; route directly to high-speed cluster
+    if (activeBase.includes('vercel.app')) {
+      activeBase = 'https://recro.80.87.202.157.sslip.io';
+    }
+
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    if (isHttps) {
+      if (activeBase.includes('80.87.202.157')) {
+        activeBase = 'https://recro.80.87.202.157.sslip.io';
+      } else if (activeBase.includes('177.3.217.64')) {
+        activeBase = 'https://recro.177.3.217.64.sslip.io';
+      } else if (activeBase.startsWith('http://') && !activeBase.includes('localhost') && !activeBase.includes('127.0.0.1')) {
+        activeBase = activeBase.replace(/^http:\/\//, 'https://');
+      }
+    }
 
     if (playUrl.includes('/api/stream')) {
       const streamIdx = playUrl.indexOf('/api/stream');
