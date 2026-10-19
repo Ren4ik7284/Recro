@@ -55,6 +55,8 @@ export class AudioService {
   readonly queue = signal<Track[]>([]);
   readonly queueIndex = signal<number>(-1);
   readonly preloadedNextTrack = signal<Track | null>(null);
+  readonly prewarmedWaveTrack = signal<Track | null>(null);
+  readonly isPrewarmingWave = signal<boolean>(false);
   readonly playbackSpeed = signal<number>(1.0);
 
   setPlaybackSpeed(speed: number) {
@@ -1985,6 +1987,151 @@ export class AudioService {
     // No-op: do not flood server CPU or client connection pool with speculative stream downloads
   }
 
+  /**
+   * Prewarms the best matching starter track for "Моя Волна" immediately upon app entry / offline detection.
+   * Resolves offline Blob URLs, warms backend cache with prefetch=true, pre-buffers first 384KB via Range,
+   * primes the browser audio element and preloads cover art so playback starts with 0ms latency!
+   */
+  async prewarmSmartWaveStarter(mood: MixMood = this.recService.currentMood()): Promise<Track | null> {
+    if (this.isPlaying() || this.isSwitchingTrack) {
+      return this.prewarmedWaveTrack();
+    }
+    if (this.isPrewarmingWave()) {
+      return this.prewarmedWaveTrack();
+    }
+
+    this.isPrewarmingWave.set(true);
+    try {
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      const offlineTracks = (typeof this.offlineService?.getOfflineTracks === 'function' ? this.offlineService.getOfflineTracks() : []).filter(
+        (t) => !this.recService.isDisliked(t.id) && !this.libraryService.isDisliked(t)
+      );
+
+      let starter: Track | null = null;
+
+      // 1. Offline Mode: Look through cached offline storage for the best personalized starter
+      if (isOffline || (offlineTracks.length > 0 && typeof navigator !== 'undefined' && !navigator.onLine)) {
+        if (offlineTracks.length > 0) {
+          let pool = offlineTracks.filter((t) => this.recService.doesTrackMatchMood(t, mood));
+          if (pool.length === 0) pool = offlineTracks;
+
+          const notRecent = pool.filter((t) => !this.recService.isRecentlyPlayed(t, 60));
+          const candidatePool = notRecent.length > 0 ? notRecent : pool;
+
+          const ranked = [...candidatePool].sort((a, b) => {
+            const favA = a.isFavorite || this.libraryService.isTrackFavorite(a) ? 1 : 0;
+            const favB = b.isFavorite || this.libraryService.isTrackFavorite(b) ? 1 : 0;
+            if (favA !== favB) return favB - favA;
+            return (b.plays || 0) - (a.plays || 0);
+          });
+          starter = ranked[0] || null;
+        }
+      }
+
+      // 2. Online Mode: Look through user's library favorites / discovery buffer
+      if (!starter && (!isOffline || offlineTracks.length === 0)) {
+        const source = this.recService.mixConfig().source;
+        const localCandidates = this.recService.getAllLocalCandidates();
+
+        if (source === 'balanced' || source === 'library_only') {
+          if (localCandidates.length > 0) {
+            const favs = this.recService.pickNextTracks(1, new Set(), null);
+            if (favs.length > 0) {
+              starter = favs[0];
+            }
+          }
+        }
+
+        if (!starter) {
+          const effectiveLang = this.recService.getEffectiveLanguage(null);
+          const buffered = this.recService.getBufferedDiscoveries(effectiveLang, 1);
+          if (buffered.length > 0 && !this.recService.isLibraryTrack(buffered[0])) {
+            starter = buffered[0];
+          } else {
+            const starters = this.recService.getStarterCandidates(mood, 3, effectiveLang);
+            if (starters.length > 0) {
+              starter = starters[0];
+            }
+          }
+        }
+
+        if (!starter && offlineTracks.length > 0) {
+          starter = offlineTracks[0];
+        }
+      }
+
+      if (!starter) {
+        return null;
+      }
+
+      // 3. Process / Pre-buffer the track so the user does not wait the first seconds!
+      let preparedStarter: Track = { ...starter };
+
+      // Case A: Track is offline in IndexedDB
+      if (this.offlineService.isTrackOffline(starter.id) || starter.isOffline) {
+        const blobUrl = await this.offlineService.getOfflineBlobUrl(starter.id);
+        if (blobUrl) {
+          preparedStarter = { ...preparedStarter, audioUrl: blobUrl, isOffline: true };
+          this.initPreloadAudio();
+          if (this.preloadAudio && this.preloadedAudioUrl !== blobUrl) {
+            this.preloadedAudioUrl = blobUrl;
+            try {
+              this.preloadAudio.src = blobUrl;
+              this.preloadAudio.load();
+            } catch {}
+          }
+        }
+      } else if (!starter.audioUrl.startsWith('blob:') && !starter.isLiveStream) {
+        // Case B: Online stream track
+        const targetUrl = this.formatStreamUrl(starter);
+
+        // Low priority prefetch to warm backend FFmpeg transcode & disk cache
+        if (targetUrl.includes('/api/stream')) {
+          const glue = targetUrl.includes('?') ? '&' : '?';
+          try {
+            fetch(`${targetUrl}${glue}prefetch=true`, { priority: 'low' as any }).catch(() => {});
+          } catch {}
+
+          // Range request to warm first 384 KB in browser HTTP cache
+          try {
+            fetch(targetUrl, {
+              headers: { Range: 'bytes=0-393215' },
+              mode: 'cors',
+              priority: 'low' as any,
+            }).catch(() => {});
+          } catch {}
+        }
+
+        // Prime the hidden audio element's decoder
+        this.initPreloadAudio();
+        if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
+          this.preloadedAudioUrl = targetUrl;
+          try {
+            this.preloadAudio.src = targetUrl;
+            this.preloadAudio.load();
+          } catch {}
+        }
+      }
+
+      // Pre-cache cover art in memory
+      if (typeof window !== 'undefined') {
+        const coverUrl = typeof this.libraryService?.formatCoverUrl === 'function'
+          ? this.libraryService.formatCoverUrl(preparedStarter.coverUrl, preparedStarter.title, preparedStarter.artist)
+          : preparedStarter.coverUrl;
+        if (coverUrl) {
+          const img = new Image();
+          img.decoding = 'async';
+          img.src = coverUrl;
+        }
+      }
+
+      this.prewarmedWaveTrack.set(preparedStarter);
+      return preparedStarter;
+    } finally {
+      this.isPrewarmingWave.set(false);
+    }
+  }
+
   async ensureSmartQueue(): Promise<void> {
     if (!this.recService.isMixActive()) return;
 
@@ -2037,6 +2184,21 @@ export class AudioService {
     const localCandidates = this.recService.getAllLocalCandidates();
     const curTrack = q[idx] || this.currentTrack() || null;
     const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      const offlineTracks = (typeof this.offlineService?.getOfflineTracks === 'function' ? this.offlineService.getOfflineTracks() : []).filter(
+        (t) => !excludeIds.has(t.id) && !this.recService.isDisliked(t.id) && !this.libraryService.isDisliked(t)
+      );
+      if (offlineTracks.length > 0) {
+        let pool = offlineTracks.filter((t) => this.recService.doesTrackMatchMood(t, mood));
+        if (pool.length === 0) pool = offlineTracks;
+        if (pool.length > 0) {
+          this.queue.update((curQ) => [...curQ, ...pool.slice(0, needed)]);
+          this.preloadNextTrack();
+        }
+      }
+      return;
+    }
 
     let newTracks: Track[] = [];
 
@@ -2161,6 +2323,51 @@ export class AudioService {
     this.recService.isMixActive.set(true);
     this.recService.setMixMood(mood);
 
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const offlineTracks = (typeof this.offlineService?.getOfflineTracks === 'function' ? this.offlineService.getOfflineTracks() : []).filter(
+      (t) => !this.recService.isDisliked(t.id) && !this.libraryService.isDisliked(t)
+    );
+
+    // 1. Instant 0ms playback: check if prewarmed wave starter is ready in memory/cache
+    const prewarmed = this.prewarmedWaveTrack();
+    if (prewarmed) {
+      const isMoodMatch = mood === 'all' || this.recService.doesTrackMatchMood(prewarmed, mood);
+      const isNotDisliked = !this.recService.isDisliked(prewarmed.id) && !this.libraryService.isDisliked(prewarmed);
+      if (isMoodMatch && isNotDisliked) {
+        this.prewarmedWaveTrack.set(null);
+
+        let initialTracks: Track[] = [prewarmed];
+        if (isOffline) {
+          const offlineRemaining = offlineTracks.filter((t) => t.id !== prewarmed.id);
+          initialTracks = [prewarmed, ...offlineRemaining.slice(0, 5)];
+        } else {
+          const effectiveLang = this.recService.getEffectiveLanguage(prewarmed);
+          const buffered = this.recService.getBufferedDiscoveries(effectiveLang, 4)
+            .filter((t) => t.id !== prewarmed.id && !this.recService.isLibraryTrack(t));
+          initialTracks = [prewarmed, ...buffered];
+        }
+
+        this.playTrack(prewarmed, initialTracks, true, 0);
+        this.preloadNextTrack();
+        this.ensureSmartQueue().catch(() => {});
+        return true;
+      }
+    }
+
+    // 2. Offline fallback: Start immediately from saved offline tracks without waiting for network
+    if (isOffline && offlineTracks.length > 0) {
+      let pool = offlineTracks.filter((t) => this.recService.doesTrackMatchMood(t, mood));
+      if (pool.length === 0) pool = offlineTracks;
+      const starter = pool[0];
+      const blobUrl = await this.offlineService.getOfflineBlobUrl(starter.id);
+      const preparedStarter = blobUrl ? { ...starter, audioUrl: blobUrl, isOffline: true } : starter;
+      const initialTracks = [preparedStarter, ...pool.slice(1, 6)];
+
+      this.playTrack(preparedStarter, initialTracks, true, 0);
+      this.preloadNextTrack();
+      return true;
+    }
+
     const source = this.recService.mixConfig().source;
     const curTrack = this.currentTrack() || null;
     const effectiveLang = this.recService.getEffectiveLanguage(curTrack);
@@ -2254,6 +2461,8 @@ export class AudioService {
         this.queue.set(played);
         this.ensureSmartQueue().catch(() => {});
       }
+    } else {
+      this.prewarmSmartWaveStarter(mood).catch(() => {});
     }
   }
 

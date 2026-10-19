@@ -447,5 +447,71 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       expect(result.isDirectSeedFeat).toBe(true);
       expect(result.coArtists).toContain('fortuna 812');
     });
+
+    it('prewarmSmartWaveStarter should proactively find, process offline track and enable zero-delay wave', async () => {
+      const mockOfflineService = {
+        offlineTrackIds: signal(new Set(['offline-track-1'])),
+        downloadingTrackIds: signal(new Set()),
+        isTrackOffline: vi.fn().mockImplementation((id) => id === 'offline-track-1'),
+        getOfflineTracks: vi.fn().mockReturnValue([
+          {
+            id: 'offline-track-1',
+            title: 'Offline Banger',
+            artist: 'Local Artist',
+            duration: 180,
+            audioUrl: 'https://example.com/stream.mp3',
+            genre: 'Rock',
+            format: 'mp3',
+            plays: 50,
+            isFavorite: true,
+            addedAt: '2026-01-01',
+          },
+        ]),
+        getOfflineBlobUrl: vi.fn().mockResolvedValue('blob:http://localhost/test-blob-123'),
+        getCachedBlobUrlSync: vi.fn().mockReturnValue('blob:http://localhost/test-blob-123'),
+        revokePreviousBlobUrls: vi.fn(),
+      };
+
+      TestBed.resetTestingModule();
+      const testBed = TestBed.configureTestingModule({
+        providers: [
+          RecommendationService,
+          {
+            provide: LibraryService,
+            useValue: {
+              ...mockLibraryService,
+              formatCoverUrl: () => 'https://example.com/cover.jpg',
+              getBackendUrl: () => 'https://example.com',
+            },
+          },
+          { provide: OfflineService, useValue: mockOfflineService },
+          { provide: NavigationService, useValue: { pushOverlay: vi.fn() } },
+        ],
+      });
+
+      const { AudioService } = await import('./audio.service');
+      const audioService = testBed.inject(AudioService);
+
+      // Simulate offline mode
+      const originalOnLine = navigator.onLine;
+      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+
+      try {
+        const starter = await audioService.prewarmSmartWaveStarter('all');
+        expect(starter).toBeTruthy();
+        expect(starter?.id).toBe('offline-track-1');
+        expect(starter?.audioUrl).toBe('blob:http://localhost/test-blob-123');
+        expect(audioService.prewarmedWaveTrack()?.id).toBe('offline-track-1');
+
+        // When user launches My Wave, prewarmed track is consumed with 0ms delay!
+        const ok = await audioService.startSmartMix('all');
+        expect(ok).toBe(true);
+        expect(audioService.currentTrack()?.id).toBe('offline-track-1');
+        expect(audioService.prewarmedWaveTrack()).toBeNull();
+      } finally {
+        Object.defineProperty(navigator, 'onLine', { value: originalOnLine, configurable: true });
+      }
+    });
   });
 });
+

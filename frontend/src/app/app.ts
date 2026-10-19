@@ -258,10 +258,24 @@ export class App implements OnInit {
 
     this.authService.fetchAuthConfig(this.libraryService.getBackendUrl());
 
+    // Proactively prewarm Smart Wave starter track (both offline and online) immediately upon app entry
+    // so playback starts with 0ms latency when user clicks "Моя Волна"
+    this.audioService.prewarmSmartWaveStarter().catch(() => {});
+
     // Prewarm online discovery buffer quietly in background so "Моя волна" starts instantaneously
     setTimeout(() => {
       this.recService.schedulePrewarmDiscovery(800);
+      this.audioService.prewarmSmartWaveStarter().catch(() => {});
     }, 500);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.audioService.prewarmSmartWaveStarter().catch(() => {});
+      });
+      window.addEventListener('offline', () => {
+        this.audioService.prewarmSmartWaveStarter().catch(() => {});
+      });
+    }
 
     // Background auto-refresh of charts and popular music catalog every 20 minutes
     setInterval(() => {
