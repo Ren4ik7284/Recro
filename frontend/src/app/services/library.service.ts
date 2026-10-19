@@ -1649,6 +1649,7 @@ export class LibraryService implements OnDestroy {
       });
     }
 
+    const isLossless = format === 'flac' || format === 'wav';
     const newTrack: Track = {
       id: 'stream-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       title,
@@ -1659,7 +1660,8 @@ export class LibraryService implements OnDestroy {
       genre,
       year: new Date().getFullYear(),
       format,
-      bitrate: isLive ? 'Live Stream' : 'Direct URL',
+      bitrate: isLossless ? '1411 kbps (Lossless FLAC)' : (isLive ? 'Live Stream' : 'Direct URL'),
+      isLossless,
       plays: 0,
       isFavorite: false,
       addedAt: new Date().toISOString().split('T')[0],
@@ -1705,6 +1707,11 @@ export class LibraryService implements OnDestroy {
       });
     });
 
+    const isLossless = validFormat === 'flac' || validFormat === 'wav';
+    const computedBitrate = isLossless
+      ? (validFormat === 'flac' ? '1411 kbps (Lossless FLAC)' : '1411 kbps (Lossless WAV)')
+      : Math.round((file.size * 8) / (duration || 180) / 1000) + ' kbps';
+
     const newTrack: Track = {
       id: 'upload-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       title,
@@ -1715,7 +1722,10 @@ export class LibraryService implements OnDestroy {
       genre: customGenre || 'Audio',
       year: new Date().getFullYear(),
       format: validFormat,
-      bitrate: Math.round((file.size * 8) / (duration || 180) / 1000) + ' kbps',
+      bitrate: computedBitrate,
+      isLossless,
+      bitDepth: isLossless ? 16 : undefined,
+      sampleRate: isLossless ? 44100 : undefined,
       plays: 0,
       isFavorite: false,
       addedAt: new Date().toISOString().split('T')[0],

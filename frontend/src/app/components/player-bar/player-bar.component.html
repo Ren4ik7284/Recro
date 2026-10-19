@@ -25,7 +25,9 @@
     <div class="now-playing-meta">
       <div class="meta-title-line">
         <span class="player-track-title notranslate" translate="no">{{ audioService.currentTrack()?.title || i18n.t('player.noTrack') }}</span>
-        @if (audioService.currentTrack()?.format) {
+        @if (audioService.isLosslessPlayback()) {
+          <span class="player-badge-lossless font-mono" title="Bit-Perfect Lossless FLAC (1411 kbps)">LOSSLESS</span>
+        } @else if (audioService.currentTrack()?.format) {
           <span class="player-badge-format font-mono desktop-only">{{ audioService.currentTrack()?.format | uppercase }}</span>
         }
       </div>
@@ -293,6 +295,16 @@
     <app-visualizer [mode]="'mini'" class="desktop-only"></app-visualizer>
 
     <!-- Audio Effects Toggles -->
+    <button 
+      class="utility-btn lossless-btn" 
+      [class.active]="audioService.isLosslessPlayback()"
+      (click)="audioService.cycleAudioQuality()"
+      [title]="audioService.isLosslessPlayback() ? 'Lossless FLAC 1411 kbps (Bit-Perfect). Нажмите для переключения' : 'Качество: ' + audioService.audioQuality() + '. Нажмите для переключения на Lossless FLAC'"
+      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
+    >
+      {{ audioService.isLosslessPlayback() ? 'FLAC' : (audioService.audioQuality() === 'high' ? '320K' : (audioService.audioQuality() === 'data_saver' ? '128K' : 'AUTO')) }}
+    </button>
+
     <button 
       class="utility-btn" 
       [class.active]="audioService.isNormalizationEnabled()"

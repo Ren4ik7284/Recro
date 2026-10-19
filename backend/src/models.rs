@@ -72,6 +72,8 @@ pub struct StreamParams {
     pub prefetch: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_bool_lenient")]
     pub is_live: Option<bool>,
+    pub quality: Option<String>,
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

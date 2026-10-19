@@ -34,10 +34,24 @@ export class AudioService {
   readonly streamSeekOffset = signal<number>(0);
   private readonly STORAGE_KEY_VOLUME = 'signal_player_volume';
   private readonly STORAGE_KEY_REPEAT = 'signal_player_repeat';
+  private readonly STORAGE_KEY_QUALITY = 'signal_player_audio_quality';
+  private readonly STORAGE_KEY_BIT_PERFECT = 'signal_player_bit_perfect';
+
   readonly volume = signal<number>(this.loadSavedVolume());
   readonly isMuted = signal<boolean>(false);
   readonly isShuffle = signal<boolean>(false);
   readonly repeatMode = signal<'off' | 'all' | 'one'>(this.loadSavedRepeatMode());
+  readonly audioQuality = signal<'lossless' | 'high' | 'auto' | 'data_saver'>(this.loadSavedQuality());
+  readonly isBitPerfect = signal<boolean>(this.loadSavedBitPerfect());
+
+  readonly isLosslessPlayback = computed(() => {
+    const track = this.currentTrack();
+    if (!track) return false;
+    if (track.isLossless || track.format === 'flac' || track.format === 'wav') return true;
+    if (this.audioQuality() === 'lossless' && !track.isLiveStream) return true;
+    return false;
+  });
+
   readonly queue = signal<Track[]>([]);
   readonly queueIndex = signal<number>(-1);
   readonly preloadedNextTrack = signal<Track | null>(null);
@@ -158,6 +172,83 @@ export class AudioService {
   private effectiveVolume(sliderVol: number): number {
     const clamped = Math.max(0, Math.min(1, sliderVol));
     return Math.pow(clamped, 2);
+  }
+
+  private loadSavedQuality(): 'lossless' | 'high' | 'auto' | 'data_saver' {
+    if (typeof localStorage === 'undefined') return 'auto';
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY_QUALITY);
+      if (saved === 'lossless' || saved === 'high' || saved === 'auto' || saved === 'data_saver') {
+        return saved;
+      }
+    } catch {}
+    return 'auto';
+  }
+
+  private loadSavedBitPerfect(): boolean {
+    if (typeof localStorage === 'undefined') return true;
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY_BIT_PERFECT);
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch {}
+    return true;
+  }
+
+  setAudioQuality(quality: 'lossless' | 'high' | 'auto' | 'data_saver') {
+    this.audioQuality.set(quality);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(this.STORAGE_KEY_QUALITY, quality);
+      } catch {}
+    }
+    this.applyBitPerfectState();
+    const cur = this.currentTrack();
+    if (cur && this.isPlaying() && !cur.audioUrl.startsWith('blob:') && !cur.isLiveStream) {
+      const pos = this.currentTime();
+      this.playTrack(cur).then(() => {
+        if (pos > 0) {
+          this.seek(pos);
+        }
+      });
+    }
+  }
+
+  cycleAudioQuality() {
+    const current = this.audioQuality();
+    let next: 'lossless' | 'high' | 'auto' | 'data_saver' = 'lossless';
+    if (current === 'lossless') next = 'high';
+    else if (current === 'high') next = 'auto';
+    else if (current === 'auto') next = 'data_saver';
+    else next = 'lossless';
+    this.setAudioQuality(next);
+  }
+
+  toggleBitPerfect() {
+    this.isBitPerfect.update((v) => !v);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(this.STORAGE_KEY_BIT_PERFECT, String(this.isBitPerfect()));
+      } catch {}
+    }
+    this.applyBitPerfectState();
+  }
+
+  applyBitPerfectState() {
+    if (!this.compressorNode || !this.audioCtx) return;
+    try {
+      const now = this.audioCtx.currentTime;
+      if (this.isBitPerfect() || this.isLosslessPlayback()) {
+        // Bit-Perfect direct output: completely neutral 1:1 ratio, 0 dB threshold
+        this.compressorNode.threshold.setValueAtTime(0, now);
+        this.compressorNode.ratio.setValueAtTime(1, now);
+      } else {
+        // Standard gentle limiter
+        this.compressorNode.threshold.setValueAtTime(-14, now);
+        this.compressorNode.ratio.setValueAtTime(4, now);
+      }
+    } catch {}
   }
 
   constructor() {
@@ -1224,6 +1315,9 @@ export class AudioService {
       } catch {}
     }
 
+    // Apply bit-perfect audio graph state according to track and user settings
+    this.applyBitPerfectState();
+
     // Apply smooth immediate fade in
     this.applyFadeIn(0.12);
 
@@ -1824,6 +1918,10 @@ export class AudioService {
       if (!playUrl.includes('artist=') && track.artist) {
         const glue = playUrl.includes('?') ? '&' : '?';
         playUrl = `${playUrl}${glue}artist=${encodeURIComponent(track.artist)}`;
+      }
+      if (!playUrl.includes('quality=') && this.audioQuality() !== 'auto') {
+        const glue = playUrl.includes('?') ? '&' : '?';
+        playUrl = `${playUrl}${glue}quality=${this.audioQuality()}`;
       }
     }
     return playUrl;

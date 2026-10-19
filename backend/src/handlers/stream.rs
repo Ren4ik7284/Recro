@@ -154,7 +154,11 @@ async fn proxy_direct_stream(target: &str, is_live: bool) -> Result<Response, St
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or_else(|| {
-            if target.contains(".aac") || target.contains(".aacp") {
+            if target.contains(".flac") {
+                "audio/flac"
+            } else if target.contains(".wav") {
+                "audio/wav"
+            } else if target.contains(".aac") || target.contains(".aacp") {
                 "audio/aac"
             } else {
                 "audio/mpeg"
@@ -205,7 +209,7 @@ pub async fn stream_audio(
     }
 
     let mut target = String::new();
-    eprintln!("[STREAM] New request: title={:?}, artist={:?}, id={:?}, url={:?}", params.title, params.artist, params.id, params.url);
+    eprintln!("[STREAM] New request: title={:?}, artist={:?}, id={:?}, quality={:?}, format={:?}", params.title, params.artist, params.id, params.quality, params.format);
 
     if let Some(id) = params.id.clone() {
         let id_clean = id.trim().to_string();
@@ -289,6 +293,8 @@ pub async fn stream_audio(
         && !target.contains("sndcdn.com")
         && (is_live
             || target.ends_with(".mp3")
+            || target.ends_with(".flac")
+            || target.ends_with(".wav")
             || target.ends_with(".aac")
             || target.ends_with(".aacp")
             || target.ends_with(".m3u8")
@@ -337,6 +343,12 @@ pub async fn stream_audio(
         if let Some(il) = params.is_live {
             forward_query.push(format!("is_live={}", il));
         }
+        if let Some(ref q) = params.quality {
+            forward_query.push(format!("quality={}", urlencoding::encode(q)));
+        }
+        if let Some(ref f) = params.format {
+            forward_query.push(format!("format={}", urlencoding::encode(f)));
+        }
 
         let cloud_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, forward_query.join("&"));
         let client = reqwest::Client::builder()
@@ -356,7 +368,8 @@ pub async fn stream_audio(
                 let status = resp.status();
                 if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
                     let mut res_headers = HeaderMap::new();
-                    res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
+                    let fwd_ct = resp.headers().get(header::CONTENT_TYPE).cloned().unwrap_or_else(|| "audio/mpeg".parse().unwrap());
+                    res_headers.insert(header::CONTENT_TYPE, fwd_ct);
                     if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
                         res_headers.insert(header::CONTENT_LENGTH, cl.clone());
                     }
@@ -383,18 +396,26 @@ pub async fn stream_audio(
         }
     }
 
+    let is_lossless_requested = params.quality.as_deref() == Some("lossless")
+        || params.format.as_deref() == Some("flac")
+        || target.ends_with(".flac")
+        || target.contains(".flac?");
+
     let cache_key = if let (Some(t), Some(a)) = (&params.title, &params.artist) {
-        format!("{}:{}:{}", target, t.trim(), a.trim())
+        format!("{}:{}:{}:{}", target, t.trim(), a.trim(), if is_lossless_requested { "lossless" } else { "standard" })
     } else {
-        target.clone()
+        format!("{}:{}", target, if is_lossless_requested { "lossless" } else { "standard" })
     };
+
+    let cache_ext = if is_lossless_requested { "flac" } else { "mp3" };
+    let cache_mime = if is_lossless_requested { "audio/flac" } else { "audio/mpeg" };
 
     let cache_filename = {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
         cache_key.hash(&mut hasher);
-        format!("{:016x}.mp3", hasher.finish())
+        format!("{:016x}.{}", hasher.finish(), cache_ext)
     };
     let cache_dir = std::env::var("CACHE_DIR").unwrap_or_else(|_| "/var/www/recro/cache".to_string());
     let _ = std::fs::create_dir_all(&cache_dir);
@@ -431,9 +452,18 @@ pub async fn stream_audio(
                     }
 
                     let mut res_headers = HeaderMap::new();
-                    res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
+                    res_headers.insert(header::CONTENT_TYPE, cache_mime.parse().unwrap());
                     res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
                     res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, immutable"));
+                    if is_lossless_requested {
+                        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("lossless"));
+                        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("flac"));
+                        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("1411k"));
+                    } else {
+                        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("high"));
+                        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("mp3"));
+                        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("320k"));
+                    }
 
                     if let Some(range_header) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
                         if let Some((start, end)) = parse_byte_range(range_header, total_size) {
@@ -758,10 +788,12 @@ pub async fn stream_audio(
                 let ref_hdr = referer.to_string();
 
                 tokio::spawn(async move {
-                    let codec_args = if d_url.contains(".mp3") {
-                        vec!["-c:a", "copy"]
+                    let (codec_args, fmt_arg) = if is_lossless_requested {
+                        (vec!["-c:a", "flac", "-compression_level", "5"], "flac")
+                    } else if d_url.contains(".mp3") {
+                        (vec!["-c:a", "copy"], "mp3")
                     } else {
-                        vec!["-c:a", "libmp3lame", "-b:a", "192k"]
+                        (vec!["-c:a", "libmp3lame", "-b:a", "320k"], "mp3")
                     };
 
                     let tmp_file_path = format!("{}.tmp.{}", cfp, fastrand::u64(..));
@@ -782,7 +814,7 @@ pub async fn stream_audio(
                         "-vn",
                     ]);
                     conv_cmd.args(&codec_args);
-                    conv_cmd.args(["-f", "mp3", &tmp_file_path]);
+                    conv_cmd.args(["-f", fmt_arg, &tmp_file_path]);
                     conv_cmd.stdout(Stdio::null());
                     conv_cmd.stderr(Stdio::null());
 
@@ -849,8 +881,33 @@ pub async fn stream_audio(
         }
     }
 
+    let is_flac_direct = direct_url.ends_with(".flac") || direct_url.contains(".flac?");
     let is_mp3_direct = direct_url.ends_with(".mp3") || direct_url.contains(".mp3?");
-    if is_mp3_direct && params.ss.unwrap_or(0) == 0 {
+
+    if is_lossless_requested {
+        if is_flac_direct && params.ss.unwrap_or(0) == 0 {
+            ffmpeg_args.extend([
+                "-vn".to_string(),
+                "-c:a".to_string(),
+                "copy".to_string(),
+                "-f".to_string(),
+                "flac".to_string(),
+                "pipe:1".to_string(),
+            ]);
+        } else {
+            // Encode in Bit-Perfect FLAC Lossless (16/24-bit PCM -> FLAC)
+            ffmpeg_args.extend([
+                "-vn".to_string(),
+                "-c:a".to_string(),
+                "flac".to_string(),
+                "-compression_level".to_string(),
+                "5".to_string(),
+                "-f".to_string(),
+                "flac".to_string(),
+                "pipe:1".to_string(),
+            ]);
+        }
+    } else if is_mp3_direct && params.ss.unwrap_or(0) == 0 {
         ffmpeg_args.extend([
             "-vn".to_string(),
             "-c:a".to_string(),
@@ -862,12 +919,17 @@ pub async fn stream_audio(
             "pipe:1".to_string(),
         ]);
     } else {
+        let bitrate = match params.quality.as_deref() {
+            Some("high") => "320k",
+            Some("data_saver") => "128k",
+            _ => "320k",
+        };
         ffmpeg_args.extend([
             "-vn".to_string(),
             "-c:a".to_string(),
             "libmp3lame".to_string(),
             "-b:a".to_string(),
-            "192k".to_string(),
+            bitrate.to_string(),
             "-f".to_string(),
             "mp3".to_string(),
             "-flush_packets".to_string(),
@@ -967,9 +1029,18 @@ pub async fn stream_audio(
     let body = Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(rx));
 
     let mut res_headers = HeaderMap::new();
-    res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
+    res_headers.insert(header::CONTENT_TYPE, cache_mime.parse().unwrap());
     res_headers.insert(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate".parse().unwrap());
     res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("none"));
+    if is_lossless_requested {
+        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("lossless"));
+        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("flac"));
+        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("1411k"));
+    } else {
+        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("high"));
+        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("mp3"));
+        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("320k"));
+    }
 
     Ok((StatusCode::OK, res_headers, body).into_response())
 }

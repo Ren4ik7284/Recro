@@ -10,6 +10,9 @@ export interface Track {
   year?: number;
   format: 'mp3' | 'wav' | 'flac' | 'ogg' | 'm4a' | 'stream';
   bitrate?: string;
+  isLossless?: boolean;
+  sampleRate?: number;
+  bitDepth?: number;
   plays: number;
   isFavorite: boolean;
   addedAt: string;
