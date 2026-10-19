@@ -3,10 +3,13 @@
 }
 
 (cors) {
-    header Access-Control-Allow-Origin *
-    header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-    header Access-Control-Allow-Headers *
-    header Access-Control-Expose-Headers *
+    @origin_present header Origin *
+    header @origin_present Access-Control-Allow-Origin "{header.Origin}"
+    header @origin_present Access-Control-Allow-Credentials "true"
+    header ?Access-Control-Allow-Origin "*"
+    header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE, PATCH, HEAD"
+    header Access-Control-Allow-Headers "*"
+    header Access-Control-Expose-Headers "*"
 }
 
 (common) {

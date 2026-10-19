@@ -2,7 +2,7 @@ import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angula
 import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist, ChartSummary, ChartDetail, ReleaseItem, HomeExploreData } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
-import { CLUSTER_BACKENDS, resolveDefaultBackend } from '../models/cluster.config';
+import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates } from '../models/cluster.config';
 
 export interface ExtractedResult {
   playlistTitle: string | null;
@@ -589,25 +589,7 @@ export class LibraryService implements OnDestroy {
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        const urlsToTest: string[] = [];
-
-        if (typeof window !== 'undefined') {
-          const host = window.location.hostname || '';
-          if (host === 'localhost' || host === '127.0.0.1') {
-            urlsToTest.push(`http://${host}:8085`);
-          }
-          if (host.includes('80.87.202.157') || host.includes('177.3.217.64')) {
-            urlsToTest.push(window.location.origin);
-          }
-          urlsToTest.push(...CLUSTER_BACKENDS);
-          if (window.location.origin) {
-            urlsToTest.push(window.location.origin);
-          }
-        } else {
-          urlsToTest.push('http://127.0.0.1:8085');
-        }
-
-        const uniqueUrls = Array.from(new Set(urlsToTest));
+        const uniqueUrls = getClusterCandidates();
 
         try {
           const winner = await new Promise<string>((resolve, reject) => {
@@ -616,7 +598,7 @@ export class LibraryService implements OnDestroy {
             const total = uniqueUrls.length;
 
             for (const testUrl of uniqueUrls) {
-              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(1500) })
+              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(1800) })
                 .then((res) => {
                   if (res.ok && !finished) {
                     finished = true;
@@ -660,7 +642,11 @@ export class LibraryService implements OnDestroy {
 
   async failoverBackend(): Promise<string> {
     const current = this.getBackendUrl();
-    const alt = CLUSTER_BACKENDS.find((b) => !current.includes(b)) || CLUSTER_BACKENDS[0];
+    const cluster = getClusterCandidates();
+    const curIdx = cluster.findIndex((b) => current.includes(b) || b.includes(current));
+    const nextIdx = (curIdx + 1) % cluster.length;
+    const alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
+    console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt}`);
     this.activeBackendUrl = alt;
     this.authService.setActiveBackendUrl(alt);
     this.authService.verifyRemoteSession(alt);

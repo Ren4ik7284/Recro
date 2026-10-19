@@ -917,10 +917,11 @@ export class AudioService {
       }
 
       if (this.consecutiveErrorCount === 2) {
-        // Attempt 2: If primary audioUrl failed, resolve fresh stream URL via backend title/artist before giving up!
+        // Attempt 2: If primary audioUrl failed, failover cluster and resolve fresh stream URL via backend title/artist
         const cur = this.currentTrack();
         if (cur && cur.title) {
-          console.warn('[AudioService] Primary stream failed in mix (attempt 2), resolving fresh title/artist stream...');
+          console.warn('[AudioService] Primary stream failed in mix (attempt 2), failing over cluster and resolving fresh stream...');
+          this.libraryService.failoverBackend();
           const activeBase = this.libraryService.getBackendUrl();
           const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
           const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());

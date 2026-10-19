@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -91,21 +91,52 @@ async fn main() {
         sync_channel,
     };
 
+    let exposed_headers = [
+        axum::http::header::CONTENT_LENGTH,
+        axum::http::header::ACCEPT_RANGES,
+        axum::http::header::CONTENT_RANGE,
+        axum::http::HeaderName::from_static("x-audio-codec"),
+        axum::http::HeaderName::from_static("x-audio-bitrate"),
+        axum::http::HeaderName::from_static("x-audio-quality"),
+    ];
+
+    let allowed_methods = [
+        axum::http::Method::GET,
+        axum::http::Method::POST,
+        axum::http::Method::PUT,
+        axum::http::Method::DELETE,
+        axum::http::Method::OPTIONS,
+        axum::http::Method::HEAD,
+        axum::http::Method::PATCH,
+    ];
+
     let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {
         let allowed: Vec<axum::http::HeaderValue> = origins_str
             .split(',')
             .filter_map(|s| s.trim().parse().ok())
             .collect();
         if allowed.is_empty() {
-            CorsLayer::permissive()
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::mirror_request())
+                .allow_credentials(true)
+                .allow_methods(allowed_methods)
+                .allow_headers(AllowHeaders::mirror_request())
+                .expose_headers(exposed_headers)
         } else {
             CorsLayer::new()
                 .allow_origin(allowed)
-                .allow_headers(Any)
-                .allow_methods(Any)
+                .allow_credentials(true)
+                .allow_methods(allowed_methods)
+                .allow_headers(AllowHeaders::mirror_request())
+                .expose_headers(exposed_headers)
         }
     } else {
-        CorsLayer::permissive()
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::mirror_request())
+            .allow_credentials(true)
+            .allow_methods(allowed_methods)
+            .allow_headers(AllowHeaders::mirror_request())
+            .expose_headers(exposed_headers)
     };
 
     let static_dir_path = std::env::var("STATIC_DIR")
