@@ -606,7 +606,6 @@ export class LyricsService {
       if (res.ok) {
         const data = await res.json();
         if (data && data.lyrics && !abortCtrl.signal.aborted && this.audioService.currentTrack()?.id === targetTrackId) {
-          // Валидируем соответствие кандидата треку
           const score = this.matchScore(
             {
               trackName: data.track_name || cleanTitle,
@@ -619,7 +618,7 @@ export class LyricsService {
             track.duration || 0
           );
 
-          if (score >= 45) {
+          if (score >= 40 || data.source === 'genius' || data.source === 'lyrics_ovh') {
             const parsed = this.parseLrc(data.lyrics, (data.source || 'lrclib') as any);
             if (data.duration && data.duration > 0) {
               parsed.duration = data.duration;
@@ -1065,7 +1064,7 @@ export class LyricsService {
 
     if (!itemTitleNorm || !expTitleNorm) return -999;
 
-    // 1. Проверка длительности трека: отсекаем только явно чужие миксы (>45с разницы)
+    // 1. Проверка длительности трека: отсекаем явно чужие версии (>45с разницы)
     let durationPenalty = 0;
     if (expectedDuration > 20 && item.duration > 20) {
       const diff = Math.abs(item.duration - expectedDuration);
@@ -1090,7 +1089,8 @@ export class LyricsService {
       titleScore = 60;
     } else if (expWords.length === 1) {
       const targetWord = expWords[0];
-      if (itemWords.includes(targetWord)) {
+      const containsTarget = itemWords.includes(targetWord) || itemTitleNorm.includes(targetWord);
+      if (containsTarget) {
         const noiseWords = new Set([
           'official', 'video', 'audio', 'remastered', 'remaster', 'hd', '4k',
           'visualizer', 'clip', 'slowed', 'reverb', 'speed', 'sped', 'up',
@@ -1100,12 +1100,8 @@ export class LyricsService {
         ]);
         const expAWordsSet = new Set(expArtistNorm.split(' ').filter((w) => w.length >= 2));
         const extraNonNoise = itemWords.filter((w) => w !== targetWord && !noiseWords.has(w) && !expAWordsSet.has(w));
-        if (extraNonNoise.length === 0) {
-          titleRatio = 1.0;
-          titleScore = 55;
-        } else {
-          return -999;
-        }
+        titleRatio = 1.0 / (1.0 + extraNonNoise.length * 0.25);
+        titleScore = Math.max(25, 55 - extraNonNoise.length * 5);
       } else {
         return -999;
       }

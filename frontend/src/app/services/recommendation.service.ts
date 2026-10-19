@@ -687,6 +687,11 @@ export class RecommendationService {
       if (art) seenArtists.add(art);
       if (title) seenTitles.add(title);
     }
+
+    // Remove returned discoveries from buffer so they don't cycle
+    const chosenIds = new Set(diverse.map((t) => t.id));
+    this.onlineDiscoveryPool = this.onlineDiscoveryPool.filter((t) => !chosenIds.has(t.id));
+
     return diverse;
   }
 
@@ -713,6 +718,10 @@ export class RecommendationService {
       currentTrack,
       this.isCyrillicUserLibrary()
     );
+  }
+
+  isStarterTrack(track: Track | null | undefined): boolean {
+    return !!track && typeof track.id === 'string' && track.id.startsWith('starter-');
   }
 
   isSessionDuplicate(track: Track): boolean {
@@ -750,13 +759,26 @@ export class RecommendationService {
     const trackNormArt = normalizeArtist(track.artist);
     const trackArtists = extractAllArtists(track.artist, track.title).map((a) => a.toLowerCase());
 
+    const VERSION_SUFFIX_REGEX = /^(remix|acoustic|live|slowed|reverb|instrumental|vip|edit|speed up|deluxe|version|radio edit|club mix|extended)$/i;
+
+    function isTitleDuplicate(t1: string, t2: string): boolean {
+      if (t1 === t2) return true;
+      if (t1.startsWith(t2 + ' ')) {
+        const suffix = t1.slice(t2.length).trim();
+        if (VERSION_SUFFIX_REGEX.test(suffix)) return true;
+      }
+      if (t2.startsWith(t1 + ' ')) {
+        const suffix = t2.slice(t1.length).trim();
+        if (VERSION_SUFFIX_REGEX.test(suffix)) return true;
+      }
+      return false;
+    }
+
     for (const local of candidates) {
       const localNormTit = normalizeTitle(local.title);
       if (!localNormTit) continue;
 
-      const titleMatch = trackNormTit === localNormTit ||
-        (trackNormTit.length >= 4 && localNormTit.length >= 4 && (trackNormTit.includes(localNormTit) || localNormTit.includes(trackNormTit)));
-
+      const titleMatch = isTitleDuplicate(trackNormTit, localNormTit);
       if (!titleMatch) continue;
 
       const localNormArt = normalizeArtist(local.artist);
@@ -1939,9 +1961,13 @@ export class RecommendationService {
       const effectiveLang = this.getEffectiveLanguage(seedTrack);
 
       const langFilteredCandidates = candidates.filter((t) => isTrackLanguageMatch(t, effectiveLang));
-      let effectiveSeed = seedTrack && isTrackLanguageMatch(seedTrack, effectiveLang)
+      const isStarter = this.isStarterTrack(seedTrack);
+      const favCandidates = langFilteredCandidates.filter((t) => t.isFavorite && !this.libraryService.isArtistDisliked(t.artist));
+      const pool = favCandidates.length > 0 ? favCandidates : langFilteredCandidates;
+
+      let effectiveSeed = (seedTrack && !isStarter && isTrackLanguageMatch(seedTrack, effectiveLang))
         ? seedTrack
-        : (langFilteredCandidates.length > 0 ? langFilteredCandidates[Math.floor(Math.random() * langFilteredCandidates.length)] : null);
+        : (pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null);
 
       if (!effectiveSeed) {
         const langStarters = this.getStarterCandidates(mood, 10, effectiveLang);
@@ -2033,10 +2059,9 @@ export class RecommendationService {
           this.libraryService.getRecommendations(primarySeedArtist, dominantGenre, 15, undefined, seedGenre).catch(() => [] as Track[])
         );
 
-        // Dedicated collaborative feature queries (фиты с артистом)
+        // Collaborative feature queries (фиты с артистом)
         tasks.push(
-          this.libraryService.searchOnline(`${primarySeedArtist} feat`).catch(() => [] as Track[]),
-          this.libraryService.searchOnline(`${primarySeedArtist} ft`).catch(() => [] as Track[])
+          this.libraryService.searchOnline(`${primarySeedArtist} feat`).catch(() => [] as Track[])
         );
         const isRuArtist = isRussianArtist(primarySeedArtist) || (effectiveSeed?.title && /[а-яё]/i.test(effectiveSeed.title));
         if (isRuArtist) {
@@ -2047,13 +2072,11 @@ export class RecommendationService {
 
         // If seed track is already a collaboration, also query related tracks for co-artists
         if (seedArtists.length > 1) {
-          for (let i = 1; i < Math.min(3, seedArtists.length); i++) {
-            const coArt = seedArtists[i];
-            if (coArt && !this.libraryService.isArtistDisliked(coArt)) {
-              tasks.push(
-                this.libraryService.getRecommendations(coArt, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
-              );
-            }
+          const coArt = seedArtists[1];
+          if (coArt && !this.libraryService.isArtistDisliked(coArt)) {
+            tasks.push(
+              this.libraryService.getRecommendations(coArt, dominantGenre, 10, undefined, dominantGenre).catch(() => [] as Track[])
+            );
           }
         }
       }
@@ -2071,18 +2094,13 @@ export class RecommendationService {
 
       const artistsToQuery = langTopArtists.length > 0 ? langTopArtists : allUserTopArtists;
 
-      // 2. Multi-artist taste expansion: query top favorite artists from user's history with rotation
+      // 2. Multi-artist taste expansion: ALWAYS query user's top favorite artists!
       if (artistsToQuery.length > 0) {
-        const shuffledArtists = [...artistsToQuery];
-        for (let i = shuffledArtists.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffledArtists[i], shuffledArtists[j]] = [shuffledArtists[j], shuffledArtists[i]];
-        }
         const queried = new Set<string>();
         if (primarySeedArtist) queried.add(normalizeArtist(primarySeedArtist));
 
-        for (const art of shuffledArtists) {
-          if (tasks.length >= 7) break;
+        // Always query the top 3 favorite artists from library
+        for (const art of artistsToQuery.slice(0, 3)) {
           const normA = normalizeArtist(art);
           if (normA && !queried.has(normA) && !seenArtists.has(normA)) {
             queried.add(normA);
@@ -2092,12 +2110,20 @@ export class RecommendationService {
           }
         }
 
-        // Also query collab for top favorite artist if not seed
+        // Also query collab for top favorite artist
         const topFavArtist = artistsToQuery[0];
-        if (topFavArtist && normalizeArtist(topFavArtist) !== normalizeArtist(primarySeedArtist) && tasks.length < 9) {
-          tasks.push(
-            this.libraryService.searchOnline(`${topFavArtist} feat`).catch(() => [] as Track[])
-          );
+        if (topFavArtist) {
+          const normTop = normalizeArtist(topFavArtist);
+          if (normTop && normTop !== normalizeArtist(primarySeedArtist)) {
+            tasks.push(
+              this.libraryService.searchOnline(`${topFavArtist} feat`).catch(() => [] as Track[])
+            );
+            if (isRussianArtist(topFavArtist)) {
+              tasks.push(
+                this.libraryService.searchOnline(`${topFavArtist} фит`).catch(() => [] as Track[])
+              );
+            }
+          }
         }
       } else if (candidates.length === 0) {
         const curatedRu = (mood === 'energetic'

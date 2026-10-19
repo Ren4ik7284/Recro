@@ -168,15 +168,12 @@ fn calc_match_score(
         return 0.0;
     }
 
-    // 1. Duration check: strict rejection if > 45s diff, bonus for close match
+    // 1. Duration check: generous tolerance with progressive penalty, bonus for close match
     let mut dur_penalty = 0.0;
     let mut dur_bonus = 0.0;
     if let (Some(ed), Some(cd)) = (exp_dur, cand_dur) {
         if ed > 20.0 && cd > 20.0 {
             let diff = (ed - cd).abs();
-            if diff > 45.0 {
-                return 0.0;
-            }
             if diff <= 2.5 {
                 dur_bonus = 25.0; // Near-identical audio cut / mastering
             } else if diff <= 6.0 {
@@ -184,7 +181,9 @@ fn calc_match_score(
             } else if diff <= 12.0 {
                 dur_bonus = 5.0;
             }
-            if diff > 15.0 {
+            if diff > 60.0 {
+                dur_penalty = (diff - 60.0) * 1.5;
+            } else if diff > 15.0 {
                 dur_penalty = (diff - 15.0) * 0.8;
             }
         }
@@ -204,14 +203,11 @@ fn calc_match_score(
         50.0
     } else if exp_words.len() == 1 {
         let target_word = exp_words[0];
-        if cand_words.contains(&target_word) {
+        let contains_target = cand_words.iter().any(|cw| *cw == target_word || cw.contains(target_word) || target_word.contains(*cw));
+        if contains_target {
             let extra_non_noise = cand_words.iter().filter(|w| **w != target_word && !is_noise_word(w) && !exp_a_words.contains(w)).count();
-            if extra_non_noise == 0 {
-                title_ratio = 1.0;
-                45.0
-            } else {
-                return 0.0;
-            }
+            title_ratio = 1.0 / (1.0 + extra_non_noise as f64 * 0.25);
+            (45.0 - extra_non_noise as f64 * 4.0).max(25.0)
         } else {
             return 0.0;
         }
@@ -223,7 +219,7 @@ fn calc_match_score(
             }
         }
         title_ratio = matched_words as f64 / exp_words.len().max(1) as f64;
-        if title_ratio < 0.45 {
+        if title_ratio < 0.40 {
             return 0.0;
         }
         title_ratio * 45.0
@@ -628,11 +624,8 @@ async fn fetch_deezer_metadata(
         let d_words: Vec<&str> = norm_d_t.split_whitespace().collect();
         if exp_words.len() == 1 {
             let target_word = exp_words[0];
-            if !d_words.contains(&target_word) {
-                continue;
-            }
-            let extra = d_words.iter().filter(|w| **w != target_word && !is_noise_word(w) && !norm_exp_a.contains(**w)).count();
-            if extra > 0 {
+            let contains_target = d_words.iter().any(|w| *w == target_word || w.contains(target_word) || target_word.contains(*w));
+            if !contains_target {
                 continue;
             }
         }
@@ -747,6 +740,306 @@ async fn fetch_netease(
     None
 }
 
+fn decode_html_entities(input: &str) -> String {
+    let s = input
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&#x27;", "'")
+        .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&");
+
+    let mut res = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '&' && chars.peek() == Some(&'#') {
+            chars.next(); // consume '#'
+            let is_hex = chars.peek() == Some(&'x') || chars.peek() == Some(&'X');
+            if is_hex {
+                chars.next();
+            }
+            let mut num_str = String::new();
+            while let Some(&nc) = chars.peek() {
+                if (is_hex && nc.is_ascii_hexdigit()) || (!is_hex && nc.is_ascii_digit()) {
+                    num_str.push(nc);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if chars.peek() == Some(&';') {
+                chars.next();
+            }
+            let parsed_char = if is_hex {
+                u32::from_str_radix(&num_str, 16).ok().and_then(char::from_u32)
+            } else {
+                num_str.parse::<u32>().ok().and_then(char::from_u32)
+            };
+            if let Some(ch) = parsed_char {
+                res.push(ch);
+            } else {
+                res.push('&');
+                res.push('#');
+                if is_hex {
+                    res.push('x');
+                }
+                res.push_str(&num_str);
+                res.push(';');
+            }
+        } else {
+            res.push(c);
+        }
+    }
+    res
+}
+
+fn extract_genius_lyrics(html_text: &str) -> Option<String> {
+    let mut containers = Vec::new();
+    let mut idx = 0;
+    while let Some(pos) = html_text[idx..].find("data-lyrics-container=\"true\"") {
+        let abs_pos = idx + pos;
+        let first_gt = match html_text[abs_pos..].find('>') {
+            Some(gt) => abs_pos + gt,
+            None => break,
+        };
+
+        // Track div depth to correctly find matching </div>
+        let mut depth = 1;
+        let mut curr = first_gt + 1;
+        while curr < html_text.len() && depth > 0 {
+            let next_lt = match html_text[curr..].find('<') {
+                Some(lt) => curr + lt,
+                None => break,
+            };
+            let tag_end = match html_text[next_lt..].find('>') {
+                Some(gt) => next_lt + gt,
+                None => break,
+            };
+            let tag_str = &html_text[next_lt..=tag_end];
+            if !tag_str.starts_with("<!--") {
+                let trimmed = tag_str.trim_start_matches('<').trim_end_matches('>').trim();
+                let is_close = trimmed.starts_with('/');
+                let tag_name = trimmed.trim_start_matches('/').split_whitespace().next().unwrap_or("").to_lowercase();
+                if tag_name == "div" {
+                    if is_close {
+                        depth -= 1;
+                    } else {
+                        depth += 1;
+                    }
+                }
+            }
+            curr = tag_end + 1;
+        }
+
+        let container_html = &html_text[first_gt + 1..curr];
+
+        // Strip data-exclude-from-selection containers
+        let mut clean_frag = String::with_capacity(container_html.len());
+        let mut sub_idx = 0;
+        while let Some(ex_pos) = container_html[sub_idx..].find("data-exclude-from-selection=\"true\"") {
+            let abs_ex = sub_idx + ex_pos;
+            let open_div = container_html[..abs_ex].rfind("<div").unwrap_or(abs_ex);
+            clean_frag.push_str(&container_html[sub_idx..open_div]);
+            let close_div = container_html[abs_ex..].find("</div>").map(|c| abs_ex + c + 6).unwrap_or(container_html.len());
+            sub_idx = close_div;
+        }
+        clean_frag.push_str(&container_html[sub_idx..]);
+
+        // Replace <br...> with \n
+        let br_replaced = clean_frag
+            .replace("<br/>", "\n")
+            .replace("<br />", "\n")
+            .replace("<br>", "\n")
+            .replace("<BR/>", "\n")
+            .replace("<BR />", "\n")
+            .replace("<BR>", "\n");
+
+        // Strip HTML tags
+        let mut text = String::with_capacity(br_replaced.len());
+        let mut in_tag = false;
+        for c in br_replaced.chars() {
+            if c == '<' {
+                in_tag = true;
+            } else if c == '>' {
+                in_tag = false;
+            } else if !in_tag {
+                text.push(c);
+            }
+        }
+
+        let decoded = decode_html_entities(&text);
+        let trimmed = decoded.trim();
+
+        let mut cleaned_text = trimmed.to_string();
+        if let Some(lyrics_idx) = cleaned_text.find("Lyrics") {
+            if lyrics_idx < 120 {
+                let rest = &cleaned_text[lyrics_idx + 6..];
+                let after_header = if rest.starts_with('[') && rest.contains(']') {
+                    let close_b = rest.find(']').unwrap_or(0);
+                    let inside = &rest[1..close_b];
+                    if inside.to_lowercase().contains("текст песни") || inside.to_lowercase().contains("lyrics") {
+                        &rest[close_b + 1..]
+                    } else {
+                        rest
+                    }
+                } else {
+                    rest
+                };
+                cleaned_text = after_header.trim().to_string();
+            }
+        }
+
+        if !cleaned_text.is_empty() {
+            containers.push(cleaned_text);
+        }
+        idx = curr;
+    }
+
+    if containers.is_empty() {
+        None
+    } else {
+        Some(containers.join("\n\n").trim().to_string())
+    }
+}
+
+async fn fetch_genius(
+    client: &reqwest::Client,
+    title: &str,
+    artist: &str,
+) -> Option<LyricsResponse> {
+    let primary_a = extract_primary_artist(artist);
+    let mut queries = Vec::new();
+    if !primary_a.is_empty() {
+        queries.push(format!("{} {}", primary_a, title));
+        queries.push(format!("{} {}", title, primary_a));
+    }
+    if !artist.is_empty() && artist != primary_a {
+        queries.push(format!("{} {}", artist, title));
+    }
+    queries.push(title.to_string());
+
+    for query in queries {
+        let search_url = format!("https://genius.com/api/search/multi?q={}", urlencoding::encode(&query));
+        let res = match client
+            .get(&search_url)
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+            .timeout(std::time::Duration::from_millis(3500))
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        if !res.status().is_success() {
+            continue;
+        }
+
+        let json = match res.json::<serde_json::Value>().await {
+            Ok(j) => j,
+            Err(_) => continue,
+        };
+
+        let sections = match json["response"]["sections"].as_array() {
+            Some(s) => s,
+            None => continue,
+        };
+
+        let mut song_candidates = Vec::new();
+        for sec in sections {
+            if let Some(hits) = sec["hits"].as_array() {
+                for hit in hits {
+                    let hit_type = hit["type"].as_str().unwrap_or("");
+                    if hit_type == "song" || hit["result"]["_type"].as_str() == Some("song") {
+                        let cand_title = hit["result"]["title"].as_str().unwrap_or("");
+                        let cand_artist = hit["result"]["artist_names"].as_str().unwrap_or("");
+                        let url = hit["result"]["url"].as_str().unwrap_or("");
+                        if !url.is_empty() {
+                            let score = calc_match_score(title, artist, None, cand_title, cand_artist, None, false);
+                            if score >= 35.0 {
+                                song_candidates.push((score, url.to_string(), cand_title.to_string(), cand_artist.to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        song_candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (_score, url, cand_title, cand_artist) in song_candidates.into_iter().take(3) {
+            let page_res = client
+                .get(&url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+                .timeout(std::time::Duration::from_millis(3500))
+                .send()
+                .await
+                .ok();
+
+            if let Some(resp) = page_res {
+                if resp.status().is_success() {
+                    let html = resp.text().await.unwrap_or_default();
+                    if let Some(lyrics) = extract_genius_lyrics(&html) {
+                        if lyrics.len() > 30 {
+                            return Some(LyricsResponse {
+                                synced: false,
+                                lyrics,
+                                source: "genius".to_string(),
+                                track_name: Some(cand_title),
+                                artist_name: Some(cand_artist),
+                                duration: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+async fn fetch_lyrics_ovh(
+    client: &reqwest::Client,
+    title: &str,
+    artist: &str,
+) -> Option<LyricsResponse> {
+    let clean_a = extract_primary_artist(artist);
+    if clean_a.is_empty() || title.is_empty() {
+        return None;
+    }
+    let url = format!(
+        "https://api.lyrics.ovh/v1/{}/{}",
+        urlencoding::encode(&clean_a),
+        urlencoding::encode(title)
+    );
+    let res = client
+        .get(&url)
+        .header("User-Agent", "Mozilla/5.0")
+        .timeout(std::time::Duration::from_millis(3000))
+        .send()
+        .await
+        .ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    let json: serde_json::Value = res.json().await.ok()?;
+    let text = json["lyrics"].as_str()?.trim();
+    if text.len() > 30 {
+        return Some(LyricsResponse {
+            synced: false,
+            lyrics: text.to_string(),
+            source: "lyrics_ovh".to_string(),
+            track_name: Some(title.to_string()),
+            artist_name: Some(clean_a),
+            duration: None,
+        });
+    }
+    None
+}
+
 pub async fn get_lyrics(
     State(state): State<AppState>,
     Query(params): Query<LyricsQuery>,
@@ -810,6 +1103,22 @@ pub async fn get_lyrics(
 
     // 3. Try Kugou
     if let Some(resp) = fetch_kugou(&client, &clean_t, &clean_a, target_duration).await {
+        if let Ok(mut cache) = state.lyrics_cache.lock() {
+            cache.insert(cache_key, (resp.clone(), Instant::now()));
+        }
+        return Ok(Json(resp));
+    }
+
+    // 4. Try Genius (Massive database: Russian rap/indie, Onda Andar, underground, world hits)
+    if let Some(resp) = fetch_genius(&client, &clean_t, &clean_a).await {
+        if let Ok(mut cache) = state.lyrics_cache.lock() {
+            cache.insert(cache_key, (resp.clone(), Instant::now()));
+        }
+        return Ok(Json(resp));
+    }
+
+    // 5. Try Lyrics.ovh (Plain text fallback)
+    if let Some(resp) = fetch_lyrics_ovh(&client, &clean_t, &clean_a).await {
         if let Ok(mut cache) = state.lyrics_cache.lock() {
             cache.insert(cache_key, (resp.clone(), Instant::now()));
         }

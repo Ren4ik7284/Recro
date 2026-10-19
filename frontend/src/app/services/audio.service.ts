@@ -2019,30 +2019,38 @@ export class AudioService {
     let discoveryTracks = this.recService.getBufferedDiscoveries(effectiveLang, 5)
       .filter((t) => !this.recService.isLibraryTrack(t));
 
-    // 2. If buffer is empty, IMMEDIATELY grab fresh taste-matched starters from memory in 0ms!
-    // ZERO BLOCKING NETWORK DELAY! Play instantly on click!
+    // 2. If buffer is empty, check if user has tracks in library.
+    // If user has local tracks/favorites, NEVER inject generic static starters!
     if (discoveryTracks.length === 0) {
-      const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
-        .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
-      if (starters.length > 0) {
-        discoveryTracks = starters.slice(0, 4);
+      const candidates = this.recService.getAllLocalCandidates();
+      if (candidates.length > 0) {
+        // Fetch genuine online discoveries tailored to user's favorites & top artists
+        const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), null);
+        discoveryTracks = fetched.filter((t) => !this.recService.isLibraryTrack(t));
+      } else {
+        // Only if user has zero tracks in their library, fall back to initial starters
+        const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
+          .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
+        if (starters.length > 0) {
+          discoveryTracks = starters.slice(0, 4);
+        }
       }
     }
 
-    // 3. START PLAYBACK IMMEDIATELY without waiting for remote network roundtrips!
+    // 3. START PLAYBACK with taste-matched discovery tracks
     if (discoveryTracks.length > 0) {
       const immediateTrack = discoveryTracks[0];
       const initialQueue = discoveryTracks;
       this.playTrack(immediateTrack, initialQueue, true, 0);
       this.preloadNextTrack();
 
-      // Concurrently fetch and extend the queue with fresh online discoveries in the background
+      // Concurrently replenish queue with fresh online discoveries in background
       this.ensureSmartQueue().catch(() => {});
       return true;
     }
 
-    // 4. Absolute fallback only if memory starter pool was empty
-    const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), curTrack);
+    // 4. Absolute fallback only if buffer and initial fetch had network delay
+    const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), null);
     const pureFetched = fetched.filter((t) => !this.recService.isLibraryTrack(t));
     if (pureFetched.length > 0) {
       this.playTrack(pureFetched[0], pureFetched, true, 0);
