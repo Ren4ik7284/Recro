@@ -4392,8 +4392,8 @@ app-header-bar {
     .sheet-lyrics-card {
       margin-top: 18px;
       margin-bottom: 16px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       border-radius: 16px;
       padding: 16px 18px;
       cursor: pointer;
@@ -4401,8 +4401,8 @@ app-header-bar {
       transition: background 0.15s ease, border-color 0.15s ease;
 
       &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.24);
       }
 
       .sheet-lyrics-card-header {
@@ -4415,11 +4415,11 @@ app-header-bar {
           font-size: 11px;
           font-weight: 700;
           letter-spacing: 1px;
-          color: rgba(255, 255, 255, 0.85);
+          color: rgba(255, 255, 255, 0.9);
         }
 
         .sheet-lyrics-expand-btn {
-          background: rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.15);
           border: none;
           color: #fff;
           font-size: 10px;
@@ -4440,26 +4440,27 @@ app-header-bar {
 
         .sheet-lyrics-loading {
           font-size: 13px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.65);
           margin: 4px 0;
         }
 
         .sheet-lyrics-line {
           font-size: 18px;
-          font-weight: 700;
+          font-weight: 600;
           line-height: 1.35;
           margin: 0;
-          color: rgba(255, 255, 255, 0.35);
+          color: rgba(255, 255, 255, 0.65);
           transition: all 0.2s ease;
 
           &.active {
             color: #ffffff;
             font-size: 20px;
-            text-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+            font-weight: 700;
+            text-shadow: 0 0 14px rgba(255, 255, 255, 0.5);
           }
 
           &.past {
-            color: rgba(255, 255, 255, 0.25);
+            color: rgba(255, 255, 255, 0.48);
           }
         }
       }
@@ -7802,8 +7803,8 @@ app-header-bar {
   gap: 16px;
 
   @media (max-width: 640px) {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 }
 
@@ -8091,6 +8092,12 @@ app-header-bar {
       letter-spacing: 0.06em;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 
+      @media (max-width: 640px) {
+        grid-template-columns: 28px 1fr 46px 36px;
+        padding: 8px 6px;
+        gap: 6px;
+      }
+
       .th-dur {
         text-align: right;
       }
@@ -8111,6 +8118,20 @@ app-header-bar {
       border-radius: 6px;
       cursor: pointer;
       transition: background 0.12s ease;
+
+      @media (max-width: 640px) {
+        grid-template-columns: 28px 1fr 46px 36px;
+        padding: 6px 6px;
+        gap: 6px;
+
+        .cell-dur {
+          font-size: 11px;
+        }
+
+        .cell-actions .btn-chart-add-lib {
+          opacity: 0.85;
+        }
+      }
 
       &:hover {
         background: rgba(255, 255, 255, 0.05);
@@ -8403,8 +8424,9 @@ app-header-bar {
     }
 
     @media (max-width: 768px) {
-      grid-auto-columns: minmax(280px, 86vw);
+      grid-auto-columns: minmax(260px, calc(100vw - 32px));
       grid-template-rows: repeat(5, 48px);
+      gap: 4px 12px;
     }
 
     .home-track-row {
@@ -8419,6 +8441,31 @@ app-header-bar {
       cursor: pointer;
       background: transparent;
       transition: background 0.12s ease;
+
+      @media (max-width: 768px) {
+        height: 48px;
+        padding: 4px 8px;
+        gap: 8px;
+
+        .home-track-actions {
+          display: none;
+        }
+
+        .home-track-rank {
+          width: 16px;
+          font-size: 12px;
+        }
+
+        .home-track-cover-wrap {
+          width: 36px;
+          height: 36px;
+        }
+
+        .home-track-duration {
+          width: 36px;
+          font-size: 11px;
+        }
+      }
 
       &:hover {
         background: rgba(255, 255, 255, 0.05);
@@ -8561,8 +8608,13 @@ app-header-bar {
     gap: 16px;
 
     @media (max-width: 640px) {
-      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    @media (max-width: 380px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
     }
 
     .artist-card {
@@ -8677,8 +8729,8 @@ app-header-bar {
     gap: 16px;
 
     @media (max-width: 640px) {
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
     }
 
     .album-card {
