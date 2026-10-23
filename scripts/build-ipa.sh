@@ -103,7 +103,7 @@ static BOOL didFinishLaunching(id self, SEL _cmd, id application, id launchOptio
 
     Class NSURL = objc_getClass("NSURL");
     Class NSString = objc_getClass("NSString");
-    id urlStr = ((id (*)(id, SEL, const char *))objc_msgSend)(NSString, sel_registerName("stringWithUTF8String:"), "https://recro.onrender.com/");
+    id urlStr = ((id (*)(id, SEL, const char *))objc_msgSend)(NSString, sel_registerName("stringWithUTF8String:"), "https://recro-player.vercel.app/");
     id url = ((id (*)(id, SEL, id))objc_msgSend)(NSURL, sel_registerName("URLWithString:"), urlStr);
 
     Class NSURLRequest = objc_getClass("NSURLRequest");
@@ -141,10 +141,10 @@ int main(int argc, char *argv[]) {
 }
 EOF
 
-# 4. Compile Mach-O 64-bit ARM64 iOS Binary
+# 4. Compile Mach-O 64-bit ARM64 iOS Binary with Ad-Hoc Signature
 echo "🔨 Compiling native ARM64 iOS executable..."
 "$CLANG" -target arm64-apple-ios14.0 -O2 -c "$BUILD_DIR/src/main.c" -o "$BUILD_DIR/src/main.o"
-"$LD64" -arch arm64 -platform_version ios 14.0 14.0 -o "$BUILD_DIR/Payload/Recro.app/Recro" "$BUILD_DIR/src/main.o" -undefined dynamic_lookup
+"$LD64" -arch arm64 -platform_version ios 14.0 14.0 -adhoc_codesign -o "$BUILD_DIR/Payload/Recro.app/Recro" "$BUILD_DIR/src/main.o" -undefined dynamic_lookup
 chmod +x "$BUILD_DIR/Payload/Recro.app/Recro"
 
 # 5. Write Info.plist

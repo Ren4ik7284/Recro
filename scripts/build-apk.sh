@@ -647,7 +647,8 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 public class MainActivity extends Activity {
-    private static final String APP_URL = "https://recro.onrender.com";
+    private static final String APP_URL = "https://recro-player.vercel.app";
+    private static final String FALLBACK_URL = "https://recro.80.87.202.157.sslip.io";
     private static final int FILECHOOSER_RESULTCODE = 1;
 
     private static MainActivity sInstance;
@@ -801,7 +802,11 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 if (url == null) return false;
-                if (url.startsWith("https://recro.onrender.com") ||
+                if (url.startsWith("https://recro-player.vercel.app") ||
+                    url.startsWith("https://recro.80.87.202.157.sslip.io") ||
+                    url.startsWith("https://recro.177.3.217.64.sslip.io") ||
+                    url.startsWith("http://80.87.202.157") ||
+                    url.startsWith("http://177.3.217.64") ||
                     url.startsWith("https://accounts.google.com") ||
                     url.startsWith("http://localhost") ||
                     url.startsWith("blob:") ||
@@ -814,6 +819,15 @@ public class MainActivity extends Activity {
                     return true;
                 } catch (Exception e) {
                     return false;
+                }
+            }
+
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                super.onReceivedError(view, errorCode, description, failingUrl);
+                if (failingUrl != null && failingUrl.startsWith(APP_URL)) {
+                    Log.w("RecroApp", "Failed to load primary URL, attempting fallback: " + FALLBACK_URL);
+                    view.loadUrl(FALLBACK_URL);
                 }
             }
         });

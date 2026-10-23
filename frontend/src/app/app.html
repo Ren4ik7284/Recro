@@ -2782,69 +2782,61 @@
               </div>
               <div style="flex: 1; min-width: 0;">
                 <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">{{ i18n.currentLang() === 'ru' ? 'Recro для iPhone & iPad' : 'Recro for iPhone & iPad' }}</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ i18n.currentLang() === 'ru' ? 'Установка по сертификату (.IPA) или в 1 клик (PWA)' : 'Install via certificate (.IPA) or 1-click (PWA)' }}</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ i18n.currentLang() === 'ru' ? 'Установка на экран «Домой» за 10 секунд' : 'Install to Home Screen in 10 seconds' }}</div>
               </div>
             </div>
 
-            <!-- IPA Download button for users with certificates -->
-            <a href="/recro.ipa" download="recro.ipa" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 12px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка Recro IPA началась' : 'Recro IPA download started')">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              <span>{{ i18n.currentLang() === 'ru' ? 'Скачать Recro IPA (для сертификата)' : 'Download Recro IPA (for certificate)' }}</span>
-            </a>
-
-            <!-- Certificate Guide -->
-            <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(59, 130, 246, 0.28); border-radius: 10px; padding: 12px; margin-bottom: 14px; text-align: left;">
-              <div style="font-size: 12px; font-weight: 700; color: #60a5fa; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-                <span>{{ i18n.currentLang() === 'ru' ? 'Установка через сертификат (ESign, Scarlet, AltStore)' : 'Install via certificate (ESign, Scarlet, AltStore)' }}</span>
+            <!-- Primary Recommended: Safari PWA -->
+            <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 14px; margin-bottom: 14px; text-align: left;">
+              <div style="font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: #2563eb; color: #fff; font-size: 11px;">✓</span>
+                <span>{{ i18n.currentLang() === 'ru' ? 'Основной способ (Без сертификатов и ПК):' : 'Main Method (No certificates or PC needed):' }}</span>
               </div>
-              <div class="pwa-step-item" style="margin-bottom: 5px;">
+              <div class="pwa-step-item" style="margin-bottom: 8px;">
                 <div class="pwa-step-num font-mono">1</div>
                 <div class="pwa-step-text">
-                  {{ i18n.currentLang() === 'ru' ? 'Нажмите «Скачать Recro IPA» выше и сохраните файл в «Файлы».' : 'Tap "Download Recro IPA" above and save to "Files".' }}
+                  {{ i18n.currentLang() === 'ru' ? 'В Safari внизу экрана нажмите кнопку «Поделиться» (квадрат со стрелкой вверх).' : 'In Safari, tap the Share button (square with arrow up) at bottom.' }}
                 </div>
               </div>
-              <div class="pwa-step-item" style="margin-bottom: 5px;">
+              <div class="pwa-step-item" style="margin-bottom: 8px;">
                 <div class="pwa-step-num font-mono">2</div>
                 <div class="pwa-step-text">
-                  {{ i18n.currentLang() === 'ru' ? 'Откройте ESign, Scarlet, Gbox, SideStore или AltStore.' : 'Open ESign, Scarlet, Gbox, SideStore, or AltStore.' }}
+                  {{ i18n.currentLang() === 'ru' ? 'Пролистайте меню вниз и выберите «На экран "Домой"».' : 'Scroll down the menu and tap "Add to Home Screen".' }}
                 </div>
               </div>
-              <div class="pwa-step-item" style="margin-bottom: 5px;">
+              <div class="pwa-step-item" style="margin-bottom: 8px;">
                 <div class="pwa-step-num font-mono">3</div>
                 <div class="pwa-step-text">
-                  {{ i18n.currentLang() === 'ru' ? 'Импортируйте recro.ipa, подпишите вашим сертификатом и нажмите «Установить».' : 'Import recro.ipa, sign with your certificate and tap "Install".' }}
+                  {{ i18n.currentLang() === 'ru' ? 'В правом верхнем углу нажмите «Добавить» — иконка появится на рабочем столе.' : 'Tap "Add" in the top right corner — Recro will appear on your home screen.' }}
                 </div>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06);">
+                {{ i18n.currentLang() === 'ru' ? '💡 Открывается в полный экран без рамок браузера, с фоновым звуком и экраном блокировки.' : '💡 Opens in fullscreen mode without browser bars, supports background audio & lock screen.' }}
               </div>
             </div>
 
-            <!-- Alternative PWA without certificate -->
-            <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px;">
-              <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
-                {{ i18n.currentLang() === 'ru' ? 'Или установить без сертификата через Safari (PWA):' : 'Or install via Safari (PWA):' }}
-              </div>
-              <div class="pwa-step-item">
-                <div class="pwa-step-num font-mono">1</div>
-                <div class="pwa-step-text">
-                  {{ i18n.currentLang() === 'ru' ? 'В Safari нажмите кнопку «Поделиться» (квадрат со стрелкой внизу).' : 'In Safari, tap the Share button (square with arrow).' }}
+            <!-- Alternative: For Sideloaders / IPA Certificates -->
+            <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px; margin-top: 6px;">
+              <details style="text-align: left; cursor: pointer;">
+                <summary style="font-size: 12px; font-weight: 600; color: var(--text-secondary); padding: 4px 0; outline: none;">
+                  {{ i18n.currentLang() === 'ru' ? '⚙️ Для продвинутых: Установка через .IPA файл' : '⚙️ Advanced: Install via .IPA file' }}
+                </summary>
+                
+                <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 8px; padding: 10px; margin: 10px 0 12px; font-size: 11px; color: #fbbf24; line-height: 1.4;">
+                  {{ i18n.currentLang() === 'ru' ? '⚠️ Внимание: iOS не позволяет открыть .ipa напрямую в «Файлах». Этот файл предназначен исключительно для подписи через личный сертификат разработчика в ESign, Scarlet, SideStore, AltStore или TrollStore.' : '⚠️ Warning: iOS cannot open .ipa files directly in "Files". This package requires signing via your developer certificate in ESign, Scarlet, SideStore, AltStore, or TrollStore.' }}
                 </div>
-              </div>
-              <div class="pwa-step-item">
-                <div class="pwa-step-num font-mono">2</div>
-                <div class="pwa-step-text">
-                  {{ i18n.currentLang() === 'ru' ? 'Пролистайте вниз и выберите «На экран "Домой"».' : 'Scroll down and tap "Add to Home Screen".' }}
+
+                <a href="/recro.ipa" download="recro.ipa" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 600; padding: 11px 14px; margin-bottom: 10px; background: rgba(255,255,255,0.08); border: 1px solid var(--border-subtle); color: #ffffff; border-radius: 8px; font-size: 13px;" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка Recro IPA началась' : 'Recro IPA download started')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>{{ i18n.currentLang() === 'ru' ? 'Скачать recro.ipa' : 'Download recro.ipa' }}</span>
+                </a>
+
+                <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                  {{ i18n.currentLang() === 'ru' ? 'После загрузки импортируйте recro.ipa в ESign/Scarlet/AltStore, подпишите вашим профилем и нажмите «Установить».' : 'After downloading, import recro.ipa into ESign/Scarlet/AltStore, sign with your profile and tap Install.' }}
                 </div>
-              </div>
-              <div class="pwa-step-item">
-                <div class="pwa-step-num font-mono">3</div>
-                <div class="pwa-step-text">
-                  {{ i18n.currentLang() === 'ru' ? 'Вверху справа нажмите «Добавить» — значок появится на рабочем столе.' : 'Tap "Add" in top right — icon will appear on your home screen.' }}
-                </div>
-              </div>
+              </details>
             </div>
           } @else {
             <a href="/recro.apk" download="recro.apk" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 14px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка Recro APK началась' : 'Recro APK download started')">
