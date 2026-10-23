@@ -1974,12 +1974,7 @@ export class AudioService {
   formatStreamUrl(track: Track): string {
     let playUrl = (track.audioUrl || '').trim();
     if (!playUrl || playUrl.startsWith('blob:')) return playUrl;
-    let activeBase = this.libraryService.getBackendUrl();
-
-    // Vercel edge/proxy cannot reliably stream chunked audio to Russia; route directly to high-speed cluster
-    if (activeBase.includes('vercel.app')) {
-      activeBase = 'https://recro.80.87.202.157.sslip.io';
-    }
+    let activeBase = this.libraryService.getDirectStreamNode();
 
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     if (isHttps) {

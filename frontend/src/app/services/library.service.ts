@@ -580,6 +580,22 @@ export class LibraryService implements OnDestroy {
     return `${activeBase}/api/cover?title=${encodeURIComponent(title || 'Track')}&artist=${encodeURIComponent(artist || 'Artist')}`;
   }
 
+  getDirectStreamNode(): string {
+    const cur = this.activeBackendUrl;
+    if (cur && !cur.includes('vercel.app') && cur.startsWith('http')) {
+      return cur;
+    }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('recro_fastest_backend');
+        if (saved && !saved.includes('vercel.app') && saved.startsWith('http')) {
+          return saved;
+        }
+      } catch {}
+    }
+    return CLUSTER_BACKENDS[0] || 'https://recro.177.3.217.64.sslip.io';
+  }
+
   private activeHealthCheckPromise: Promise<string> | null = null;
 
   checkBackendHealth(): Promise<string> {
@@ -598,7 +614,7 @@ export class LibraryService implements OnDestroy {
             const total = uniqueUrls.length;
 
             for (const testUrl of uniqueUrls) {
-              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(1800) })
+              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(4000) })
                 .then((res) => {
                   if (res.ok && !finished) {
                     finished = true;
@@ -620,6 +636,9 @@ export class LibraryService implements OnDestroy {
           });
 
           this.activeBackendUrl = winner;
+          try {
+            localStorage.setItem('recro_fastest_backend', winner);
+          } catch {}
           this.isBackendOnline.set(true);
           this.authService.setActiveBackendUrl(this.activeBackendUrl);
           this.authService.verifyRemoteSession(this.activeBackendUrl);
@@ -640,6 +659,38 @@ export class LibraryService implements OnDestroy {
     return this.activeHealthCheckPromise;
   }
 
+  async fetchWithClusterFailover(path: string, init?: RequestInit, timeoutMs = 3500): Promise<Response> {
+    const cluster = getClusterCandidates();
+    const current = this.getBackendUrl();
+    const ordered = [current, ...cluster.filter((c) => c !== current)];
+
+    let lastError: any = null;
+    for (const baseUrl of ordered) {
+      try {
+        const url = path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        const res = await fetch(url, { ...init, signal: controller.signal });
+        clearTimeout(timer);
+
+        if (res.ok) {
+          if (this.activeBackendUrl !== baseUrl) {
+            this.activeBackendUrl = baseUrl;
+            try {
+              localStorage.setItem('recro_fastest_backend', baseUrl);
+            } catch {}
+            this.authService.setActiveBackendUrl(baseUrl);
+          }
+          return res;
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error(`All cluster nodes failed for ${path}`);
+  }
+
   async failoverBackend(): Promise<string> {
     const current = this.getBackendUrl();
     const cluster = getClusterCandidates();
@@ -648,6 +699,9 @@ export class LibraryService implements OnDestroy {
     const alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
     console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt}`);
     this.activeBackendUrl = alt;
+    try {
+      localStorage.setItem('recro_fastest_backend', alt);
+    } catch {}
     this.authService.setActiveBackendUrl(alt);
     this.authService.verifyRemoteSession(alt);
     this.connectRealtimeSync();
@@ -665,12 +719,12 @@ export class LibraryService implements OnDestroy {
     try {
       let res: Response;
       try {
-        res = await fetch(`${this.getBackendUrl()}/api/search?q=${encodeURIComponent(q)}`);
+        res = await this.fetchWithClusterFailover(`/api/search?q=${encodeURIComponent(q)}`, undefined, 4500);
         if (!res.ok) throw new Error(`Search HTTP ${res.status}`);
-      } catch {
-        const alt = await this.failoverBackend();
-        res = await fetch(`${alt}/api/search?q=${encodeURIComponent(q)}`);
-        if (!res.ok) throw new Error('Search failed after failover');
+      } catch (err) {
+        console.warn('Search failed across cluster:', err);
+        this.onlineSearchResults.set([]);
+        return [];
       }
 
       const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
@@ -715,7 +769,7 @@ export class LibraryService implements OnDestroy {
       if (g) queryParams.set('genre', g);
       queryParams.set('limit', limit.toString());
 
-      const res = await fetch(`${this.getBackendUrl()}/api/recommendations?${queryParams.toString()}`);
+      const res = await this.fetchWithClusterFailover(`/api/recommendations?${queryParams.toString()}`, undefined, 3500);
       if (!res.ok) return [];
 
       const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
@@ -749,7 +803,7 @@ export class LibraryService implements OnDestroy {
       if (genre) queryParams.set('genre', genre);
       queryParams.set('limit', limit.toString());
 
-      const res = await fetch(`${this.getBackendUrl()}/api/recommendations?${queryParams.toString()}`);
+      const res = await this.fetchWithClusterFailover(`/api/recommendations?${queryParams.toString()}`, undefined, 3500);
       if (!res.ok) return [];
 
       const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
@@ -787,7 +841,7 @@ export class LibraryService implements OnDestroy {
       if (a) queryParams.set('artist', a);
       queryParams.set('limit', limit.toString());
 
-      const res = await fetch(`${this.getBackendUrl()}/api/similar-tracks?${queryParams.toString()}`);
+      const res = await this.fetchWithClusterFailover(`/api/similar-tracks?${queryParams.toString()}`, undefined, 3500);
       if (!res.ok) return [];
 
       const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
@@ -2235,10 +2289,8 @@ export class LibraryService implements OnDestroy {
 
   async getTopArtists(force = false): Promise<ChartArtist[]> {
     try {
-      const url = force
-        ? `${this.getBackendUrl()}/api/top-artists?force=true`
-        : `${this.getBackendUrl()}/api/top-artists`;
-      const res = await fetch(url);
+      const path = force ? '/api/top-artists?force=true' : '/api/top-artists';
+      const res = await this.fetchWithClusterFailover(path, undefined, 4000);
       if (!res.ok) return [];
       return await res.json();
     } catch {
@@ -2259,9 +2311,12 @@ export class LibraryService implements OnDestroy {
 
   async getHomeExplore(): Promise<HomeExploreData | null> {
     try {
-      const res = await fetch(`${this.getBackendUrl()}/api/home`);
+      const res = await this.fetchWithClusterFailover('/api/home', undefined, 4000);
       if (!res.ok) return null;
       const data = await res.json();
+      try {
+        localStorage.setItem(this.STORAGE_KEY_HOME_CACHE, JSON.stringify(data));
+      } catch {}
       const popular_tracks: Track[] = (data.popular_tracks || []).map((item: any) => ({
         id: item.id,
         title: item.title,
@@ -2300,7 +2355,7 @@ export class LibraryService implements OnDestroy {
 
   async getCharts(): Promise<ChartSummary[]> {
     try {
-      const res = await fetch(`${this.getBackendUrl()}/api/charts`);
+      const res = await this.fetchWithClusterFailover('/api/charts', undefined, 4000);
       if (!res.ok) return [];
       return await res.json();
     } catch {

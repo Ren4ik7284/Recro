@@ -647,8 +647,13 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 public class MainActivity extends Activity {
-    private static final String APP_URL = "https://recro-player.vercel.app";
-    private static final String FALLBACK_URL = "https://recro.80.87.202.157.sslip.io";
+    private static final String[] CANDIDATE_URLS = new String[]{
+        "https://recro-player.vercel.app",
+        "https://recro.177.3.217.64.sslip.io",
+        "https://recro.80.87.202.157.sslip.io",
+        "http://80.87.202.157"
+    };
+    private int currentUrlIndex = 0;
     private static final int FILECHOOSER_RESULTCODE = 1;
 
     private static MainActivity sInstance;
@@ -718,10 +723,10 @@ public class MainActivity extends Activity {
         setContentView(container);
 
         if (savedInstanceState == null) {
-            webView.loadUrl(APP_URL);
+            webView.loadUrl(CANDIDATE_URLS[0]);
         } else {
             if (webView.restoreState(savedInstanceState) == null) {
-                webView.loadUrl(APP_URL);
+                webView.loadUrl(CANDIDATE_URLS[0]);
             }
         }
     }
@@ -799,12 +804,15 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new NativeMediaBridge(), "AndroidMediaBridge");
 
         webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            private boolean shouldOverrideUrl(WebView view, String url) {
                 if (url == null) return false;
-                if (url.startsWith("https://recro-player.vercel.app") ||
-                    url.startsWith("https://recro.80.87.202.157.sslip.io") ||
+                for (String candidate : CANDIDATE_URLS) {
+                    if (url.startsWith(candidate)) return false;
+                }
+                if (url.startsWith("https://recro.80.87.202.157.sslip.io") ||
                     url.startsWith("https://recro.177.3.217.64.sslip.io") ||
+                    url.startsWith("https://80-87-202-157.sslip.io") ||
+                    url.startsWith("https://177-3-217-64.sslip.io") ||
                     url.startsWith("http://80.87.202.157") ||
                     url.startsWith("http://177.3.217.64") ||
                     url.startsWith("https://accounts.google.com") ||
@@ -823,11 +831,42 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return shouldOverrideUrl(view, url);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                if (request == null || request.getUrl() == null) return false;
+                return shouldOverrideUrl(view, request.getUrl().toString());
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, android.webkit.SslErrorHandler handler, android.net.http.SslError error) {
+                handler.proceed();
+            }
+
+            private void tryNextFallback(WebView view, String failingUrl) {
+                if (currentUrlIndex + 1 < CANDIDATE_URLS.length) {
+                    currentUrlIndex++;
+                    String nextUrl = CANDIDATE_URLS[currentUrlIndex];
+                    Log.w("RecroApp", "Loading fallback URL (" + currentUrlIndex + "): " + nextUrl + " (failed: " + failingUrl + ")");
+                    view.loadUrl(nextUrl);
+                }
+            }
+
+            @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                 super.onReceivedError(view, errorCode, description, failingUrl);
-                if (failingUrl != null && failingUrl.startsWith(APP_URL)) {
-                    Log.w("RecroApp", "Failed to load primary URL, attempting fallback: " + FALLBACK_URL);
-                    view.loadUrl(FALLBACK_URL);
+                tryNextFallback(view, failingUrl);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, android.webkit.WebResourceRequest request, android.webkit.WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request != null && request.isForMainFrame()) {
+                    String failingUrl = request.getUrl() != null ? request.getUrl().toString() : "";
+                    tryNextFallback(view, failingUrl);
                 }
             }
         });

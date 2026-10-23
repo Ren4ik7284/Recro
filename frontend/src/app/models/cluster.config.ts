@@ -1,7 +1,8 @@
 export const CLUSTER_BACKENDS = [
-  'https://recro.80.87.202.157.sslip.io', // Moscow VPS (Direct, ultra-fast in RU without VPN)
   'https://recro.177.3.217.64.sslip.io',  // Frankfurt VPS (Direct, ultra-fast in Europe / with VPN)
+  'https://recro.80.87.202.157.sslip.io', // Moscow VPS (Direct, ultra-fast in RU without VPN)
   'https://80-87-202-157.sslip.io',       // Moscow VPS alternate domain
+  'https://177-3-217-64.sslip.io',       // Frankfurt VPS alternate domain
 ];
 
 export function resolveDefaultBackend(): string {
@@ -17,7 +18,20 @@ export function resolveDefaultBackend(): string {
   if (host === '177.3.217.64' || host.includes('177.3.217.64')) {
     return window.location.origin;
   }
-  // On Vercel or other frontend host: default to Moscow VPS for ultra-fast unmetered streaming
+
+  // Check if we already cached the fastest proven node from a previous race
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('recro_fastest_backend');
+      if (saved && saved.startsWith('http')) return saved;
+    } catch {}
+  }
+
+  // If on Vercel: use Vercel origin (has CDN proxy to backend) or Frankfurt (fast everywhere)
+  if (host.includes('vercel.app')) {
+    return window.location.origin;
+  }
+
   return CLUSTER_BACKENDS[0];
 }
 
@@ -31,10 +45,18 @@ export function getClusterCandidates(): string[] {
     candidates.push(window.location.origin);
   }
 
-  // Direct VPS nodes first (handles heavy audio streams & partial content)
+  // If we already have a winning node, test it first
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('recro_fastest_backend');
+      if (saved && saved.startsWith('http')) candidates.push(saved);
+    } catch {}
+  }
+
+  // Direct VPS nodes (handles heavy audio streams & unmetered bandwidth)
   candidates.push(...CLUSTER_BACKENDS);
 
-  // Vercel / current origin as emergency fallback for API routes
+  // Vercel / current origin as fast fallback for API routes
   if (window.location.origin && window.location.protocol.startsWith('http')) {
     candidates.push(window.location.origin);
   }
