@@ -86,8 +86,10 @@ export class LyricsService {
     return raw;
   }
 
+  // Natural anticipation lead (~95ms): highlights line right on vocal consonant attack/phoneme onset
+  // eliminates feeling of lag behind the singer's vocal delivery
   getTempoLeadSec(): number {
-    return 0;
+    return 0.095;
   }
 
 
@@ -265,6 +267,25 @@ export class LyricsService {
         const next = this.audioService.preloadedNextTrack();
         if (next && next.id) {
           this.prefetchNextTrackLyrics(next);
+        }
+      });
+
+      // 4. Автоматическая калибровка смещения интро при получении точной длительности аудио
+      effect(() => {
+        const audioDur = this.audioService.duration();
+        const lyrics = this.currentLyrics();
+        const cur = this.audioService.currentTrack();
+        if (cur && lyrics && lyrics.isSynced && audioDur > 20 && (lyrics.duration || 0) > 20) {
+          let hasExplicit = false;
+          try {
+            hasExplicit = localStorage.getItem(`signal_lyrics_offset_${cur.id}`) !== null;
+          } catch {}
+          if (!hasExplicit && this.syncOffsetMs() === 0) {
+            const diffSec = audioDur - lyrics.duration!;
+            if (Math.abs(diffSec) >= 0.4 && Math.abs(diffSec) <= 8.0) {
+              this.syncOffsetMs.set(Math.round(-diffSec * 1000));
+            }
+          }
         }
       });
 
@@ -486,6 +507,22 @@ export class LyricsService {
     if (this.autoScrollLockTimeout) clearTimeout(this.autoScrollLockTimeout);
   }
 
+  public applyAutoOffsetIfApplicable(track: Track, parsed: ParsedLyrics, hasExplicitOffset: boolean): void {
+    if (hasExplicitOffset || !parsed.isSynced || parsed.lines.length === 0) return;
+    const audioDur = (typeof this.audioService?.duration === 'function' ? this.audioService.duration() : 0) || track.duration || 0;
+    const lrcDur = parsed.duration || 0;
+    if (audioDur > 20 && lrcDur > 20) {
+      const diffSec = audioDur - lrcDur;
+      // If duration difference is within range of YouTube intro/outro padding (-8s to +8s)
+      if (Math.abs(diffSec) >= 0.4 && Math.abs(diffSec) <= 8.0) {
+        // diffSec > 0: stream is longer than studio cut (video intro before song begins).
+        // Delay lyrics appearance by diffSec so words don't run ahead of the music.
+        const autoOffsetMs = Math.round(-diffSec * 1000);
+        this.syncOffsetMs.set(autoOffsetMs);
+      }
+    }
+  }
+
   /**
    * Полностью автоматическая калибровка синхронизации текста без участия пользователя.
    * Анализирует разницу длительности между аудио-потоком и оригинальной студийной версией текста.
@@ -627,6 +664,7 @@ export class LyricsService {
               this.setCachedLyrics(targetTrackId, parsed);
               this.currentLyrics.set(parsed);
               this.isLoading.set(false);
+              this.applyAutoOffsetIfApplicable(track, parsed, hasExplicitOffset);
 
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
@@ -664,6 +702,7 @@ export class LyricsService {
         this.setCachedLyrics(targetTrackId, lyricsData);
         this.currentLyrics.set(lyricsData);
         this.isLoading.set(false);
+        this.applyAutoOffsetIfApplicable(track, lyricsData, hasExplicitOffset);
         if (lyricsData.raw) {
           this.persistLyricsToCloud(track, lyricsData.raw);
         }
@@ -963,6 +1002,83 @@ export class LyricsService {
       .trim();
   }
 
+  public getArtistAliases(artist: string): string[] {
+    const norm = this.normalizeForComparison(artist);
+    const aliases: string[] = [];
+    const pairs: [string, string][] = [
+      ['эндшпиль', 'endspiel'],
+      ['эндшпиль', 'andy panda'],
+      ['скриптонит', 'scriptonite'],
+      ['баста', 'basta'],
+      ['кино', 'kino'],
+      ['оксимирон', 'oxxxymiron'],
+      ['макс корж', 'max korzh'],
+      ['моргенштерн', 'morgenshtern'],
+      ['лсп', 'lsp'],
+      ['хаски', 'husky'],
+      ['би 2', 'bi 2'],
+      ['би-2', 'bi-2'],
+      ['король и шут', 'korol i shut'],
+      ['земфира', 'zemfira'],
+      ['миджи', 'miyagi'],
+      ['мияги', 'miyagi'],
+      ['капсайз', 'cupsize'],
+      ['мадкид', 'madk1d'],
+      ['лилкидд', 'lil kidd'],
+      ['лилкид', 'lil kid'],
+      ['лил кидд', 'lil kidd'],
+      ['лил кид', 'lil kid'],
+      ['бугши', 'boogshi'],
+      ['сквор', 'sqwore'],
+      ['айвикрафт', 'ivycraft'],
+      ['унки', 'unki'],
+      ['виллиан', 'villian'],
+      ['травма', 'travma'],
+      ['майот', 'mayot'],
+      ['сода лав', 'soda luv'],
+      ['платина', 'platina'],
+      ['оджи буда', 'og buda'],
+      ['буда', 'og buda'],
+      ['бульвар депо', 'boulevard depo'],
+      ['маркул', 'markul'],
+      ['салуки', 'saluki'],
+      ['джизус', 'jizus'],
+      ['дора', 'dora'],
+      ['инстасамка', 'instasamka'],
+      ['три дня дождя', 'tri dnya dozhdya'],
+      ['три дня дождя', 'three days of rain'],
+      ['полматери', 'polmateri'],
+      ['дайте танк', 'dayte tank'],
+      ['дайте танк', 'daite tank'],
+      ['пошлая молли', 'poshlaya molly'],
+      ['кишлак', 'kishlak'],
+      ['алена швец', 'alyona shvets'],
+      ['алёна швец', 'alyona shvets'],
+      ['слава кпсс', 'slava kpss'],
+      ['серебро', 'serebro'],
+      ['федук', 'feduk'],
+      ['тима белорусских', 'tima belorusskih'],
+      ['монеточка', 'monetochka'],
+      ['гречка', 'grechka'],
+      ['автоспорт', 'avtosport'],
+      ['кудокуши', 'kudokushi'],
+      ['цынипал', 'cynipal'],
+      ['цинипал', 'cynipal'],
+      ['нексюша', 'nexyusha'],
+      ['серега пират', 'serega pirat'],
+      ['шарлот', 'sharlot'],
+    ];
+
+    for (const [ru, en] of pairs) {
+      if ((norm.includes(ru) || norm === ru) && !norm.includes(en)) {
+        aliases.push(en);
+      } else if ((norm.includes(en) || norm === en) && !norm.includes(ru)) {
+        aliases.push(ru);
+      }
+    }
+    return aliases;
+  }
+
   private checkTranslitArtistMatch(exp: string, cand: string): boolean {
     const pairs: [string, string][] = [
       ['эндшпиль', 'endspiel'],
@@ -981,6 +1097,51 @@ export class LyricsService {
       ['земфира', 'zemfira'],
       ['миджи', 'miyagi'],
       ['мияги', 'miyagi'],
+      ['капсайз', 'cupsize'],
+      ['мадкид', 'madk1d'],
+      ['лилкидд', 'lil kidd'],
+      ['лилкид', 'lil kid'],
+      ['лил кидд', 'lil kidd'],
+      ['лил кид', 'lil kid'],
+      ['бугши', 'boogshi'],
+      ['сквор', 'sqwore'],
+      ['айвикрафт', 'ivycraft'],
+      ['унки', 'unki'],
+      ['виллиан', 'villian'],
+      ['травма', 'travma'],
+      ['майот', 'mayot'],
+      ['сода лав', 'soda luv'],
+      ['платина', 'platina'],
+      ['оджи буда', 'og buda'],
+      ['буда', 'og buda'],
+      ['бульвар депо', 'boulevard depo'],
+      ['маркул', 'markul'],
+      ['салуки', 'saluki'],
+      ['джизус', 'jizus'],
+      ['дора', 'dora'],
+      ['инстасамка', 'instasamka'],
+      ['три дня дождя', 'tri dnya dozhdya'],
+      ['три дня дождя', 'three days of rain'],
+      ['полматери', 'polmateri'],
+      ['дайте танк', 'dayte tank'],
+      ['дайте танк', 'daite tank'],
+      ['пошлая молли', 'poshlaya molly'],
+      ['кишлак', 'kishlak'],
+      ['алена швец', 'alyona shvets'],
+      ['алёна швец', 'alyona shvets'],
+      ['слава кпсс', 'slava kpss'],
+      ['серебро', 'serebro'],
+      ['федук', 'feduk'],
+      ['тима белорусских', 'tima belorusskih'],
+      ['монеточка', 'monetochka'],
+      ['гречка', 'grechka'],
+      ['автоспорт', 'avtosport'],
+      ['кудокуши', 'kudokushi'],
+      ['цынипал', 'cynipal'],
+      ['цинипал', 'cynipal'],
+      ['нексюша', 'nexyusha'],
+      ['серега пират', 'serega pirat'],
+      ['шарлот', 'sharlot'],
     ];
 
     for (const [ru, en] of pairs) {
@@ -1044,8 +1205,27 @@ export class LyricsService {
       primaryArtist = cleanRawArtist;
     }
 
+    // Split multi-artist collabs to get pure primary artist for lookup
+    const collabMarkers = [
+      ' feat. ', ' feat ', ' ft. ', ' ft ', ' featuring ',
+      ' with ', ' при уч. ', ' при уч ', ' с участием ',
+      ' & ', ' and ', ' x ', ' х ', ' / ', ', ', ','
+    ];
+    let purePrimary = primaryArtist;
+    const lowerP = primaryArtist.toLowerCase();
+    for (const marker of collabMarkers) {
+      const idx = lowerP.indexOf(marker);
+      if (idx !== -1) {
+        purePrimary = primaryArtist.slice(0, idx).trim();
+        if (!fallbackArtist) {
+          fallbackArtist = primaryArtist;
+        }
+        break;
+      }
+    }
+
     return {
-      artist: primaryArtist,
+      artist: purePrimary || primaryArtist,
       title: cleanCandidateTitle || this.cleanTextNoise(rawTitle),
       fallbackArtist: fallbackArtist || undefined,
     };
@@ -1221,7 +1401,14 @@ export class LyricsService {
 
     // 3. Поиск по каталогу LRCLIB
     const searchQueries: string[] = [];
-    if (cleanA) searchQueries.push(`${cleanA} ${cleanT}`);
+    if (cleanA) {
+      searchQueries.push(`${cleanA} ${cleanT}`);
+      for (const alias of this.getArtistAliases(cleanA)) {
+        if (!searchQueries.includes(`${alias} ${cleanT}`)) {
+          searchQueries.push(`${alias} ${cleanT}`);
+        }
+      }
+    }
     if (cleanA) searchQueries.push(`${cleanT} ${cleanA}`);
     if (fallbackArtist && fallbackArtist !== cleanA) searchQueries.push(`${fallbackArtist} ${cleanT}`);
     // Ищем только по названию ТОЛЬКО если артист не был известен

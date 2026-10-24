@@ -12,6 +12,7 @@ describe('LyricsService', () => {
     const mockAudioService = {
       isPlaying: signal(false),
       currentTime: signal(0),
+      duration: signal(0),
       getPreciseCurrentTime: () => 0,
       currentTrack: signal(null),
       seek: () => {},
@@ -233,5 +234,59 @@ Unsynced random header
     service.currentLyrics.set(parsed);
     // syncOffsetMs must remain strictly 0 ms without artificial duration delta
     expect(service.syncOffsetMs()).toBe(0);
+  });
+
+  it('should calibrate auto-offset when audio stream duration has video intro padding', () => {
+    const track = {
+      id: 'test-yt-stream',
+      title: 'YouTube Stream With Video Intro',
+      artist: 'Artist',
+      duration: 183, // Audio stream has 3.0s video intro padding
+      audioUrl: '',
+      genre: '',
+      format: 'mp3' as const,
+      bitrate: '',
+      plays: 0,
+      isFavorite: false,
+      addedAt: '',
+    };
+
+    const lrcContent = `[00:10.00]First vocal line`;
+    const parsed = service.parseLrc(lrcContent, 'lrclib');
+    parsed.duration = 180; // Official studio cut duration
+
+    service.applyAutoOffsetIfApplicable(track, parsed, false);
+    // diffSec = 183 - 180 = +3.0s. Delay lyrics by -3000ms so words match vocals
+    expect(service.syncOffsetMs()).toBe(-3000);
+  });
+
+  it('should extract pure primary artist from multi-artist collabs and identify aliases', () => {
+    const collabTrack = {
+      id: 'collab-1',
+      title: 'Markul & Тося Чайкина - Стрелы',
+      artist: 'Markul & Тося Чайкина',
+      duration: 190,
+      audioUrl: '',
+      genre: '',
+      format: 'mp3' as const,
+      bitrate: '',
+      plays: 0,
+      isFavorite: false,
+      addedAt: '',
+    };
+
+    const info = service.extractSearchInfo(collabTrack);
+    expect(info.artist.toLowerCase()).toBe('markul');
+    expect(info.title.toLowerCase()).toBe('стрелы');
+
+    const aliases = service.getArtistAliases('капсайз');
+    expect(aliases).toContain('cupsize');
+
+    const madkidAliases = service.getArtistAliases('madk1d');
+    expect(madkidAliases).toContain('мадкид');
+  });
+
+  it('should provide responsive vocal anticipation lead (~95ms) for natural speed', () => {
+    expect(service.getTempoLeadSec()).toBeCloseTo(0.095, 3);
   });
 });

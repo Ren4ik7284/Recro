@@ -367,6 +367,12 @@ export function normalizeArtist(artist?: string): string {
   if (cleaned === 'темный принц') return 'тёмный принц';
   if (cleaned === 'аквакей') return 'aquakey';
   if (cleaned === 'онда андар' || cleaned === 'онда андер' || cleaned === 'ондаандар' || cleaned === 'унда ундер' || cleaned === 'onda andar' || cleaned === 'onda under') return 'unda under';
+  if (cleaned === 'lil kid' || cleaned === 'lil kidd' || cleaned === 'lilkidd' || cleaned === 'лилкид' || cleaned === 'лилкидд' || cleaned === 'лил кид' || cleaned === 'лил кидд') return 'lil kidd';
+  if (cleaned === 'бугши' || cleaned === 'boogshi') return 'boogshi';
+  if (cleaned === 'сквор' || cleaned === 'скворе' || cleaned === 'sqwore') return 'sqwore';
+  if (cleaned === 'автоспорт' || cleaned === 'avtosport') return 'автоспорт';
+  if (cleaned === 'айвикрафт' || cleaned === 'ivycraft') return 'ivycraft';
+  if (cleaned === 'кудокуши' || cleaned === 'kudokushi') return 'kudokushi';
   return cleaned;
 }
 
@@ -593,13 +599,15 @@ export function isTrackLanguageMatch(track: { title?: string; artist?: string; g
 
 export function normalizeTitle(title?: string): string {
   if (!title) return '';
-  return title
+  const cleaned = title
     .toLowerCase()
     .replace(/\(.*?\)|\[.*?]|{.*?}/g, ' ')
     .replace(/\b(feat|ft|prod|official|video|audio|lyrics|lyric|remastered|hd|hq|4k|visualizer|clip|клип|премьера)\b.*/i, ' ')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  if (cleaned === 'tamagotchi' || cleaned === 'tamagochi' || cleaned === 'тамакочи') return 'тамагочи';
+  return cleaned;
 }
 
 const PHONK_REGEX = /\b(phonk|drift|hardstyle|hyperpop|фонк|дрифт|hardbass)\b/i;
@@ -2440,6 +2448,9 @@ export class RecommendationService {
   /**
    * Intelligently selects a starter track for "Моя Волна" / Smart Mix that is GUARANTEED to be diverse
    * and different from recent sessions, avoiding repeating the first track over and over.
+   *
+   * When the user's library is small (< 8 unique non-disliked artists), discovery tracks and
+   * curated starters are mixed in to prevent the same library track from starting every session.
    */
   pickDiverseStarterTrack(
     mood: MixMood = this.currentMood(),
@@ -2459,50 +2470,25 @@ export class RecommendationService {
         return true;
       });
 
-      if (valid.length > 0) {
-        // Pass 1: Strict freshness - not a recent starter (last 25), not a recent starter artist (last 10),
-        // not played in the last 4 hours (240 min), not session duplicate
-        let strictPool = valid.filter((t) =>
-          !this.isRecentStarter(t, 25) &&
-          !this.isRecentStarterArtist(t.artist, 10) &&
-          !this.isRecentlyPlayed(t, 240) &&
-          !this.isSessionDuplicate(t)
-        );
+      // Count unique artists in the valid pool to detect small/monotone libraries
+      const uniqueArtists = new Set(valid.map((t) => normalizeArtist(t.artist)).filter(Boolean));
 
-        // Pass 2: Relax artist cooldown if strictPool is too small
-        if (strictPool.length === 0) {
-          strictPool = valid.filter((t) =>
-            !this.isRecentStarter(t, 15) &&
-            !this.isRecentlyPlayed(t, 90) &&
-            !this.isSessionDuplicate(t)
-          );
+      // For small libraries (< 8 unique artists in balanced mode), probabilistically
+      // fall through to discovery/starters to prevent the same track starting every day.
+      // The smaller the library, the higher the chance of picking from discovery instead.
+      if (source === 'balanced' && uniqueArtists.size < 8 && mood !== 'favorites') {
+        // Probability of skipping library starter: 70% for 1 artist, 50% for 3, ~15% for 7
+        const skipLibraryChance = Math.max(0.10, 0.80 - uniqueArtists.size * 0.10);
+        if (Math.random() < skipLibraryChance) {
+          // Fall through to discovery buffer and curated starters below
+          // (intentionally skip the library picker this time)
+        } else if (valid.length > 0) {
+          const picked = this.pickFromLibraryPool(valid);
+          if (picked) return picked;
         }
-
-        // Pass 3: Exclude only the last 3 starters and anything played in last 30 minutes
-        if (strictPool.length === 0) {
-          strictPool = valid.filter((t) =>
-            !this.isRecentStarter(t, 3) &&
-            !this.isRecentlyPlayed(t, 30)
-          );
-        }
-
-        // Pass 4: Fallback to any valid track not being the immediate last starter
-        if (strictPool.length === 0) {
-          const lastStarterId = this.recentStarterIds[0];
-          strictPool = valid.filter((t) => t.id !== lastStarterId);
-          if (strictPool.length === 0) strictPool = valid;
-        }
-
-        if (strictPool.length > 0) {
-          const shuffled = [...strictPool];
-          for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-          }
-          const favs = shuffled.filter((t) => t.isFavorite || (typeof this.libraryService?.isTrackFavorite === 'function' && this.libraryService.isTrackFavorite(t)));
-          const pickFrom = favs.length > 0 && Math.random() < 0.75 ? favs : shuffled;
-          return pickFrom[Math.floor(Math.random() * pickFrom.length)];
-        }
+      } else if (valid.length > 0) {
+        const picked = this.pickFromLibraryPool(valid);
+        if (picked) return picked;
       }
     }
 
@@ -2530,6 +2516,58 @@ export class RecommendationService {
       );
       const candidateStarters = freshStarters.length > 0 ? freshStarters : starters;
       return candidateStarters[Math.floor(Math.random() * candidateStarters.length)];
+    }
+
+    return null;
+  }
+
+  /**
+   * Internal helper: picks a diverse track from a pre-filtered library pool,
+   * respecting recent starter history, artist cooldowns, and play fatigue.
+   */
+  private pickFromLibraryPool(valid: Track[]): Track | null {
+    // Pass 1: Strict freshness - not a recent starter (last 25), not a recent starter artist (last 10),
+    // not played in the last 4 hours (240 min), not session duplicate
+    let strictPool = valid.filter((t) =>
+      !this.isRecentStarter(t, 25) &&
+      !this.isRecentStarterArtist(t.artist, 10) &&
+      !this.isRecentlyPlayed(t, 240) &&
+      !this.isSessionDuplicate(t)
+    );
+
+    // Pass 2: Relax artist cooldown if strictPool is too small
+    if (strictPool.length === 0) {
+      strictPool = valid.filter((t) =>
+        !this.isRecentStarter(t, 15) &&
+        !this.isRecentlyPlayed(t, 90) &&
+        !this.isSessionDuplicate(t)
+      );
+    }
+
+    // Pass 3: Exclude only the last 3 starters and anything played in last 30 minutes
+    if (strictPool.length === 0) {
+      strictPool = valid.filter((t) =>
+        !this.isRecentStarter(t, 3) &&
+        !this.isRecentlyPlayed(t, 30)
+      );
+    }
+
+    // Pass 4: Fallback to any valid track not being the immediate last starter
+    if (strictPool.length === 0) {
+      const lastStarterId = this.recentStarterIds[0];
+      strictPool = valid.filter((t) => t.id !== lastStarterId);
+      if (strictPool.length === 0) strictPool = valid;
+    }
+
+    if (strictPool.length > 0) {
+      const shuffled = [...strictPool];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const favs = shuffled.filter((t) => t.isFavorite || (typeof this.libraryService?.isTrackFavorite === 'function' && this.libraryService.isTrackFavorite(t)));
+      const pickFrom = favs.length > 0 && Math.random() < 0.65 ? favs : shuffled;
+      return pickFrom[Math.floor(Math.random() * pickFrom.length)];
     }
 
     return null;

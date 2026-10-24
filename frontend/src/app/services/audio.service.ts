@@ -1974,7 +1974,9 @@ export class AudioService {
   formatStreamUrl(track: Track): string {
     let playUrl = (track.audioUrl || '').trim();
     if (!playUrl || playUrl.startsWith('blob:')) return playUrl;
-    let activeBase = this.libraryService.getDirectStreamNode();
+    let activeBase = typeof this.libraryService?.getDirectStreamNode === 'function'
+      ? this.libraryService.getDirectStreamNode()
+      : (typeof this.libraryService?.getBackendUrl === 'function' ? this.libraryService.getBackendUrl() : '');
 
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     if (isHttps) {
@@ -2142,6 +2144,19 @@ export class AudioService {
         const effectiveLang = this.recService.getEffectiveLanguage(null);
         starter = this.recService.pickDiverseStarterTrack(mood, effectiveLang);
 
+        const currentSource = this.recService.mixConfig().source;
+        if (currentSource === 'discovery_heavy' && starter && this.recService.isLibraryTrack(starter)) {
+          starter = null;
+        }
+
+        if (!starter) {
+          const starters = this.recService.getStarterCandidates(mood, 8, effectiveLang)
+            .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isRecentStarter(t, 5));
+          if (starters.length > 0) {
+            starter = starters[Math.floor(Math.random() * starters.length)] || null;
+          }
+        }
+
         if (!starter && offlineTracks.length > 0) {
           const shuffled = [...offlineTracks];
           for (let i = shuffled.length - 1; i > 0; i--) {
@@ -2297,20 +2312,33 @@ export class AudioService {
     if (source === 'library_only' && localCandidates.length > 0) {
       newTracks = this.recService.pickNextTracks(needed, excludeIds, curTrack, recentArtists);
     } else if (source === 'balanced' && localCandidates.length > 0) {
-      // Balanced: 1 library favorite / forgotten gem for every 2 discoveries!
-      const libraryCount = Math.max(1, Math.floor(needed / 3));
+      // Balanced: Adaptive library/discovery ratio based on library size.
+      // Small libraries (< 8 unique artists) get fewer library tracks to prevent repetitive cycling.
+      const uniqueLibraryArtists = new Set(
+        localCandidates.map((t) => normalizeArtist(t.artist)).filter(Boolean)
+      );
+      const isSmallLibrary = uniqueLibraryArtists.size < 8;
+
+      // Small library: max 1 library track per ~5 discoveries (20%)
+      // Normal library: 1 library track per 2 discoveries (33%)
+      const libraryCount = isSmallLibrary
+        ? (Math.random() < 0.20 ? 1 : 0)
+        : Math.max(1, Math.floor(needed / 3));
       const discoveryCount = Math.max(2, needed - libraryCount);
 
-      const libTracks = this.recService.pickNextTracks(libraryCount, excludeIds, curTrack, recentArtists);
-      libTracks.forEach((t) => {
-        excludeIds.add(t.id);
-        if (t.artist) {
-          for (const a of extractAllArtists(t.artist, t.title)) {
-            const normA = normalizeArtist(a);
-            if (normA) recentArtists.add(normA);
+      let libTracks: Track[] = [];
+      if (libraryCount > 0) {
+        libTracks = this.recService.pickNextTracks(libraryCount, excludeIds, curTrack, recentArtists);
+        libTracks.forEach((t) => {
+          excludeIds.add(t.id);
+          if (t.artist) {
+            for (const a of extractAllArtists(t.artist, t.title)) {
+              const normA = normalizeArtist(a);
+              if (normA) recentArtists.add(normA);
+            }
           }
-        }
-      });
+        });
+      }
 
       const discovery = await this.recService.fetchOnlineDiscoveryTracks(discoveryCount, excludeIds, recentArtists, curTrack);
       const pureDiscovery = discovery.filter((d) => !this.recService.isLibraryTrack(d));
@@ -2422,11 +2450,13 @@ export class AudioService {
 
     // 1. Instant 0ms playback: check if prewarmed wave starter is ready in memory/cache
     const prewarmed = this.prewarmedWaveTrack();
+    const currentMixSource = this.recService.mixConfig().source;
     if (prewarmed) {
       const isMoodMatch = mood === 'all' || this.recService.doesTrackMatchMood(prewarmed, mood);
       const isNotDisliked = !this.recService.isDisliked(prewarmed.id) && !this.libraryService.isDisliked(prewarmed);
       const isNotRecentStarter = !this.recService.isRecentStarter(prewarmed, 5);
-      if (isMoodMatch && isNotDisliked && isNotRecentStarter) {
+      const isNotLibraryWhenDiscovery = currentMixSource !== 'discovery_heavy' || !this.recService.isLibraryTrack(prewarmed);
+      if (isMoodMatch && isNotDisliked && isNotRecentStarter && isNotLibraryWhenDiscovery) {
         this.prewarmedWaveTrack.set(null);
         this.recService.recordStarterUsed(prewarmed);
 
@@ -2488,7 +2518,10 @@ export class AudioService {
     let initialTracks: Track[] = [];
 
     // Dynamically pick a diverse starter track that has NOT been played or started recently!
-    const starter = this.recService.pickDiverseStarterTrack(mood, effectiveLang);
+    let starter = this.recService.pickDiverseStarterTrack(mood, effectiveLang);
+    if (source === 'discovery_heavy' && starter && this.recService.isLibraryTrack(starter)) {
+      starter = null;
+    }
 
     if (starter) {
       this.recService.recordStarterUsed(starter);

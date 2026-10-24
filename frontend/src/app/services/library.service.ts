@@ -85,6 +85,9 @@ export class LibraryService implements OnDestroy {
       const saved = localStorage.getItem(this.STORAGE_KEY_MIX_CONFIG);
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (parsed.source === 'balanced') {
+          parsed.source = 'discovery_heavy';
+        }
         return { ...DEFAULT_MIX_CONFIG, ...parsed };
       }
     } catch {}

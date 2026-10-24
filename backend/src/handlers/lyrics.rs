@@ -90,6 +90,7 @@ pub fn extract_primary_artist(artist: &str) -> String {
     let feat_markers = [
         " feat. ", " feat ", " ft. ", " ft ", " featuring ",
         " with ", " при уч. ", " при уч ", " с участием ",
+        " & ", " and ", " x ", " х ", " / ", ", ", ",",
     ];
     let mut s = artist.to_string();
     let lower = s.to_lowercase();
@@ -112,6 +113,84 @@ fn normalize_for_comparison(s: &str) -> String {
         .join(" ")
 }
 
+pub fn get_artist_aliases(artist: &str) -> Vec<String> {
+    let lower = artist.to_lowercase();
+    let norm = normalize_for_comparison(&lower);
+    let mut aliases = Vec::new();
+    let pairs = [
+        ("капсайз", "cupsize"),
+        ("мадкид", "madk1d"),
+        ("лилкидд", "lil kidd"),
+        ("лилкид", "lil kid"),
+        ("лил кидд", "lil kidd"),
+        ("лил кид", "lil kid"),
+        ("бугши", "boogshi"),
+        ("сквор", "sqwore"),
+        ("айвикрафт", "ivycraft"),
+        ("унки", "unki"),
+        ("виллиан", "villian"),
+        ("травма", "travma"),
+        ("майот", "mayot"),
+        ("сода лав", "soda luv"),
+        ("платина", "platina"),
+        ("оджи буда", "og buda"),
+        ("буда", "og buda"),
+        ("бульвар депо", "boulevard depo"),
+        ("маркул", "markul"),
+        ("салуки", "saluki"),
+        ("джизус", "jizus"),
+        ("дора", "dora"),
+        ("инстасамка", "instasamka"),
+        ("три дня дождя", "tri dnya dozhdya"),
+        ("три дня дождя", "three days of rain"),
+        ("полматери", "polmateri"),
+        ("дайте танк", "dayte tank"),
+        ("дайте танк", "daite tank"),
+        ("пошлая молли", "poshlaya molly"),
+        ("кишлак", "kishlak"),
+        ("алена швец", "alyona shvets"),
+        ("алёна швец", "alyona shvets"),
+        ("слава кпсс", "slava kpss"),
+        ("серебро", "serebro"),
+        ("федук", "feduk"),
+        ("тима белорусских", "tima belorusskih"),
+        ("монеточка", "monetochka"),
+        ("гречка", "grechka"),
+        ("эндшпиль", "endspiel"),
+        ("эндшпиль", "andy panda"),
+        ("скриптонит", "scriptonite"),
+        ("баста", "basta"),
+        ("кино", "kino"),
+        ("оксимирон", "oxxxymiron"),
+        ("макс корж", "max korzh"),
+        ("моргенштерн", "morgenshtern"),
+        ("лсп", "lsp"),
+        ("хаски", "husky"),
+        ("би 2", "bi 2"),
+        ("би-2", "bi-2"),
+        ("король и шут", "korol i shut"),
+        ("земфира", "zemfira"),
+        ("миджи", "miyagi"),
+        ("мияги", "miyagi"),
+        ("автоспорт", "avtosport"),
+        ("кудокуши", "kudokushi"),
+        ("цынипал", "cynipal"),
+        ("цинипал", "cynipal"),
+        ("нексюша", "nexyusha"),
+        ("серега пират", "serega pirat"),
+        ("шарлот", "sharlot"),
+    ];
+
+    for (ru, en) in pairs {
+        if (norm.contains(ru) || norm == ru) && !norm.contains(en) {
+            aliases.push(en.to_string());
+        } else if (norm.contains(en) || norm == en) && !norm.contains(ru) {
+            aliases.push(ru.to_string());
+        }
+    }
+    aliases
+}
+
 fn check_translit_artist_match(exp: &str, cand: &str) -> bool {
     let pairs = [
         ("эндшпиль", "endspiel"),
@@ -130,6 +209,51 @@ fn check_translit_artist_match(exp: &str, cand: &str) -> bool {
         ("земфира", "zemfira"),
         ("миджи", "miyagi"),
         ("мияги", "miyagi"),
+        ("капсайз", "cupsize"),
+        ("мадкид", "madk1d"),
+        ("лилкидд", "lil kidd"),
+        ("лилкид", "lil kid"),
+        ("лил кидд", "lil kidd"),
+        ("лил кид", "lil kid"),
+        ("бугши", "boogshi"),
+        ("сквор", "sqwore"),
+        ("айвикрафт", "ivycraft"),
+        ("унки", "unki"),
+        ("виллиан", "villian"),
+        ("травма", "travma"),
+        ("майот", "mayot"),
+        ("сода лав", "soda luv"),
+        ("платина", "platina"),
+        ("оджи буда", "og buda"),
+        ("буда", "og buda"),
+        ("бульвар депо", "boulevard depo"),
+        ("маркул", "markul"),
+        ("салуки", "saluki"),
+        ("джизус", "jizus"),
+        ("дора", "dora"),
+        ("инстасамка", "instasamka"),
+        ("три дня дождя", "tri dnya dozhdya"),
+        ("три дня дождя", "three days of rain"),
+        ("полматери", "polmateri"),
+        ("дайте танк", "dayte tank"),
+        ("дайте танк", "daite tank"),
+        ("пошлая молли", "poshlaya molly"),
+        ("кишлак", "kishlak"),
+        ("алена швец", "alyona shvets"),
+        ("алёна швец", "alyona shvets"),
+        ("слава кпсс", "slava kpss"),
+        ("серебро", "serebro"),
+        ("федук", "feduk"),
+        ("тима белорусских", "tima belorusskih"),
+        ("монеточка", "monetochka"),
+        ("гречка", "grechka"),
+        ("автоспорт", "avtosport"),
+        ("кудокуши", "kudokushi"),
+        ("цынипал", "cynipal"),
+        ("цинипал", "cynipal"),
+        ("нексюша", "nexyusha"),
+        ("серега пират", "serega pirat"),
+        ("шарлот", "sharlot"),
     ];
     for (ru, en) in pairs {
         if (exp.contains(ru) && cand.contains(en)) || (exp.contains(en) && cand.contains(ru)) {
@@ -283,28 +407,35 @@ async fn fetch_lrclib(
     duration: Option<f64>,
 ) -> Option<LyricsResponse> {
     let primary_a = extract_primary_artist(artist);
-    let mut queries = Vec::new();
+    let mut search_artists = Vec::new();
     if !primary_a.is_empty() {
-        if let Some(dur) = duration {
-            if dur > 20.0 {
-                queries.push(format!("track_name={}&artist_name={}&duration={}", urlencoding::encode(title), urlencoding::encode(&primary_a), dur.round() as u64));
+        search_artists.push(primary_a.clone());
+        for alias in get_artist_aliases(&primary_a) {
+            if !search_artists.contains(&alias) {
+                search_artists.push(alias);
             }
         }
-        queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(&primary_a)));
-        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", primary_a, title))));
-        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, primary_a))));
     }
-    if !artist.is_empty() && artist != primary_a {
-        if let Some(dur) = duration {
-            if dur > 20.0 {
-                queries.push(format!("track_name={}&artist_name={}&duration={}", urlencoding::encode(title), urlencoding::encode(artist), dur.round() as u64));
+    if !artist.is_empty() && !search_artists.contains(&artist.to_string()) {
+        search_artists.push(artist.to_string());
+        for alias in get_artist_aliases(artist) {
+            if !search_artists.contains(&alias) {
+                search_artists.push(alias);
             }
         }
-        queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(artist)));
-        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", artist, title))));
-        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", title, artist))));
     }
-    if primary_a.is_empty() && artist.is_empty() {
+
+    let mut queries = Vec::new();
+    for sa in &search_artists {
+        if let Some(dur) = duration {
+            if dur > 20.0 {
+                queries.push(format!("track_name={}&artist_name={}&duration={}", urlencoding::encode(title), urlencoding::encode(sa), dur.round() as u64));
+            }
+        }
+        queries.push(format!("track_name={}&artist_name={}", urlencoding::encode(title), urlencoding::encode(sa)));
+        queries.push(format!("q={}", urlencoding::encode(&format!("{} {}", sa, title))));
+    }
+    if search_artists.is_empty() {
         queries.push(format!("q={}", urlencoding::encode(title)));
     }
 
@@ -322,9 +453,14 @@ async fn fetch_lrclib(
         let req = client
             .get(&url)
             .header("User-Agent", "RecroPlayer/1.0 (https://github.com/Ren4ik7284/Recro)")
-            .timeout(std::time::Duration::from_millis(3500));
+            .timeout(std::time::Duration::from_millis(3000));
         if let Ok(res) = req.send().await {
-            if res.status().is_success() {
+            let status = res.status();
+            if status.as_u16() == 429 || status.as_u16() == 503 {
+                // Rate limited / overloaded by Cloudflare: break early to fall back to NetEase/Kugou
+                break;
+            }
+            if status.is_success() {
                 if is_search {
                     if let Ok(items) = res.json::<Vec<serde_json::Value>>().await {
                         for it in items {
@@ -402,7 +538,7 @@ async fn fetch_lrclib(
             }
         }
         if let Some((score, resp)) = &best_synced {
-            if *score >= 70.0 {
+            if *score >= 65.0 {
                 return Some(resp.clone());
             }
         }
@@ -418,14 +554,24 @@ async fn fetch_kugou(
     duration: Option<f64>,
 ) -> Option<LyricsResponse> {
     let primary_a = extract_primary_artist(artist);
-    let mut queries = Vec::new();
+    let mut search_artists = Vec::new();
     if !primary_a.is_empty() {
-        queries.push(format!("{} {}", primary_a, title));
+        search_artists.push(primary_a.clone());
+        for alias in get_artist_aliases(&primary_a) {
+            if !search_artists.contains(&alias) {
+                search_artists.push(alias);
+            }
+        }
     }
-    if !artist.is_empty() && artist != primary_a {
-        queries.push(format!("{} {}", artist, title));
+    if !artist.is_empty() && !search_artists.contains(&artist.to_string()) {
+        search_artists.push(artist.to_string());
     }
-    if primary_a.is_empty() && artist.is_empty() {
+
+    let mut queries = Vec::new();
+    for sa in &search_artists {
+        queries.push(format!("{} {}", sa, title));
+    }
+    if search_artists.is_empty() {
         queries.push(title.to_string());
     }
 
@@ -455,77 +601,84 @@ async fn fetch_kugou(
             _ => continue,
         };
 
-    for song in songs {
-        let cand_title = song["songname"].as_str().unwrap_or("");
-        let cand_artist = song["singername"].as_str().unwrap_or("");
-        let cand_dur = song["duration"].as_f64();
+        for song in songs {
+            let cand_title = song["songname"].as_str().unwrap_or("");
+            let cand_artist = song["singername"].as_str().unwrap_or("");
+            let cand_dur = song["duration"].as_f64();
 
-        let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, true);
-        if score < 55.0 {
-            continue;
-        }
+            let score = calc_match_score(title, artist, duration, cand_title, cand_artist, cand_dur, true);
+            if score < 50.0 {
+                continue;
+            }
 
-        let hash = match song["hash"].as_str() {
-            Some(h) if !h.is_empty() => h,
-            _ => continue,
-        };
-
-        let lrc_search = format!(
-            "http://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=&duration=&hash={}",
-            hash
-        );
-        let cand_res = client
-            .get(&lrc_search)
-            .timeout(std::time::Duration::from_millis(2500))
-            .send()
-            .await
-            .ok()?;
-
-        let cand_json: serde_json::Value = cand_res.json().await.ok()?;
-        let candidates = match cand_json["candidates"].as_array() {
-            Some(c) if !c.is_empty() => c,
-            _ => continue,
-        };
-
-        for cand in candidates {
-            let id = match cand["id"].as_str() {
-                Some(i) => i.to_string(),
-                None => match cand["id"].as_i64() {
-                    Some(num) => num.to_string(),
-                    None => continue,
-                },
-            };
-            let accesskey = match cand["accesskey"].as_str() {
-                Some(k) if k.len() >= 20 => k,
+            let hash = match song["hash"].as_str() {
+                Some(h) if !h.is_empty() => h,
                 _ => continue,
             };
 
-            let dl_url = format!(
-                "http://lyrics.kugou.com/download?ver=1&client=pc&id={}&accesskey={}&fmt=lrc&charset=utf8",
-                id, accesskey
+            let lrc_search = format!(
+                "http://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=&duration=&hash={}",
+                hash
             );
-
-            let dl_res = client
-                .get(&dl_url)
+            let cand_res = match client
+                .get(&lrc_search)
                 .timeout(std::time::Duration::from_millis(2500))
                 .send()
                 .await
-                .ok();
+            {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
 
-            if let Some(dl) = dl_res {
-                if let Ok(dl_json) = dl.json::<serde_json::Value>().await {
-                    if let Some(b64) = dl_json["content"].as_str() {
-                        if let Ok(bytes) = base64_decode(b64) {
-                            if let Ok(text) = String::from_utf8(bytes) {
-                                if text.contains('[') && text.contains(']') {
-                                    return Some(LyricsResponse {
-                                        synced: true,
-                                        lyrics: text,
-                                        source: "kugou".to_string(),
-                                        track_name: Some(cand_title.to_string()),
-                                        artist_name: Some(cand_artist.to_string()),
-                                        duration: cand_dur,
-                                    });
+            let cand_json: serde_json::Value = match cand_res.json().await {
+                Ok(j) => j,
+                Err(_) => continue,
+            };
+            let candidates = match cand_json["candidates"].as_array() {
+                Some(c) if !c.is_empty() => c,
+                _ => continue,
+            };
+
+            for cand in candidates {
+                let id = match cand["id"].as_str() {
+                    Some(i) => i.to_string(),
+                    None => match cand["id"].as_i64() {
+                        Some(num) => num.to_string(),
+                        None => continue,
+                    },
+                };
+                let accesskey = match cand["accesskey"].as_str() {
+                    Some(k) if k.len() >= 20 => k,
+                    _ => continue,
+                };
+
+                let dl_url = format!(
+                    "http://lyrics.kugou.com/download?ver=1&client=pc&id={}&accesskey={}&fmt=lrc&charset=utf8",
+                    id, accesskey
+                );
+
+                let dl_res = client
+                    .get(&dl_url)
+                    .timeout(std::time::Duration::from_millis(2500))
+                    .send()
+                    .await
+                    .ok();
+
+                if let Some(dl) = dl_res {
+                    if let Ok(dl_json) = dl.json::<serde_json::Value>().await {
+                        if let Some(b64) = dl_json["content"].as_str() {
+                            if let Ok(bytes) = base64_decode(b64) {
+                                if let Ok(text) = String::from_utf8(bytes) {
+                                    if text.contains('[') && text.contains(']') {
+                                        return Some(LyricsResponse {
+                                            synced: true,
+                                            lyrics: text,
+                                            source: "kugou".to_string(),
+                                            track_name: Some(cand_title.to_string()),
+                                            artist_name: Some(cand_artist.to_string()),
+                                            duration: cand_dur,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -533,7 +686,6 @@ async fn fetch_kugou(
                 }
             }
         }
-    }
     }
     None
 }
@@ -642,10 +794,25 @@ async fn fetch_netease(
     artist: &str,
     duration: Option<f64>,
 ) -> Option<LyricsResponse> {
+    let primary_a = extract_primary_artist(artist);
+    let mut search_artists = Vec::new();
+    if !primary_a.is_empty() {
+        search_artists.push(primary_a.clone());
+        for alias in get_artist_aliases(&primary_a) {
+            if !search_artists.contains(&alias) {
+                search_artists.push(alias);
+            }
+        }
+    }
+    if !artist.is_empty() && !search_artists.contains(&artist.to_string()) {
+        search_artists.push(artist.to_string());
+    }
+
     let mut queries = Vec::new();
-    if !artist.is_empty() {
-        queries.push(format!("{} {}", artist, title));
-    } else {
+    for sa in &search_artists {
+        queries.push(format!("{} {}", sa, title));
+    }
+    if search_artists.is_empty() {
         queries.push(title.to_string());
     }
 
