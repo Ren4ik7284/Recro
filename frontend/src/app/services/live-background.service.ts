@@ -1,4 +1,4 @@
-import { Injectable, signal, inject, effect, untracked } from '@angular/core';
+import { Injectable, signal, computed, inject, effect, untracked } from '@angular/core';
 import { ThemeService } from './theme.service';
 import { AuthService } from './auth.service';
 import { LibraryService } from './library.service';
@@ -50,6 +50,10 @@ export class LiveBackgroundService {
   readonly customMediaUrl = signal<string | null>(this.loadStorage('recro_bg_custom_url', '') || null);
   readonly customMediaType = signal<'image' | 'video'>((this.loadStorage('recro_bg_custom_type', 'image') as any) || 'image');
   readonly customMediaName = signal<string | null>(this.loadStorage('recro_bg_custom_name', ''));
+
+  readonly hasCustomWallpaper = computed<boolean>(() => {
+    return this.activePreset() === 'custom' || Boolean(this.customMediaUrl());
+  });
 
   // Опции отображения
   readonly dimmerLevel = signal<number>(this.loadStorageNumber('recro_bg_dimmer', 45)); // 20 - 80%

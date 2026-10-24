@@ -232,7 +232,10 @@ export class LibraryService implements OnDestroy {
   readonly isBackendOnline = signal<boolean>(false);
 
   readonly availableGenres = computed(() => {
-    const all = this.tracks().map((t) => t.genre).filter(Boolean);
+    const pseudo = new Set(['discovery', 'online', 'chart', 'rap', 'undefined', 'null']);
+    const all = this.tracks()
+      .map((t) => t.genre)
+      .filter((g) => g && !pseudo.has(g.trim().toLowerCase()));
     return ['all', ...Array.from(new Set(all))];
   });
 
@@ -741,7 +744,7 @@ export class LibraryService implements OnDestroy {
           duration: Math.round(item.duration),
           audioUrl: item.audio_url,
           coverUrl: this.formatCoverUrl(item.cover_url),
-          genre: 'Online',
+          genre: '',
           format: 'mp3',
           bitrate: '192 kbps',
           plays: 0,
@@ -786,7 +789,7 @@ export class LibraryService implements OnDestroy {
           duration: Math.round(item.duration),
           audioUrl: item.audio_url,
           coverUrl: this.formatCoverUrl(item.cover_url),
-          genre: g || fallbackGenre || 'Discovery',
+          genre: g || fallbackGenre || '',
           format: 'mp3',
           bitrate: '192 kbps',
           plays: 0,
@@ -2378,7 +2381,7 @@ export class LibraryService implements OnDestroy {
         duration: Math.round(item.duration || 0),
         audioUrl: item.audio_url,
         coverUrl: this.formatCoverUrl(item.cover_url),
-        genre: 'Chart',
+        genre: '',
         format: 'mp3',
         bitrate: '320 kbps',
         plays: item.plays || 0,

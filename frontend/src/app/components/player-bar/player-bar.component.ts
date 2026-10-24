@@ -36,6 +36,13 @@ export class PlayerBarComponent {
   @Output() expandMobilePlayer = new EventEmitter<void>();
   @Output() openAddToPlaylist = new EventEmitter<Track>();
 
+  toggleAmbientGlow() {
+    if (this.bgService.hasCustomWallpaper()) {
+      return;
+    }
+    this.ambientService.toggle();
+  }
+
   onLeftClick() {
     if (typeof window !== 'undefined' && window.innerWidth <= 768) {
       this.expandMobilePlayer.emit();

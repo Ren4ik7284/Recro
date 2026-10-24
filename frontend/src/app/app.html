@@ -2,7 +2,7 @@
   @if (bgService.applyGlobally() && bgService.activePreset() !== 'default' && bgService.activePreset() !== 'off') {
     <app-live-background></app-live-background>
   }
-  @if (ambientService.isEnabled() && (!bgService.applyGlobally() || bgService.activePreset() === 'default' || bgService.activePreset() === 'off')) {
+  @if (ambientService.isEnabled() && !bgService.hasCustomWallpaper() && (!bgService.applyGlobally() || bgService.activePreset() === 'default' || bgService.activePreset() === 'off')) {
     <div 
       class="ambient-glow-backdrop" 
       [style.--glow-p]="ambientService.palette().primary" 
@@ -184,20 +184,6 @@
               </div>
             }
           </div>
-
-          @if (activeTab() !== 'playlist' && activeTab() !== 'streams' && activeTab() !== 'search' && activeTab() !== 'charts' && activeTab() !== 'all' && libraryService.availableGenres().length > 1) {
-            <div class="genre-filter-row">
-              @for (g of libraryService.availableGenres(); track g) {
-                <button 
-                  class="genre-chip"
-                  [class.active]="libraryService.selectedGenre() === g"
-                  (click)="selectGenre(g)"
-                >
-                  {{ g === 'all' ? i18n.t('catalog.allGenres') : g }}
-                </button>
-              }
-            </div>
-          }
 
           <!-- Smart Wave Hero Card (Моя Волна) -->
           <!-- Smart Wave Centered Player Card (Моя Волна) -->
@@ -496,7 +482,7 @@
                 </svg>
                 <input
                   type="text"
-                  [placeholder]="i18n.currentLang() === 'ru' ? 'Поиск по исполнителям, трекам, альбомам (Linkin Park, The Weeknd...)' : 'Search artists, tracks, albums (Linkin Park, The Weeknd...)'"
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'Поиск по исполнителям, трекам, альбомам...' : 'Search artists, tracks, albums...'"
                   [ngModel]="libraryService.searchQuery()"
                   (ngModelChange)="libraryService.searchQuery.set($event)"
                   (keyup.enter)="triggerOnlineSearch()"
@@ -522,16 +508,6 @@
                     <span>{{ i18n.currentLang() === 'ru' ? 'Искать' : 'Search' }}</span>
                   }
                 </button>
-              </div>
-
-              <div class="search-quick-tags">
-                <span class="quick-tags-label font-mono">{{ i18n.currentLang() === 'ru' ? 'РЕКОМЕНДУЕМ:' : 'RECOMMENDED:' }}</span>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Linkin Park')">Linkin Park</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('The Weeknd')">The Weeknd</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Phonk')">Phonk</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Lo-Fi')">Lo-Fi</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Travis Scott')">Travis Scott</button>
-                <button class="quick-vibe-tag" (click)="openOnlineSearchWithQuery('Shortparis')">Shortparis</button>
               </div>
             </div>
 
@@ -2266,7 +2242,7 @@
               <div class="online-search-bar">
                 <input 
                   type="text" 
-                  [placeholder]="i18n.currentLang() === 'ru' ? 'Название трека или исполнителя (Linkin Park, Кино, Король и Шут...)' : 'Track title or artist (Linkin Park, Arctic Monkeys, The Weeknd...)'"
+                  [placeholder]="i18n.currentLang() === 'ru' ? 'Название трека или исполнителя...' : 'Track title or artist...'"
                   [ngModel]="modalSearchInput()"
                   (ngModelChange)="modalSearchInput.set($event)"
                   (keyup.enter)="triggerOnlineSearch()"
@@ -2402,7 +2378,7 @@
                   <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Исполнитель' : 'Artist' }}</label>
                   <input 
                     type="text" 
-                    [placeholder]="i18n.currentLang() === 'ru' ? 'Исполнитель (Linkin Park, Кино)...' : 'Artist (Linkin Park, Arctic Monkeys)...'"
+                    [placeholder]="i18n.currentLang() === 'ru' ? 'Исполнитель...' : 'Artist...'"
                     [ngModel]="inputArtist()"
                     (ngModelChange)="inputArtist.set($event)"
                     class="form-text-input"

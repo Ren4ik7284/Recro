@@ -1,5 +1,6 @@
 import { Injectable, signal, effect, inject } from '@angular/core';
 import { AudioService } from './audio.service';
+import { LiveBackgroundService } from './live-background.service';
 
 export interface AmbientPalette {
   primary: string;
@@ -19,6 +20,7 @@ const PALETTE_CANVAS_SIZE = 64;
 })
 export class AmbientService {
   private readonly audioService = inject(AudioService);
+  private readonly bgService = inject(LiveBackgroundService, { optional: true });
   private readonly STORAGE_KEY = 'recro_ambient_glow';
 
   readonly isEnabled = signal<boolean>(
@@ -40,9 +42,23 @@ export class AmbientService {
       }
       this.updateColorsForTrack(track.title, track.artist, track.coverUrl);
     });
+
+    // При кастомных обоях динамический Glow автоматически отключается
+    effect(() => {
+      const hasCustom = this.bgService?.hasCustomWallpaper();
+      if (hasCustom && this.isEnabled()) {
+        this.isEnabled.set(false);
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(this.STORAGE_KEY, 'false');
+        }
+      }
+    });
   }
 
   toggle() {
+    if (this.bgService?.hasCustomWallpaper()) {
+      return;
+    }
     const next = !this.isEnabled();
     this.isEnabled.set(next);
     if (typeof localStorage !== 'undefined') {

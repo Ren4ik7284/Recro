@@ -308,12 +308,12 @@
 
     <button 
       class="utility-btn lossless-btn" 
-      [class.active]="audioService.isLosslessPlayback()"
+      [class.active]="audioService.audioQuality() !== 'auto'"
       (click)="audioService.cycleAudioQuality()"
-      [title]="audioService.isLosslessPlayback() ? 'Lossless FLAC 1411 kbps (Bit-Perfect). Нажмите для переключения' : 'Качество: ' + audioService.audioQuality() + '. Нажмите для переключения на Lossless FLAC'"
+      [title]="audioService.audioQuality() === 'auto' ? (i18n.currentLang() === 'ru' ? 'Качество: AUTO (нажмите для переключения)' : 'Quality: AUTO (click to change)') : (i18n.currentLang() === 'ru' ? 'Качество: ' + (audioService.audioQuality() === 'lossless' ? 'Lossless FLAC' : audioService.audioQuality().toUpperCase()) : 'Quality: ' + (audioService.audioQuality() === 'lossless' ? 'Lossless FLAC' : audioService.audioQuality().toUpperCase()))"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
-      {{ audioService.isLosslessPlayback() ? 'FLAC' : (audioService.audioQuality() === 'high' ? '320K' : (audioService.audioQuality() === 'data_saver' ? '128K' : 'AUTO')) }}
+      {{ audioService.audioQuality() === 'lossless' ? 'FLAC' : (audioService.audioQuality() === 'high' ? '320K' : (audioService.audioQuality() === 'data_saver' ? '128K' : 'AUTO')) }}
     </button>
 
     <button 
@@ -330,40 +330,21 @@
       class="utility-btn" 
       [class.active]="audioService.isCrossfadeEnabled()"
       (click)="audioService.toggleCrossfade()"
-      [title]="audioService.isCrossfadeEnabled() ? i18n.t('player.fadeOn') : i18n.t('player.fadeOff')"
+      [title]="i18n.currentLang() === 'ru' ? (audioService.isCrossfadeEnabled() ? 'Fade: Плавное затухание и перекрестный переход между треками (ВКЛ)' : 'Fade: Плавный переход между треками (ВЫКЛ)') : (audioService.isCrossfadeEnabled() ? 'Crossfade: Smooth track fade transition (ON)' : 'Crossfade: Smooth track transition (OFF)')"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       FADE
     </button>
 
     <button 
-      class="utility-btn" 
-      [class.active]="audioService.isVisualizerOpen()"
-      (click)="audioService.toggleVisualizer()"
-      [title]="audioService.isVisualizerOpen() ? i18n.t('player.visClose') : i18n.t('player.visOpen')"
-      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
-    >
-      VIS
-    </button>
-
-    <button 
       class="utility-btn desktop-only" 
-      [class.active]="ambientService.isEnabled()"
-      (click)="ambientService.toggle()"
-      [title]="ambientService.isEnabled() ? i18n.t('player.glowOff') : i18n.t('player.glowOn')"
+      [class.active]="ambientService.isEnabled() && !bgService.hasCustomWallpaper()"
+      [disabled]="bgService.hasCustomWallpaper()"
+      (click)="toggleAmbientGlow()"
+      [title]="bgService.hasCustomWallpaper() ? (i18n.currentLang() === 'ru' ? 'Glow отключён при активных кастомных обоях' : 'Glow is disabled when custom wallpaper is active') : (ambientService.isEnabled() ? i18n.t('player.glowOff') : i18n.t('player.glowOn'))"
       style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
     >
       GLOW
-    </button>
-
-    <button 
-      class="utility-btn desktop-only" 
-      [class.active]="bgService.isSettingsOpen()"
-      (click)="bgService.toggleSettings(); $event.stopPropagation()"
-      [title]="i18n.currentLang() === 'ru' ? 'Анимированный фон и тема' : 'Animated background and theme'"
-      style="padding: 0 6px; font-size: 11px; font-weight: 700; font-family: monospace;"
-    >
-      {{ i18n.currentLang() === 'ru' ? 'ФОН' : 'BG' }}
     </button>
 
     <!-- Queue Drawer Toggle -->

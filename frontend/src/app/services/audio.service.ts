@@ -248,11 +248,11 @@ export class AudioService {
 
   cycleAudioQuality() {
     const current = this.audioQuality();
-    let next: 'lossless' | 'high' | 'auto' | 'data_saver' = 'lossless';
-    if (current === 'lossless') next = 'high';
-    else if (current === 'high') next = 'auto';
-    else if (current === 'auto') next = 'data_saver';
-    else next = 'lossless';
+    let next: 'lossless' | 'high' | 'auto' | 'data_saver' = 'auto';
+    if (current === 'auto') next = 'lossless';
+    else if (current === 'lossless') next = 'high';
+    else if (current === 'high') next = 'data_saver';
+    else next = 'auto';
     this.setAudioQuality(next);
   }
 
