@@ -147,9 +147,10 @@ export class LyricsComponent {
   }
 
   formatOffset(ms: number): string {
-    if (!ms || ms === 0) return '0.0s';
+    const unit = this.i18n.currentLang() === 'ru' ? ' сек' : 's';
+    if (!ms || ms === 0) return `0.0${unit}`;
     const s = (ms / 1000).toFixed(1);
-    return ms > 0 ? `+${s}s` : `${s}s`;
+    return ms > 0 ? `+${s}${unit}` : `${s}${unit}`;
   }
 
   // --- Scrubber state: preview при drag, seek только при отпускании ---

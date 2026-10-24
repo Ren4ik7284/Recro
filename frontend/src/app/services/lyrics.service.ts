@@ -42,6 +42,7 @@ export class LyricsService {
   readonly isLoading = signal<boolean>(false);
   readonly currentLyrics = signal<ParsedLyrics | null>(null);
   readonly syncOffsetMs = signal<number>(0);
+  readonly lyricsSpeedRate = signal<number>(1.0);
   readonly errorMessage = signal<string | null>(null);
   readonly isAutoScrollLocked = signal<boolean>(false);
   readonly isExternalTrackingActive = signal<boolean>(false);
@@ -86,20 +87,20 @@ export class LyricsService {
     return raw;
   }
 
-  // Natural anticipation lead (~95ms): highlights line right on vocal consonant attack/phoneme onset
-  // eliminates feeling of lag behind the singer's vocal delivery
+  // Balanced vocal lead (~40ms): aligns line highlight naturally with vocal phoneme onset
+  // without premature jumps ahead of the singer
   getTempoLeadSec(): number {
-    return 0.095;
+    return 0.04;
   }
 
-
-  // Индекс активной строки текста в зависимости от текущего времени трека
+  // Индекс активной строки текста в зависимости от текущего времени трека и скорости
   readonly activeLineIndex = computed<number>(() => {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return -1;
 
+    const speed = this.lyricsSpeedRate();
     const lead = this.getTempoLeadSec();
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
+    const t = Math.max(0, (this.precisePlaybackTime() * speed) + this.syncOffsetMs() / 1000 + lead);
 
     // До первой фразы вокала держим -1 (вступление/интро без ложной подсветки)
     if (t < lyrics.lines[0].startTime) {
@@ -142,8 +143,9 @@ export class LyricsService {
     const idx = this.activeLineIndex();
     const lyrics = this.currentLyrics();
     if (idx === -1 || !lyrics || idx >= lyrics.lines.length) return false;
+    const speed = this.lyricsSpeedRate();
     const lead = this.getTempoLeadSec();
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
+    const t = Math.max(0, (this.precisePlaybackTime() * speed) + this.syncOffsetMs() / 1000 + lead);
     const line = lyrics.lines[idx];
     if (line.startTime < 0 || t < line.startTime) {
       return false;
@@ -163,8 +165,9 @@ export class LyricsService {
     const currentLine = lyrics.lines[idx];
     if (currentLine.startTime < 0) return 0;
 
+    const speed = this.lyricsSpeedRate();
     const lead = this.getTempoLeadSec();
-    const adjustedTime = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
+    const adjustedTime = Math.max(0, (this.precisePlaybackTime() * speed) + this.syncOffsetMs() / 1000 + lead);
     const start = currentLine.startTime;
     const nextLine = lyrics.lines[idx + 1];
     const end = currentLine.endTime || (nextLine && nextLine.startTime >= 0 ? nextLine.startTime : start + 4);
@@ -218,6 +221,22 @@ export class LyricsService {
         } catch {}
       }
 
+      // Purge any accidental stuck extreme offsets (e.g. user clicked -5s repeatedly thinking it's speed)
+      if (!localStorage.getItem('recro_lyrics_clean_extreme_offsets_v3')) {
+        try {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('signal_lyrics_offset_')) {
+              const val = parseInt(localStorage.getItem(k) || '0', 10);
+              if (Math.abs(val) >= 14000) {
+                localStorage.removeItem(k);
+              }
+            }
+          }
+          localStorage.setItem('recro_lyrics_clean_extreme_offsets_v3', 'true');
+        } catch {}
+      }
+
       // 1. Регулярный фоновый таймер — обновляет время пока текст закрыт (RAF берёт управление когда открыт)
       this.updateIntervalId = setInterval(() => {
         if (!this.isLyricsOpen()) {
@@ -244,12 +263,28 @@ export class LyricsService {
               const saved = localStorage.getItem(`signal_lyrics_offset_${cur.id}`);
               if (saved !== null) {
                 const parsed = parseInt(saved, 10);
-                if (!isNaN(parsed) && Math.abs(parsed) <= 15000) {
+                if (!isNaN(parsed) && Math.abs(parsed) < 14000) {
                   initialOffset = parsed;
+                } else {
+                  // Очищаем застрявшие экстремальные значения
+                  localStorage.removeItem(`signal_lyrics_offset_${cur.id}`);
                 }
               }
             } catch {}
             this.syncOffsetMs.set(initialOffset);
+
+            // Восстанавливаем сохраненную скорость или детектируем по названию трека
+            let initialSpeed = this.detectInitialSpeed(cur);
+            try {
+              const savedSpeed = localStorage.getItem(`signal_lyrics_speed_${cur.id}`);
+              if (savedSpeed !== null) {
+                const parsedSpeed = parseFloat(savedSpeed);
+                if (!isNaN(parsedSpeed) && parsedSpeed >= 0.5 && parsedSpeed <= 2.0) {
+                  initialSpeed = parsedSpeed;
+                }
+              }
+            } catch {}
+            this.lyricsSpeedRate.set(initialSpeed);
 
             this.loadLyricsForTrack(cur);
           }
@@ -257,6 +292,7 @@ export class LyricsService {
           this.lastLoadedTrackId = null;
           this.precisePlaybackTime.set(0);
           this.syncOffsetMs.set(0);
+          this.lyricsSpeedRate.set(1.0);
           this.currentLyrics.set(null);
           this.isLoading.set(false);
         }
@@ -269,26 +305,6 @@ export class LyricsService {
           this.prefetchNextTrackLyrics(next);
         }
       });
-
-      // 4. Автоматическая калибровка смещения интро при получении точной длительности аудио
-      effect(() => {
-        const audioDur = this.audioService.duration();
-        const lyrics = this.currentLyrics();
-        const cur = this.audioService.currentTrack();
-        if (cur && lyrics && lyrics.isSynced && audioDur > 20 && (lyrics.duration || 0) > 20) {
-          let hasExplicit = false;
-          try {
-            hasExplicit = localStorage.getItem(`signal_lyrics_offset_${cur.id}`) !== null;
-          } catch {}
-          if (!hasExplicit && this.syncOffsetMs() === 0) {
-            const diffSec = audioDur - lyrics.duration!;
-            if (Math.abs(diffSec) >= 0.4 && Math.abs(diffSec) <= 8.0) {
-              this.syncOffsetMs.set(Math.round(-diffSec * 1000));
-            }
-          }
-        }
-      });
-
     }
   }
 
@@ -362,6 +378,29 @@ export class LyricsService {
     }
   }
 
+  detectInitialSpeed(track: Track): number {
+    if (!track || !track.title) return 1.0;
+    const lower = `${track.title} ${track.artist || ''}`.toLowerCase();
+    if (/(speed\s*up|sped\s*up|nightcore|ускорен)/i.test(lower)) {
+      return 1.15;
+    }
+    if (/(slowed|reverb|slow\s*down|замедлен)/i.test(lower)) {
+      return 0.85;
+    }
+    return 1.0;
+  }
+
+  setLyricsSpeedRate(speed: number): void {
+    const clamped = Math.max(0.5, Math.min(2.0, Number(speed.toFixed(2))));
+    this.lyricsSpeedRate.set(clamped);
+    const cur = this.audioService.currentTrack();
+    if (cur) {
+      try {
+        localStorage.setItem(`signal_lyrics_speed_${cur.id}`, clamped.toString());
+      } catch {}
+    }
+  }
+
   adjustOffset(deltaMs: number) {
     this.syncOffsetMs.update((v) => Math.max(-15000, Math.min(15000, v + deltaMs)));
     const cur = this.audioService.currentTrack();
@@ -399,7 +438,7 @@ export class LyricsService {
     const targetLine = lyrics.lines[lineIndex];
     if (targetLine.startTime < 0) return;
 
-    const current = this.precisePlaybackTime();
+    const current = this.precisePlaybackTime() * this.lyricsSpeedRate();
     const newOffsetMs = Math.round((targetLine.startTime - current) * 1000);
     this.syncOffsetMs.set(newOffsetMs);
     const cur = this.audioService.currentTrack();
@@ -416,7 +455,7 @@ export class LyricsService {
     const lyrics = this.currentLyrics();
     if (!lyrics || !lyrics.isSynced || lyrics.lines.length === 0) return;
 
-    const curTime = this.precisePlaybackTime();
+    const curTime = this.precisePlaybackTime() * this.lyricsSpeedRate();
     let minDiff = Infinity;
     let targetIdx = 0;
     for (let i = 0; i < lyrics.lines.length; i++) {
@@ -432,17 +471,20 @@ export class LyricsService {
 
   // Проверка спето ли слово (для пословного караоке)
   isWordSung(word: LyricWord): boolean {
+    const speed = this.lyricsSpeedRate();
     const lead = this.getTempoLeadSec() * 0.7;
-    const t = Math.max(0, this.precisePlaybackTime() + this.syncOffsetMs() / 1000 + lead);
+    const t = Math.max(0, (this.precisePlaybackTime() * speed) + this.syncOffsetMs() / 1000 + lead);
     return t >= word.startTime;
   }
 
   resetOffset() {
     this.syncOffsetMs.set(0);
+    this.lyricsSpeedRate.set(1.0);
     const cur = this.audioService.currentTrack();
     if (cur) {
       try {
         localStorage.removeItem(`signal_lyrics_offset_${cur.id}`);
+        localStorage.removeItem(`signal_lyrics_speed_${cur.id}`);
       } catch {}
       this.persistOffsetToCloud(cur, 0);
     }
@@ -488,7 +530,8 @@ export class LyricsService {
 
   seekToLine(line: LyricLine) {
     if (line.startTime < 0) return;
-    const target = Math.max(0, line.startTime - this.syncOffsetMs() / 1000);
+    const speed = this.lyricsSpeedRate() || 1.0;
+    const target = Math.max(0, (line.startTime - this.syncOffsetMs() / 1000) / speed);
     this.audioService.seek(target);
     this.unlockAutoScroll();
   }
@@ -505,22 +548,6 @@ export class LyricsService {
   unlockAutoScroll() {
     this.isAutoScrollLocked.set(false);
     if (this.autoScrollLockTimeout) clearTimeout(this.autoScrollLockTimeout);
-  }
-
-  public applyAutoOffsetIfApplicable(track: Track, parsed: ParsedLyrics, hasExplicitOffset: boolean): void {
-    if (hasExplicitOffset || !parsed.isSynced || parsed.lines.length === 0) return;
-    const audioDur = (typeof this.audioService?.duration === 'function' ? this.audioService.duration() : 0) || track.duration || 0;
-    const lrcDur = parsed.duration || 0;
-    if (audioDur > 20 && lrcDur > 20) {
-      const diffSec = audioDur - lrcDur;
-      // If duration difference is within range of YouTube intro/outro padding (-8s to +8s)
-      if (Math.abs(diffSec) >= 0.4 && Math.abs(diffSec) <= 8.0) {
-        // diffSec > 0: stream is longer than studio cut (video intro before song begins).
-        // Delay lyrics appearance by diffSec so words don't run ahead of the music.
-        const autoOffsetMs = Math.round(-diffSec * 1000);
-        this.syncOffsetMs.set(autoOffsetMs);
-      }
-    }
   }
 
   /**
@@ -664,7 +691,6 @@ export class LyricsService {
               this.setCachedLyrics(targetTrackId, parsed);
               this.currentLyrics.set(parsed);
               this.isLoading.set(false);
-              this.applyAutoOffsetIfApplicable(track, parsed, hasExplicitOffset);
 
               const cur = this.audioService.currentTrack();
               if (cur && cur.id === targetTrackId && (!cur.duration || cur.duration <= 0)) {
@@ -702,7 +728,6 @@ export class LyricsService {
         this.setCachedLyrics(targetTrackId, lyricsData);
         this.currentLyrics.set(lyricsData);
         this.isLoading.set(false);
-        this.applyAutoOffsetIfApplicable(track, lyricsData, hasExplicitOffset);
         if (lyricsData.raw) {
           this.persistLyricsToCloud(track, lyricsData.raw);
         }

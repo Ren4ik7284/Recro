@@ -236,12 +236,12 @@ Unsynced random header
     expect(service.syncOffsetMs()).toBe(0);
   });
 
-  it('should calibrate auto-offset when audio stream duration has video intro padding', () => {
-    const track = {
-      id: 'test-yt-stream',
-      title: 'YouTube Stream With Video Intro',
+  it('should auto-detect lyrics speed for sped up and slowed tracks and allow rate adjustments', () => {
+    const spedUpTrack = {
+      id: 'sped-1',
+      title: 'Track Title (Speed Up / Nightcore)',
       artist: 'Artist',
-      duration: 183, // Audio stream has 3.0s video intro padding
+      duration: 150,
       audioUrl: '',
       genre: '',
       format: 'mp3' as const,
@@ -250,14 +250,25 @@ Unsynced random header
       isFavorite: false,
       addedAt: '',
     };
+    expect(service.detectInitialSpeed(spedUpTrack)).toBe(1.15);
 
-    const lrcContent = `[00:10.00]First vocal line`;
-    const parsed = service.parseLrc(lrcContent, 'lrclib');
-    parsed.duration = 180; // Official studio cut duration
+    const slowedTrack = {
+      id: 'slow-1',
+      title: 'Track Title (Slowed + Reverb)',
+      artist: 'Artist',
+      duration: 210,
+      audioUrl: '',
+      genre: '',
+      format: 'mp3' as const,
+      bitrate: '',
+      plays: 0,
+      isFavorite: false,
+      addedAt: '',
+    };
+    expect(service.detectInitialSpeed(slowedTrack)).toBe(0.85);
 
-    service.applyAutoOffsetIfApplicable(track, parsed, false);
-    // diffSec = 183 - 180 = +3.0s. Delay lyrics by -3000ms so words match vocals
-    expect(service.syncOffsetMs()).toBe(-3000);
+    service.setLyricsSpeedRate(1.25);
+    expect(service.lyricsSpeedRate()).toBe(1.25);
   });
 
   it('should extract pure primary artist from multi-artist collabs and identify aliases', () => {
@@ -286,7 +297,7 @@ Unsynced random header
     expect(madkidAliases).toContain('мадкид');
   });
 
-  it('should provide responsive vocal anticipation lead (~95ms) for natural speed', () => {
-    expect(service.getTempoLeadSec()).toBeCloseTo(0.095, 3);
+  it('should provide balanced vocal anticipation lead (~40ms) for natural speed', () => {
+    expect(service.getTempoLeadSec()).toBeCloseTo(0.04, 3);
   });
 });

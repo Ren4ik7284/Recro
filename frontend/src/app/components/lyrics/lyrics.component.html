@@ -31,26 +31,38 @@
 
     <div class="lyrics-actions-group">
       @if (lyricsService.currentLyrics()?.isSynced) {
-        <div class="lyrics-offset-controls font-mono" [title]="i18n.currentLang() === 'ru' ? 'Коррекция смещения текста' : 'Lyrics offset adjustment'">
-          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-5000)" title="-5s">-5s</button>
-          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-1000)" title="-1s">-1s</button>
-          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-200)" title="-0.2s">-0.2s</button>
-          <button type="button" class="btn-snap-vocal" (click)="lyricsService.syncNowToCurrentVoice()" [title]="i18n.currentLang() === 'ru' ? 'Синхронизировать в такт вокалу прямо сейчас' : 'Sync to current vocal beat now'">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="12" cy="12" r="10"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-            <span>{{ i18n.currentLang() === 'ru' ? 'В такт' : 'In beat' }}</span>
-          </button>
-          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(200)" title="+0.2s">+0.2s</button>
-          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(1000)" title="+1s">+1s</button>
-          <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(5000)" title="+5s">+5s</button>
-          <span class="offset-value" [class.shifted]="lyricsService.syncOffsetMs() !== 0" (click)="lyricsService.resetOffset()" [title]="i18n.currentLang() === 'ru' ? 'Текущее смещение (клик для сброса)' : 'Current offset (click to reset)'">
-            {{ formatOffset(lyricsService.syncOffsetMs()) }}
-          </span>
-          @if (lyricsService.syncOffsetMs() !== 0) {
-            <button type="button" class="btn-offset-reset" (click)="lyricsService.resetOffset()" [title]="i18n.currentLang() === 'ru' ? 'Сбросить смещение' : 'Reset offset'">0</button>
-          }
+        <div class="lyrics-controls-toolbar">
+          <!-- Lyrics Speed / Tempo Rate Controls -->
+          <div class="lyrics-speed-group font-mono" [title]="i18n.currentLang() === 'ru' ? 'Темп текста песни: 0.85x (slowed), 1.0x (норма), 1.15x (speed up)' : 'Lyrics tempo rate: 0.85x (slowed), 1.0x (normal), 1.15x (speed up)'">
+            <span class="speed-label">{{ i18n.currentLang() === 'ru' ? 'Темп:' : 'Tempo:' }}</span>
+            <button type="button" class="btn-speed-pill" [class.active]="lyricsService.lyricsSpeedRate() === 0.85" (click)="lyricsService.setLyricsSpeedRate(0.85)" title="0.85x Slowed">0.85x</button>
+            <button type="button" class="btn-speed-pill" [class.active]="lyricsService.lyricsSpeedRate() === 1.0" (click)="lyricsService.setLyricsSpeedRate(1.0)" title="1.0x Normal">1.0x</button>
+            <button type="button" class="btn-speed-pill" [class.active]="lyricsService.lyricsSpeedRate() === 1.15" (click)="lyricsService.setLyricsSpeedRate(1.15)" title="1.15x Speed Up">1.15x</button>
+            <button type="button" class="btn-speed-pill" [class.active]="lyricsService.lyricsSpeedRate() === 1.25" (click)="lyricsService.setLyricsSpeedRate(1.25)" title="1.25x Fast">1.25x</button>
+          </div>
+
+          <!-- Lyrics Timing Offset Controls -->
+          <div class="lyrics-offset-controls font-mono" [title]="i18n.currentLang() === 'ru' ? 'Смещение времени текста (сек)' : 'Lyrics timing offset (sec)'">
+            <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-1000)" [title]="i18n.currentLang() === 'ru' ? '-1.0 сек' : '-1.0s'">{{ i18n.currentLang() === 'ru' ? '-1с' : '-1s' }}</button>
+            <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(-200)" [title]="i18n.currentLang() === 'ru' ? '-0.2 сек' : '-0.2s'">{{ i18n.currentLang() === 'ru' ? '-0.2с' : '-0.2s' }}</button>
+            <button type="button" class="btn-snap-vocal" (click)="lyricsService.syncNowToCurrentVoice()" [title]="i18n.currentLang() === 'ru' ? 'Синхронизировать в такт вокалу прямо сейчас' : 'Sync to current vocal beat now'">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span>{{ i18n.currentLang() === 'ru' ? 'В такт' : 'In beat' }}</span>
+            </button>
+            <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(200)" [title]="i18n.currentLang() === 'ru' ? '+0.2 сек' : '+0.2s'">{{ i18n.currentLang() === 'ru' ? '+0.2с' : '+0.2s' }}</button>
+            <button type="button" class="btn-offset-step" (click)="lyricsService.adjustOffset(1000)" [title]="i18n.currentLang() === 'ru' ? '+1.0 сек' : '+1.0s'">{{ i18n.currentLang() === 'ru' ? '+1с' : '+1s' }}</button>
+            <span class="offset-value" [class.shifted]="lyricsService.syncOffsetMs() !== 0" (click)="lyricsService.resetOffset()" [title]="i18n.currentLang() === 'ru' ? 'Текущее смещение (клик для сброса)' : 'Current offset (click to reset)'">
+              {{ formatOffset(lyricsService.syncOffsetMs()) }}
+            </span>
+            @if (lyricsService.syncOffsetMs() !== 0 || lyricsService.lyricsSpeedRate() !== 1.0) {
+              <button type="button" class="btn-offset-reset" (click)="lyricsService.resetOffset()" [title]="i18n.currentLang() === 'ru' ? 'Сбросить скорость и смещение' : 'Reset speed and offset'">
+                {{ i18n.currentLang() === 'ru' ? 'Сброс' : 'Reset' }}
+              </button>
+            }
+          </div>
         </div>
       }
 

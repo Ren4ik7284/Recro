@@ -146,6 +146,55 @@
     align-items: center;
     gap: 10px;
 
+    .lyrics-controls-toolbar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .lyrics-speed-group {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 2px 4px;
+      gap: 2px;
+
+      .speed-label {
+        font-size: 10px;
+        color: #94a3b8;
+        padding: 0 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        user-select: none;
+      }
+
+      .btn-speed-pill {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        padding: 4px 7px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 11px;
+        transition: background 0.15s ease, color 0.15s ease;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
+        }
+
+        &.active {
+          background: rgba(255, 255, 255, 0.22);
+          color: #ffffff;
+          font-weight: 600;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+      }
+    }
+
     .lyrics-offset-controls {
       display: inline-flex;
       align-items: center;
@@ -1206,6 +1255,24 @@
     .lyrics-actions-group {
       gap: 6px;
       flex-shrink: 0;
+
+      .lyrics-controls-toolbar {
+        gap: 4px;
+      }
+
+      .lyrics-speed-group {
+        padding: 2px 3px;
+        gap: 1px;
+
+        .speed-label {
+          display: none;
+        }
+
+        .btn-speed-pill {
+          padding: 3px 5px;
+          font-size: 10px;
+        }
+      }
 
       .lyrics-offset-controls {
         padding: 2px 4px;
