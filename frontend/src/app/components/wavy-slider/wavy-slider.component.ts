@@ -6,6 +6,7 @@ import {
   OnChanges,
   OnDestroy,
   OnInit,
+  AfterViewInit,
   Output,
   SimpleChanges,
   ViewChild,
@@ -24,7 +25,7 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
   styleUrl: './wavy-slider.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
+export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly hostRef = inject(ElementRef<HTMLElement>);
 
@@ -35,9 +36,10 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
   @Input() max = 100;
   @Input() isPlaying = false;
   @Input() disabled = false;
-  @Input() waveLength = 36; // px per wave cycle
-  @Input() amplitude = 4.0; // px amplitude
-  @Input() waveDuration = 1200; // ms for one full wave phase cycle (like Caelestia Shell)
+  @Input() color = '';
+  @Input() waveLength = 32; // px per wave cycle (crisp squiggly wave)
+  @Input() amplitude = 4.5; // px amplitude for visible wave
+  @Input() waveDuration = 1100; // ms for one full wave phase cycle (like Caelestia Shell)
   @Input() showHandle = true;
   @Input() showTooltip = true;
 
@@ -52,14 +54,13 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
   hoverTime = 0;
   hoverX = 0;
   formattedHoverTime = '0:00';
+  currentDragPct = 0;
 
   private ctx: CanvasRenderingContext2D | null = null;
   private animFrameId: number | null = null;
   private lastTimestamp = 0;
   private wavePhase = 0;
   private resizeObserver?: ResizeObserver;
-  currentDragPct = 0;
-  private dragStartX = 0;
 
   // Bound window listener references for safe removal
   private onWindowPointerMoveRef = (e: PointerEvent) => this.onWindowPointerMove(e);
@@ -75,6 +76,17 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
     const canvas = this.canvasRef?.nativeElement;
     if (canvas) {
       this.ctx = canvas.getContext('2d');
+    }
+  }
+
+  ngAfterViewInit(): void {
+    if (!this.isBrowser) return;
+
+    const canvas = this.canvasRef?.nativeElement;
+    if (canvas) {
+      if (!this.ctx) {
+        this.ctx = canvas.getContext('2d');
+      }
       this.setupResizeObserver();
       this.syncCanvasSize();
       this.requestDraw();
@@ -152,9 +164,13 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
 
   private setupResizeObserver(): void {
     if (typeof ResizeObserver === 'undefined') return;
-    this.resizeObserver = new ResizeObserver(() => {
-      this.syncCanvasSize();
-      this.requestDraw();
+    this.resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          this.syncCanvasSize();
+          this.requestDraw();
+        }
+      }
     });
     this.resizeObserver.observe(this.hostRef.nativeElement);
   }
@@ -191,9 +207,10 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    // Color resolution from CSS theme
+    // Color resolution from CSS theme or fallback
     const style = getComputedStyle(canvas);
     const activeColor =
+      this.color ||
       style.getPropertyValue('--slider-fill-color').trim() ||
       style.getPropertyValue('--theme-c1').trim() ||
       style.getPropertyValue('--accent-blue').trim() ||
@@ -207,7 +224,7 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
     const pct = this.max > 0 ? Math.min(1, Math.max(0, effectiveValue / this.max)) : 0;
 
     const handleWidth = this.isHovered || this.isDragging ? 5 : 4;
-    const handleHeight = this.isDragging ? 18 : this.isHovered ? 16 : 13;
+    const handleHeight = this.isDragging ? 18 : this.isHovered ? 16 : 14;
     const halfHandle = handleWidth / 2;
 
     // Usable track bounds
@@ -216,7 +233,7 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
     const availableWidth = endX - startX;
     const progressX = startX + pct * availableWidth;
 
-    // 1. Draw remaining unplayed track line
+    // 1. Draw remaining unplayed track line (от бегунка до конца трека)
     const remainingStartX = Math.min(endX, progressX + halfHandle + 3);
     const remainingEndX = endX - 6;
 
@@ -232,12 +249,12 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
 
       // Caelestia Shell signature endpoint dot at the far right
       ctx.beginPath();
-      ctx.arc(endX - 2, centerY, 2, 0, Math.PI * 2);
+      ctx.arc(endX - 2, centerY, 2.5, 0, Math.PI * 2);
       ctx.fillStyle = activeColor;
       ctx.fill();
     }
 
-    // 2. Draw animated Wavy line for played progress
+    // 2. Draw animated Wavy line for played progress (от начала до бегунка)
     const waveEndX = Math.max(startX, progressX - (this.showHandle ? halfHandle + 2 : 0));
     const playedLength = waveEndX - startX;
 
@@ -258,21 +275,21 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
         const envelopeOut = Math.min(1, distFromEnd / 14);
         const curAmp = baseAmp * envelopeIn * envelopeOut;
 
-        // Traveling sine wave formula
+        // Traveling sine wave formula (Caelestia Shell squiggly snake)
         const angle = ((x - startX) / wLen) * Math.PI * 2 - this.wavePhase;
         const y = centerY + Math.sin(angle) * curAmp;
         ctx.lineTo(x, y);
       }
       ctx.lineTo(waveEndX, centerY);
 
-      ctx.lineWidth = this.isHovered || this.isDragging ? 3.5 : 3.0;
+      ctx.lineWidth = this.isHovered || this.isDragging ? 3.8 : 3.2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = activeColor;
 
       // Glow effect in Caelestia / modern shell style
       ctx.shadowColor = activeColor;
-      ctx.shadowBlur = this.isHovered || this.isDragging ? 8 : 3;
+      ctx.shadowBlur = this.isHovered || this.isDragging ? 8 : 4;
       ctx.stroke();
     }
 
@@ -285,7 +302,6 @@ export class WavySliderComponent implements OnInit, OnChanges, OnDestroy {
       if (typeof ctx.roundRect === 'function') {
         ctx.roundRect(hx - halfHandle, hy, handleWidth, handleHeight, 999);
       } else {
-        // Fallback for older environments
         ctx.rect(hx - halfHandle, hy, handleWidth, handleHeight);
       }
       ctx.fillStyle = activeColor;

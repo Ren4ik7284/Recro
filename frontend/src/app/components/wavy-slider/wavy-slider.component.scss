@@ -1,6 +1,8 @@
 :host {
   display: block;
+  flex: 1;
   width: 100%;
+  min-width: 0;
   position: relative;
   user-select: none;
   outline: none;

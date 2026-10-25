@@ -243,6 +243,13 @@
         flex: 1;
         display: flex;
         align-items: center;
+        min-width: 0;
+
+        app-wavy-slider {
+          flex: 1;
+          width: 100%;
+          min-width: 0;
+        }
 
         .live-stream-bar {
           width: 100%;
