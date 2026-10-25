@@ -19,6 +19,7 @@ import { Track, Playlist, RadioStation, MixMood, MixSource, MixLanguage, MixConf
 import { HeaderComponent } from './components/header/header.component';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { PlayerBarComponent } from './components/player-bar/player-bar.component';
+import { WavySliderComponent } from './components/wavy-slider/wavy-slider.component';
 import { VisualizerComponent } from './components/visualizer/visualizer.component';
 import { OfflineService } from './services/offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './services/auth.service';
@@ -54,6 +55,7 @@ declare global {
     HeaderComponent,
     SidebarComponent,
     PlayerBarComponent,
+    WavySliderComponent,
     VisualizerComponent,
     LyricsComponent,
     ProfileComponent,
@@ -221,6 +223,11 @@ export class App implements OnInit {
     return this.audioService.progressPercent();
   });
   private toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  onScrubStart() {
+    this.isScrubbing.set(true);
+    this.scrubTime.set(this.audioService.currentTime());
+  }
 
   onScrubberInput(val: number) {
     this.isScrubbing.set(true);

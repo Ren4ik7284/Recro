@@ -204,16 +204,14 @@
           </span>
           <div class="vis-slider-box">
             @if (!audioService.isLiveStream()) {
-              <input 
-                type="range"
-                min="0"
-                [max]="audioService.duration() || 100"
-                step="1"
+              <app-wavy-slider
                 [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
-                (input)="onScrubberInput(+($any($event.target).value))"
-                (change)="onScrubberChange(+($any($event.target).value))"
-                class="mono-slider"
-              />
+                [max]="audioService.duration() || 100"
+                [isPlaying]="audioService.isPlaying()"
+                (scrubStart)="onScrubStart()"
+                (scrub)="onScrubberInput($event)"
+                (seek)="onScrubberChange($event)"
+              ></app-wavy-slider>
             } @else {
               <div class="vis-live-line"></div>
             }

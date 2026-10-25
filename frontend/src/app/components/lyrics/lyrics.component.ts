@@ -16,11 +16,12 @@ import { PipService } from '../../services/pip.service';
 import { I18nService } from '../../services/i18n.service';
 import { LiveBackgroundService } from '../../services/live-background.service';
 import { LiveBackgroundComponent } from '../live-background/live-background.component';
+import { WavySliderComponent } from '../wavy-slider/wavy-slider.component';
 
 @Component({
   selector: 'app-lyrics-view',
   standalone: true,
-  imports: [CommonModule, LiveBackgroundComponent],
+  imports: [CommonModule, LiveBackgroundComponent, WavySliderComponent],
   templateUrl: './lyrics.component.html',
   styleUrl: './lyrics.component.scss',
   encapsulation: ViewEncapsulation.None,
@@ -156,6 +157,11 @@ export class LyricsComponent {
   // --- Scrubber state: preview при drag, seek только при отпускании ---
   readonly isScrubbing = signal<boolean>(false);
   readonly scrubTime = signal<number>(0);
+
+  onScrubStart() {
+    this.isScrubbing.set(true);
+    this.scrubTime.set(this.audioService.currentTime());
+  }
 
   onScrubberInput(val: number) {
     this.isScrubbing.set(true);

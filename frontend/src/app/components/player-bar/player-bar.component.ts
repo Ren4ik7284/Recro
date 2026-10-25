@@ -8,6 +8,7 @@ import { LyricsService } from '../../services/lyrics.service';
 import { AmbientService } from '../../services/ambient.service';
 import { TimerService } from '../../services/timer.service';
 import { VisualizerComponent } from '../visualizer/visualizer.component';
+import { WavySliderComponent } from '../wavy-slider/wavy-slider.component';
 import { Track } from '../../models/track.model';
 import { I18nService } from '../../services/i18n.service';
 import { PipService } from '../../services/pip.service';
@@ -16,7 +17,7 @@ import { LiveBackgroundService } from '../../services/live-background.service';
 @Component({
   selector: 'app-player-bar',
   standalone: true,
-  imports: [CommonModule, FormsModule, VisualizerComponent],
+  imports: [CommonModule, FormsModule, VisualizerComponent, WavySliderComponent],
   templateUrl: './player-bar.component.html',
   styleUrl: './player-bar.component.scss',
   encapsulation: ViewEncapsulation.None,
@@ -92,6 +93,11 @@ export class PlayerBarComponent {
     }
     return this.audioService.progressPercent();
   });
+
+  onScrubStart() {
+    this.isScrubbing.set(true);
+    this.scrubTime.set(this.audioService.currentTime());
+  }
 
   onScrubberInput(val: number) {
     this.isScrubbing.set(true);

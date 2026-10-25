@@ -116,16 +116,14 @@
           <span>{{ formatTime(audioService.currentTime()) }}</span>
           <span>{{ formatTime(audioService.duration()) }}</span>
         </div>
-        <input 
-          type="range"
-          min="0"
-          [max]="audioService.duration() || 100"
-          step="1"
+        <app-wavy-slider
           [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
-          (input)="onScrubberInput(+($any($event.target).value))"
-          (change)="onScrubberChange(+($any($event.target).value))"
-          class="lyrics-timeline-slider"
-        />
+          [max]="audioService.duration() || 100"
+          [isPlaying]="audioService.isPlaying()"
+          (scrubStart)="onScrubStart()"
+          (scrub)="onScrubberInput($event)"
+          (seek)="onScrubberChange($event)"
+        ></app-wavy-slider>
       </div>
 
       <!-- Main Transport Controls: Shuffle, Prev, Play, Next, Repeat -->

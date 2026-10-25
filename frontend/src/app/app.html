@@ -1720,17 +1720,14 @@
               <span class="live-stream-label">{{ i18n.currentLang() === 'ru' ? 'ПРЯМОЙ ЭФИР • ОНЛАЙН-ПОТОК' : 'LIVE STREAM' }}</span>
             </div>
           } @else {
-            <input 
-              type="range"
-              min="0"
-              [max]="audioService.duration() || 100"
-              step="1"
+            <app-wavy-slider
               [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
-              [style.--slider-progress.%]="currentProgressPercent()"
-              (input)="onScrubberInput(+($any($event.target).value))"
-              (change)="onScrubberChange(+($any($event.target).value))"
-              class="mono-slider"
-            />
+              [max]="audioService.duration() || 100"
+              [isPlaying]="audioService.isPlaying()"
+              (scrubStart)="onScrubStart()"
+              (scrub)="onScrubberInput($event)"
+              (seek)="onScrubberChange($event)"
+            ></app-wavy-slider>
           }
         </div>
         <div class="sheet-time-row font-mono">

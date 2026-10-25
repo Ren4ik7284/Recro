@@ -1,0 +1,28 @@
+<div 
+  class="wavy-slider-container" 
+  [class.hovered]="isHovered" 
+  [class.dragging]="isDragging"
+  [class.disabled]="disabled"
+  role="slider"
+  tabindex="0"
+  [attr.aria-label]="'Seek track'"
+  [attr.aria-valuenow]="isDragging ? (currentDragPct * max | number:'1.0-0') : value"
+  [attr.aria-valuemin]="0"
+  [attr.aria-valuemax]="max"
+  [attr.aria-valuetext]="formatTime(isDragging ? currentDragPct * max : value)"
+  (pointerdown)="onPointerDown($event)"
+  (pointerenter)="onPointerEnter()"
+  (pointermove)="onPointerMove($event)"
+  (pointerleave)="onPointerLeave()"
+>
+  <canvas #waveCanvas class="wave-canvas"></canvas>
+
+  @if (showTooltip && (isHovered || isDragging) && max > 0) {
+    <div 
+      class="hover-time-tooltip font-mono" 
+      [style.left.px]="hoverX"
+    >
+      {{ isDragging ? formatTime(currentDragPct * max) : formattedHoverTime }}
+    </div>
+  }
+</div>

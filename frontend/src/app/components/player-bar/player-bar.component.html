@@ -229,17 +229,14 @@
             <span class="live-stream-label">{{ i18n.t('player.liveStream') }}</span>
           </div>
         } @else {
-          <input 
-            type="range"
-            min="0"
-            [max]="audioService.duration() || 100"
-            step="1"
+          <app-wavy-slider
             [value]="isScrubbing() ? scrubTime() : audioService.currentTime()"
-            [style.--slider-progress.%]="currentProgressPercent()"
-            (input)="onScrubberInput(+($any($event.target).value))"
-            (change)="onScrubberChange(+($any($event.target).value))"
-            class="mono-slider"
-          />
+            [max]="audioService.duration() || 100"
+            [isPlaying]="audioService.isPlaying()"
+            (scrubStart)="onScrubStart()"
+            (scrub)="onScrubberInput($event)"
+            (seek)="onScrubberChange($event)"
+          ></app-wavy-slider>
         }
       </div>
       <span class="time-stamp font-mono">

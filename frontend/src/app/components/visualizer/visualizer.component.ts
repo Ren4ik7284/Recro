@@ -19,6 +19,7 @@ import { LibraryService } from '../../services/library.service';
 import { LyricsService } from '../../services/lyrics.service';
 import { Track } from '../../models/track.model';
 import { I18nService } from '../../services/i18n.service';
+import { WavySliderComponent } from '../wavy-slider/wavy-slider.component';
 
 export type VisualizerType = 'bars' | 'wave' | 'circle' | 'lyrics';
 export type VisualizerTheme = 'mono' | 'blue' | 'album' | 'green';
@@ -26,7 +27,7 @@ export type VisualizerTheme = 'mono' | 'blue' | 'album' | 'green';
 @Component({
   selector: 'app-visualizer',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, WavySliderComponent],
   templateUrl: './visualizer.component.html',
   styleUrl: './visualizer.component.scss',
   encapsulation: ViewEncapsulation.None,
@@ -674,6 +675,11 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly isScrubbing = signal<boolean>(false);
   readonly scrubTime = signal<number>(0);
+
+  onScrubStart() {
+    this.isScrubbing.set(true);
+    this.scrubTime.set(this.audioService.currentTime());
+  }
 
   onScrubberInput(val: number) {
     this.isScrubbing.set(true);
