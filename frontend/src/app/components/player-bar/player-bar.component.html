@@ -118,7 +118,7 @@
         class="ctrl-btn desktop-only" 
         [class.active]="audioService.isShuffle()"
         (click)="audioService.toggleShuffle(); $event.stopPropagation()"
-        [title]="i18n.t('player.shuffle')"
+        [title]="audioService.isShuffle() ? i18n.t('player.shuffleOn') : i18n.t('player.shuffleOff')"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="16 3 21 3 21 8"/>
@@ -180,7 +180,7 @@
         class="ctrl-btn desktop-only" 
         [class.active]="audioService.repeatMode() !== 'off'"
         (click)="audioService.cycleRepeat(); $event.stopPropagation()"
-        [title]="i18n.t('player.repeatLabel') + audioService.repeatMode()"
+        [title]="audioService.repeatMode() === 'one' ? i18n.t('player.repeatOne') : (audioService.repeatMode() === 'all' ? i18n.t('player.repeatAll') : i18n.t('player.repeatOff'))"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="17 1 21 5 17 9"/>

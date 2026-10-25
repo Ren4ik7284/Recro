@@ -142,21 +142,25 @@
         padding: 4px;
         border-radius: 4px;
         position: relative;
-        transition: color 0.12s ease;
+        transition: color 0.15s ease, transform 0.1s ease;
 
         &:hover { color: var(--text-primary); }
-        &.active { color: var(--text-primary); }
+        &:active { transform: scale(0.92); }
+
+        &.active {
+          color: #3b82f6;
+        }
 
         .repeat-one-badge {
           position: absolute;
-          top: -2px;
+          top: -3px;
           right: -4px;
           font-size: 8px;
-          background: var(--text-primary);
-          color: #000;
+          background: #3b82f6;
+          color: #ffffff;
           border-radius: 50%;
-          width: 10px;
-          height: 10px;
+          width: 11px;
+          height: 11px;
           display: flex;
           align-items: center;
           justify-content: center;

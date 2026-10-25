@@ -39,16 +39,20 @@ export class AudioService {
   readonly streamSeekOffset = signal<number>(0);
   private readonly STORAGE_KEY_VOLUME = 'signal_player_volume';
   private readonly STORAGE_KEY_REPEAT = 'signal_player_repeat';
+  private readonly STORAGE_KEY_SHUFFLE = 'signal_player_shuffle';
   private readonly STORAGE_KEY_QUALITY = 'signal_player_audio_quality';
   private readonly STORAGE_KEY_BIT_PERFECT = 'signal_player_bit_perfect';
   private readonly STORAGE_KEY_LS_MODE = 'signal_player_lossless_scaling';
 
   readonly volume = signal<number>(this.loadSavedVolume());
   readonly isMuted = signal<boolean>(false);
-  readonly isShuffle = signal<boolean>(false);
-  readonly repeatMode = signal<'off' | 'all' | 'one'>(this.loadSavedRepeatMode());
+  readonly isShuffle = signal<boolean>(this.loadSavedShuffle());
+  readonly repeatMode = signal<'off' | 'one' | 'all'>(this.loadSavedRepeatMode());
   readonly audioQuality = signal<'lossless' | 'high' | 'auto' | 'data_saver'>(this.loadSavedQuality());
   readonly isBitPerfect = signal<boolean>(this.loadSavedBitPerfect());
+
+  readonly toastNotice = signal<{ message: string; timestamp: number } | null>(null);
+  private originalQueue: Track[] = [];
 
   readonly losslessScalingMode = signal<LosslessScalingMode>(this.loadSavedLosslessScaling());
   readonly isLosslessScalingActive = computed(() => this.losslessScalingMode() !== 'off');
@@ -174,15 +178,37 @@ export class AudioService {
     return 0.35;
   }
 
-  private loadSavedRepeatMode(): 'off' | 'all' | 'one' {
+  private loadSavedRepeatMode(): 'off' | 'one' | 'all' {
     if (typeof localStorage === 'undefined') return 'off';
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY_REPEAT);
       if (saved === 'off' || saved === 'all' || saved === 'one') {
-        return saved;
+        return saved as 'off' | 'one' | 'all';
       }
     } catch {}
     return 'off';
+  }
+
+  private loadSavedShuffle(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      return localStorage.getItem(this.STORAGE_KEY_SHUFFLE) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  notifyUser(message: string) {
+    this.toastNotice.set({ message, timestamp: Date.now() });
+  }
+
+  shuffleArray<T>(array: T[]): T[] {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
   }
 
   /**
@@ -382,6 +408,7 @@ export class AudioService {
     }
 
     this.audio.volume = this.effectiveVolume(this.volume());
+    this.audio.loop = (this.repeatMode() === 'one');
 
     if (typeof window !== 'undefined') {
       (window as any).recroMediaAction = (action: string) => {
@@ -731,7 +758,7 @@ export class AudioService {
 
       // 1. Natural end only when actual playback exceeds total track duration by at least 3.0s
       // and decoded audio has truly finished (prevents hanging in dead outro, but never cuts music)
-      if (total > 15 && actual >= total + 3.0 && !this.isLiveStream()) {
+      if (this.repeatMode() !== 'one' && total > 15 && actual >= total + 3.0 && !this.isLiveStream()) {
         const audioDur = this.audio.duration;
         if (!audioDur || isNaN(audioDur) || actual >= this.streamSeekOffset() + audioDur - 0.5) {
           console.warn(`[AudioService] Playback reached track end (${actual.toFixed(1)}s / ${total}s), advancing to next track`);
@@ -1322,12 +1349,22 @@ export class AudioService {
     this.isSwitchingTrack = true;
 
     if (newQueue && newQueue.length > 0) {
-      this.queue.set([...newQueue]);
-      if (queueIndex !== undefined && queueIndex >= 0 && queueIndex < newQueue.length) {
-        this.queueIndex.set(queueIndex);
+      this.originalQueue = [...newQueue];
+      if (this.isShuffle() && newQueue.length > 1 && !fromMix) {
+        // User started playing a playlist / library / chart with Shuffle active!
+        // Keep the chosen track first, shuffle the rest of the queue
+        const otherTracks = newQueue.filter((t) => t.id !== track.id);
+        const shuffledRest = this.shuffleArray(otherTracks);
+        this.queue.set([track, ...shuffledRest]);
+        this.queueIndex.set(0);
       } else {
-        const idx = newQueue.findIndex((t) => t.id === track.id);
-        this.queueIndex.set(idx >= 0 ? idx : 0);
+        this.queue.set([...newQueue]);
+        if (queueIndex !== undefined && queueIndex >= 0 && queueIndex < newQueue.length) {
+          this.queueIndex.set(queueIndex);
+        } else {
+          const idx = newQueue.findIndex((t) => t.id === track.id);
+          this.queueIndex.set(idx >= 0 ? idx : 0);
+        }
       }
     } else {
       const currentQueue = this.queue();
@@ -1434,6 +1471,7 @@ export class AudioService {
 
     // Apply bit-perfect audio graph state according to track and user settings
     this.applyBitPerfectState();
+    this.audio.loop = (this.repeatMode() === 'one');
 
     // Apply smooth immediate fade in
     this.applyFadeIn(0.12);
@@ -1688,9 +1726,6 @@ export class AudioService {
       }
 
       let nextIdx = this.queueIndex() + 1;
-      if (this.isShuffle() && !this.recService.isMixActive()) {
-        nextIdx = Math.floor(Math.random() * q.length);
-      }
 
       if (this.recService.isMixActive()) {
         const source = this.recService.mixConfig().source;
@@ -1739,8 +1774,12 @@ export class AudioService {
         }
       } else {
         if (nextIdx >= q.length) {
-          if (this.repeatMode() === 'all' && q.length > 1) {
+          if (this.repeatMode() === 'all' && q.length > 0) {
             nextIdx = 0;
+            if (this.isShuffle() && q.length > 1) {
+              const reshuffled = this.shuffleArray(q);
+              this.queue.set(reshuffled);
+            }
           } else {
             // Бесконечное автовоспроизведение: если очередь закончилась (например, доиграли треки или играл 1 трек),
             // бесшовно подхватываем следующие похожие треки, которые могут понравиться пользователю,
@@ -1818,7 +1857,7 @@ export class AudioService {
 
       let prevIdx = this.queueIndex() - 1;
       if (prevIdx < 0) {
-        prevIdx = q.length - 1;
+        prevIdx = this.repeatMode() === 'all' ? q.length - 1 : 0;
       }
 
       const targetTrack = q[prevIdx];
@@ -1841,13 +1880,12 @@ export class AudioService {
     }, 1000);
 
     if (this.repeatMode() === 'one') {
-      const cur = this.currentTrack();
-      if (cur) {
-        this.playTrack(cur, undefined, this.recService.isMixActive(), this.queueIndex()).catch(() => {});
-      } else {
-        this.seek(0);
+      if (this.audio) {
+        this.audio.currentTime = 0;
+        this.currentTime.set(0);
         this.audio.play().catch(() => {});
       }
+      return;
     } else {
       this.next(true);
     }
@@ -1882,17 +1920,64 @@ export class AudioService {
   }
 
   toggleShuffle() {
-    this.isShuffle.update((v) => !v);
+    const nextVal = !this.isShuffle();
+    this.isShuffle.set(nextVal);
+    try {
+      localStorage.setItem(this.STORAGE_KEY_SHUFFLE, String(nextVal));
+    } catch {}
+
+    const curQ = this.queue();
+    const curTrack = this.currentTrack();
+    const curIdx = this.queueIndex();
+
+    if (nextVal) {
+      if (curQ.length > 1) {
+        if (this.originalQueue.length === 0) {
+          this.originalQueue = [...curQ];
+        }
+        const history = curIdx > 0 ? curQ.slice(0, curIdx) : [];
+        const current = curTrack ? [curTrack] : (curIdx >= 0 && curIdx < curQ.length ? [curQ[curIdx]] : []);
+        const upcoming = curQ.slice(curIdx + 1);
+        const shuffledUpcoming = this.shuffleArray(upcoming);
+
+        const newQ = [...history, ...current, ...shuffledUpcoming];
+        this.queue.set(newQ);
+        this.queueIndex.set(history.length);
+      }
+      this.notifyUser('Случайный порядок включен');
+    } else {
+      if (this.originalQueue.length > 0) {
+        const restored = [...this.originalQueue];
+        this.queue.set(restored);
+        if (curTrack) {
+          const idx = restored.findIndex((t) => t.id === curTrack.id);
+          this.queueIndex.set(idx >= 0 ? idx : 0);
+        }
+        this.originalQueue = [];
+      }
+      this.notifyUser('Случайный порядок выключен');
+    }
   }
 
   cycleRepeat() {
-    const modes: ('off' | 'all' | 'one')[] = ['off', 'all', 'one'];
+    const modes: ('off' | 'one' | 'all')[] = ['off', 'one', 'all'];
     const current = this.repeatMode();
     const next = modes[(modes.indexOf(current) + 1) % modes.length];
     this.repeatMode.set(next);
+    if (this.audio) {
+      this.audio.loop = (next === 'one');
+    }
     try {
       localStorage.setItem(this.STORAGE_KEY_REPEAT, next);
     } catch {}
+
+    if (next === 'one') {
+      this.notifyUser('Повтор текущего трека включен');
+    } else if (next === 'all') {
+      this.notifyUser('Повтор всей очереди включен');
+    } else {
+      this.notifyUser('Повтор выключен');
+    }
   }
 
   addToQueue(track: Track) {

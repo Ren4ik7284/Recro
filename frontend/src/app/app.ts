@@ -372,6 +372,13 @@ export class App implements OnInit {
 
       this.cdr.markForCheck();
     });
+
+    effect(() => {
+      const notice = this.audioService.toastNotice();
+      if (notice) {
+        this.showToast(notice.message);
+      }
+    });
   }
 
   onCoverError(event: Event, track?: Track | null) {
@@ -617,6 +624,12 @@ export class App implements OnInit {
       event.preventDefault();
       this.audioService.toggleVisualizer();
       this.showToast(this.audioService.isVisualizerOpen() ? 'Визуализатор открыт' : 'Визуализатор закрыт');
+    } else if (event.key === 'r' || event.key === 'R' || event.key === 'к' || event.key === 'К') {
+      event.preventDefault();
+      this.audioService.cycleRepeat();
+    } else if (event.key === 's' || event.key === 'S' || event.key === 'ы' || event.key === 'Ы') {
+      event.preventDefault();
+      this.audioService.toggleShuffle();
     } else if (event.key === 'Escape') {
       if (this.lyricsService.isLyricsOpen()) {
         this.lyricsService.closeLyrics();

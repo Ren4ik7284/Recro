@@ -4360,9 +4360,30 @@ app-header-bar {
         color: var(--text-secondary);
         padding: 8px;
         cursor: pointer;
+        position: relative;
+        transition: color 0.15s ease, transform 0.1s ease;
+
+        &:hover { color: var(--text-primary); }
+        &:active { transform: scale(0.92); }
 
         &.active {
-          color: var(--text-primary);
+          color: #3b82f6;
+        }
+
+        .repeat-one-badge {
+          position: absolute;
+          top: 2px;
+          right: 2px;
+          font-size: 8px;
+          background: #3b82f6;
+          color: #ffffff;
+          border-radius: 50%;
+          width: 11px;
+          height: 11px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
         }
       }
 

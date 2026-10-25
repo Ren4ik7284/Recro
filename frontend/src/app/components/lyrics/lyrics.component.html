@@ -135,7 +135,7 @@
           class="lyrics-ctrl-btn" 
           [class.active]="audioService.isShuffle()"
           (click)="audioService.toggleShuffle()" 
-          [title]="i18n.t('player.shuffle')"
+          [title]="audioService.isShuffle() ? i18n.t('player.shuffleOn') : i18n.t('player.shuffleOff')"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="16 3 21 3 21 8"/>
@@ -178,7 +178,7 @@
           class="lyrics-ctrl-btn" 
           [class.active]="audioService.repeatMode() !== 'off'"
           (click)="audioService.cycleRepeat()" 
-          [title]="i18n.currentLang() === 'ru' ? 'Режим повтора' : 'Repeat mode'"
+          [title]="audioService.repeatMode() === 'one' ? i18n.t('player.repeatOne') : (audioService.repeatMode() === 'all' ? i18n.t('player.repeatAll') : i18n.t('player.repeatOff'))"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="17 1 21 5 17 9"/>
@@ -186,6 +186,9 @@
             <polyline points="7 23 3 19 7 15"/>
             <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
           </svg>
+          @if (audioService.repeatMode() === 'one') {
+            <span class="repeat-one-badge font-mono">1</span>
+          }
         </button>
       </div>
 
