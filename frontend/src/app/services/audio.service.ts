@@ -117,11 +117,11 @@ export class AudioService {
     this.clearStartupWatchdog();
     this.startupWatchdogTimer = setTimeout(() => {
       if (requestId !== this.currentPlayRequestId) return;
-      if (!this.hasAudioStartedPlaying || this.audio.readyState < 2) {
-        console.warn(`[AudioService] Track startup stalled (>3.8s) for "${track.title}", failing over cluster immediately...`);
+      if (!this.hasAudioStartedPlaying && this.audio.paused && (this.audio.currentTime === 0 || isNaN(this.audio.currentTime))) {
+        console.warn(`[AudioService] Track startup stalled (>12s) for "${track.title}", failing over cluster immediately...`);
         this.handlePlaybackFailure('startup_stall');
       }
-    }, 3800);
+    }, 12000);
   }
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
@@ -1046,7 +1046,7 @@ export class AudioService {
           const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
           const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
           const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
-          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}&_t=${Date.now()}`;
+          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
           const updatedTrack = { ...cur, audioUrl: altUrl };
           this.errorTimeoutId = setTimeout(() => {
             this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
@@ -1094,7 +1094,7 @@ export class AudioService {
           const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
           const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
           const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
-          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}&_t=${Date.now()}`;
+          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
           const updatedTrack = { ...cur, audioUrl: altUrl };
           this.errorTimeoutId = setTimeout(() => {
             if (this.recService.isMixActive()) {

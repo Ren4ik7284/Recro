@@ -2,7 +2,7 @@ use std::path::Path;
 use std::process::Stdio;
 use tokio::process::Command;
 
-pub const CLOUD_FALLBACK_URL: &str = "http://177.3.217.64";
+pub const CLOUD_FALLBACK_URL: &str = "https://recro.177.3.217.64.sslip.io";
 
 pub fn is_frankfurt() -> bool {
     std::fs::read_to_string("/etc/hostname")
