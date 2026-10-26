@@ -617,7 +617,7 @@ pub async fn stream_audio(
                 };
 
                 eprintln!("[STREAM] Querying SoundCloud with sc_query={:?}", sc_query);
-                if let Some(u) = state.soundcloud.search_and_resolve_stream(&sc_query).await {
+                if let Ok(Some(u)) = tokio::time::timeout(Duration::from_millis(3500), state.soundcloud.search_and_resolve_stream(&sc_query)).await {
                     eprintln!("[STREAM] SoundCloud stream resolved directly: {}", u);
                     direct_url = u;
                 }
@@ -722,25 +722,58 @@ pub async fn stream_audio(
                 }
             }
 
-            // Fallback 3: Cloud VPS proxy when deployed on cloud environment (Render / Railway)
-            if direct_url.is_empty() && is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
-                let cloud_stream_url = format!(
-                    "{}/api/stream?url={}{}{}{}",
-                    CLOUD_FALLBACK_URL,
-                    urlencoding::encode(&target),
-                    params.ss.map(|s| format!("&ss={}", s)).unwrap_or_default(),
-                    params.title.as_deref().map(|t| format!("&title={}", urlencoding::encode(t))).unwrap_or_default(),
-                    params.artist.as_deref().map(|a| format!("&artist={}", urlencoding::encode(a))).unwrap_or_default()
-                );
+            // Fallback 3: Foreign Frankfurt cluster proxy when local stream resolution fails (e.g. RU blocks)
+            let is_frankfurt = std::fs::read_to_string("/etc/hostname")
+                .map(|h| h.contains("recroz") || h.contains("Recroz") || h.contains("play2go"))
+                .unwrap_or(false);
 
-                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(6)).build() {
+            if direct_url.is_empty() && (!is_frankfurt || is_cloud_env()) && !CLOUD_FALLBACK_URL.is_empty() {
+                let mut fwd_params = Vec::new();
+                if let Some(ref t) = params.title {
+                    fwd_params.push(format!("title={}", urlencoding::encode(t)));
+                }
+                if let Some(ref a) = params.artist {
+                    fwd_params.push(format!("artist={}", urlencoding::encode(a)));
+                }
+                if let Some(ref id) = params.id {
+                    fwd_params.push(format!("id={}", urlencoding::encode(id)));
+                }
+                if !target.is_empty() {
+                    fwd_params.push(format!("url={}", urlencoding::encode(&target)));
+                }
+                if let Some(ss) = params.ss {
+                    fwd_params.push(format!("ss={}", ss));
+                }
+                if let Some(ref q) = params.quality {
+                    fwd_params.push(format!("quality={}", urlencoding::encode(q)));
+                }
+                if let Some(ref f) = params.format {
+                    fwd_params.push(format!("format={}", urlencoding::encode(f)));
+                }
+
+                let cloud_stream_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, fwd_params.join("&"));
+                eprintln!("[STREAM] Falling back to foreign cluster node: {}", cloud_stream_url);
+
+                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(12)).build() {
                     if let Ok(resp) = client.get(&cloud_stream_url).send().await {
-                        if resp.status().is_success() {
+                        let status = resp.status();
+                        if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
+                            let mut res_headers = HeaderMap::new();
+                            let fwd_ct = resp.headers().get(header::CONTENT_TYPE).cloned().unwrap_or_else(|| "audio/mpeg".parse().unwrap());
+                            res_headers.insert(header::CONTENT_TYPE, fwd_ct);
+                            if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
+                                res_headers.insert(header::CONTENT_LENGTH, cl.clone());
+                            }
+                            if let Some(ar) = resp.headers().get(header::ACCEPT_RANGES) {
+                                res_headers.insert(header::ACCEPT_RANGES, ar.clone());
+                            }
+                            if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
+                                res_headers.insert(header::CONTENT_RANGE, cr.clone());
+                            }
+                            res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("no-cache, no-store, must-revalidate"));
+
                             let stream = resp.bytes_stream();
                             let body = Body::from_stream(stream);
-                            let mut res_headers = HeaderMap::new();
-                            res_headers.insert(header::CONTENT_TYPE, "audio/mpeg".parse().unwrap());
-                            res_headers.insert(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate".parse().unwrap());
                             return Ok((StatusCode::OK, res_headers, body).into_response());
                         }
                     }

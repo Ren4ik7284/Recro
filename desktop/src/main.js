@@ -136,7 +136,7 @@ function createWindow() {
   registerMediaShortcuts(mainWindow);
 
   // Determine URL to load
-  const targetUrl = process.env.RECRO_URL || process.env.APP_URL || 'https://recro.online';
+  const targetUrl = process.env.RECRO_URL || process.env.APP_URL || 'https://recro.80.87.202.157.sslip.io';
   const localDist = path.join(__dirname, '../../dist_frontend/index.html');
 
   if (process.env.RECRO_LOCAL === '1' && fs.existsSync(localDist)) {

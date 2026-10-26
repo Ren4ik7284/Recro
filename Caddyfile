@@ -1,5 +1,8 @@
 {
     email bebragnom89@gmail.com
+    servers {
+        protocols h1 h2
+    }
 }
 
 (cors) {
