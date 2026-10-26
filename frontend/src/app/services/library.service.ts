@@ -611,21 +611,6 @@ export class LibraryService implements OnDestroy {
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        // 1. If we already have a saved proven node in localStorage, test it first
-        const savedNode = typeof localStorage !== 'undefined' ? localStorage.getItem('recro_fastest_backend') : null;
-        if (savedNode && !savedNode.includes('vercel.app') && savedNode.startsWith('http')) {
-          try {
-            const probe = await fetch(`${savedNode}/api/health`, { signal: AbortSignal.timeout(1500) });
-            if (probe.ok) {
-              this.activeBackendUrl = savedNode;
-              this.isBackendOnline.set(true);
-              this.authService.setActiveBackendUrl(savedNode);
-              this.authService.verifyRemoteSession(savedNode);
-              return savedNode;
-            }
-          } catch {}
-        }
-
         const uniqueUrls = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
         try {

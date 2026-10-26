@@ -1045,7 +1045,8 @@ export class AudioService {
           const activeBase = this.libraryService.getBackendUrl();
           const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
           const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
-          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}`;
+          const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
+          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}&_t=${Date.now()}`;
           const updatedTrack = { ...cur, audioUrl: altUrl };
           this.errorTimeoutId = setTimeout(() => {
             this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
@@ -1092,7 +1093,8 @@ export class AudioService {
           const activeBase = this.libraryService.getBackendUrl();
           const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
           const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
-          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}`;
+          const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
+          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}&_t=${Date.now()}`;
           const updatedTrack = { ...cur, audioUrl: altUrl };
           this.errorTimeoutId = setTimeout(() => {
             if (this.recService.isMixActive()) {
@@ -2149,6 +2151,10 @@ export class AudioService {
       if (!playUrl.includes('quality=') && this.audioQuality() !== 'auto') {
         const glue = playUrl.includes('?') ? '&' : '?';
         playUrl = `${playUrl}${glue}quality=${this.audioQuality()}`;
+      }
+      if (!playUrl.includes('id=') && track.id && !track.id.startsWith('default-') && !track.id.startsWith('radio-')) {
+        const glue = playUrl.includes('?') ? '&' : '?';
+        playUrl = `${playUrl}${glue}id=${encodeURIComponent(track.id)}`;
       }
     }
     return playUrl;

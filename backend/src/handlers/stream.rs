@@ -11,7 +11,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 use tokio::process::Command;
 use tokio_util::io::ReaderStream;
 
-use crate::config::{apply_yt_dlp_common_args, apply_yt_dlp_common_args_no_cookies, get_yt_dlp_cmd, is_cloud_env, CLOUD_FALLBACK_URL};
+use crate::config::{apply_yt_dlp_common_args, apply_yt_dlp_common_args_no_cookies, get_yt_dlp_cmd, is_cloud_env, is_frankfurt, CLOUD_FALLBACK_URL};
 use crate::models::StreamParams;
 use crate::security::{check_rate_limit, check_url_ssrf, get_client_ip};
 use crate::AppState;
@@ -320,82 +320,6 @@ pub async fn stream_audio(
         }
     }
 
-    if is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
-        let mut forward_query = Vec::new();
-        if let Some(ref t) = params.title {
-            forward_query.push(format!("title={}", urlencoding::encode(t)));
-        }
-        if let Some(ref a) = params.artist {
-            forward_query.push(format!("artist={}", urlencoding::encode(a)));
-        }
-        if let Some(ref u) = params.url {
-            forward_query.push(format!("url={}", urlencoding::encode(u)));
-        }
-        if let Some(ref id) = params.id {
-            forward_query.push(format!("id={}", urlencoding::encode(id)));
-        }
-        if let Some(ss) = params.ss {
-            forward_query.push(format!("ss={}", ss));
-        }
-        if let Some(pf) = params.prefetch {
-            forward_query.push(format!("prefetch={}", pf));
-        }
-        if let Some(il) = params.is_live {
-            forward_query.push(format!("is_live={}", il));
-        }
-        if let Some(ref q) = params.quality {
-            forward_query.push(format!("quality={}", urlencoding::encode(q)));
-        }
-        if let Some(ref f) = params.format {
-            forward_query.push(format!("format={}", urlencoding::encode(f)));
-        }
-
-        let cloud_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, forward_query.join("&"));
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::limited(5))
-            .timeout(if is_prefetch { Duration::from_secs(4) } else { Duration::from_secs(20) })
-            .build();
-
-        if let Ok(client) = client {
-            let mut req = client.get(&cloud_url);
-            if !client_ip.is_empty() {
-                req = req.header("X-Forwarded-For", &client_ip);
-            }
-            if let Some(range_val) = headers.get(header::RANGE) {
-                req = req.header(header::RANGE, range_val);
-            }
-            if let Ok(resp) = req.send().await {
-                let status = resp.status();
-                if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
-                    let mut res_headers = HeaderMap::new();
-                    let fwd_ct = resp.headers().get(header::CONTENT_TYPE).cloned().unwrap_or_else(|| "audio/mpeg".parse().unwrap());
-                    res_headers.insert(header::CONTENT_TYPE, fwd_ct);
-                    if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
-                        res_headers.insert(header::CONTENT_LENGTH, cl.clone());
-                    }
-                    if let Some(ar) = resp.headers().get(header::ACCEPT_RANGES) {
-                        res_headers.insert(header::ACCEPT_RANGES, ar.clone());
-                    }
-                    if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
-                        res_headers.insert(header::CONTENT_RANGE, cr.clone());
-                    }
-                    if let Some(cc) = resp.headers().get(header::CACHE_CONTROL) {
-                        res_headers.insert(header::CACHE_CONTROL, cc.clone());
-                    } else {
-                        res_headers.insert(header::CACHE_CONTROL, "public, max-age=604800".parse().unwrap());
-                    }
-
-                    if params.prefetch.unwrap_or(false) {
-                        return Ok(StatusCode::NO_CONTENT.into_response());
-                    }
-
-                    let body = Body::from_stream(resp.bytes_stream());
-                    return Ok((status, res_headers, body).into_response());
-                }
-            }
-        }
-    }
-
     let is_lossless_requested = params.quality.as_deref() == Some("lossless")
         || params.format.as_deref() == Some("flac")
         || target.ends_with(".flac")
@@ -489,6 +413,156 @@ pub async fn stream_audio(
                     let body = Body::from_stream(stream);
                     res_headers.insert(header::CONTENT_LENGTH, total_size.to_string().parse().unwrap());
                     return Ok((StatusCode::OK, res_headers, body).into_response());
+                }
+            }
+        }
+    }
+
+    // If not cached locally and we are NOT in Frankfurt (e.g. running on Moscow node in RU):
+    // Proxy the stream from Frankfurt cluster node to avoid Russian ISP/RKN packet drops on SoundCloud/YouTube audio chunks.
+    // Also tee the incoming stream into local disk cache so subsequent requests on Moscow are served instantly!
+    if !is_frankfurt() && !CLOUD_FALLBACK_URL.is_empty() {
+        let mut forward_query = Vec::new();
+        if let Some(ref t) = params.title {
+            forward_query.push(format!("title={}", urlencoding::encode(t)));
+        }
+        if let Some(ref a) = params.artist {
+            forward_query.push(format!("artist={}", urlencoding::encode(a)));
+        }
+        if let Some(ref u) = params.url {
+            forward_query.push(format!("url={}", urlencoding::encode(u)));
+        }
+        if let Some(ref id) = params.id {
+            forward_query.push(format!("id={}", urlencoding::encode(id)));
+        }
+        if let Some(ss) = params.ss {
+            forward_query.push(format!("ss={}", ss));
+        }
+        if let Some(pf) = params.prefetch {
+            forward_query.push(format!("prefetch={}", pf));
+        }
+        if let Some(il) = params.is_live {
+            forward_query.push(format!("is_live={}", il));
+        }
+        if let Some(ref q) = params.quality {
+            forward_query.push(format!("quality={}", urlencoding::encode(q)));
+        }
+        if let Some(ref f) = params.format {
+            forward_query.push(format!("format={}", urlencoding::encode(f)));
+        }
+
+        let cloud_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, forward_query.join("&"));
+        eprintln!("[STREAM] Node is in RU, forwarding uncached stream to Frankfurt cluster: {}", cloud_url);
+
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .timeout(if is_prefetch { Duration::from_secs(6) } else { Duration::from_secs(30) })
+            .build();
+
+        if let Ok(client) = client {
+            let mut req = client.get(&cloud_url);
+            if !client_ip.is_empty() {
+                req = req.header("X-Forwarded-For", &client_ip);
+            }
+            if let Some(range_val) = headers.get(header::RANGE) {
+                req = req.header(header::RANGE, range_val);
+            }
+            if let Ok(resp) = req.send().await {
+                let status = resp.status();
+                if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
+                    let mut res_headers = HeaderMap::new();
+                    let fwd_ct = resp.headers().get(header::CONTENT_TYPE).cloned().unwrap_or_else(|| "audio/mpeg".parse().unwrap());
+                    res_headers.insert(header::CONTENT_TYPE, fwd_ct);
+                    if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
+                        res_headers.insert(header::CONTENT_LENGTH, cl.clone());
+                    }
+                    if let Some(ar) = resp.headers().get(header::ACCEPT_RANGES) {
+                        res_headers.insert(header::ACCEPT_RANGES, ar.clone());
+                    }
+                    if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
+                        res_headers.insert(header::CONTENT_RANGE, cr.clone());
+                    }
+                    if let Some(cc) = resp.headers().get(header::CACHE_CONTROL) {
+                        res_headers.insert(header::CACHE_CONTROL, cc.clone());
+                    } else {
+                        res_headers.insert(header::CACHE_CONTROL, "public, max-age=604800".parse().unwrap());
+                    }
+                    if let Some(q) = resp.headers().get("X-Audio-Quality") {
+                        res_headers.insert("X-Audio-Quality", q.clone());
+                    }
+                    if let Some(c) = resp.headers().get("X-Audio-Codec") {
+                        res_headers.insert("X-Audio-Codec", c.clone());
+                    }
+                    if let Some(b) = resp.headers().get("X-Audio-Bitrate") {
+                        res_headers.insert("X-Audio-Bitrate", b.clone());
+                    }
+
+                    if params.prefetch.unwrap_or(false) {
+                        return Ok(StatusCode::NO_CONTENT.into_response());
+                    }
+
+                    let should_cache = status == StatusCode::OK
+                        && params.ss.unwrap_or(0) == 0
+                        && !is_live
+                        && headers.get(header::RANGE).is_none();
+
+                    let tmp_file_path = format!("{}.tmp.{}", cache_file_path, fastrand::u64(..));
+                    let file_opt = if should_cache {
+                        tokio::fs::File::create(&tmp_file_path).await.ok()
+                    } else {
+                        None
+                    };
+
+                    let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::io::Error>>(32);
+                    let cfp = cache_file_path.clone();
+                    let tmp_fp = tmp_file_path.clone();
+
+                    tokio::spawn(async move {
+                        use tokio::io::AsyncWriteExt;
+                        use tokio_stream::StreamExt;
+
+                        let mut byte_stream = resp.bytes_stream();
+                        let mut total_bytes = 0u64;
+                        let mut write_error = false;
+                        let mut file = file_opt;
+
+                        while let Some(chunk_res) = byte_stream.next().await {
+                            match chunk_res {
+                                Ok(bytes) => {
+                                    if let Some(ref mut f) = file {
+                                        if !write_error {
+                                            if f.write_all(&bytes).await.is_err() {
+                                                write_error = true;
+                                            } else {
+                                                total_bytes += bytes.len() as u64;
+                                            }
+                                        }
+                                    }
+                                    if tx.send(Ok(bytes)).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Err(std::io::Error::new(std::io::ErrorKind::Other, e))).await;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if let Some(mut f) = file {
+                            let _ = f.flush().await;
+                            drop(f);
+                            if !write_error && total_bytes > 100_000 {
+                                let _ = tokio::fs::rename(&tmp_fp, &cfp).await;
+                                eprintln!("[STREAM] Cached proxied track to disk: {} ({} bytes)", cfp, total_bytes);
+                            } else {
+                                let _ = tokio::fs::remove_file(&tmp_fp).await;
+                            }
+                        }
+                    });
+
+                    let body = Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(rx));
+                    return Ok((status, res_headers, body).into_response());
                 }
             }
         }
@@ -723,9 +797,7 @@ pub async fn stream_audio(
             }
 
             // Fallback 3: Foreign Frankfurt cluster proxy when local stream resolution fails (e.g. RU blocks)
-            let is_frankfurt = std::fs::read_to_string("/etc/hostname")
-                .map(|h| h.contains("recroz") || h.contains("Recroz") || h.contains("play2go"))
-                .unwrap_or(false);
+            let is_frankfurt = is_frankfurt();
 
             if direct_url.is_empty() && (!is_frankfurt || is_cloud_env()) && !CLOUD_FALLBACK_URL.is_empty() {
                 let mut fwd_params = Vec::new();

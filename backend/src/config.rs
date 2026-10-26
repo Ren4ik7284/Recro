@@ -4,6 +4,13 @@ use tokio::process::Command;
 
 pub const CLOUD_FALLBACK_URL: &str = "http://177.3.217.64";
 
+pub fn is_frankfurt() -> bool {
+    std::fs::read_to_string("/etc/hostname")
+        .map(|h| h.contains("recroz") || h.contains("Recroz") || h.contains("play2go"))
+        .unwrap_or(false)
+        || std::env::var("IS_FRANKFURT").map(|v| v == "1" || v == "true").unwrap_or(false)
+}
+
 pub fn is_cloud_env() -> bool {
     std::env::var("RAILWAY_PUBLIC_DOMAIN").is_ok()
         || std::env::var("RAILWAY_STATIC_URL").is_ok()
