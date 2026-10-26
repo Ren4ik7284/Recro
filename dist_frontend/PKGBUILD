@@ -1,0 +1,16 @@
+# Maintainer: Recro Team <support@recro.online>
+pkgname=recro-bin
+pkgver=2.3.7.3
+pkgrel=1
+pkgdesc="Modern lossless music and radio streaming player (Wayland + MPRIS)"
+arch=('x86_64')
+url="https://recro.online"
+license=('MIT')
+provides=('recro')
+conflicts=('recro')
+source=("recro-${pkgver}.AppImage::https://recro-player.vercel.app/recro.AppImage")
+sha256sums=('SKIP')
+
+package() {
+    install -Dm755 "${srcdir}/recro-${pkgver}.AppImage" "${pkgdir}/usr/bin/recro"
+}

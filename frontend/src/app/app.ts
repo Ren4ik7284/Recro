@@ -473,6 +473,16 @@ export class App implements OnInit {
     this.openPwaInstallModal(platform);
   }
 
+  copyInstallCommand(cmd: string = 'curl -sSL https://recro-player.vercel.app/install.sh | bash') {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(cmd).then(() => {
+        this.showToast(this.i18n.currentLang() === 'ru' ? 'Команда скопирована! Вставьте в терминал.' : 'Command copied to clipboard!');
+      }).catch(() => {
+        this.showToast(cmd);
+      });
+    }
+  }
+
   @HostListener('wheel', ['$event'])
   onWindowWheel(event: WheelEvent) {
     if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;

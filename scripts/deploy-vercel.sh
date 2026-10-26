@@ -50,6 +50,18 @@ cat << 'EOF' > "$DEPLOY_DIR/vercel.json"
       "destination": "/recro.AppImage"
     },
     {
+      "source": "/recro.deb",
+      "destination": "/recro.deb"
+    },
+    {
+      "source": "/recro.rpm",
+      "destination": "/recro.rpm"
+    },
+    {
+      "source": "/install.sh",
+      "destination": "/install.sh"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

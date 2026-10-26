@@ -2776,36 +2776,98 @@
                 </svg>
               </div>
               <div style="flex: 1; min-width: 0;">
-                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">{{ i18n.currentLang() === 'ru' ? 'Recro для Linux (x86_64)' : 'Recro for Linux (x86_64)' }}</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ i18n.currentLang() === 'ru' ? 'Универсальный AppImage для Arch, Ubuntu, Fedora, Debian, NixOS' : 'Universal AppImage for Arch, Ubuntu, Fedora, Debian, NixOS' }}</div>
+                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">{{ i18n.currentLang() === 'ru' ? 'Выберите ваш дистрибутив Linux' : 'Choose your Linux distribution' }}</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ i18n.currentLang() === 'ru' ? 'Нативная интеграция с Wayland/X11, системный трей и медиа-сервис MPRIS' : 'Native Wayland/X11, system tray and MPRIS media integration' }}</div>
               </div>
             </div>
 
-            <a href="/recro.AppImage" download="recro.AppImage" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 14px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка Recro AppImage началась' : 'Recro AppImage download started')">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              <span>{{ i18n.currentLang() === 'ru' ? 'Скачать recro.AppImage' : 'Download recro.AppImage' }}</span>
-            </a>
+            <div class="linux-distro-grid">
+              <!-- 1. Debian / Ubuntu -->
+              <div class="linux-distro-card">
+                <div>
+                  <div class="distro-head">
+                    <span class="distro-name">Debian / Ubuntu</span>
+                    <span class="distro-badge font-mono">deb, x64</span>
+                  </div>
+                  <div class="distro-sub">Ubuntu, Mint, Debian, Pop!_OS</div>
+                </div>
+                <a href="/recro.deb" download="recro.deb" class="distro-action-btn" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка recro.deb началась' : 'Downloading recro.deb...')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>Скачать .deb</span>
+                </a>
+              </div>
 
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">1</div>
-              <div class="pwa-step-text">
-                {{ i18n.currentLang() === 'ru' ? 'Скачайте файл recro.AppImage по кнопке выше.' : 'Download the recro.AppImage file using the button above.' }}
+              <!-- 2. Red Hat / Fedora -->
+              <div class="linux-distro-card">
+                <div>
+                  <div class="distro-head">
+                    <span class="distro-name">Red Hat / Fedora</span>
+                    <span class="distro-badge font-mono">rpm, x64</span>
+                  </div>
+                  <div class="distro-sub">Fedora, RHEL, CentOS, openSUSE</div>
+                </div>
+                <a href="/recro.rpm" download="recro.rpm" class="distro-action-btn" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка recro.rpm началась' : 'Downloading recro.rpm...')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>Скачать .rpm</span>
+                </a>
+              </div>
+
+              <!-- 3. AppImage -->
+              <div class="linux-distro-card">
+                <div>
+                  <div class="distro-head">
+                    <span class="distro-name">AppImage</span>
+                    <span class="distro-badge font-mono">AppImage, x64</span>
+                  </div>
+                  <div class="distro-sub">Все дистрибутивы без установки</div>
+                </div>
+                <a href="/recro.AppImage" download="recro.AppImage" class="distro-action-btn" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка recro.AppImage началась' : 'Downloading recro.AppImage...')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>Скачать .AppImage</span>
+                </a>
+              </div>
+
+              <!-- 4. Arch Linux / AUR -->
+              <div class="linux-distro-card">
+                <div>
+                  <div class="distro-head">
+                    <span class="distro-name">Arch Linux / AUR</span>
+                    <span class="distro-badge font-mono">v2.3.7.3</span>
+                  </div>
+                  <div class="distro-sub">yay, paru, Manjaro, Endeavour</div>
+                </div>
+                <button type="button" class="distro-action-btn" (click)="copyInstallCommand('yay -S recro-bin')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  <span>yay -S recro-bin</span>
+                </button>
               </div>
             </div>
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">2</div>
-              <div class="pwa-step-text">
-                {{ i18n.currentLang() === 'ru' ? 'Разрешите запуск файла (Свойства файла → Разрешить выполнение или chmod +x recro.AppImage).' : 'Make it executable (File properties → Allow executing or chmod +x recro.AppImage).' }}
+
+            <!-- Terminal One-liner auto installer -->
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">{{ i18n.currentLang() === 'ru' ? 'Или установка одной командой в терминал (автоматически добавит в меню):' : 'Or install via one terminal command (automatically adds to menu):' }}</div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 10px;">
+                <code style="font-size: 11px; color: #60a5fa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace;">curl -sSL https://recro-player.vercel.app/install.sh | bash</code>
+                <button type="button" (click)="copyInstallCommand('curl -sSL https://recro-player.vercel.app/install.sh | bash')" style="padding: 4px 10px; font-size: 11px; border-radius: 5px; background: #2563eb; color: #fff; border: none; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                  {{ i18n.currentLang() === 'ru' ? 'Копировать' : 'Copy' }}
+                </button>
               </div>
             </div>
-            <div class="pwa-step-item">
-              <div class="pwa-step-num font-mono">3</div>
-              <div class="pwa-step-text">
-                {{ i18n.currentLang() === 'ru' ? 'Запустите приложение двойным кликом. Включает интеграцию с MPRIS / D-Bus, медиакнопки и трей.' : 'Double click to run. Includes MPRIS / D-Bus media integration, media keys, and system tray.' }}
-              </div>
-            </div>
+
+            @if (canInstallPwa()) {
+              <button class="btn-cancel-action font-mono" style="width: 100%; font-size: 12px; padding: 10px 12px;" (click)="pwaService.promptInstall()">
+                {{ i18n.currentLang() === 'ru' ? '⚡ Установить в 1 клик через браузер (PWA)' : '⚡ Install in 1 click via browser (PWA)' }}
+              </button>
+            }
           } @else if (installPlatformTab() === 'ios') {
             <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
               <div style="width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; border: 1px solid var(--border-subtle);">
