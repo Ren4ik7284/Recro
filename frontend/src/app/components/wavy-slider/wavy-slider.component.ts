@@ -77,6 +77,7 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
     if (canvas) {
       this.ctx = canvas.getContext('2d');
     }
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   ngAfterViewInit(): void {
@@ -117,15 +118,28 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
 
   ngOnDestroy(): void {
     this.stopWaveAnimation();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
     this.removeWindowDragListeners();
   }
 
+  private onVisibilityChange = (): void => {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+      this.stopWaveAnimation();
+    } else if (this.isPlaying) {
+      this.startWaveAnimation();
+    }
+  };
+
   // --- Animation loop ---
   private startWaveAnimation(): void {
     if (!this.isBrowser || this.animFrameId !== null) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
 
     this.lastTimestamp = performance.now();
     const loop = (timestamp: number) => {

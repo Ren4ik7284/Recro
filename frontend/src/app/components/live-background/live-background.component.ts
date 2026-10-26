@@ -90,6 +90,9 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
     if (this._canvasElement) {
       this.resizeCanvas();
       this.setupAnimation(this.bgService.activePreset());
@@ -98,11 +101,23 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.stopAnimation();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
     }
   }
+
+  private onVisibilityChange = (): void => {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+      this.stopAnimation();
+    } else {
+      this.setupAnimation(this.bgService.activePreset());
+    }
+  };
 
   private resizeCanvas() {
     const canvas = this._canvasElement;

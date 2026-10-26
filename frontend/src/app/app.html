@@ -192,24 +192,15 @@
               <!-- Top bar with status and burger settings -->
               <div class="wave-card-topbar">
                 <div class="wave-badge-group">
-                  <span class="wave-tag font-mono">
-                    @if (recService.isMixActive() && audioService.isPlaying()) {
-                      {{ i18n.t('wave.onAir') }}
-                    } @else if (recService.isMixActive()) {
-                      {{ i18n.t('wave.paused') }}
-                    } @else {
-                      {{ i18n.t('wave.personalFlow') }}
-                    }
-                  </span>
-                  
-                  <span class="wave-config-chip font-mono">
-                    @if (recService.mixConfig().mood === 'energetic') { {{ i18n.t('wave.moodEnergetic') }} }
-                    @else if (recService.mixConfig().mood === 'chill') { {{ i18n.t('wave.moodChill') }} }
-                    @else if (recService.mixConfig().mood === 'favorites') { {{ i18n.t('wave.moodFavorites') }} }
-                    @else { {{ i18n.t('wave.moodAll') }} }
-                    •
-                    {{ i18n.t('wave.discoveryFlow') }}
-                  </span>
+                  @if (recService.isMixActive()) {
+                    <span class="wave-tag font-mono">
+                      @if (audioService.isPlaying()) {
+                        {{ i18n.t('wave.onAir') }}
+                      } @else {
+                        {{ i18n.t('wave.paused') }}
+                      }
+                    </span>
+                  }
 
                   @if (recService.isFetchingDiscovery() || audioService.isPrewarmingWave()) {
                     <span class="wave-discovery-badge font-mono">
@@ -2753,10 +2744,69 @@
             </svg>
             <span>iPhone (iOS)</span>
           </button>
+
+          @if (!pwaService.isMobile()) {
+            <button 
+              type="button"
+              class="font-mono"
+              [style.background]="installPlatformTab() === 'linux' ? 'var(--bg-card)' : 'transparent'"
+              [style.color]="installPlatformTab() === 'linux' ? 'var(--accent-blue)' : 'var(--text-muted)'"
+              [style.border-bottom]="installPlatformTab() === 'linux' ? '2px solid var(--accent-blue)' : '2px solid transparent'"
+              style="flex: 1; padding: 10px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 6px 6px 0 0;"
+              (click)="installPlatformTab.set('linux')"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+              <span>Linux</span>
+            </button>
+          }
         </div>
 
         <div class="modal-body pwa-instructions-body">
-          @if (installPlatformTab() === 'ios') {
+          @if (installPlatformTab() === 'linux') {
+            <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
+              <div style="width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+              </div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">{{ i18n.currentLang() === 'ru' ? 'Recro для Linux (x86_64)' : 'Recro for Linux (x86_64)' }}</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ i18n.currentLang() === 'ru' ? 'Универсальный AppImage для Arch, Ubuntu, Fedora, Debian, NixOS' : 'Universal AppImage for Arch, Ubuntu, Fedora, Debian, NixOS' }}</div>
+              </div>
+            </div>
+
+            <a href="/recro.AppImage" download="recro.AppImage" class="btn-confirm-action" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; font-weight: 700; padding: 14px 16px; margin-bottom: 14px; background: #2563eb; color: #ffffff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); border-radius: 10px; font-size: 14px;" (click)="showToast(i18n.currentLang() === 'ru' ? 'Загрузка Recro AppImage началась' : 'Recro AppImage download started')">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>{{ i18n.currentLang() === 'ru' ? 'Скачать recro.AppImage' : 'Download recro.AppImage' }}</span>
+            </a>
+
+            <div class="pwa-step-item">
+              <div class="pwa-step-num font-mono">1</div>
+              <div class="pwa-step-text">
+                {{ i18n.currentLang() === 'ru' ? 'Скачайте файл recro.AppImage по кнопке выше.' : 'Download the recro.AppImage file using the button above.' }}
+              </div>
+            </div>
+            <div class="pwa-step-item">
+              <div class="pwa-step-num font-mono">2</div>
+              <div class="pwa-step-text">
+                {{ i18n.currentLang() === 'ru' ? 'Разрешите запуск файла (Свойства файла → Разрешить выполнение или chmod +x recro.AppImage).' : 'Make it executable (File properties → Allow executing or chmod +x recro.AppImage).' }}
+              </div>
+            </div>
+            <div class="pwa-step-item">
+              <div class="pwa-step-num font-mono">3</div>
+              <div class="pwa-step-text">
+                {{ i18n.currentLang() === 'ru' ? 'Запустите приложение двойным кликом. Включает интеграцию с MPRIS / D-Bus, медиакнопки и трей.' : 'Double click to run. Includes MPRIS / D-Bus media integration, media keys, and system tray.' }}
+              </div>
+            </div>
+          } @else if (installPlatformTab() === 'ios') {
             <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
               <div style="width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; border: 1px solid var(--border-subtle);">
                 <img src="/icons/apple-touch-icon.png?v=recro3" style="width: 100%; height: 100%; object-fit: cover;" alt="Recro" />

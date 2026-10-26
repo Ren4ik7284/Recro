@@ -46,6 +46,10 @@ cat << 'EOF' > "$DEPLOY_DIR/vercel.json"
       "destination": "/recro.ipa"
     },
     {
+      "source": "/recro.AppImage",
+      "destination": "/recro.AppImage"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

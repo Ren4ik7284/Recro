@@ -448,7 +448,7 @@ export class App implements OnInit {
     this.showToast('Загрузка Recro IPA началась');
   }
 
-  async openPwaInstallModal(platform?: 'android' | 'ios' | void, pushHistory = true) {
+  async openPwaInstallModal(platform?: 'android' | 'ios' | 'linux' | void, pushHistory = true) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }
@@ -465,7 +465,7 @@ export class App implements OnInit {
     this.navService.closeOverlay('pwa');
   }
 
-  installPwa(platform?: 'android' | 'ios' | void) {
+  installPwa(platform?: 'android' | 'ios' | 'linux' | void) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }

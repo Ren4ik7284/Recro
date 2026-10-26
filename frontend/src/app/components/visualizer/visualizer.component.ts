@@ -95,6 +95,9 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
     if (cur) {
       this.updateTrackColor(cur);
     }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
   }
 
   ngAfterViewInit() {
@@ -104,10 +107,22 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.stopRenderLoop();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
   }
+
+  private onVisibilityChange = (): void => {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+      this.stopRenderLoop();
+    } else if (this.audioService.isPlaying()) {
+      this.startRenderLoop();
+    }
+  };
 
   @HostListener('window:keydown', ['$event'])
   onKeyDown(event: KeyboardEvent) {
@@ -286,8 +301,26 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private startRenderLoop() {
     if (this.animationFrameId !== null || typeof window === 'undefined') return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    if (this.mode() === 'full' && !this.audioService.isVisualizerOpen()) return;
+
     const render = () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        this.stopRenderLoop();
+        return;
+      }
+      if (this.mode() === 'full' && !this.audioService.isVisualizerOpen()) {
+        this.stopRenderLoop();
+        return;
+      }
+
       this.draw();
+
+      if (!this.audioService.isPlaying()) {
+        this.stopRenderLoop();
+        return;
+      }
+
       if (this.animationFrameId !== null) {
         this.animationFrameId = requestAnimationFrame(render);
       }

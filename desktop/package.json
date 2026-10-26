@@ -1,0 +1,38 @@
+{
+  "name": "recro-desktop",
+  "version": "1.0.0",
+  "description": "Recro Music & Radio Player for Linux",
+  "main": "src/main.js",
+  "author": "Recro Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --linux AppImage deb --x64"
+  },
+  "build": {
+    "appId": "com.recro.musicplayer",
+    "productName": "Recro",
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Audio;AudioVideo;",
+      "icon": "assets/icon-512.png",
+      "synopsis": "Modern lossless music and radio streaming player",
+      "description": "Recro is a modern, high-fidelity music streaming client and radio player with native Wayland/X11 support, MPRIS D-Bus media integration, and system tray control.",
+      "desktop": {
+        "StartupWMClass": "Recro",
+        "Keywords": "music;player;audio;stream;radio;mpris;"
+      }
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  }
+}

@@ -25,11 +25,6 @@
     <div class="now-playing-meta">
       <div class="meta-title-line">
         <span class="player-track-title notranslate" translate="no">{{ audioService.currentTrack()?.title || i18n.t('player.noTrack') }}</span>
-        @if (audioService.isLosslessPlayback()) {
-          <span class="player-badge-lossless font-mono" title="Bit-Perfect Lossless FLAC (1411 kbps)">LOSSLESS</span>
-        } @else if (audioService.currentTrack()?.format) {
-          <span class="player-badge-format font-mono desktop-only">{{ audioService.currentTrack()?.format | uppercase }}</span>
-        }
       </div>
       <span class="player-track-artist notranslate" translate="no">{{ audioService.currentTrack()?.artist || i18n.t('player.startListening') }}</span>
     </div>

@@ -10,12 +10,13 @@ export class PwaService {
 
   readonly isMobile = signal<boolean>(false);
   readonly isIos = signal<boolean>(false);
+  readonly isLinux = signal<boolean>(false);
   readonly isInAppBrowser = signal<boolean>(false);
   readonly isStandalone = signal<boolean>(false);
   readonly isInstalled = signal<boolean>(false);
   readonly canPromptInstall = signal<boolean>(false);
   readonly isInstallModalOpen = signal<boolean>(false);
-  readonly activeInstallTab = signal<'android' | 'ios'>('android');
+  readonly activeInstallTab = signal<'android' | 'ios' | 'linux'>('android');
 
   readonly shouldShowInstallButton = computed(() => {
     return this.isMobile() && !this.isStandalone();
@@ -40,6 +41,9 @@ export class PwaService {
     // Only actual phones/mobile devices (iOS, Android, etc.) - never desktop/PC
     const isMobileCheck = isIosDevice || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
     this.isMobile.set(isMobileCheck);
+
+    const isLinuxCheck = !isMobileCheck && /Linux/i.test(ua || (navigator as any).platform || '');
+    this.isLinux.set(isLinuxCheck);
 
     const isNativeApp =
       /RecroApp/i.test(ua) ||
@@ -152,9 +156,11 @@ export class PwaService {
     return 'manual';
   }
 
-  openInstallModal(platform?: 'android' | 'ios') {
+  openInstallModal(platform?: 'android' | 'ios' | 'linux') {
     if (platform) {
       this.activeInstallTab.set(platform);
+    } else if (!this.isMobile() && this.isLinux()) {
+      this.activeInstallTab.set('linux');
     } else {
       this.activeInstallTab.set(this.isIos() ? 'ios' : 'android');
     }
