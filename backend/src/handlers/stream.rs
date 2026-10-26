@@ -632,7 +632,7 @@ pub async fn stream_audio(
                     "--ignore-errors",
                     "-g",
                     "-f", "ba[ext=m4a]/ba/b",
-                    "--extractor-args", "youtube:player_client=android",
+                    "--extractor-args", "youtube:player_client=ios,android,web",
                     "--",
                     &target,
                 ]);
@@ -660,7 +660,7 @@ pub async fn stream_audio(
                     "--ignore-errors",
                     "-g",
                     "-f", "ba[ext=m4a]/ba/b",
-                    "--extractor-args", "youtube:player_client=android",
+                    "--extractor-args", "youtube:player_client=ios,android,web",
                     "--",
                     &yt_query,
                 ]);

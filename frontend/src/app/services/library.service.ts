@@ -611,7 +611,22 @@ export class LibraryService implements OnDestroy {
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        const uniqueUrls = getClusterCandidates();
+        // 1. If we already have a saved proven node in localStorage, test it first
+        const savedNode = typeof localStorage !== 'undefined' ? localStorage.getItem('recro_fastest_backend') : null;
+        if (savedNode && !savedNode.includes('vercel.app') && savedNode.startsWith('http')) {
+          try {
+            const probe = await fetch(`${savedNode}/api/health`, { signal: AbortSignal.timeout(1500) });
+            if (probe.ok) {
+              this.activeBackendUrl = savedNode;
+              this.isBackendOnline.set(true);
+              this.authService.setActiveBackendUrl(savedNode);
+              this.authService.verifyRemoteSession(savedNode);
+              return savedNode;
+            }
+          } catch {}
+        }
+
+        const uniqueUrls = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
         try {
           const winner = await new Promise<string>((resolve, reject) => {
@@ -620,7 +635,7 @@ export class LibraryService implements OnDestroy {
             const total = uniqueUrls.length;
 
             for (const testUrl of uniqueUrls) {
-              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(4000) })
+              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(3000) })
                 .then((res) => {
                   if (res.ok && !finished) {
                     finished = true;
@@ -666,7 +681,7 @@ export class LibraryService implements OnDestroy {
   }
 
   async fetchWithClusterFailover(path: string, init?: RequestInit, timeoutMs = 3500): Promise<Response> {
-    const cluster = getClusterCandidates();
+    const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
     const current = this.getBackendUrl();
     const ordered = [current, ...cluster.filter((c) => c !== current)];
 
@@ -699,9 +714,9 @@ export class LibraryService implements OnDestroy {
 
   async failoverBackend(): Promise<string> {
     const current = this.getBackendUrl();
-    const cluster = getClusterCandidates();
+    const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
     const curIdx = cluster.findIndex((b) => current.includes(b) || b.includes(current));
-    const nextIdx = (curIdx + 1) % cluster.length;
+    const nextIdx = curIdx >= 0 ? (curIdx + 1) % cluster.length : 0;
     const alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
     console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt}`);
     this.activeBackendUrl = alt;
