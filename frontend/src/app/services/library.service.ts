@@ -2,7 +2,7 @@ import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angula
 import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist, ChartSummary, ChartDetail, ReleaseItem, HomeExploreData } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
-import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates } from '../models/cluster.config';
+import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates, MONOBLOCK_NODE, MOSCOW_NODE, FRANKFURT_NODE } from '../models/cluster.config';
 
 export interface ExtractedResult {
   playlistTitle: string | null;
@@ -611,52 +611,74 @@ export class LibraryService implements OnDestroy {
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        const uniqueUrls = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
-
+        // Шаг 1: Проверяем моноблок В ПЕРВУЮ ОЧЕРЕДЬ!
+        // Если моноблок включен — он всегда становится главным узлом плеера (423 ГБ кэш).
         try {
-          const winner = await new Promise<string>((resolve, reject) => {
-            let finished = false;
-            let failCount = 0;
-            const total = uniqueUrls.length;
+          const monoRes = await fetch(`${MONOBLOCK_NODE}/api/health`, {
+            signal: AbortSignal.timeout(1800),
+          });
+          if (monoRes.ok) {
+            console.log('[Cluster] Monoblock edge node is ONLINE! Selecting monoblock as primary backend.');
+            this.activeBackendUrl = MONOBLOCK_NODE;
+            try {
+              localStorage.setItem('recro_fastest_backend', MONOBLOCK_NODE);
+            } catch {}
+            this.isBackendOnline.set(true);
+            this.authService.setActiveBackendUrl(this.activeBackendUrl);
+            this.authService.verifyRemoteSession(this.activeBackendUrl);
+            return MONOBLOCK_NODE;
+          }
+        } catch {
+          // Моноблок выключен или недоступен -> переходим к фоллбэку
+        }
 
-            for (const testUrl of uniqueUrls) {
-              fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(3000) })
-                .then((res) => {
-                  if (res.ok && !finished) {
-                    finished = true;
-                    resolve(testUrl);
-                  } else {
-                    failCount++;
-                    if (failCount >= total && !finished) {
-                      reject(new Error('All nodes unreachable'));
-                    }
-                  }
-                })
-                .catch(() => {
+        // Шаг 2: Фоллбэк (если моноблок выключен) -> Гонка VPS-узлов (Москва и Франкфурт)
+        // Без VPN в РФ: побеждает Москва (минимальный пинг, без блокировок)
+        // С VPN или из-за границы: побеждает Франкфурт
+        const vpsNodes = [MOSCOW_NODE, FRANKFURT_NODE];
+        const winner = await new Promise<string>((resolve, reject) => {
+          let finished = false;
+          let failCount = 0;
+          const total = vpsNodes.length;
+
+          for (const testUrl of vpsNodes) {
+            fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(3000) })
+              .then((res) => {
+                if (res.ok && !finished) {
+                  finished = true;
+                  resolve(testUrl);
+                } else {
                   failCount++;
                   if (failCount >= total && !finished) {
-                    reject(new Error('All nodes unreachable'));
+                    reject(new Error('All fallback nodes unreachable'));
                   }
-                });
-            }
-          });
+                }
+              })
+              .catch(() => {
+                failCount++;
+                if (failCount >= total && !finished) {
+                  reject(new Error('All fallback nodes unreachable'));
+                }
+              });
+          }
+        });
 
-          this.activeBackendUrl = winner;
-          try {
-            localStorage.setItem('recro_fastest_backend', winner);
-          } catch {}
-          this.isBackendOnline.set(true);
-          this.authService.setActiveBackendUrl(this.activeBackendUrl);
-          this.authService.verifyRemoteSession(this.activeBackendUrl);
-          return winner;
-        } catch {
-          const fallback = this.defaultBackendUrl;
-          this.activeBackendUrl = fallback;
-          this.isBackendOnline.set(true);
-          this.authService.setActiveBackendUrl(this.activeBackendUrl);
-          this.authService.verifyRemoteSession(this.activeBackendUrl);
-          return fallback;
-        }
+        console.log(`[Cluster] Monoblock is offline. Fallback active node selected: ${winner}`);
+        this.activeBackendUrl = winner;
+        try {
+          localStorage.setItem('recro_fastest_backend', winner);
+        } catch {}
+        this.isBackendOnline.set(true);
+        this.authService.setActiveBackendUrl(this.activeBackendUrl);
+        this.authService.verifyRemoteSession(this.activeBackendUrl);
+        return winner;
+      } catch {
+        const fallback = MOSCOW_NODE;
+        this.activeBackendUrl = fallback;
+        this.isBackendOnline.set(true);
+        this.authService.setActiveBackendUrl(this.activeBackendUrl);
+        this.authService.verifyRemoteSession(this.activeBackendUrl);
+        return fallback;
       } finally {
         this.activeHealthCheckPromise = null;
       }

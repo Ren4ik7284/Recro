@@ -1,7 +1,11 @@
+export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
+export const MOSCOW_NODE = 'https://recro.80.87.202.157.sslip.io';
+export const FRANKFURT_NODE = 'https://recro.177.3.217.64.sslip.io';
+
 export const CLUSTER_BACKENDS = [
-  'https://recro.80.87.202.157.sslip.io',      // Moscow VPS (Direct in RU without VPN)
-  'https://recro.177.3.217.64.sslip.io',       // Frankfurt VPS (Direct in Europe / with VPN)
-  'https://node-home.80.87.202.157.sslip.io',  // Monoblock Edge Node (High-Capacity RU Cache)
+  MONOBLOCK_NODE, // 1. Monoblock (Primary when online - massive 423GB cache)
+  MOSCOW_NODE,    // 2. Moscow VPS (Direct in RU without VPN)
+  FRANKFURT_NODE, // 3. Frankfurt VPS (Direct in Europe / with VPN)
 ];
 
 export function resolveDefaultBackend(): string {
@@ -12,10 +16,10 @@ export function resolveDefaultBackend(): string {
   }
   // If running directly on a VPS host (raw IP or domain)
   if (host === '80.87.202.157' || host.includes('80.87.202.157')) {
-    return 'https://recro.80.87.202.157.sslip.io';
+    return MOSCOW_NODE;
   }
   if (host === '177.3.217.64' || host.includes('177.3.217.64')) {
-    return 'https://recro.177.3.217.64.sslip.io';
+    return FRANKFURT_NODE;
   }
 
   // Check if we already cached the fastest proven node from a previous race
@@ -26,12 +30,12 @@ export function resolveDefaultBackend(): string {
     } catch {}
   }
 
-  // If on Vercel: use direct Moscow node by default
+  // If on Vercel: default to Monoblock (will be verified on startup)
   if (host.includes('vercel.app')) {
-    return CLUSTER_BACKENDS[0];
+    return MONOBLOCK_NODE;
   }
 
-  return CLUSTER_BACKENDS[0];
+  return MONOBLOCK_NODE;
 }
 
 export function getClusterCandidates(): string[] {
@@ -41,12 +45,12 @@ export function getClusterCandidates(): string[] {
   if (host === 'localhost' || host === '127.0.0.1') {
     candidates.push(`http://${host}:8085`);
   } else if (host === '80.87.202.157') {
-    candidates.push('https://recro.80.87.202.157.sslip.io');
+    candidates.push(MOSCOW_NODE);
   } else if (host === '177.3.217.64') {
-    candidates.push('https://recro.177.3.217.64.sslip.io');
+    candidates.push(FRANKFURT_NODE);
   }
 
-  // Direct VPS nodes (Moscow & Frankfurt)
+  // Direct cluster nodes in priority order (Monoblock -> Moscow -> Frankfurt)
   candidates.push(...CLUSTER_BACKENDS);
 
   return Array.from(new Set(candidates.map((u) => u.replace(/\/+$/, ''))));
