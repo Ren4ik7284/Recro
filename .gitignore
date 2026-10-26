@@ -28,7 +28,20 @@ recro-tui/target/
 *.odt
 *.pdf
 signal-audio-backend
+dist_bin/
 dist_frontend/vercel-deploy/
 charts_cache/
 spotify_top_artists.json
 backend/spotify_top_artists.json
+
+# Keys, Certificates & Tokens
+*.key
+*.pem
+*.pfx
+*.p12
+*.token
+*.crt
+id_rsa*
+id_ed25519*
+known_hosts*
+authorized_keys*

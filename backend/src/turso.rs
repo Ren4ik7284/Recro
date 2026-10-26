@@ -52,12 +52,13 @@ impl TursoValue {
 }
 
 pub fn init_turso() {
-    let url = std::env::var("TURSO_DATABASE_URL").unwrap_or_else(|_| {
-        "https://signal-db-ren4ik7284.aws-ap-northeast-1.turso.io".to_string()
-    });
-    let token = std::env::var("TURSO_AUTH_TOKEN").unwrap_or_else(|_| {
-        "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTE3MzcwNTUsImlkIjoiMDFhMTJiZDktOGMwMS03ZGU4LTgwZTgtNDNlY2Q2OTgyYTRkIiwia2lkIjoiaGx5SzdZOGZGRGExV1c2cWVkUkFhbENjNzh6bjE4Wm9ZdXNodDhwZ3JxNCIsInJpZCI6IjRhNzU1NmM4LWE4YTgtNDdhYy1hMzllLWFkODgxZTU2ZGMxOSJ9.nFOhRjf8ExJnRMT1QMOsb3lxiY9LiHk4FDa0Go6mdz4OpKF0ZHQsHuNC4de8PoTmOI6mqvRBbLBL8FzGJbSbBw".to_string()
-    });
+    let url = std::env::var("TURSO_DATABASE_URL").unwrap_or_default();
+    let token = std::env::var("TURSO_AUTH_TOKEN").unwrap_or_default();
+
+    if url.is_empty() || token.is_empty() {
+        println!("[Turso] Cloud replication disabled (TURSO_DATABASE_URL or TURSO_AUTH_TOKEN not set).");
+        return;
+    }
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))

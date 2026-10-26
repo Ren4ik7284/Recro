@@ -7,25 +7,21 @@ echo "🛡️ ==================================================="
 echo "🛡️ Recro Pre-Flight / Pre-Push Safety Verification"
 echo "🛡️ ==================================================="
 
-# 1. Проверка JWT_SECRET консистентности
-echo "🔑 [1/5] Проверка согласованности JWT_SECRET..."
-JWT_MASTER="recro_production_jwt_master_secret_2026_super_stable_key_998877_permanent"
+# 1. Проверка безопасности и отсутствия утечек секретов в кодовой базе
+echo "🔑 [1/5] Проверка безопасности и конфиденциальности секретов..."
 
-if ! grep -q "$JWT_MASTER" "$DIR/backend/src/auth.rs"; then
-    echo "❌ ОШИБКА: backend/src/auth.rs не содержит мастер-ключ JWT!"
+# Убедимся, что личные токены и персональные данные не закоммичены
+if grep -E -i "eyJhbGciOi" "$DIR/Dockerfile" "$DIR/render.yaml" "$DIR/backend/src/turso.rs" 2>/dev/null; then
+    echo "❌ ОШИБКА: Обнаружен открытый JWT/API токен в Dockerfile, render.yaml или turso.rs!"
     exit 1
 fi
 
-if ! grep -q "$JWT_MASTER" "$DIR/render.yaml"; then
-    echo "❌ ОШИБКА: render.yaml не содержит мастер-ключ JWT!"
+if grep -i "@gmail.com" "$DIR/Caddyfile" 2>/dev/null; then
+    echo "❌ ОШИБКА: Обнаружен персональный email в Caddyfile!"
     exit 1
 fi
 
-if ! grep -q "$JWT_MASTER" "$DIR/Dockerfile"; then
-    echo "❌ ОШИБКА: Dockerfile не содержит мастер-ключ JWT!"
-    exit 1
-fi
-echo "   ✅ JWT_SECRET согласован во всех конфигурациях!"
+echo "   ✅ Конфиденциальные токены и персональные email чисты!"
 
 # 2. Проверка CORS и Caddyfile
 echo "🌐 [2/5] Проверка CORS и Caddyfile..."
