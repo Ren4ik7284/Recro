@@ -70,16 +70,30 @@ if [ -f "${APPDIR}/opt/recro/node_modules/.bin/electron" ]; then
   exec "${APPDIR}/opt/recro/node_modules/.bin/electron" $ELECTRON_ARGS "${APPDIR}/opt/recro" "$@"
 fi
 
+# Auto-install desktop entry & icon if missing
+mkdir -p "${HOME}/.local/share/applications" "${HOME}/.local/share/icons/hicolor/512x512/apps" "${HOME}/.local/share/pixmaps" "${HOME}/.icons" 2>/dev/null || true
+if [ -f "${APPDIR}/recro.png" ]; then
+  cp -n "${APPDIR}/recro.png" "${HOME}/.local/share/icons/hicolor/512x512/apps/recro.png" 2>/dev/null || true
+  cp -n "${APPDIR}/recro.png" "${HOME}/.local/share/pixmaps/recro.png" 2>/dev/null || true
+  cp -n "${APPDIR}/recro.png" "${HOME}/.icons/recro.png" 2>/dev/null || true
+fi
+if [ -f "${APPDIR}/recro.desktop" ] && [ ! -f "${HOME}/.local/share/applications/recro.desktop" ]; then
+  sed "s|^Icon=.*|Icon=${HOME}/.local/share/icons/hicolor/512x512/apps/recro.png|" "${APPDIR}/recro.desktop" > "${HOME}/.local/share/applications/recro.desktop" 2>/dev/null || true
+  which update-desktop-database &>/dev/null && update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+fi
+
+TARGET_URL="https://recro-player.vercel.app/#/"
+
 if command -v chromium &>/dev/null; then
-  exec chromium --app="https://recro.online" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"
+  exec chromium --app="${TARGET_URL}" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"
 elif command -v google-chrome &>/dev/null; then
-  exec google-chrome --app="https://recro.online" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"
+  exec google-chrome --app="${TARGET_URL}" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"
 elif command -v brave &>/dev/null; then
-  exec brave --app="https://recro.online" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"
+  exec brave --app="${TARGET_URL}" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"
 elif command -v firefox &>/dev/null; then
-  exec firefox --new-window "https://recro.online" "$@"
+  exec firefox --new-window "${TARGET_URL}" "$@"
 else
-  xdg-open "https://recro.online"
+  xdg-open "${TARGET_URL}"
 fi
 EOF
 

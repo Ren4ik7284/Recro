@@ -473,13 +473,36 @@ export class App implements OnInit {
     this.openPwaInstallModal(platform);
   }
 
-  readonly selectedLinuxDistro = signal<'deb' | 'rpm' | 'appimage' | 'aur'>('appimage');
+  readonly selectedLinuxDistro = signal<'pwa' | 'deb' | 'rpm' | 'appimage' | 'aur'>('pwa');
+
+  getDownloadButtonLabel(): string {
+    const tab = this.installPlatformTab();
+    const isRu = this.i18n.currentLang() === 'ru';
+    if (tab === 'linux') {
+      const distro = this.selectedLinuxDistro();
+      if (distro === 'pwa') return isRu ? 'Установить в систему' : 'Install App';
+      if (distro === 'aur') return 'yay -S recro-bin';
+      if (distro === 'deb') return isRu ? 'Скачать .deb' : 'Download .deb';
+      if (distro === 'rpm') return isRu ? 'Скачать .rpm' : 'Download .rpm';
+      if (distro === 'appimage') return isRu ? 'Скачать AppImage' : 'Download AppImage';
+    }
+    if (tab === 'android') return isRu ? 'Скачать APK' : 'Download APK';
+    if (tab === 'ios') return isRu ? 'Скачать IPA' : 'Download IPA';
+    return isRu ? 'Установить' : 'Install';
+  }
 
   downloadSelectedPackage() {
     const tab = this.installPlatformTab();
     if (tab === 'linux') {
       const distro = this.selectedLinuxDistro();
-      if (distro === 'deb') {
+      if (distro === 'pwa') {
+        if (this.canInstallPwa()) {
+          this.pwaService.promptInstall();
+        } else {
+          this.copyInstallCommand('curl -fsSL https://recro-player.vercel.app/install.sh | bash');
+          this.showToast(this.i18n.currentLang() === 'ru' ? 'Команда установки скопирована в буфер обмена' : 'Install command copied to clipboard');
+        }
+      } else if (distro === 'deb') {
         this.triggerDownload('/recro.deb', 'recro.deb');
       } else if (distro === 'rpm') {
         this.triggerDownload('/recro.rpm', 'recro.rpm');

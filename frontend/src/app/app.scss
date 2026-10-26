@@ -9084,3 +9084,41 @@ app-header-bar {
     stroke-width: 2.2;
   }
 }
+
+.dotify-terminal-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #8e8e93;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ededef;
+
+    .dotify-terminal-cmd {
+      color: #93c5fd;
+    }
+  }
+
+  .dotify-terminal-label {
+    opacity: 0.8;
+  }
+
+  .dotify-terminal-cmd {
+    color: #60a5fa;
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+}
