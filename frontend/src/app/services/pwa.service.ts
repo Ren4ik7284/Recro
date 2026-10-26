@@ -1,6 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 
 export type InstallOutcome = 'accepted' | 'dismissed' | 'manual' | 'already-installed';
+export type InstallPlatform = 'windows' | 'macos' | 'linux' | 'android' | 'ios';
 
 @Injectable({
   providedIn: 'root'
@@ -16,7 +17,7 @@ export class PwaService {
   readonly isInstalled = signal<boolean>(false);
   readonly canPromptInstall = signal<boolean>(false);
   readonly isInstallModalOpen = signal<boolean>(false);
-  readonly activeInstallTab = signal<'android' | 'ios' | 'linux'>('android');
+  readonly activeInstallTab = signal<InstallPlatform>('linux');
 
   readonly shouldShowInstallButton = computed(() => {
     return this.isMobile() && !this.isStandalone();
@@ -156,13 +157,15 @@ export class PwaService {
     return 'manual';
   }
 
-  openInstallModal(platform?: 'android' | 'ios' | 'linux') {
+  openInstallModal(platform?: InstallPlatform) {
     if (platform) {
       this.activeInstallTab.set(platform);
-    } else if (!this.isMobile() && this.isLinux()) {
-      this.activeInstallTab.set('linux');
+    } else if (this.isIos()) {
+      this.activeInstallTab.set('ios');
+    } else if (this.isMobile()) {
+      this.activeInstallTab.set('android');
     } else {
-      this.activeInstallTab.set(this.isIos() ? 'ios' : 'android');
+      this.activeInstallTab.set('linux');
     }
     this.isInstallModalOpen.set(true);
   }

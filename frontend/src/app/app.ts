@@ -30,7 +30,7 @@ import { ProfileComponent } from './components/profile/profile.component';
 import { FloatingMiniPlayerComponent } from './components/floating-mini-player/floating-mini-player.component';
 import { NavigationService } from './services/navigation.service';
 import { AmbientService } from './services/ambient.service';
-import { PwaService } from './services/pwa.service';
+import { PwaService, InstallPlatform } from './services/pwa.service';
 import { TimerService, TIMER_MOODS, TimerMood } from './services/timer.service';
 import { PLAYLIST_COVER_PRESETS, PlaylistCoverPreset } from './components/profile/profile-presets';
 import { ThemeService } from './services/theme.service';
@@ -448,7 +448,7 @@ export class App implements OnInit {
     this.showToast('Загрузка Recro IPA началась');
   }
 
-  async openPwaInstallModal(platform?: 'android' | 'ios' | 'linux' | void, pushHistory = true) {
+  async openPwaInstallModal(platform?: InstallPlatform | void, pushHistory = true) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }
@@ -465,12 +465,52 @@ export class App implements OnInit {
     this.navService.closeOverlay('pwa');
   }
 
-  installPwa(platform?: 'android' | 'ios' | 'linux' | void) {
+  installPwa(platform?: InstallPlatform | void) {
     if (this.isMobilePlaylistsOpen()) {
       this.closeMobilePlaylists();
     }
 
     this.openPwaInstallModal(platform);
+  }
+
+  readonly selectedLinuxDistro = signal<'deb' | 'rpm' | 'appimage' | 'aur'>('appimage');
+
+  downloadSelectedPackage() {
+    const tab = this.installPlatformTab();
+    if (tab === 'linux') {
+      const distro = this.selectedLinuxDistro();
+      if (distro === 'deb') {
+        this.triggerDownload('/recro.deb', 'recro.deb');
+      } else if (distro === 'rpm') {
+        this.triggerDownload('/recro.rpm', 'recro.rpm');
+      } else if (distro === 'appimage') {
+        this.triggerDownload('/recro.AppImage', 'recro.AppImage');
+      } else if (distro === 'aur') {
+        this.copyInstallCommand('yay -S recro-bin');
+      }
+    } else if (tab === 'android') {
+      this.triggerDownload('/recro.apk', 'recro.apk');
+    } else if (tab === 'ios') {
+      this.triggerDownload('/recro.ipa', 'recro.ipa');
+    } else if (tab === 'windows' || tab === 'macos') {
+      if (this.canInstallPwa()) {
+        this.pwaService.promptInstall();
+      } else {
+        this.showToast(this.i18n.currentLang() === 'ru' ? 'Для Windows и macOS доступна установка PWA' : 'For Windows and macOS install via PWA');
+      }
+    }
+  }
+
+  triggerDownload(url: string, filename: string) {
+    if (typeof document !== 'undefined') {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      this.showToast(this.i18n.currentLang() === 'ru' ? `Загрузка ${filename} началась` : `Downloading ${filename}...`);
+    }
   }
 
   copyInstallCommand(cmd: string = 'curl -sSL https://recro-player.vercel.app/install.sh | bash') {

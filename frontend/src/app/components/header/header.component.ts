@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LibraryService } from '../../services/library.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
-import { PwaService } from '../../services/pwa.service';
+import { PwaService, InstallPlatform } from '../../services/pwa.service';
 import { ThemeService } from '../../services/theme.service';
 import { I18nService } from '../../services/i18n.service';
 
@@ -30,7 +30,7 @@ export class HeaderComponent {
   @Output() openWrappedModal = new EventEmitter<void>();
   @Output() openHistoryModal = new EventEmitter<void>();
   @Output() openProfileModal = new EventEmitter<void>();
-  @Output() openInstallModal = new EventEmitter<'android' | 'ios' | 'linux' | void>();
+  @Output() openInstallModal = new EventEmitter<InstallPlatform | void>();
   @Output() openMyMusic = new EventEmitter<void>();
 
   readonly isUserMenuOpen = signal<boolean>(false);
@@ -67,7 +67,7 @@ export class HeaderComponent {
     this.openHistoryModal.emit();
   }
 
-  handleInstallClick(platform?: 'android' | 'ios' | 'linux') {
+  handleInstallClick(platform?: InstallPlatform) {
     this.closeUserMenu();
     this.openInstallModal.emit(platform);
   }
