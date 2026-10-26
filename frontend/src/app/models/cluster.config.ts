@@ -1,6 +1,7 @@
 export const CLUSTER_BACKENDS = [
-  'https://recro.80.87.202.157.sslip.io', // Moscow VPS (Direct in RU without VPN)
-  'https://recro.177.3.217.64.sslip.io',  // Frankfurt VPS (Direct in Europe / with VPN)
+  'https://recro.80.87.202.157.sslip.io',      // Moscow VPS (Direct in RU without VPN)
+  'https://recro.177.3.217.64.sslip.io',       // Frankfurt VPS (Direct in Europe / with VPN)
+  'https://node-home.80.87.202.157.sslip.io',  // Monoblock Edge Node (High-Capacity RU Cache)
 ];
 
 export function resolveDefaultBackend(): string {

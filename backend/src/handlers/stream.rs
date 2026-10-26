@@ -678,14 +678,39 @@ pub async fn stream_audio(
                 let cloud_stream_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, fwd_params.join("&"));
                 eprintln!("[STREAM] Falling back to foreign cluster node: {}", cloud_stream_url);
 
-                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(20)).build() {
+                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(30)).build() {
+                    let is_prefetch = params.prefetch.unwrap_or(false);
                     let mut req = client.get(&cloud_stream_url);
                     if let Some(range_val) = headers.get(header::RANGE) {
-                        req = req.header(header::RANGE, range_val);
+                        if !is_prefetch {
+                            req = req.header(header::RANGE, range_val);
+                        }
                     }
-                    if let Ok(resp) = req.send().await {
+                    if let Ok(mut resp) = req.send().await {
                         let status = resp.status();
                         if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
+                            // If this was a prefetch request and returned 200 OK, save full stream to disk cache!
+                            if is_prefetch && status.is_success() && !cache_file_path.is_empty() {
+                                let tmp_path = format!("{}.tmp.{}", cache_file_path, std::process::id());
+                                use tokio::io::AsyncWriteExt;
+                                if let Ok(mut f) = tokio::fs::File::create(&tmp_path).await {
+                                    let mut written = 0u64;
+                                    while let Ok(Some(chunk)) = resp.chunk().await {
+                                        written += chunk.len() as u64;
+                                        let _ = f.write_all(&chunk).await;
+                                    }
+                                    let _ = f.flush().await;
+                                    drop(f);
+                                    if written > 100_000 {
+                                        let _ = tokio::fs::rename(&tmp_path, &cache_file_path).await;
+                                        eprintln!("[STREAM] Prefetched & cached to disk: {} ({} bytes)", cache_file_path, written);
+                                        return Ok(StatusCode::NO_CONTENT.into_response());
+                                    } else {
+                                        let _ = tokio::fs::remove_file(&tmp_path).await;
+                                    }
+                                }
+                            }
+
                             let mut res_headers = HeaderMap::new();
                             let fwd_ct = resp.headers().get(header::CONTENT_TYPE).cloned().unwrap_or_else(|| "audio/mpeg".parse().unwrap());
                             res_headers.insert(header::CONTENT_TYPE, fwd_ct);
