@@ -230,6 +230,8 @@ export class LibraryService implements OnDestroy {
   readonly onlineSearchResults = signal<Track[]>([]);
   readonly isSearchingOnline = signal<boolean>(false);
   readonly isBackendOnline = signal<boolean>(false);
+  readonly isMonoblockOnline = signal<boolean>(false);
+  private edgeNodeMonitorInterval: ReturnType<typeof setInterval> | null = null;
 
   readonly availableGenres = computed(() => {
     const pseudo = new Set(['discovery', 'online', 'chart', 'rap', 'undefined', 'null']);
@@ -320,6 +322,7 @@ export class LibraryService implements OnDestroy {
         this.checkBackendHealth().then(() => {
           this.syncWithBackendOnStartup();
           this.startAutoSync();
+          this.startEdgeNodeMonitor();
         });
       }, 50);
 
@@ -349,6 +352,7 @@ export class LibraryService implements OnDestroy {
   ngOnDestroy(): void {
     if (this.syncPollInterval) clearInterval(this.syncPollInterval);
     if (this.syncTimeout) clearTimeout(this.syncTimeout);
+    if (this.edgeNodeMonitorInterval) clearInterval(this.edgeNodeMonitorInterval);
     if (this.visibilityHandler) document.removeEventListener('visibilitychange', this.visibilityHandler);
     if (this.focusHandler) window.removeEventListener('focus', this.focusHandler);
     if (this.eventSource) {
@@ -359,6 +363,49 @@ export class LibraryService implements OnDestroy {
       clearTimeout(this.sseReconnectTimeout);
       this.sseReconnectTimeout = null;
     }
+  }
+
+  private startEdgeNodeMonitor() {
+    if (typeof window === 'undefined') return;
+    if (this.edgeNodeMonitorInterval) clearInterval(this.edgeNodeMonitorInterval);
+
+    // Периодический мониторинг edge-ноды моноблока в реальном времени (каждые 15 секунд)
+    this.edgeNodeMonitorInterval = setInterval(async () => {
+      try {
+        const monoRes = await fetch(`${MONOBLOCK_NODE}/api/health`, { signal: AbortSignal.timeout(1600) });
+        const isOnline = monoRes.ok;
+        if (isOnline !== this.isMonoblockOnline()) {
+          this.isMonoblockOnline.set(isOnline);
+          console.log(`[Cluster] Monoblock edge node status changed in real-time: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+
+          if (isOnline) {
+            // Моноблок подключился в реальном времени! Мягко переводим запросы на моноблок
+            this.activeBackendUrl = MONOBLOCK_NODE;
+            try { localStorage.setItem('recro_fastest_backend', MONOBLOCK_NODE); } catch {}
+            this.authService.setActiveBackendUrl(MONOBLOCK_NODE);
+            this.connectRealtimeSync();
+          } else if (this.activeBackendUrl === MONOBLOCK_NODE) {
+            // Моноблок отключился: мгновенный фоллбэк на Москву
+            console.warn('[Cluster] Monoblock disconnected, failing over to Moscow VPS');
+            this.activeBackendUrl = MOSCOW_NODE;
+            try { localStorage.setItem('recro_fastest_backend', MOSCOW_NODE); } catch {}
+            this.authService.setActiveBackendUrl(MOSCOW_NODE);
+            this.connectRealtimeSync();
+          }
+        }
+      } catch {
+        if (this.isMonoblockOnline()) {
+          this.isMonoblockOnline.set(false);
+          console.warn('[Cluster] Monoblock edge node went OFFLINE, failing over to Moscow VPS');
+          if (this.activeBackendUrl === MONOBLOCK_NODE) {
+            this.activeBackendUrl = MOSCOW_NODE;
+            try { localStorage.setItem('recro_fastest_backend', MOSCOW_NODE); } catch {}
+            this.authService.setActiveBackendUrl(MOSCOW_NODE);
+            this.connectRealtimeSync();
+          }
+        }
+      }
+    }, 15_000);
   }
 
   connectRealtimeSync() {
@@ -376,6 +423,21 @@ export class LibraryService implements OnDestroy {
     try {
       this.eventSource = new EventSource(url, { withCredentials: true });
 
+      const connTimer = setTimeout(() => {
+        if (this.eventSource && this.eventSource.readyState === EventSource.CONNECTING) {
+          console.warn('[SSE] EventSource connection stalled, retrying...');
+          this.eventSource.close();
+          this.eventSource = null;
+          if (this.authService.isAuthenticated()) {
+            this.failoverBackend();
+          }
+        }
+      }, 5000);
+
+      this.eventSource.onopen = () => {
+        clearTimeout(connTimer);
+      };
+
       this.eventSource.addEventListener('library_updated', () => {
         // Real-time synchronization triggered from another connected device
         this.syncWithBackendOnStartup(true);
@@ -387,6 +449,7 @@ export class LibraryService implements OnDestroy {
       });
 
       this.eventSource.onerror = () => {
+        clearTimeout(connTimer);
         if (this.eventSource) {
           this.eventSource.close();
           this.eventSource = null;
@@ -396,7 +459,7 @@ export class LibraryService implements OnDestroy {
           if (this.authService.isAuthenticated()) {
             this.connectRealtimeSync();
           }
-        }, 30000);
+        }, 4000);
       };
     } catch (e) {
       console.warn('Real-time sync SSE failed to connect:', e);
@@ -412,12 +475,12 @@ export class LibraryService implements OnDestroy {
   startAutoSync() {
     if (this.syncPollInterval || typeof window === 'undefined') return;
 
-    // Регулярная авто-синхронизация как резерв для SSE (раз в 3 минуты, если SSE отключен)
+    // Регулярная авто-синхронизация как резерв для SSE (раз в 45 секунд если SSE отключен)
     this.syncPollInterval = setInterval(() => {
       if (!this.eventSource || this.eventSource.readyState !== EventSource.OPEN) {
         this.syncAllWithBackend();
       }
-    }, 180_000);
+    }, 45_000);
 
     this.visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
@@ -599,7 +662,7 @@ export class LibraryService implements OnDestroy {
         }
       } catch {}
     }
-    return CLUSTER_BACKENDS[0] || 'https://recro.80.87.202.157.sslip.io';
+    return MOSCOW_NODE;
   }
 
   private activeHealthCheckPromise: Promise<string> | null = null;
@@ -611,71 +674,34 @@ export class LibraryService implements OnDestroy {
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        // Шаг 1: Проверяем моноблок В ПЕРВУЮ ОЧЕРЕДЬ!
-        // Если моноблок включен — он всегда становится главным узлом плеера (423 ГБ кэш).
-        try {
-          const monoRes = await fetch(`${MONOBLOCK_NODE}/api/health`, {
-            signal: AbortSignal.timeout(1800),
-          });
-          if (monoRes.ok) {
-            console.log('[Cluster] Monoblock edge node is ONLINE! Selecting monoblock as primary backend.');
-            this.activeBackendUrl = MONOBLOCK_NODE;
-            try {
-              localStorage.setItem('recro_fastest_backend', MONOBLOCK_NODE);
-            } catch {}
-            this.isBackendOnline.set(true);
-            this.authService.setActiveBackendUrl(this.activeBackendUrl);
-            this.authService.verifyRemoteSession(this.activeBackendUrl);
-            return MONOBLOCK_NODE;
-          }
-        } catch {
-          // Моноблок выключен или недоступен -> переходим к фоллбэку
-        }
+        // Быстрая параллельная гонка всех узлов с таймаутом 2с:
+        // Побеждает первый ответивший здоровый узел без блокировки!
+        const candidates = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
-        // Шаг 2: Фоллбэк (если моноблок выключен) -> Гонка VPS-узлов (Москва и Франкфурт)
-        // Без VPN в РФ: побеждает Москва (минимальный пинг, без блокировок)
-        // С VPN или из-за границы: побеждает Франкфурт
-        const vpsNodes = [MOSCOW_NODE, FRANKFURT_NODE];
-        const winner = await new Promise<string>((resolve, reject) => {
-          let finished = false;
-          let failCount = 0;
-          const total = vpsNodes.length;
+        const pingNode = async (url: string): Promise<string> => {
+          const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(2000) });
+          if (res.ok) return url;
+          throw new Error(`HTTP ${res.status}`);
+        };
 
-          for (const testUrl of vpsNodes) {
-            fetch(`${testUrl}/api/health`, { signal: AbortSignal.timeout(3000) })
-              .then((res) => {
-                if (res.ok && !finished) {
-                  finished = true;
-                  resolve(testUrl);
-                } else {
-                  failCount++;
-                  if (failCount >= total && !finished) {
-                    reject(new Error('All fallback nodes unreachable'));
-                  }
-                }
-              })
-              .catch(() => {
-                failCount++;
-                if (failCount >= total && !finished) {
-                  reject(new Error('All fallback nodes unreachable'));
-                }
-              });
-          }
-        });
+        const winner = await Promise.any(candidates.map((u) => pingNode(u)));
 
-        console.log(`[Cluster] Monoblock is offline. Fallback active node selected: ${winner}`);
+        console.log(`[Cluster] Active node selected via fast race: ${winner}`);
         this.activeBackendUrl = winner;
         try {
           localStorage.setItem('recro_fastest_backend', winner);
         } catch {}
         this.isBackendOnline.set(true);
+        this.isMonoblockOnline.set(winner === MONOBLOCK_NODE);
         this.authService.setActiveBackendUrl(this.activeBackendUrl);
         this.authService.verifyRemoteSession(this.activeBackendUrl);
         return winner;
-      } catch {
+      } catch (e) {
+        console.warn('[Cluster] Parallel health race failed, falling back to Moscow VPS:', e);
         const fallback = MOSCOW_NODE;
         this.activeBackendUrl = fallback;
         this.isBackendOnline.set(true);
+        this.isMonoblockOnline.set(false);
         this.authService.setActiveBackendUrl(this.activeBackendUrl);
         this.authService.verifyRemoteSession(this.activeBackendUrl);
         return fallback;
@@ -687,7 +713,7 @@ export class LibraryService implements OnDestroy {
     return this.activeHealthCheckPromise;
   }
 
-  async fetchWithClusterFailover(path: string, init?: RequestInit, timeoutMs = 3500): Promise<Response> {
+  async fetchWithClusterFailover(path: string, init?: RequestInit, timeoutMs = 2500): Promise<Response> {
     const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
     const current = this.getBackendUrl();
     const ordered = [current, ...cluster.filter((c) => c !== current)];

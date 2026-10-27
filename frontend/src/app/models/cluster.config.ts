@@ -1,11 +1,11 @@
-export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 export const MOSCOW_NODE = 'https://recro.80.87.202.157.sslip.io';
 export const FRANKFURT_NODE = 'https://recro.177.3.217.64.sslip.io';
+export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 
 export const CLUSTER_BACKENDS = [
-  MONOBLOCK_NODE, // 1. Monoblock (Primary when online - massive 423GB cache)
-  MOSCOW_NODE,    // 2. Moscow VPS (Direct in RU without VPN)
-  FRANKFURT_NODE, // 3. Frankfurt VPS (Direct in Europe / with VPN)
+  MOSCOW_NODE,    // 1. Moscow VPS (24/7 direct in RU without VPN, 100% reliable)
+  FRANKFURT_NODE, // 2. Frankfurt VPS (Direct in Europe / with VPN / YouTube proxy)
+  MONOBLOCK_NODE, // 3. Monoblock Edge Node (High-Capacity 423GB RU cache)
 ];
 
 export function resolveDefaultBackend(): string {
@@ -16,26 +16,26 @@ export function resolveDefaultBackend(): string {
   }
   // If running directly on a VPS host (raw IP or domain)
   if (host === '80.87.202.157' || host.includes('80.87.202.157')) {
+    if (host.includes('node-home')) return MONOBLOCK_NODE;
     return MOSCOW_NODE;
   }
   if (host === '177.3.217.64' || host.includes('177.3.217.64')) {
     return FRANKFURT_NODE;
   }
 
-  // Check if we already cached the fastest proven node from a previous race
+  // Check if we already cached a proven healthy node from a previous session
   if (typeof localStorage !== 'undefined') {
     try {
       const saved = localStorage.getItem('recro_fastest_backend');
-      if (saved && !saved.includes('vercel.app') && saved.startsWith('http')) return saved;
+      if (saved && !saved.includes('vercel.app') && saved.startsWith('http')) {
+        // If saved was monoblock, verify or use Moscow default so startup is never blocked
+        return saved;
+      }
     } catch {}
   }
 
-  // If on Vercel: default to Monoblock (will be verified on startup)
-  if (host.includes('vercel.app')) {
-    return MONOBLOCK_NODE;
-  }
-
-  return MONOBLOCK_NODE;
+  // Default for Vercel / generic web: rock-solid Moscow node (never hangs on offline home nodes)
+  return MOSCOW_NODE;
 }
 
 export function getClusterCandidates(): string[] {
@@ -50,7 +50,7 @@ export function getClusterCandidates(): string[] {
     candidates.push(FRANKFURT_NODE);
   }
 
-  // Direct cluster nodes in priority order (Monoblock -> Moscow -> Frankfurt)
+  // Direct cluster nodes in priority order (Moscow -> Frankfurt -> Monoblock)
   candidates.push(...CLUSTER_BACKENDS);
 
   return Array.from(new Set(candidates.map((u) => u.replace(/\/+$/, ''))));

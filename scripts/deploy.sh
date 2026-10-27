@@ -10,8 +10,11 @@ REMOTE_PATH="/var/www/recro"
 if [ -n "$TARGET_SERVER" ]; then
     SERVERS=("$TARGET_SERVER")
 else
-    # По умолчанию деплоим на оба сервера: Москва (РФ без VPN) и Франкфурт (С VPN и мир)
+    # По умолчанию деплоим на узлы кластера (Москва, Франкфурт и моноблок если доступен)
     SERVERS=("bebragnom89" "recroz")
+    if ssh -o ConnectTimeout=2 monoblock "true" 2>/dev/null; then
+        SERVERS+=("monoblock")
+    fi
 fi
 
 echo "=================================================="
@@ -37,6 +40,8 @@ if [ "$MODE" = "frontend" ] || [ "$MODE" = "all" ]; then
             if [ "$SVR" = "bebragnom89" ]; then
                 scp -o ConnectTimeout=8 "$DIR/Caddyfile" $SVR:/tmp/Caddyfile 2>/dev/null || true
                 ssh -o ConnectTimeout=8 $SVR "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz && mv -f /tmp/Caddyfile /etc/caddy/Caddyfile && systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
+            elif [ "$SVR" = "monoblock" ]; then
+                ssh -o ConnectTimeout=8 $SVR "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz"
             else
                 ssh -o ConnectTimeout=8 $SVR "mkdir -p $REMOTE_PATH/frontend && tar -xzf /tmp/recro-frontend-deploy.tar.gz -C $REMOTE_PATH/frontend && rm -f /tmp/recro-frontend-deploy.tar.gz && systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || true"
             fi

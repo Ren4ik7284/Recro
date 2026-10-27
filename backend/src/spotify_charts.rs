@@ -414,17 +414,17 @@ pub async fn get_cached_spotify_top_artists(force: bool) -> Vec<ChartArtist> {
     }
 
     // 3. Needs fetch (either force or cache is completely empty)
-    match update_spotify_charts().await {
-        Ok(artists) => artists,
-        Err(e) => {
-            eprintln!("[SpotifyCharts] Fetch failed: {}", e);
-            // Fallback to disk or hardcoded
-            if let Some(disk) = load_cache_from_disk() {
-                disk
-            } else {
-                get_fallback_artists()
-            }
+    // Non-blocking: spawn update in background so HTTP client never hangs on Kworb/network latency
+    tokio::spawn(async {
+        if let Err(e) = update_spotify_charts().await {
+            eprintln!("[SpotifyCharts] Background fetch error: {}", e);
         }
+    });
+
+    if let Some(disk) = load_cache_from_disk() {
+        disk
+    } else {
+        get_fallback_artists()
     }
 }
 

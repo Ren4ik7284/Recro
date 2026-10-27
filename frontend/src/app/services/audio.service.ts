@@ -117,11 +117,13 @@ export class AudioService {
     this.clearStartupWatchdog();
     this.startupWatchdogTimer = setTimeout(() => {
       if (requestId !== this.currentPlayRequestId) return;
-      if (!this.hasAudioStartedPlaying && this.audio.paused && (this.audio.currentTime === 0 || isNaN(this.audio.currentTime))) {
-        console.warn(`[AudioService] Track startup stalled (>12s) for "${track.title}", failing over cluster immediately...`);
+      // В HTML5 Audio play() сразу переводит audio.paused в false, даже во время загрузки сети.
+      // Поэтому проверка audio.paused блокировала срабатывание вотчдога при зависании сети.
+      if (!this.hasAudioStartedPlaying && (this.audio.currentTime === 0 || isNaN(this.audio.currentTime))) {
+        console.warn(`[AudioService] Track startup stalled (>3.8s) for "${track.title}", failing over cluster immediately...`);
         this.handlePlaybackFailure('startup_stall');
       }
-    }, 12000);
+    }, 3800);
   }
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
@@ -2100,7 +2102,9 @@ export class AudioService {
 
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     if (isHttps) {
-      if (activeBase.includes('80.87.202.157')) {
+      if (activeBase.includes('node-home')) {
+        activeBase = 'https://node-home.80.87.202.157.sslip.io';
+      } else if (activeBase.includes('80.87.202.157')) {
         activeBase = 'https://recro.80.87.202.157.sslip.io';
       } else if (activeBase.includes('177.3.217.64')) {
         activeBase = 'https://recro.177.3.217.64.sslip.io';
