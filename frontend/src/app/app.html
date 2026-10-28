@@ -985,6 +985,19 @@
                   <div class="chart-spinner"></div>
                   <span>{{ i18n.currentLang() === 'ru' ? 'Загрузка каталога...' : 'Loading catalog...' }}</span>
                 </div>
+              } @else if (!homeData() && !isLoadingHome()) {
+                <div class="home-loading-box font-mono" style="padding: 36px 16px; text-align: center;">
+                  <div style="margin-bottom: 12px; color: #a1a1aa;">
+                    {{ i18n.currentLang() === 'ru' ? 'Связь с сервером прервана (смена VPN или сети)' : 'Connection interrupted' }}
+                  </div>
+                  <button 
+                    class="btn-header-action" 
+                    style="margin: 0 auto; display: inline-flex;"
+                    (click)="libraryService.reconnectToFastestHost(true); loadHomeData()"
+                  >
+                    <span>{{ i18n.currentLang() === 'ru' ? 'Переподключиться' : 'Reconnect' }}</span>
+                  </button>
+                </div>
               }
 
               <!-- 1. Популярные песни -->
@@ -4031,6 +4044,19 @@
         <span class="toast-dot"></span>
       </div>
       <span class="toast-content">{{ toastMessage() }}</span>
+    </div>
+  }
+
+  @if (libraryService.isClusterReconnecting()) {
+    <div class="cluster-reconnect-overlay">
+      <div class="cluster-reconnect-box">
+        <div class="cluster-reconnect-logo">Recro</div>
+        <div class="cluster-reconnect-spinner"></div>
+        <div class="cluster-reconnect-status font-mono">{{ libraryService.clusterReconnectMessage() }}</div>
+        <div class="cluster-reconnect-bar">
+          <div class="cluster-reconnect-bar-inner"></div>
+        </div>
+      </div>
     </div>
   }
 </div>

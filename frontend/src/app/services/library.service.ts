@@ -231,6 +231,10 @@ export class LibraryService implements OnDestroy {
   readonly isSearchingOnline = signal<boolean>(false);
   readonly isBackendOnline = signal<boolean>(false);
   readonly isMonoblockOnline = signal<boolean>(false);
+  readonly isClusterReconnecting = signal<boolean>(false);
+  readonly clusterReconnectMessage = signal<string>('Выбор лучшего сервера...');
+  readonly clusterMigrationEpoch = signal<number>(0);
+  private lastNetworkCheckTime = 0;
   private edgeNodeMonitorInterval: ReturnType<typeof setInterval> | null = null;
 
   readonly availableGenres = computed(() => {
@@ -319,18 +323,16 @@ export class LibraryService implements OnDestroy {
     this.initLibrary();
     if (typeof window !== 'undefined') {
       setTimeout(() => {
-        this.checkBackendHealth().then(() => {
+        this.reconnectToFastestHost(false).then(() => {
           this.syncWithBackendOnStartup();
           this.startAutoSync();
           this.startEdgeNodeMonitor();
         });
       }, 50);
 
-      window.addEventListener('online', () => {
-        this.checkBackendHealth();
-      });
+      this.setupNetworkMonitor();
     } else {
-      this.checkBackendHealth().then(() => {
+      this.reconnectToFastestHost(false).then(() => {
         this.syncWithBackendOnStartup();
         this.startAutoSync();
       });
@@ -347,6 +349,54 @@ export class LibraryService implements OnDestroy {
         }
       }
     });
+  }
+
+  private setupNetworkMonitor() {
+    if (typeof window === 'undefined') return;
+
+    window.addEventListener('online', () => {
+      console.log('[Cluster] Network online event received, performing health race...');
+      this.reconnectToFastestHost(true);
+    });
+
+    window.addEventListener('offline', () => {
+      console.warn('[Cluster] Network offline event received');
+      this.isBackendOnline.set(false);
+      this.isClusterReconnecting.set(true);
+      this.clusterReconnectMessage.set('Нет подключения к интернету');
+      setTimeout(() => {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          this.isClusterReconnecting.set(false);
+        }
+      }, 2000);
+    });
+
+    const conn = (navigator as any)?.connection;
+    if (conn && typeof conn.addEventListener === 'function') {
+      conn.addEventListener('change', () => {
+        console.log('[Cluster] Network interface changed (VPN or network transition)');
+        this.reconnectToFastestHost(true);
+      });
+    }
+
+    this.focusHandler = async () => {
+      const now = Date.now();
+      if (now - this.lastNetworkCheckTime < 3000) return;
+      this.lastNetworkCheckTime = now;
+
+      // Verify active node response on window/tab focus
+      try {
+        const testRes = await fetch(`${this.getBackendUrl()}/api/health?_t=${Date.now()}`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(1400),
+        });
+        if (!testRes.ok) throw new Error(`HTTP ${testRes.status}`);
+      } catch {
+        console.warn('[Cluster] Active node stalled after window focus / tab switch, re-racing cluster...');
+        this.reconnectToFastestHost(true);
+      }
+    };
+    window.addEventListener('focus', this.focusHandler);
   }
 
   ngOnDestroy(): void {
@@ -369,10 +419,28 @@ export class LibraryService implements OnDestroy {
     if (typeof window === 'undefined') return;
     if (this.edgeNodeMonitorInterval) clearInterval(this.edgeNodeMonitorInterval);
 
-    // Периодический мониторинг edge-ноды моноблока в реальном времени (каждые 15 секунд)
+    // Периодический мониторинг узлов в реальном времени (каждые 12 секунд)
     this.edgeNodeMonitorInterval = setInterval(async () => {
+      // 1. Проверяем текущий активный узел — если он перестал отвечать (например, выключили/включили VPN),
+      // не ждём ошибок пользователя, а сразу запускаем гонку узлов с экраном загрузки!
       try {
-        const monoRes = await fetch(`${MONOBLOCK_NODE}/api/health`, { signal: AbortSignal.timeout(1600) });
+        const activeRes = await fetch(`${this.getBackendUrl()}/api/health?_t=${Date.now()}`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(1800),
+        });
+        if (!activeRes.ok) throw new Error(`HTTP ${activeRes.status}`);
+      } catch {
+        console.warn('[Cluster] Background monitor detected active node stall, initiating failover...');
+        this.reconnectToFastestHost(true);
+        return;
+      }
+
+      // 2. Мониторинг edge-ноды моноблока
+      try {
+        const monoRes = await fetch(`${MONOBLOCK_NODE}/api/health?_t=${Date.now()}`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(1600),
+        });
         const isOnline = monoRes.ok;
         if (isOnline !== this.isMonoblockOnline()) {
           this.isMonoblockOnline.set(isOnline);
@@ -384,6 +452,7 @@ export class LibraryService implements OnDestroy {
             try { localStorage.setItem('recro_fastest_backend', MONOBLOCK_NODE); } catch {}
             this.authService.setActiveBackendUrl(MONOBLOCK_NODE);
             this.connectRealtimeSync();
+            this.clusterMigrationEpoch.update((v) => v + 1);
           } else if (this.activeBackendUrl === MONOBLOCK_NODE) {
             // Моноблок отключился: мгновенный фоллбэк на Москву
             console.warn('[Cluster] Monoblock disconnected, failing over to Moscow VPS');
@@ -391,6 +460,7 @@ export class LibraryService implements OnDestroy {
             try { localStorage.setItem('recro_fastest_backend', MOSCOW_NODE); } catch {}
             this.authService.setActiveBackendUrl(MOSCOW_NODE);
             this.connectRealtimeSync();
+            this.clusterMigrationEpoch.update((v) => v + 1);
           }
         }
       } catch {
@@ -402,10 +472,11 @@ export class LibraryService implements OnDestroy {
             try { localStorage.setItem('recro_fastest_backend', MOSCOW_NODE); } catch {}
             this.authService.setActiveBackendUrl(MOSCOW_NODE);
             this.connectRealtimeSync();
+            this.clusterMigrationEpoch.update((v) => v + 1);
           }
         }
       }
-    }, 15_000);
+    }, 12_000);
   }
 
   connectRealtimeSync() {
@@ -668,25 +739,44 @@ export class LibraryService implements OnDestroy {
   private activeHealthCheckPromise: Promise<string> | null = null;
 
   checkBackendHealth(): Promise<string> {
+    return this.reconnectToFastestHost(false);
+  }
+
+  reconnectToFastestHost(forceOverlay = false): Promise<string> {
     if (this.activeHealthCheckPromise) {
+      if (forceOverlay && !this.isClusterReconnecting()) {
+        this.isClusterReconnecting.set(true);
+      }
       return this.activeHealthCheckPromise;
+    }
+
+    const prevNode = this.activeBackendUrl;
+    if (forceOverlay) {
+      this.isClusterReconnecting.set(true);
+      this.clusterReconnectMessage.set(
+        typeof navigator !== 'undefined' && !navigator.onLine
+          ? 'Поиск сети...'
+          : 'Смена сети: выбор лучшего сервера...'
+      );
     }
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        // Быстрая параллельная гонка всех узлов с таймаутом 2с:
-        // Побеждает первый ответивший здоровый узел без блокировки!
         const candidates = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
         const pingNode = async (url: string): Promise<string> => {
-          const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(2000) });
+          const res = await fetch(`${url}/api/health?_t=${Date.now()}`, {
+            cache: 'no-store',
+            signal: AbortSignal.timeout(2000),
+          });
           if (res.ok) return url;
           throw new Error(`HTTP ${res.status}`);
         };
 
         const winner = await Promise.any(candidates.map((u) => pingNode(u)));
+        const nodeChanged = winner !== prevNode;
 
-        console.log(`[Cluster] Active node selected via fast race: ${winner}`);
+        console.log(`[Cluster] Active node selected via fast race: ${winner} (previous: ${prevNode}, changed: ${nodeChanged})`);
         this.activeBackendUrl = winner;
         try {
           localStorage.setItem('recro_fastest_backend', winner);
@@ -695,18 +785,36 @@ export class LibraryService implements OnDestroy {
         this.isMonoblockOnline.set(winner === MONOBLOCK_NODE);
         this.authService.setActiveBackendUrl(this.activeBackendUrl);
         this.authService.verifyRemoteSession(this.activeBackendUrl);
+
+        const nodeName = winner.includes('177.3')
+          ? 'Франкфурт'
+          : (winner.includes('node-home') ? 'Моноблок' : 'Москва');
+        this.clusterReconnectMessage.set(`Подключено: узел ${nodeName}`);
+
+        if (nodeChanged) {
+          this.connectRealtimeSync();
+          this.clusterMigrationEpoch.update((v) => v + 1);
+        }
         return winner;
       } catch (e) {
         console.warn('[Cluster] Parallel health race failed, falling back to Moscow VPS:', e);
         const fallback = MOSCOW_NODE;
         this.activeBackendUrl = fallback;
-        this.isBackendOnline.set(true);
+        this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);
         this.isMonoblockOnline.set(false);
         this.authService.setActiveBackendUrl(this.activeBackendUrl);
-        this.authService.verifyRemoteSession(this.activeBackendUrl);
+        this.clusterReconnectMessage.set('Сервер временно недоступен');
+        if (fallback !== prevNode) {
+          this.clusterMigrationEpoch.update((v) => v + 1);
+        }
         return fallback;
       } finally {
         this.activeHealthCheckPromise = null;
+        if (forceOverlay) {
+          setTimeout(() => {
+            this.isClusterReconnecting.set(false);
+          }, 350);
+        }
       }
     })();
 
@@ -735,6 +843,7 @@ export class LibraryService implements OnDestroy {
               localStorage.setItem('recro_fastest_backend', baseUrl);
             } catch {}
             this.authService.setActiveBackendUrl(baseUrl);
+            this.clusterMigrationEpoch.update((v) => v + 1);
           }
           return res;
         }
@@ -757,6 +866,7 @@ export class LibraryService implements OnDestroy {
       localStorage.setItem('recro_fastest_backend', alt);
     } catch {}
     this.authService.setActiveBackendUrl(alt);
+    this.clusterMigrationEpoch.update((v) => v + 1);
     this.authService.verifyRemoteSession(alt);
     this.connectRealtimeSync();
     return alt;

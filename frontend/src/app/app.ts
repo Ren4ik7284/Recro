@@ -111,6 +111,20 @@ export class App implements OnInit {
         el.addEventListener('wheel', onWheel, { passive: false });
       }
     });
+
+    // Авто-обновление данных активного экрана при миграции кластера (смена VPN / восстановление связи)
+    effect(() => {
+      const epoch = this.libraryService.clusterMigrationEpoch();
+      if (epoch === 0) return;
+
+      console.log(`[App] Cluster migration epoch ${epoch}. Refreshing active view...`);
+      const tab = this.activeTab();
+      if (tab === 'all') {
+        this.loadHomeData();
+      } else if (tab === 'charts') {
+        this.loadCharts();
+      }
+    });
   }
 
   readonly draggedQueueIndex = signal<number | null>(null);
@@ -1038,14 +1052,31 @@ export class App implements OnInit {
     this.isLoadingHome.set(true);
     try {
       const data = await this.libraryService.getHomeExplore();
-      if (data) {
+      if (data && data.popular_tracks && data.popular_tracks.length > 0) {
         this.homeData.set(data);
         if (data.charts && data.charts.length > 0) {
           this.charts.set(data.charts);
         }
+      } else if (!this.homeData()) {
+        const cached = this.libraryService.getCachedHomeExplore();
+        if (cached) {
+          this.homeData.set(cached);
+          if (cached.charts && cached.charts.length > 0) {
+            this.charts.set(cached.charts);
+          }
+        }
       }
     } catch (e) {
       console.error('Error loading home data:', e);
+      if (!this.homeData()) {
+        const cached = this.libraryService.getCachedHomeExplore();
+        if (cached) {
+          this.homeData.set(cached);
+          if (cached.charts && cached.charts.length > 0) {
+            this.charts.set(cached.charts);
+          }
+        }
+      }
     } finally {
       this.isLoadingHome.set(false);
       this.cdr.markForCheck();
