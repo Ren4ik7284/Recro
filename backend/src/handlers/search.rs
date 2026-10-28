@@ -328,14 +328,12 @@ pub async fn extract_info(
                     if let Ok(bytes) = resp.bytes().await {
                         if let Ok(mut ext_resp) = serde_json::from_slice::<ExtractResponse>(&bytes) {
                             for t in &mut ext_resp.tracks {
-                                if t.audio_url.contains("/api/stream") {
-                                    let stream_idx = t.audio_url.find("/api/stream").unwrap();
+                                if let Some(stream_idx) = t.audio_url.find("/api/stream") {
                                     t.audio_url = format!("{}{}", base_url, &t.audio_url[stream_idx..]);
                                 }
                             }
                             if let Some(ref mut mv) = ext_resp.main_video {
-                                if mv.audio_url.contains("/api/stream") {
-                                    let stream_idx = mv.audio_url.find("/api/stream").unwrap();
+                                if let Some(stream_idx) = mv.audio_url.find("/api/stream") {
                                     mv.audio_url = format!("{}{}", base_url, &mv.audio_url[stream_idx..]);
                                 }
                             }

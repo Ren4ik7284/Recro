@@ -6,6 +6,7 @@ use axum::{
 };
 use std::net::SocketAddr;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 use tokio::process::Command;
@@ -690,7 +691,7 @@ pub async fn stream_audio(
                         if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
                             // If this was a prefetch request and returned 200 OK, save full stream to disk cache!
                             if is_prefetch && status.is_success() && !cache_file_path.is_empty() {
-                                let tmp_path = format!("{}.tmp.{}", cache_file_path, std::process::id());
+                                let tmp_path = format!("{}.tmp.{}", cache_file_path, fastrand::u64(..));
                                 use tokio::io::AsyncWriteExt;
                                 if let Ok(mut f) = tokio::fs::File::create(&tmp_path).await {
                                     let mut written = 0u64;
@@ -736,8 +737,7 @@ pub async fn stream_audio(
         if !direct_url.is_empty() {
             if let Ok(mut guard) = state.stream_cache.lock() {
                 if guard.len() > 1000 {
-                    let now = std::time::Instant::now();
-                    guard.retain(|_, (_, cached_at)| now.duration_since(*cached_at) < Duration::from_secs(600));
+                    guard.retain(|_, (_, cached_at)| cached_at.elapsed() < Duration::from_secs(600));
                     if guard.len() > 1500 {
                         guard.clear();
                     }
@@ -763,7 +763,7 @@ pub async fn stream_audio(
     if params.prefetch.unwrap_or(false) {
         if !is_cloud_env() && params.ss.unwrap_or(0) == 0 && !is_live {
             let is_already_transcoding = {
-                let mut guard = state.active_transcodes.lock().unwrap();
+                let mut guard = state.active_transcodes.lock().unwrap_or_else(|p| p.into_inner());
                 if guard.contains(&cache_filename) {
                     true
                 } else {
@@ -969,9 +969,15 @@ pub async fn stream_audio(
         None => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
+    let kill_notify = Arc::new(tokio::sync::Notify::new());
+    let kill_notify_child = kill_notify.clone();
+
     tokio::spawn(async move {
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(360)) => {
+                let _ = ffmpeg_child.start_kill();
+            }
+            _ = kill_notify_child.notified() => {
                 let _ = ffmpeg_child.start_kill();
             }
             _ = ffmpeg_child.wait() => {}
@@ -988,6 +994,7 @@ pub async fn stream_audio(
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::io::Error>>(128);
     let cfp = cache_file_path.clone();
     let tmp_fp = tmp_file_path.clone();
+    let kill_on_disconnect = kill_notify.clone();
 
     tokio::spawn(async move {
         use tokio::io::AsyncWriteExt;
@@ -1023,6 +1030,10 @@ pub async fn stream_audio(
                     break;
                 }
             }
+        }
+
+        if client_disconnected {
+            kill_on_disconnect.notify_one();
         }
 
         if let Some(mut f) = file {

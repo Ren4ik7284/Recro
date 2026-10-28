@@ -493,7 +493,15 @@ export class AudioService {
         }
       };
 
-      this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
+      try {
+        if (!this.sourceNode) {
+          this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
+        }
+      } catch (err) {
+        console.warn('[AudioService] Failed to create MediaElementSource, using direct audio output:', err);
+        this.sourceNode = null;
+        return;
+      }
 
       // 1. Lossless Scaling DSP Engine: 3-band high-precision studio mastering filters
       this.lsBassFilter = this.audioCtx.createBiquadFilter();
@@ -770,6 +778,10 @@ export class AudioService {
     this.audio.addEventListener('stalled', onStall);
 
     this.audio.addEventListener('timeupdate', () => {
+      if (this.audio.currentTime > 0) {
+        this.clearStartupWatchdog();
+        this.hasAudioStartedPlaying = true;
+      }
       if (!this.hasAudioStartedPlaying) return;
       clearStall();
       this.clearStartupWatchdog();
@@ -1322,10 +1334,17 @@ export class AudioService {
     if (isMobile) return false;
     if (url.startsWith('blob:')) return true;
 
-    if (url.startsWith('/') || url.startsWith(window.location.origin) || url.includes('/api/stream')) {
+    if (
+      url.startsWith('/') ||
+      url.startsWith(window.location.origin) ||
+      url.includes('/api/stream') ||
+      url.includes('80.87.202.157') ||
+      url.includes('177.3.217.64') ||
+      url.includes('sslip.io')
+    ) {
       return true;
     }
-    const backendUrl = this.libraryService.getBackendUrl();
+    const backendUrl = this.libraryService?.getBackendUrl?.() || '';
     if (backendUrl && url.startsWith(backendUrl)) {
       return true;
     }
@@ -1517,8 +1536,6 @@ export class AudioService {
         .then(() => {
           this.isSwitchingTrack = false;
           if (playRequestId !== this.currentPlayRequestId) return;
-          this.clearStartupWatchdog();
-          this.hasAudioStartedPlaying = true;
           this.isPlaying.set(true);
           this.updateMediaSessionPlaybackState('playing');
           this.updateMediaSessionMetadata(track);
@@ -2334,16 +2351,6 @@ export class AudioService {
               mode: 'cors',
               priority: 'low' as any,
             }).catch(() => {});
-          } catch {}
-        }
-
-        // Prime the hidden audio element's decoder
-        this.initPreloadAudio();
-        if (this.preloadAudio && this.preloadedAudioUrl !== targetUrl) {
-          this.preloadedAudioUrl = targetUrl;
-          try {
-            this.preloadAudio.src = targetUrl;
-            this.preloadAudio.load();
           } catch {}
         }
       }

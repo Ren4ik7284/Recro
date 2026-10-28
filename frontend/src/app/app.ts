@@ -99,7 +99,7 @@ export class App implements OnInit {
     });
 
     // Horizontal wheel scrolling without jitter
-    effect(() => {
+    effect((onCleanup) => {
       const el = this.popularTracksRef()?.nativeElement;
       if (el) {
         const onWheel = (e: WheelEvent) => {
@@ -109,6 +109,9 @@ export class App implements OnInit {
           }
         };
         el.addEventListener('wheel', onWheel, { passive: false });
+        onCleanup(() => {
+          el.removeEventListener('wheel', onWheel);
+        });
       }
     });
   }

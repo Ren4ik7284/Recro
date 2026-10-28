@@ -691,7 +691,7 @@ export class LibraryService implements OnDestroy {
         try {
           localStorage.setItem('recro_fastest_backend', winner);
         } catch {}
-        this.isBackendOnline.set(true);
+        this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);
         this.isMonoblockOnline.set(winner === MONOBLOCK_NODE);
         this.authService.setActiveBackendUrl(this.activeBackendUrl);
         this.authService.verifyRemoteSession(this.activeBackendUrl);
@@ -700,7 +700,7 @@ export class LibraryService implements OnDestroy {
         console.warn('[Cluster] Parallel health race failed, falling back to Moscow VPS:', e);
         const fallback = MOSCOW_NODE;
         this.activeBackendUrl = fallback;
-        this.isBackendOnline.set(true);
+        this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);
         this.isMonoblockOnline.set(false);
         this.authService.setActiveBackendUrl(this.activeBackendUrl);
         this.authService.verifyRemoteSession(this.activeBackendUrl);

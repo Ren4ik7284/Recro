@@ -305,8 +305,7 @@ pub async fn execute_cloud_search(query: &str, base_url: &str) -> Vec<SearchTrac
             if let Ok(bytes) = resp.bytes().await {
                 if let Ok(mut list) = serde_json::from_slice::<Vec<SearchTrack>>(&bytes) {
                     for t in &mut list {
-                        if t.audio_url.contains("/api/stream") {
-                            let stream_idx = t.audio_url.find("/api/stream").unwrap();
+                        if let Some(stream_idx) = t.audio_url.find("/api/stream") {
                             t.audio_url = format!("{}{}", base_url, &t.audio_url[stream_idx..]);
                         }
                     }
