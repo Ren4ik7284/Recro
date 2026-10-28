@@ -117,15 +117,13 @@ export class AudioService {
     this.clearStartupWatchdog();
     this.startupWatchdogTimer = setTimeout(() => {
       if (requestId !== this.currentPlayRequestId) return;
+      // В HTML5 Audio play() сразу переводит audio.paused в false, даже во время загрузки сети.
+      // Поэтому проверка audio.paused блокировала срабатывание вотчдога при зависании сети.
       if (!this.hasAudioStartedPlaying && (this.audio.currentTime === 0 || isNaN(this.audio.currentTime))) {
-        console.warn(`[AudioService] Track startup stalled (>3.0s) for "${track.title}", triggering cluster failover...`);
-        this.libraryService.reconnectToFastestHost(true).then(() => {
-          this.handlePlaybackFailure('startup_stall');
-        }).catch(() => {
-          this.handlePlaybackFailure('startup_stall');
-        });
+        console.warn(`[AudioService] Track startup stalled (>3.8s) for "${track.title}", failing over cluster immediately...`);
+        this.handlePlaybackFailure('startup_stall');
       }
-    }, 3000);
+    }, 3800);
   }
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
@@ -462,48 +460,6 @@ export class AudioService {
     this.setupEventListeners();
     this.setupMediaSession();
 
-    // Effect: listen to cluster node migrations and recover playing track on new host seamlessly
-    effect(() => {
-      const epoch = this.libraryService.clusterMigrationEpoch();
-      if (epoch === 0) return;
-
-      const cur = this.currentTrack();
-      if (!cur) return;
-
-      // Skip offline blob tracks
-      if (cur.isOffline || (cur.audioUrl && cur.audioUrl.startsWith('blob:'))) {
-        return;
-      }
-
-      if (this.isPlaying() || this.hasAudioStartedPlaying || this.isSwitchingTrack) {
-        const resumePos = this.streamSeekOffset() + (this.audio.currentTime || 0);
-        console.log(`[AudioService] Cluster node migrated (epoch ${epoch}). Resuming track "${cur.title}" at ${resumePos.toFixed(1)}s on ${this.libraryService.getBackendUrl()}`);
-        this.recoverPlaybackOnHost(cur, resumePos);
-      }
-    });
-
-    // Periodic watchdog for silent socket freeze (e.g. VPN toggled and OS dropped packets without firing stall)
-    let lastCheckedTime: number | null = null;
-    let frozenSeconds = 0;
-    setInterval(() => {
-      if (this.isPlaying() && !this.audio.paused && !this.isSwitchingTrack && !this.audio.ended) {
-        const curTime = this.audio.currentTime;
-        if (lastCheckedTime !== null && curTime === lastCheckedTime && this.audio.readyState < 3) {
-          frozenSeconds += 1.5;
-          if (frozenSeconds >= 3.5) {
-            frozenSeconds = 0;
-            console.warn('[AudioService] Playback frozen without progress for >3.5s, recovering on fastest host...');
-            this.libraryService.reconnectToFastestHost(true).catch(() => {});
-          }
-        } else {
-          frozenSeconds = 0;
-          lastCheckedTime = curTime;
-        }
-      } else {
-        frozenSeconds = 0;
-        lastCheckedTime = null;
-      }
-    }, 1500);
   }
 
   /**
@@ -780,26 +736,23 @@ export class AudioService {
       if (stallTimer) clearTimeout(stallTimer);
       if (deepStallTimer) clearTimeout(deepStallTimer);
 
-      // Fast responsive check at 2.4s (VPN toggle or network drop): trigger fast cluster health race with loading screen
+      // Fast responsive nudge at 3.5s to prevent long awkward pauses
       stallTimer = setTimeout(() => {
-        if (this.isPlaying() && !this.audio.paused && !this.audio.ended) {
-          console.warn('[AudioService] Playback buffer wait (>2.4s), verifying cluster health with loading screen...');
-          this.libraryService.reconnectToFastestHost(true).catch(() => {});
+        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
+          console.warn('[AudioService] Playback buffer wait (>3.5s), nudging stream...');
+          this.audio.play().catch(() => {});
         }
-      }, 2400);
+      }, 3500);
 
-      // Deep stall auto-recovery at 4.2s: force failover and resume position without waiting 5 minutes!
+      // Auto-recover stream position without skipping if frozen for >7s
       deepStallTimer = setTimeout(() => {
-        if (this.isPlaying() && !this.audio.paused && !this.audio.ended) {
-          console.warn('[AudioService] Deep stall (>4.2s), failing over host and recovering stream position...');
-          this.libraryService.failoverBackend();
-          const cur = this.currentTrack();
-          if (cur) {
-            const pos = this.streamSeekOffset() + (this.audio.currentTime || 0);
-            this.recoverPlaybackOnHost(cur, pos);
-          }
+        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
+          console.warn('[AudioService] Deep stall (>7s), auto-recovering stream position...');
+          const pos = this.currentTime();
+          this.seek(pos);
+          this.audio.play().catch(() => {});
         }
-      }, 4200);
+      }, 7000);
     };
 
     const clearStall = () => {
@@ -816,19 +769,10 @@ export class AudioService {
     this.audio.addEventListener('waiting', onStall);
     this.audio.addEventListener('stalled', onStall);
 
-    this.audio.addEventListener('playing', () => {
-      this.clearStartupWatchdog();
-      this.hasAudioStartedPlaying = true;
-      this.isPlaying.set(true);
-      clearStall();
-    });
-
     this.audio.addEventListener('timeupdate', () => {
-      if (this.audio.currentTime > 0) {
-        this.clearStartupWatchdog();
-        this.hasAudioStartedPlaying = true;
-      }
+      if (!this.hasAudioStartedPlaying) return;
       clearStall();
+      this.clearStartupWatchdog();
       const actual = this.streamSeekOffset() + this.audio.currentTime;
       this.currentTime.set(actual);
 
@@ -1564,7 +1508,7 @@ export class AudioService {
     // Apply smooth immediate fade in
     this.applyFadeIn(0.12);
 
-    // Arm startup watchdog: if node is blocked/stalling, trigger cluster failover in 3.0s!
+    // Arm startup watchdog: if node is blocked/stalling, trigger cluster failover in 3.8s!
     this.startStartupWatchdog(track, playRequestId);
 
     const playPromise = this.audio.play();
@@ -1573,6 +1517,8 @@ export class AudioService {
         .then(() => {
           this.isSwitchingTrack = false;
           if (playRequestId !== this.currentPlayRequestId) return;
+          this.clearStartupWatchdog();
+          this.hasAudioStartedPlaying = true;
           this.isPlaying.set(true);
           this.updateMediaSessionPlaybackState('playing');
           this.updateMediaSessionMetadata(track);
@@ -1782,7 +1728,6 @@ export class AudioService {
     try {
       this.audio.load();
     } catch {}
-    this.startStartupWatchdog(track, this.currentPlayRequestId);
     this.audio
       .play()
       .then(() => {
@@ -1791,30 +1736,6 @@ export class AudioService {
         this.updateMediaSessionPosition();
       })
       .catch(() => {});
-  }
-
-  recoverPlaybackOnHost(track: Track, resumePos: number) {
-    if (!track) return;
-    try {
-      this.clearStartupWatchdog();
-      if (this.errorTimeoutId) {
-        clearTimeout(this.errorTimeoutId);
-        this.errorTimeoutId = null;
-      }
-
-      // Hard stop existing stalled socket so browser doesn't wait 5 minutes
-      try { this.audio.pause(); } catch {}
-      this.audio.removeAttribute('src');
-      this.audio.load();
-
-      if (resumePos > 0.5) {
-        this.seek(resumePos, true);
-      } else {
-        this.playTrack(track, this.queue(), this.recService.isMixActive(), this.queueIndex());
-      }
-    } catch (err) {
-      console.warn('[AudioService] Failed to recover playback on new host:', err);
-    }
   }
 
   seekPercent(percent: number) {
