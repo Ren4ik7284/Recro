@@ -66,6 +66,8 @@ if [ "$MODE" = "backend" ] || [ "$MODE" = "all" ]; then
             if [ "$SVR" = "bebragnom89" ]; then
                 scp -o ConnectTimeout=8 "$DIR/Caddyfile" $SVR:/tmp/Caddyfile 2>/dev/null || true
                 ssh -o ConnectTimeout=10 $SVR "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && mv -f /tmp/Caddyfile /etc/caddy/Caddyfile 2>/dev/null || true && systemctl reload caddy 2>/dev/null || true && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
+            elif [ "$SVR" = "monoblock" ]; then
+                ssh -o ConnectTimeout=10 $SVR "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && sudo systemctl stop recro && sudo mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && sudo systemctl start recro && sudo systemctl status recro --no-pager"
             else
                 ssh -o ConnectTimeout=10 $SVR "chmod +x $REMOTE_PATH/backend/signal-audio-backend.new && systemctl stop recro && mv -f $REMOTE_PATH/backend/signal-audio-backend.new $REMOTE_PATH/backend/signal-audio-backend && systemctl start recro && systemctl status recro --no-pager"
             fi
