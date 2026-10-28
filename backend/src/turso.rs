@@ -329,17 +329,17 @@ pub async fn sync_down_user(pool: &DbPool, user_id: &str) {
     };
 
     let endpoint = format!("{}/v2/pipeline", cfg.url.trim_end_matches('/'));
-    let resp = match cfg
+    let check_send = cfg
         .client
         .post(&endpoint)
         .header("Authorization", format!("Bearer {}", cfg.token))
         .header("Content-Type", "application/json")
         .json(&check_body)
-        .send()
-        .await
-    {
-        Ok(r) => r,
-        Err(_) => return,
+        .send();
+
+    let resp = match tokio::time::timeout(std::time::Duration::from_millis(2500), check_send).await {
+        Ok(Ok(r)) => r,
+        _ => return,
     };
 
     let parsed: PipelineResponseBody = match resp.json().await {
@@ -421,17 +421,17 @@ pub async fn sync_down_user(pool: &DbPool, user_id: &str) {
         ],
     };
 
-    let resp = match cfg
+    let fetch_send = cfg
         .client
         .post(&endpoint)
         .header("Authorization", format!("Bearer {}", cfg.token))
         .header("Content-Type", "application/json")
         .json(&fetch_body)
-        .send()
-        .await
-    {
-        Ok(r) => r,
-        Err(_) => return,
+        .send();
+
+    let resp = match tokio::time::timeout(std::time::Duration::from_millis(5000), fetch_send).await {
+        Ok(Ok(r)) => r,
+        _ => return,
     };
 
     let parsed: PipelineResponseBody = match resp.json().await {

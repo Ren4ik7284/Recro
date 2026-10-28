@@ -61,6 +61,19 @@ static CHARTS_CACHE: LazyLock<RwLock<HashMap<String, (ChartDetail, Instant)>>> =
 static POPULAR_ALBUMS_CACHE: LazyLock<RwLock<Option<(Vec<ReleaseItem>, Instant)>>> =
     LazyLock::new(|| RwLock::new(None));
 
+static CHARTS_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(12))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(10)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_default()
+});
+
+static SC_CHART_CLIENT: LazyLock<std::sync::Arc<crate::soundcloud::SoundCloudClient>> =
+    LazyLock::new(|| crate::soundcloud::SoundCloudClient::new());
+
 fn get_charts_cache_dir() -> PathBuf {
     let base = if StdPath::new("/data").exists() {
         PathBuf::from("/data/charts_cache")
@@ -97,11 +110,7 @@ async fn fetch_apple_music_rss(country: &str, limit: usize, base_url: &str) -> R
         "https://rss.applemarketingtools.com/api/v2/{}/music/most-played/{}/songs.json",
         country, limit
     );
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(12))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = &*CHARTS_HTTP_CLIENT;
 
     let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
@@ -158,7 +167,7 @@ async fn fetch_apple_music_rss(country: &str, limit: usize, base_url: &str) -> R
 }
 
 async fn fetch_soundcloud_chart(limit: usize, base_url: &str) -> Result<Vec<SearchTrack>, String> {
-    let sc = crate::soundcloud::SoundCloudClient::new();
+    let sc = &*SC_CHART_CLIENT;
     let count = (limit / 2).max(15);
     let mut tracks = sc.search_tracks("phonk drift 2026", count, base_url).await;
     let viral = sc.search_tracks("electronic viral remix", count, base_url).await;
@@ -172,11 +181,7 @@ async fn fetch_soundcloud_chart(limit: usize, base_url: &str) -> Result<Vec<Sear
 }
 
 async fn fetch_tiktok_viral_chart(limit: usize, base_url: &str) -> Result<Vec<SearchTrack>, String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = &*CHARTS_HTTP_CLIENT;
 
     let mut global_items = Vec::new();
     let mut ru_items = Vec::new();
@@ -435,15 +440,7 @@ pub async fn get_chart_by_id(
 }
 
 async fn fetch_popular_albums_online(base_url: &str) -> Vec<ReleaseItem> {
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-
+    let client = &*CHARTS_HTTP_CLIENT;
     let mut all_albums = Vec::new();
 
     // 1. Global / Spotify Top Albums (80% - up to 16 albums)
@@ -657,8 +654,8 @@ pub fn spawn_charts_background_refresher() {
                 *guard = Some((albums, Instant::now()));
             }
 
-            // Also refresh Spotify top artists
-            let _ = crate::spotify_charts::get_cached_spotify_top_artists(true).await;
+            // Also check Spotify top artists cache without duplicate force-scraping
+            let _ = crate::spotify_charts::get_cached_spotify_top_artists(false).await;
 
             // Automatically refresh every 1 hour in real-time
             tokio::time::sleep(Duration::from_secs(3600)).await;

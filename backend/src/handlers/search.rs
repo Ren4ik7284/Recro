@@ -74,9 +74,7 @@ pub async fn search_music(
             }
         }
         if !tracks.is_empty() {
-            if let Ok(mut guard) = state.search_cache.lock() {
-                guard.insert(query_key, (tracks.clone(), std::time::Instant::now()));
-            }
+            insert_search_cache(&state, query_key, tracks.clone());
         }
         return Ok(Json(tracks));
     }
@@ -141,9 +139,7 @@ pub async fn search_music(
     }
 
     if !combined.is_empty() {
-        if let Ok(mut guard) = state.search_cache.lock() {
-            guard.insert(query_key, (combined.clone(), std::time::Instant::now()));
-        }
+        insert_search_cache(&state, query_key, combined.clone());
     }
 
     Ok(Json(combined))
@@ -482,22 +478,41 @@ pub async fn execute_audius_search(query: &str, limit: usize, base_url: &str) ->
     tracks
 }
 
+static DEEZER_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_millis(3500))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(20)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_default()
+});
+
+fn insert_search_cache(
+    state: &crate::AppState,
+    key: String,
+    tracks: Vec<SearchTrack>,
+) {
+    if let Ok(mut guard) = state.search_cache.lock() {
+        if guard.len() > 1000 {
+            let now = std::time::Instant::now();
+            guard.retain(|_, (_, cached_at)| now.duration_since(*cached_at) < Duration::from_secs(7200));
+            if guard.len() > 1500 {
+                guard.clear();
+            }
+        }
+        guard.insert(key, (tracks, std::time::Instant::now()));
+    }
+}
+
 pub async fn execute_deezer_search(query: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
     let url = format!(
         "https://api.deezer.com/search?q={}&limit={}",
         urlencoding::encode(query),
         limit
     );
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_millis(3000))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
 
-    let resp = match client.get(&url).send().await {
+    let resp = match DEEZER_CLIENT.get(&url).send().await {
         Ok(r) if r.status().is_success() => r,
         _ => return Vec::new(),
     };
@@ -1133,9 +1148,7 @@ pub async fn get_recommendations(
     }
 
     if !tracks.is_empty() {
-        if let Ok(mut guard) = state.search_cache.lock() {
-            guard.insert(cache_key, (tracks.clone(), std::time::Instant::now()));
-        }
+        insert_search_cache(&state, cache_key, tracks.clone());
     }
 
     tracks.truncate(limit);
@@ -1292,9 +1305,7 @@ pub async fn get_similar_tracks(
 
     // Cache all collected tracks
     if !tracks.is_empty() {
-        if let Ok(mut guard) = state.search_cache.lock() {
-            guard.insert(cache_key, (tracks.clone(), std::time::Instant::now()));
-        }
+        insert_search_cache(&state, cache_key, tracks.clone());
     }
 
     fastrand::shuffle(&mut tracks);

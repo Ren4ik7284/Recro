@@ -1,7 +1,17 @@
 use std::process::Stdio;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
+
+static CLOUD_SEARCH_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .tcp_keepalive(Duration::from_secs(30))
+        .build()
+        .unwrap_or_default()
+});
 
 use crate::config::{apply_yt_dlp_common_args, CLOUD_FALLBACK_URL};
 use crate::models::SearchTrack;
@@ -249,6 +259,7 @@ pub fn parse_track_json(item: &serde_json::Value, base_url: &str) -> Option<Sear
 pub async fn execute_yt_dlp_search(yt_cmd: &str, search_arg: &str, timeout_sec: u64, base_url: &str) -> Vec<SearchTrack> {
     let mut cmd = Command::new(yt_cmd);
     apply_yt_dlp_common_args(&mut cmd);
+    cmd.kill_on_drop(true);
     cmd.args([
         "--dump-json",
         "--flat-playlist",
@@ -288,12 +299,8 @@ pub async fn execute_cloud_search(query: &str, base_url: &str) -> Vec<SearchTrac
         return Vec::new();
     }
     let cloud_url = format!("{}/api/search?q={}", CLOUD_FALLBACK_URL, urlencoding::encode(query));
-    let client = match reqwest::Client::builder().timeout(Duration::from_secs(5)).build() {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
 
-    if let Ok(resp) = client.get(&cloud_url).send().await {
+    if let Ok(resp) = CLOUD_SEARCH_CLIENT.get(&cloud_url).send().await {
         if resp.status().is_success() {
             if let Ok(bytes) = resp.bytes().await {
                 if let Ok(mut list) = serde_json::from_slice::<Vec<SearchTrack>>(&bytes) {

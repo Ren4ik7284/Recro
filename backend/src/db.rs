@@ -21,7 +21,10 @@ pub async fn init_db() -> Result<DbPool, sqlx::Error> {
         .journal_mode(SqliteJournalMode::Wal)
         .pragma("busy_timeout", "5000")
         .pragma("synchronous", "NORMAL")
-        .pragma("foreign_keys", "ON");
+        .pragma("foreign_keys", "ON")
+        .pragma("temp_store", "MEMORY")
+        .pragma("cache_size", "-20000")
+        .pragma("mmap_size", "268435456");
 
     let pool = SqlitePoolOptions::new()
         .max_connections(10)

@@ -54,6 +54,7 @@ pub struct AppState {
     pub cover_cache: CoverCache,
     pub soundcloud: Arc<SoundCloudClient>,
     pub sync_channel: SyncChannel,
+    pub http_client: reqwest::Client,
 }
 
 #[tokio::main]
@@ -65,6 +66,15 @@ async fn main() {
 
     let soundcloud = SoundCloudClient::new();
     let (sync_channel, _) = tokio::sync::broadcast::channel::<String>(512);
+
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .pool_idle_timeout(std::time::Duration::from_secs(90))
+        .pool_max_idle_per_host(20)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_default();
 
     let pool = match init_db().await {
         Ok(p) => p,
@@ -89,6 +99,7 @@ async fn main() {
         cover_cache: Arc::new(Mutex::new(HashMap::new())),
         soundcloud,
         sync_channel,
+        http_client,
     };
 
     let exposed_headers = [

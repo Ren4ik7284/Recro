@@ -1207,6 +1207,20 @@ async fn fetch_lyrics_ovh(
     None
 }
 
+fn insert_lyrics_cache(state: &AppState, key: String, resp: LyricsResponse) {
+    if let Ok(mut cache) = state.lyrics_cache.lock() {
+        if cache.len() > 1000 {
+            let now = Instant::now();
+            let max_age = std::time::Duration::from_secs(86400 * 2);
+            cache.retain(|_, (_, cached_at)| now.duration_since(*cached_at) < max_age);
+            if cache.len() > 1500 {
+                cache.clear();
+            }
+        }
+        cache.insert(key, (resp, Instant::now()));
+    }
+}
+
 pub async fn get_lyrics(
     State(state): State<AppState>,
     Query(params): Query<LyricsQuery>,
@@ -1237,7 +1251,7 @@ pub async fn get_lyrics(
         }
     }
 
-    let client = reqwest::Client::new();
+    let client = state.http_client.clone();
 
     // Быстрая студийная нормализация метаданных через Deezer API (чистые названия, студийный хрон)
     if let Some((d_title, d_artist, d_dur)) = fetch_deezer_metadata(&client, &clean_t, &clean_a).await {
@@ -1254,41 +1268,31 @@ pub async fn get_lyrics(
 
     // 1. Try LRCLIB (Clean studio metadata)
     if let Some(resp) = fetch_lrclib(&client, &clean_t, &clean_a, target_duration).await {
-        if let Ok(mut cache) = state.lyrics_cache.lock() {
-            cache.insert(cache_key, (resp.clone(), Instant::now()));
-        }
+        insert_lyrics_cache(&state, cache_key, resp.clone());
         return Ok(Json(resp));
     }
 
     // 2. Try NetEase Cloud Music (гигантская база караоке: русский рэп, поп, инди, мировые хиты)
     if let Some(resp) = fetch_netease(&client, &clean_t, &clean_a, target_duration).await {
-        if let Ok(mut cache) = state.lyrics_cache.lock() {
-            cache.insert(cache_key, (resp.clone(), Instant::now()));
-        }
+        insert_lyrics_cache(&state, cache_key, resp.clone());
         return Ok(Json(resp));
     }
 
     // 3. Try Kugou
     if let Some(resp) = fetch_kugou(&client, &clean_t, &clean_a, target_duration).await {
-        if let Ok(mut cache) = state.lyrics_cache.lock() {
-            cache.insert(cache_key, (resp.clone(), Instant::now()));
-        }
+        insert_lyrics_cache(&state, cache_key, resp.clone());
         return Ok(Json(resp));
     }
 
     // 4. Try Genius (Massive database: Russian rap/indie, Onda Andar, underground, world hits)
     if let Some(resp) = fetch_genius(&client, &clean_t, &clean_a).await {
-        if let Ok(mut cache) = state.lyrics_cache.lock() {
-            cache.insert(cache_key, (resp.clone(), Instant::now()));
-        }
+        insert_lyrics_cache(&state, cache_key, resp.clone());
         return Ok(Json(resp));
     }
 
     // 5. Try Lyrics.ovh (Plain text fallback)
     if let Some(resp) = fetch_lyrics_ovh(&client, &clean_t, &clean_a).await {
-        if let Ok(mut cache) = state.lyrics_cache.lock() {
-            cache.insert(cache_key, (resp.clone(), Instant::now()));
-        }
+        insert_lyrics_cache(&state, cache_key, resp.clone());
         return Ok(Json(resp));
     }
 

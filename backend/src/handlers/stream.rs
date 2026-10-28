@@ -124,12 +124,16 @@ fn parse_byte_range(range_header: &str, total_len: u64) -> Option<(u64, u64)> {
     }
 }
 
-async fn proxy_direct_stream(target: &str, is_live: bool) -> Result<Response, StatusCode> {
-    let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(6))
-        .build()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+fn deterministic_hash_64(s: &str) -> u64 {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for b in s.as_bytes() {
+        hash ^= *b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
 
+async fn proxy_direct_stream(client: &reqwest::Client, target: &str, is_live: bool) -> Result<Response, StatusCode> {
     let upstream = client
         .get(target)
         .header(
@@ -310,7 +314,7 @@ pub async fn stream_audio(
         if params.prefetch.unwrap_or(false) {
             return Ok(StatusCode::NO_CONTENT.into_response());
         }
-        match proxy_direct_stream(&target, is_live).await {
+        match proxy_direct_stream(&state.http_client, &target, is_live).await {
             Ok(resp) => return Ok(resp),
             Err(e) => {
                 if is_live {
@@ -334,13 +338,7 @@ pub async fn stream_audio(
     let cache_ext = if is_lossless_requested { "flac" } else { "mp3" };
     let cache_mime = if is_lossless_requested { "audio/flac" } else { "audio/mpeg" };
 
-    let cache_filename = {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        cache_key.hash(&mut hasher);
-        format!("{:016x}.{}", hasher.finish(), cache_ext)
-    };
+    let cache_filename = format!("{:016x}.{}", deterministic_hash_64(&cache_key), cache_ext);
     let cache_dir = std::env::var("CACHE_DIR").unwrap_or_else(|_| "/var/www/recro/cache".to_string());
     let _ = std::fs::create_dir_all(&cache_dir);
     let cache_file_path = format!("{}/{}", cache_dir, cache_filename);
@@ -469,6 +467,7 @@ pub async fn stream_audio(
             } else {
                 let mut sc_cmd = Command::new(&yt_cmd);
                 apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
+                sc_cmd.kill_on_drop(true);
                 sc_cmd.args(["--no-playlist", "--ignore-errors", "-g", "-f", "bestaudio/b", "--", &target]);
                 if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_secs(5), sc_cmd.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&out) {
@@ -501,17 +500,15 @@ pub async fn stream_audio(
                     "https://www.youtube.com/oembed?url={}&format=json",
                     urlencoding::encode(&target)
                 );
-                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_millis(1000)).build() {
-                    if let Ok(resp) = client.get(&oembed_url).send().await {
-                        if resp.status().is_success() {
-                            if let Ok(bytes) = resp.bytes().await {
-                                if let Ok(data) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                                    if let Some(t) = data["title"].as_str() {
-                                        resolved_title = t.trim().to_string();
-                                    }
-                                    if let Some(a) = data["author_name"].as_str() {
-                                        resolved_uploader = a.trim().to_string();
-                                    }
+                if let Ok(resp) = state.http_client.get(&oembed_url).timeout(Duration::from_millis(1500)).send().await {
+                    if resp.status().is_success() {
+                        if let Ok(bytes) = resp.bytes().await {
+                            if let Ok(data) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                                if let Some(t) = data["title"].as_str() {
+                                    resolved_title = t.trim().to_string();
+                                }
+                                if let Some(a) = data["author_name"].as_str() {
+                                    resolved_uploader = a.trim().to_string();
                                 }
                             }
                         }
@@ -553,6 +550,7 @@ pub async fn stream_audio(
             if is_youtube_target && direct_url.is_empty() {
                 let mut cmd_fast = Command::new(&yt_cmd);
                 apply_yt_dlp_common_args(&mut cmd_fast);
+                cmd_fast.kill_on_drop(true);
                 cmd_fast.args([
                     "--no-playlist",
                     "--ignore-errors",
@@ -581,6 +579,7 @@ pub async fn stream_audio(
 
                 let mut yt_search_cmd = Command::new(&yt_cmd);
                 apply_yt_dlp_common_args(&mut yt_search_cmd);
+                yt_search_cmd.kill_on_drop(true);
                 yt_search_cmd.args([
                     "--no-playlist",
                     "--ignore-errors",
@@ -736,6 +735,13 @@ pub async fn stream_audio(
 
         if !direct_url.is_empty() {
             if let Ok(mut guard) = state.stream_cache.lock() {
+                if guard.len() > 1000 {
+                    let now = std::time::Instant::now();
+                    guard.retain(|_, (_, cached_at)| now.duration_since(*cached_at) < Duration::from_secs(600));
+                    if guard.len() > 1500 {
+                        guard.clear();
+                    }
+                }
                 guard.insert(cache_key, (direct_url.clone(), std::time::Instant::now()));
             }
         }
@@ -785,6 +791,7 @@ pub async fn stream_audio(
                     let tmp_file_path = format!("{}.tmp.{}", cfp, fastrand::u64(..));
 
                     let mut conv_cmd = Command::new("ffmpeg");
+                    conv_cmd.kill_on_drop(true);
                     conv_cmd.args([
                         "-y",
                         "-probesize", "65536",
@@ -805,7 +812,13 @@ pub async fn stream_audio(
                     conv_cmd.stderr(Stdio::null());
 
                     let exit_status = if let Ok(mut child) = conv_cmd.spawn() {
-                        child.wait().await.ok()
+                        match tokio::time::timeout(Duration::from_secs(360), child.wait()).await {
+                            Ok(Ok(status)) => Some(status),
+                            _ => {
+                                let _ = child.kill().await;
+                                None
+                            }
+                        }
                     } else {
                         None
                     };
@@ -958,7 +971,7 @@ pub async fn stream_audio(
 
     tokio::spawn(async move {
         tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(1800)) => {
+            _ = tokio::time::sleep(Duration::from_secs(360)) => {
                 let _ = ffmpeg_child.start_kill();
             }
             _ = ffmpeg_child.wait() => {}
@@ -983,6 +996,7 @@ pub async fn stream_audio(
         let mut reader_stream = ReaderStream::with_capacity(stdout, 64 * 1024);
         let mut total_bytes = 0u64;
         let mut write_error = false;
+        let mut client_disconnected = false;
         let mut file = file_opt;
 
         while let Some(chunk_res) = reader_stream.next().await {
@@ -998,12 +1012,14 @@ pub async fn stream_audio(
                         }
                     }
                     if tx.send(Ok(bytes)).await.is_err() {
-                        // Client stopped listening or skipped
+                        // Client stopped listening or skipped track — DO NOT cache truncated file!
+                        client_disconnected = true;
                         break;
                     }
                 }
                 Err(e) => {
                     let _ = tx.send(Err(e)).await;
+                    client_disconnected = true;
                     break;
                 }
             }
@@ -1012,8 +1028,9 @@ pub async fn stream_audio(
         if let Some(mut f) = file {
             let _ = f.flush().await;
             drop(f);
-            if !write_error && total_bytes > 100_000 {
+            if !client_disconnected && !write_error && total_bytes > 200_000 {
                 let _ = tokio::fs::rename(&tmp_fp, &cfp).await;
+                eprintln!("[STREAM] Track fully streamed and safely cached to disk: {} ({} bytes)", cfp, total_bytes);
             } else {
                 let _ = tokio::fs::remove_file(&tmp_fp).await;
             }

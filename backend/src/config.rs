@@ -131,8 +131,10 @@ pub async fn ensure_cookies_on_start() {
         return;
     }
     let yt_cmd = get_yt_dlp_cmd();
-    let home = std::env::var("HOME").unwrap_or_default();
-    let cookies_path = format!("{}/music-player/backend/cookies.txt", home);
+    let cookies_path = get_cookies_path().unwrap_or_else(|| {
+        let home = std::env::var("HOME").unwrap_or_default();
+        format!("{}/music-player/backend/cookies.txt", home)
+    });
     let _ = Command::new(&yt_cmd)
         .args([
             "--cookies",

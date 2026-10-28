@@ -302,6 +302,39 @@ fn generate_svg_cover(title: &str, artist: &str) -> String {
     )
 }
 
+static COVER_HTTP_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
+    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 5 {
+            attempt.error("too many redirects")
+        } else {
+            if let Some(host) = attempt.url().host_str() {
+                let lower = host.to_lowercase();
+                if lower == "localhost"
+                    || lower.ends_with(".local")
+                    || lower.ends_with(".internal")
+                    || lower.ends_with(".lan")
+                {
+                    return attempt.error("redirect to internal host forbidden");
+                }
+                if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+                    if crate::security::is_private_or_restricted_ip(ip) {
+                        return attempt.error("redirect to private IP forbidden");
+                    }
+                }
+            }
+            attempt.follow()
+        }
+    });
+
+    reqwest::Client::builder()
+        .redirect(redirect_policy)
+        .timeout(Duration::from_millis(5000))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(10)
+        .build()
+        .unwrap_or_default()
+});
+
 pub async fn proxy_cover(
     State(state): State<BackendState>,
     Query(params): Query<CoverParams>,
@@ -374,75 +407,50 @@ pub async fn proxy_cover(
                 candidate_urls.push(raw_target.to_string());
             }
 
-            let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
-                if attempt.previous().len() >= 5 {
-                    attempt.error("too many redirects")
-                } else {
-                    if let Some(host) = attempt.url().host_str() {
-                        let lower = host.to_lowercase();
-                        if lower == "localhost"
-                            || lower.ends_with(".local")
-                            || lower.ends_with(".internal")
-                            || lower.ends_with(".lan")
-                        {
-                            return attempt.error("redirect to internal host forbidden");
-                        }
-                        if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-                            if crate::security::is_private_or_restricted_ip(ip) {
-                                return attempt.error("redirect to private IP forbidden");
-                            }
-                        }
-                    }
-                    attempt.follow()
-                }
-            });
+            let client = &*COVER_HTTP_CLIENT;
+            for cand in candidate_urls {
+                if let Ok(resp) = client
+                    .get(&cand)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+                    .send()
+                    .await
+                {
+                    if resp.status().is_success() {
+                        let content_type = resp
+                            .headers()
+                            .get(header::CONTENT_TYPE)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("image/jpeg")
+                            .to_string();
 
-            if let Ok(client) = reqwest::Client::builder()
-                .redirect(redirect_policy)
-                .timeout(Duration::from_millis(5000))
-                .build()
-            {
-                for cand in candidate_urls {
-                    if let Ok(resp) = client
-                        .get(&cand)
-                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
-                        .send()
-                        .await
-                    {
-                        if resp.status().is_success() {
-                            let content_type = resp
-                                .headers()
-                                .get(header::CONTENT_TYPE)
-                                .and_then(|v| v.to_str().ok())
-                                .unwrap_or("image/jpeg")
-                                .to_string();
+                        let ct_lower = content_type.to_lowercase();
+                        if ct_lower.starts_with("image/") || ct_lower == "application/octet-stream" {
+                            if let Ok(bytes) = resp.bytes().await {
+                                if !bytes.is_empty() && bytes.len() <= 10 * 1024 * 1024 {
+                                    let valid_ct = HeaderValue::from_str(&content_type)
+                                        .unwrap_or_else(|_| HeaderValue::from_static("image/jpeg"));
 
-                            let ct_lower = content_type.to_lowercase();
-                            if ct_lower.starts_with("image/") || ct_lower == "application/octet-stream" {
-                                if let Ok(bytes) = resp.bytes().await {
-                                    if !bytes.is_empty() && bytes.len() <= 10 * 1024 * 1024 {
-                                        let valid_ct = HeaderValue::from_str(&content_type)
-                                            .unwrap_or_else(|_| HeaderValue::from_static("image/jpeg"));
-
-                                        // Store in RAM cache with LRU eviction protection
-                                        if let Ok(mut guard) = state.cover_cache.lock() {
-                                            if guard.len() > 300 {
-                                                if let Some(oldest_key) = guard.keys().next().cloned() {
-                                                    guard.remove(&oldest_key);
-                                                }
+                                    // Store in RAM cache with LRU / TTL eviction protection
+                                    if let Ok(mut guard) = state.cover_cache.lock() {
+                                        if guard.len() > 600 {
+                                            let now = Instant::now();
+                                            let max_age = Duration::from_secs(86400 * 3);
+                                            guard.retain(|_, (_, _, cached_at)| now.duration_since(*cached_at) < max_age);
+                                            if guard.len() > 800 {
+                                                guard.clear();
                                             }
-                                            guard.insert(cache_key.clone(), (bytes.clone(), valid_ct.clone(), Instant::now()));
                                         }
-
-                                        let mut res_headers = HeaderMap::new();
-                                        res_headers.insert(header::CONTENT_TYPE, valid_ct);
-                                        res_headers.insert(
-                                            header::CACHE_CONTROL,
-                                            HeaderValue::from_static("public, max-age=2592000, immutable"),
-                                        );
-
-                                        return Ok((StatusCode::OK, res_headers, bytes).into_response());
+                                        guard.insert(cache_key.clone(), (bytes.clone(), valid_ct.clone(), Instant::now()));
                                     }
+
+                                    let mut res_headers = HeaderMap::new();
+                                    res_headers.insert(header::CONTENT_TYPE, valid_ct);
+                                    res_headers.insert(
+                                        header::CACHE_CONTROL,
+                                        HeaderValue::from_static("public, max-age=2592000, immutable"),
+                                    );
+
+                                    return Ok((StatusCode::OK, res_headers, bytes).into_response());
                                 }
                             }
                         }
@@ -460,9 +468,12 @@ pub async fn proxy_cover(
     let svg_ct = HeaderValue::from_static("image/svg+xml; charset=utf-8");
 
     if let Ok(mut guard) = state.cover_cache.lock() {
-        if guard.len() > 300 {
-            if let Some(oldest_key) = guard.keys().next().cloned() {
-                guard.remove(&oldest_key);
+        if guard.len() > 600 {
+            let now = Instant::now();
+            let max_age = Duration::from_secs(86400 * 3);
+            guard.retain(|_, (_, _, cached_at)| now.duration_since(*cached_at) < max_age);
+            if guard.len() > 800 {
+                guard.clear();
             }
         }
         guard.insert(cache_key, (svg_bytes.clone(), svg_ct.clone(), Instant::now()));
