@@ -98,20 +98,11 @@ export class App implements OnInit {
       }
     });
 
-    // Horizontal wheel scrolling without jitter
-    effect((onCleanup) => {
-      const el = this.popularTracksRef()?.nativeElement;
-      if (el) {
-        const onWheel = (e: WheelEvent) => {
-          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-            e.preventDefault();
-            el.scrollLeft += e.deltaY;
-          }
-        };
-        el.addEventListener('wheel', onWheel, { passive: false });
-        onCleanup(() => {
-          el.removeEventListener('wheel', onWheel);
-        });
+    // Toast notice listener
+    effect(() => {
+      const notice = this.audioService.toastNotice();
+      if (notice) {
+        this.showToast(notice.message);
       }
     });
   }
@@ -381,13 +372,6 @@ export class App implements OnInit {
       }
 
       this.cdr.markForCheck();
-    });
-
-    effect(() => {
-      const notice = this.audioService.toastNotice();
-      if (notice) {
-        this.showToast(notice.message);
-      }
     });
   }
 
