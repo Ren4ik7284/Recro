@@ -63,6 +63,14 @@ async fn main() {
     turso::init_turso();
     tokio::spawn(ensure_cookies_on_start());
     tokio::spawn(spotify_charts::start_spotify_charts_worker());
+    tokio::spawn(async {
+        handlers::stream::cleanup_orphaned_tmp_cache_files();
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            handlers::stream::cleanup_orphaned_tmp_cache_files();
+        }
+    });
 
     let soundcloud = SoundCloudClient::new();
     let (sync_channel, _) = tokio::sync::broadcast::channel::<String>(512);

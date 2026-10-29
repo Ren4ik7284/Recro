@@ -196,6 +196,255 @@ async fn proxy_direct_stream(client: &reqwest::Client, target: &str, is_live: bo
     Ok((StatusCode::OK, res_headers, body).into_response())
 }
 
+pub fn cleanup_orphaned_tmp_cache_files() {
+    let cache_dir = std::env::var("CACHE_DIR").unwrap_or_else(|_| "/var/www/recro/cache".to_string());
+    let path = std::path::Path::new(&cache_dir);
+    if !path.exists() || !path.is_dir() {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(path) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    let now = std::time::SystemTime::now();
+    let max_age = Duration::from_secs(1800); // 30 minutes
+    let mut cleaned = 0;
+
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        if let Some(file_name) = entry_path.file_name().and_then(|n| n.to_str()) {
+            if file_name.contains(".tmp.") {
+                let is_old = entry
+                    .metadata()
+                    .and_then(|m| m.modified())
+                    .map(|mod_time| now.duration_since(mod_time).map(|d| d > max_age).unwrap_or(false))
+                    .unwrap_or(true);
+
+                if is_old {
+                    if std::fs::remove_file(&entry_path).is_ok() {
+                        cleaned += 1;
+                    }
+                }
+            }
+        }
+    }
+    if cleaned > 0 {
+        eprintln!("[CACHE_GC] Cleaned {} orphaned tmp file(s)", cleaned);
+    }
+}
+
+fn get_streaming_http_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .pool_idle_timeout(Duration::from_secs(120))
+            .pool_max_idle_per_host(20)
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+async fn try_cloud_stream(
+    _http_client: &reqwest::Client,
+    params: &StreamParams,
+    target: &str,
+    headers: &HeaderMap,
+    cache_file_path: &str,
+    cache_mime: &str,
+    is_lossless_requested: bool,
+    timeout: Duration,
+) -> Option<Response> {
+    if CLOUD_FALLBACK_URL.is_empty() {
+        return None;
+    }
+
+    let mut fwd_params = Vec::new();
+    if let Some(ref t) = params.title {
+        fwd_params.push(format!("title={}", urlencoding::encode(t)));
+    }
+    if let Some(ref a) = params.artist {
+        fwd_params.push(format!("artist={}", urlencoding::encode(a)));
+    }
+    if let Some(ref id) = params.id {
+        fwd_params.push(format!("id={}", urlencoding::encode(id)));
+    }
+    if !target.is_empty() {
+        fwd_params.push(format!("url={}", urlencoding::encode(target)));
+    }
+    if let Some(ss) = params.ss {
+        fwd_params.push(format!("ss={}", ss));
+    }
+    if let Some(ref q) = params.quality {
+        fwd_params.push(format!("quality={}", urlencoding::encode(q)));
+    }
+    if let Some(ref f) = params.format {
+        fwd_params.push(format!("format={}", urlencoding::encode(f)));
+    }
+    if let Some(p) = params.prefetch {
+        fwd_params.push(format!("prefetch={}", p));
+    }
+
+    let cloud_stream_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, fwd_params.join("&"));
+    eprintln!("[STREAM] Querying cloud node: {}", cloud_stream_url);
+
+    let client = get_streaming_http_client();
+    let is_prefetch = params.prefetch.unwrap_or(false);
+    let mut req = client.get(&cloud_stream_url);
+    if let Some(range_val) = headers.get(header::RANGE) {
+        if !is_prefetch {
+            req = req.header(header::RANGE, range_val);
+        }
+    }
+
+    let resp = match tokio::time::timeout(timeout, req.send()).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => {
+            eprintln!("[STREAM] Cloud node request failed: {}", e);
+            return None;
+        }
+        Err(_) => {
+            eprintln!("[STREAM] Cloud node response headers timed out after {:?}", timeout);
+            return None;
+        }
+    };
+
+    let status = resp.status();
+    if !(status.is_success() || status == StatusCode::PARTIAL_CONTENT) {
+        eprintln!("[STREAM] Cloud node returned status: {}", status);
+        return None;
+    }
+
+    // If prefetch request and returned 200 OK, save full stream to disk cache!
+    if is_prefetch {
+        if status.is_success() && !cache_file_path.is_empty() {
+            let tmp_path = format!("{}.tmp.{}", cache_file_path, fastrand::u64(..));
+            use tokio::io::AsyncWriteExt;
+            if let Ok(mut f) = tokio::fs::File::create(&tmp_path).await {
+                let mut stream = resp.bytes_stream();
+                use tokio_stream::StreamExt;
+                let mut written = 0u64;
+                while let Some(chunk_res) = stream.next().await {
+                    if let Ok(chunk) = chunk_res {
+                        written += chunk.len() as u64;
+                        if f.write_all(&chunk).await.is_err() {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                let _ = f.flush().await;
+                drop(f);
+                if written > 100_000 {
+                    let _ = tokio::fs::rename(&tmp_path, cache_file_path).await;
+                    eprintln!("[STREAM] Prefetched & cached to disk: {} ({} bytes)", cache_file_path, written);
+                } else {
+                    let _ = tokio::fs::remove_file(&tmp_path).await;
+                }
+            }
+        }
+        return Some(StatusCode::NO_CONTENT.into_response());
+    }
+
+    let mut res_headers = HeaderMap::new();
+    let fwd_ct = resp
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .cloned()
+        .unwrap_or_else(|| cache_mime.parse().unwrap());
+    res_headers.insert(header::CONTENT_TYPE, fwd_ct);
+    if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
+        res_headers.insert(header::CONTENT_LENGTH, cl.clone());
+    }
+    if let Some(ar) = resp.headers().get(header::ACCEPT_RANGES) {
+        res_headers.insert(header::ACCEPT_RANGES, ar.clone());
+    }
+    if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
+        res_headers.insert(header::CONTENT_RANGE, cr.clone());
+    }
+    res_headers.insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("public, max-age=604800"),
+    );
+    if is_lossless_requested {
+        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("lossless"));
+        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("flac"));
+        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("1411k"));
+    } else {
+        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("high"));
+        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("mp3"));
+        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("320k"));
+    }
+
+    // Tee caching for full stream requests (200 OK without seeking)
+    if status == StatusCode::OK && !cache_file_path.is_empty() && params.ss.unwrap_or(0) == 0 {
+        let tmp_file_path = format!("{}.tmp.{}", cache_file_path, fastrand::u64(..));
+        let file_opt = tokio::fs::File::create(&tmp_file_path).await.ok();
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::io::Error>>(128);
+        let cfp = cache_file_path.to_string();
+        let tmp_fp = tmp_file_path.clone();
+
+        tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            use tokio_stream::StreamExt;
+
+            let mut stream = resp.bytes_stream();
+            let mut total_bytes = 0u64;
+            let mut write_error = false;
+            let mut client_disconnected = false;
+            let mut file = file_opt;
+
+            while let Some(chunk_res) = stream.next().await {
+                match chunk_res {
+                    Ok(bytes) => {
+                        if let Some(ref mut f) = file {
+                            if !write_error {
+                                if f.write_all(&bytes).await.is_err() {
+                                    write_error = true;
+                                } else {
+                                    total_bytes += bytes.len() as u64;
+                                }
+                            }
+                        }
+                        if tx.send(Ok(bytes)).await.is_err() {
+                            client_disconnected = true;
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        let io_err = std::io::Error::new(std::io::ErrorKind::Other, e.to_string());
+                        let _ = tx.send(Err(io_err)).await;
+                        client_disconnected = true;
+                        break;
+                    }
+                }
+            }
+
+            if let Some(mut f) = file {
+                let _ = f.flush().await;
+                drop(f);
+                if !client_disconnected && !write_error && total_bytes > 200_000 {
+                    let _ = tokio::fs::rename(&tmp_fp, &cfp).await;
+                    eprintln!("[STREAM] Cloud stream cached to disk: {} ({} bytes)", cfp, total_bytes);
+                } else {
+                    let _ = tokio::fs::remove_file(&tmp_fp).await;
+                }
+            }
+        });
+
+        let body = Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(rx));
+        Some((status, res_headers, body).into_response())
+    } else {
+        let stream = resp.bytes_stream();
+        let body = Body::from_stream(stream);
+        Some((status, res_headers, body).into_response())
+    }
+}
+
 pub async fn stream_audio(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -547,6 +796,25 @@ pub async fn stream_audio(
                 }
             }
 
+            let has_youtube_proxy = std::env::var("YOUTUBE_PROXY").map(|p| !p.trim().is_empty()).unwrap_or(false);
+            let is_frankfurt = is_frankfurt();
+            let prefer_cloud_first = (!is_frankfurt || is_cloud_env()) && !has_youtube_proxy && !CLOUD_FALLBACK_URL.is_empty();
+
+            if prefer_cloud_first && direct_url.is_empty() {
+                if let Some(resp) = try_cloud_stream(
+                    &state.http_client,
+                    &params,
+                    &target,
+                    &headers,
+                    &cache_file_path,
+                    cache_mime,
+                    is_lossless_requested,
+                    Duration::from_secs(7),
+                ).await {
+                    return Ok(resp);
+                }
+            }
+
             // 2. Direct YouTube extraction if target is a YouTube URL and SoundCloud didn't match
             if is_youtube_target && direct_url.is_empty() {
                 let mut cmd_fast = Command::new(&yt_cmd);
@@ -561,7 +829,7 @@ pub async fn stream_audio(
                     "--",
                     &target,
                 ]);
-                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(9000), cmd_fast.output()).await {
+                if let Ok(Ok(out)) = tokio::time::timeout(Duration::from_millis(4000), cmd_fast.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&out) {
                         direct_url = u;
                     }
@@ -590,7 +858,7 @@ pub async fn stream_audio(
                     "--",
                     &yt_query,
                 ]);
-                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(9000), yt_search_cmd.output()).await {
+                if let Ok(Ok(yt_out)) = tokio::time::timeout(Duration::from_millis(4000), yt_search_cmd.output()).await {
                     if let Some(u) = extract_stream_url_from_output(&yt_out) {
                         direct_url = u;
                     }
@@ -649,87 +917,18 @@ pub async fn stream_audio(
             }
 
             // Fallback 3: Foreign Frankfurt cluster proxy when local stream resolution fails (e.g. RU blocks)
-            let is_frankfurt = is_frankfurt();
-
             if direct_url.is_empty() && (!is_frankfurt || is_cloud_env()) && !CLOUD_FALLBACK_URL.is_empty() {
-                let mut fwd_params = Vec::new();
-                if let Some(ref t) = params.title {
-                    fwd_params.push(format!("title={}", urlencoding::encode(t)));
-                }
-                if let Some(ref a) = params.artist {
-                    fwd_params.push(format!("artist={}", urlencoding::encode(a)));
-                }
-                if let Some(ref id) = params.id {
-                    fwd_params.push(format!("id={}", urlencoding::encode(id)));
-                }
-                if !target.is_empty() {
-                    fwd_params.push(format!("url={}", urlencoding::encode(&target)));
-                }
-                if let Some(ss) = params.ss {
-                    fwd_params.push(format!("ss={}", ss));
-                }
-                if let Some(ref q) = params.quality {
-                    fwd_params.push(format!("quality={}", urlencoding::encode(q)));
-                }
-                if let Some(ref f) = params.format {
-                    fwd_params.push(format!("format={}", urlencoding::encode(f)));
-                }
-
-                let cloud_stream_url = format!("{}/api/stream?{}", CLOUD_FALLBACK_URL, fwd_params.join("&"));
-                eprintln!("[STREAM] Falling back to foreign cluster node: {}", cloud_stream_url);
-
-                if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(30)).build() {
-                    let is_prefetch = params.prefetch.unwrap_or(false);
-                    let mut req = client.get(&cloud_stream_url);
-                    if let Some(range_val) = headers.get(header::RANGE) {
-                        if !is_prefetch {
-                            req = req.header(header::RANGE, range_val);
-                        }
-                    }
-                    if let Ok(mut resp) = req.send().await {
-                        let status = resp.status();
-                        if status.is_success() || status == StatusCode::PARTIAL_CONTENT {
-                            // If this was a prefetch request and returned 200 OK, save full stream to disk cache!
-                            if is_prefetch && status.is_success() && !cache_file_path.is_empty() {
-                                let tmp_path = format!("{}.tmp.{}", cache_file_path, fastrand::u64(..));
-                                use tokio::io::AsyncWriteExt;
-                                if let Ok(mut f) = tokio::fs::File::create(&tmp_path).await {
-                                    let mut written = 0u64;
-                                    while let Ok(Some(chunk)) = resp.chunk().await {
-                                        written += chunk.len() as u64;
-                                        let _ = f.write_all(&chunk).await;
-                                    }
-                                    let _ = f.flush().await;
-                                    drop(f);
-                                    if written > 100_000 {
-                                        let _ = tokio::fs::rename(&tmp_path, &cache_file_path).await;
-                                        eprintln!("[STREAM] Prefetched & cached to disk: {} ({} bytes)", cache_file_path, written);
-                                        return Ok(StatusCode::NO_CONTENT.into_response());
-                                    } else {
-                                        let _ = tokio::fs::remove_file(&tmp_path).await;
-                                    }
-                                }
-                            }
-
-                            let mut res_headers = HeaderMap::new();
-                            let fwd_ct = resp.headers().get(header::CONTENT_TYPE).cloned().unwrap_or_else(|| "audio/mpeg".parse().unwrap());
-                            res_headers.insert(header::CONTENT_TYPE, fwd_ct);
-                            if let Some(cl) = resp.headers().get(header::CONTENT_LENGTH) {
-                                res_headers.insert(header::CONTENT_LENGTH, cl.clone());
-                            }
-                            if let Some(ar) = resp.headers().get(header::ACCEPT_RANGES) {
-                                res_headers.insert(header::ACCEPT_RANGES, ar.clone());
-                            }
-                            if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
-                                res_headers.insert(header::CONTENT_RANGE, cr.clone());
-                            }
-                            res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800"));
-
-                            let stream = resp.bytes_stream();
-                            let body = Body::from_stream(stream);
-                            return Ok((status, res_headers, body).into_response());
-                        }
-                    }
+                if let Some(resp) = try_cloud_stream(
+                    &state.http_client,
+                    &params,
+                    &target,
+                    &headers,
+                    &cache_file_path,
+                    cache_mime,
+                    is_lossless_requested,
+                    Duration::from_secs(20),
+                ).await {
+                    return Ok(resp);
                 }
             }
         }

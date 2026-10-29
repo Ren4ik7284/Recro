@@ -80,7 +80,7 @@ fn get_jwt_secret() -> &'static [u8] {
         }
 
         // Try reading persistent secret from disk so restarts do not invalidate tokens
-        for path_str in &["/app/data/.jwt_secret", "/data/.jwt_secret", ".jwt_secret"] {
+        for path_str in &["/app/data/.jwt_secret", "/data/.jwt_secret", ".jwt_secret", "backend/.jwt_secret"] {
             let secret_path = std::path::Path::new(path_str);
             if let Ok(existing) = std::fs::read_to_string(secret_path) {
                 let trimmed = existing.trim();
@@ -90,8 +90,18 @@ fn get_jwt_secret() -> &'static [u8] {
             }
         }
 
-        // Stable master key: guarantees tokens are NEVER invalidated across redeploys or spin-downs
-        b"recro_production_jwt_master_secret_2026_super_stable_key_998877_permanent".to_vec()
+        // If no secret file exists, generate a strong random 64-char key and persist it
+        let mut new_secret = String::with_capacity(64);
+        for _ in 0..64 {
+            new_secret.push(fastrand::alphanumeric());
+        }
+        let _ = std::fs::write(".jwt_secret", &new_secret);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(".jwt_secret", std::fs::Permissions::from_mode(0o600));
+        }
+        new_secret.into_bytes()
     })
 }
 
