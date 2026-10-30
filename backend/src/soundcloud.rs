@@ -280,14 +280,15 @@ impl SoundCloudClient {
     ) -> Option<String> {
         let transcodings = track_json["media"]["transcodings"].as_array()?;
         
+        // Prioritize full HLS streams over progressive previews.
         let mut candidates: Vec<&serde_json::Value> = transcodings
             .iter()
-            .filter(|t| t["format"]["protocol"].as_str() == Some("progressive"))
+            .filter(|t| t["format"]["protocol"].as_str() == Some("hls"))
             .collect();
         candidates.extend(
             transcodings
                 .iter()
-                .filter(|t| t["format"]["protocol"].as_str() == Some("hls")),
+                .filter(|t| t["format"]["protocol"].as_str() == Some("progressive")),
         );
 
         for chosen in candidates {
@@ -298,7 +299,7 @@ impl SoundCloudClient {
                 if let Ok(media_resp) = http.get(&final_fetch).send().await {
                     if let Ok(media_json) = media_resp.json::<serde_json::Value>().await {
                         if let Some(u) = media_json["url"].as_str() {
-                            if !u.contains("/cbcs/") {
+                            if !u.contains("/cbcs/") && !u.contains("cf-preview-media") && !u.contains("/preview/") {
                                 return Some(u.to_string());
                             }
                         }

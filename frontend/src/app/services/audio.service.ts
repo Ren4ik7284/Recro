@@ -120,10 +120,10 @@ export class AudioService {
       // В HTML5 Audio play() сразу переводит audio.paused в false, даже во время загрузки сети.
       // Поэтому проверка audio.paused блокировала срабатывание вотчдога при зависании сети.
       if (!this.hasAudioStartedPlaying && (this.audio.currentTime === 0 || isNaN(this.audio.currentTime))) {
-        console.warn(`[AudioService] Track startup stalled (>3.8s) for "${track.title}", failing over cluster immediately...`);
+        console.warn(`[AudioService] Track startup stalled (>9.0s) for "${track.title}", failing over cluster...`);
         this.handlePlaybackFailure('startup_stall');
       }
-    }, 3800);
+    }, 9000);
   }
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;

@@ -708,12 +708,16 @@ pub async fn stream_audio(
         {
             direct_url = target.clone();
         } else if target.starts_with("sc-") {
-            if let Some(u) = state.soundcloud.resolve_stream_url(&target).await {
-                direct_url = u;
+            if is_frankfurt() {
+                if let Some(u) = state.soundcloud.resolve_stream_url(&target).await {
+                    direct_url = u;
+                }
             }
         } else if target.contains("soundcloud.com") && !target.starts_with("scsearch") && !target.starts_with("search:") {
-            if let Some(u) = state.soundcloud.resolve_stream_by_permalink(&target).await {
-                direct_url = u;
+            if is_frankfurt() {
+                if let Some(u) = state.soundcloud.resolve_stream_by_permalink(&target).await {
+                    direct_url = u;
+                }
             } else {
                 let mut sc_cmd = Command::new(&yt_cmd);
                 apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);
