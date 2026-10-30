@@ -134,23 +134,34 @@ fn deterministic_hash_64(s: &str) -> u64 {
     hash
 }
 
-async fn proxy_direct_stream(client: &reqwest::Client, target: &str, is_live: bool) -> Result<Response, StatusCode> {
-    let upstream = client
+async fn proxy_direct_stream(
+    client: &reqwest::Client,
+    target: &str,
+    is_live: bool,
+    headers: &HeaderMap,
+) -> Result<Response, StatusCode> {
+    let mut req = client
         .get(target)
         .header(
             header::USER_AGENT,
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
         )
-        .header(header::ACCEPT, "*/*")
-        .send()
-        .await
-        .map_err(|e| {
-            eprintln!("[Stream] Direct proxy connection error: {}: {}", target, e);
-            StatusCode::BAD_GATEWAY
-        })?;
+        .header(header::ACCEPT, "*/*");
 
-    if !upstream.status().is_success() {
-        eprintln!("[Stream] Upstream returned error status {}: {}", upstream.status(), target);
+    if !is_live {
+        if let Some(range_val) = headers.get(header::RANGE) {
+            req = req.header(header::RANGE, range_val);
+        }
+    }
+
+    let upstream = req.send().await.map_err(|e| {
+        eprintln!("[Stream] Direct proxy connection error: {}: {}", target, e);
+        StatusCode::BAD_GATEWAY
+    })?;
+
+    let status = upstream.status();
+    if !status.is_success() && status != StatusCode::PARTIAL_CONTENT {
+        eprintln!("[Stream] Upstream returned error status {}: {}", status, target);
         return Err(StatusCode::BAD_GATEWAY);
     }
 
@@ -188,12 +199,15 @@ async fn proxy_direct_stream(client: &reqwest::Client, target: &str, is_live: bo
         if let Some(ar) = upstream.headers().get(header::ACCEPT_RANGES) {
             res_headers.insert(header::ACCEPT_RANGES, ar.clone());
         }
+        if let Some(cr) = upstream.headers().get(header::CONTENT_RANGE) {
+            res_headers.insert(header::CONTENT_RANGE, cr.clone());
+        }
     } else {
         res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("none"));
     }
 
     let body = Body::from_stream(upstream.bytes_stream());
-    Ok((StatusCode::OK, res_headers, body).into_response())
+    Ok((status, res_headers, body).into_response())
 }
 
 pub fn cleanup_orphaned_tmp_cache_files() {
@@ -522,11 +536,13 @@ pub async fn stream_audio(
         || target.contains(":8052")
         || target.contains("ep256.hostingradio.ru")
         || target.contains("europaplus256.mp3")
-        || (target.contains("dacha") && !target.contains("stream2.n340.com"))
+        || target.contains("dacha")
+        || target.contains("дача")
+        || target.contains("3B5A19735277E7D7B37FACC403CC5AE7")
     {
-        if target.contains("dacha") || target.contains("дача") {
-            target = "https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7".to_string();
-        } else if target.contains("top") || target.contains("256") {
+        if target.contains("dacha") || target.contains("дача") || target.contains("3B5A19735277E7D7B37FACC403CC5AE7") {
+            target = "https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9".to_string();
+        } else if target.contains("top") || target.contains("default-2") {
             target = "https://europaplus.hostingradio.ru:8014/ep-top256.mp3".to_string();
         } else {
             target = "https://ep128server.streamr.ru:8030/ep128".to_string();
@@ -572,7 +588,7 @@ pub async fn stream_audio(
         if params.prefetch.unwrap_or(false) {
             return Ok(StatusCode::NO_CONTENT.into_response());
         }
-        match proxy_direct_stream(&state.http_client, &target, is_live).await {
+        match proxy_direct_stream(get_streaming_http_client(), &target, is_live, &headers).await {
             Ok(resp) => return Ok(resp),
             Err(e) => {
                 if is_live {
@@ -608,10 +624,10 @@ pub async fn stream_audio(
             .map(|g| g.contains(&cache_filename))
             .unwrap_or(false);
         if is_transcoding {
-            // If background transcoding is currently in progress, wait up to 2.5s for it to finish
-            // so we serve the static cached file directly rather than spawning duplicate ffmpegs!
-            for _ in 0..25 {
-                tokio::time::sleep(Duration::from_millis(100)).await;
+            // Check quickly (up to 150ms) if background transcoding is already wrapping up,
+            // otherwise start streaming immediately without an awkward 2.5s playback stall!
+            for _ in 0..3 {
+                tokio::time::sleep(Duration::from_millis(50)).await;
                 let still_transcoding = state
                     .active_transcodes
                     .lock()

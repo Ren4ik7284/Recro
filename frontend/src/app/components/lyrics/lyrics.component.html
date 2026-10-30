@@ -24,9 +24,6 @@
   <header class="lyrics-topbar">
     <div class="lyrics-track-summary">
       <span class="lyrics-badge font-mono">{{ i18n.currentLang() === 'ru' ? 'ТЕКСТ ПЕСНИ' : 'LYRICS' }}</span>
-      @if (lyricsService.currentBpm(); as bpm) {
-        <span class="lyrics-bpm-pill font-mono">{{ bpm }} BPM</span>
-      }
     </div>
 
     <div class="lyrics-actions-group">

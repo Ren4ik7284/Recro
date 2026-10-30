@@ -908,6 +908,14 @@ export class AudioService {
           return;
         }
 
+        // Если пауза вызвана сетевой буферизацией (readyState < HAVE_FUTURE_DATA)
+        // и пользователь не нажимал паузу вручную, сохраняем состояние воспроизведения
+        if (this.isPlaying() && this.audio.readyState < 3 && !this.audio.ended) {
+          console.warn('[AudioService] Transient buffering pause detected, keeping playback intent active');
+          onStall();
+          return;
+        }
+
         this.isPlaying.set(false);
         this.updateMediaSessionPlaybackState('paused');
         this.updateMediaSessionPosition();
@@ -1036,13 +1044,13 @@ export class AudioService {
     }
 
     if (this.isLiveStream()) {
-      console.warn('[AudioService] Live stream error/interrupted, attempting reconnect in 2s');
+      console.warn('[AudioService] Live stream error/interrupted, attempting reconnect in 200ms');
       this.errorTimeoutId = setTimeout(() => {
         const current = this.currentTrack();
         if (current && this.isLiveStream()) {
           this.playTrack(current, this.queue(), false, this.queueIndex());
         }
-      }, 2000);
+      }, 200);
       return;
     }
 
@@ -1468,15 +1476,16 @@ export class AudioService {
       }
     }
 
-    if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3') || playUrl.includes('streamr.ru') || playUrl.includes('hostingradio.ru:8014') || playUrl.includes('gkvr.ru') || playUrl.includes('emgsound.ru') || playUrl.includes('14_dacha_64') || (playUrl.includes('dacha') && !playUrl.includes('UID=')))) {
+    if (playUrl && (track.isLiveStream || track.id.startsWith('radio-') || track.id.startsWith('default-') || playUrl.includes('dacha') || playUrl.includes('europa') || playUrl.includes('hostingradio') || playUrl.includes('streamr.ru') || playUrl.includes(':8052') || playUrl.includes('ep256') || playUrl.includes('gkvr.ru') || playUrl.includes('emgsound.ru'))) {
       const lower = (track.title || '').toLowerCase();
-      if (lower.includes('дача') || lower.includes('dacha') || track.id.includes('default-11') || playUrl.includes('gkvr.ru') || playUrl.includes('dacha') || playUrl.includes('14_dacha_64')) {
-        playUrl = 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7';
+      if (lower.includes('дача') || lower.includes('dacha') || track.id.includes('default-11') || playUrl.includes('dacha') || playUrl.includes('gkvr.ru')) {
+        playUrl = 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9';
       } else if (lower.includes('top 40') || track.id.includes('default-2') || playUrl.includes('top')) {
         playUrl = 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3';
-      } else {
+      } else if (lower.includes('europa') || track.id.includes('default-3') || playUrl.includes('ep128') || playUrl.includes('streamr.ru')) {
         playUrl = 'https://ep128server.streamr.ru:8030/ep128';
       }
+      track.audioUrl = playUrl;
     }
 
     // Discard stale request if a newer track was requested
@@ -2559,7 +2568,8 @@ export class AudioService {
 
     if (strictlyUniqueTracks.length > 0) {
       this.queue.update((curQ) => [...curQ, ...strictlyUniqueTracks]);
-      this.preloadNextTrack();
+      // Note: next track prefetch is handled in timeupdate when nearing completion (>75%),
+      // avoiding concurrent network & CPU competition while currently playing track is early in stream.
 
       if (typeof window !== 'undefined') {
         for (const t of strictlyUniqueTracks.slice(0, 3)) {
@@ -2666,14 +2676,22 @@ export class AudioService {
         const nextLib = this.recService.pickNextTracks(5, new Set([starter.id]), starter);
         initialTracks.push(...nextLib);
       } else {
-        let discoveries = this.recService.getBufferedDiscoveries(effectiveLang, 4)
+        const discoveries = this.recService.getBufferedDiscoveries(effectiveLang, 4)
           .filter((t) => t.id !== starter.id && !this.recService.isLibraryTrack(t));
-        if (discoveries.length === 0) {
-          const exclude = new Set<string>([starter.id]);
-          const fetched = await this.recService.fetchOnlineDiscoveryTracks(4, exclude, new Set(), starter);
-          discoveries = fetched.filter((t) => !this.recService.isLibraryTrack(t));
+        if (discoveries.length > 0) {
+          initialTracks.push(...discoveries);
+        } else {
+          // Запускаем стартер МГНОВЕННО (0 мс), не дожидаясь ответа сетевого discovery
+          this.recService.fetchOnlineDiscoveryTracks(4, new Set<string>([starter.id]), new Set(), starter)
+            .then((fetched) => {
+              const pure = fetched.filter((t) => !this.recService.isLibraryTrack(t));
+              if (pure.length > 0) {
+                this.queue.update((cur) => [...cur, ...pure]);
+                this.preloadNextTrack();
+              }
+            })
+            .catch(() => {});
         }
-        initialTracks.push(...discoveries);
       }
     } else {
       // Emergency online discovery

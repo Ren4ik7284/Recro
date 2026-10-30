@@ -71,6 +71,31 @@ export class LibraryService implements OnDestroy {
   private get STORAGE_KEY_DISLIKES(): string {
     return `signal_dislikes_${this.storageUserId}`;
   }
+  private get STORAGE_KEY_DELETED(): string {
+    return `signal_deleted_track_ids_${this.storageUserId}`;
+  }
+
+  getDeletedTrackIds(): Set<string> {
+    if (typeof localStorage === 'undefined') return new Set<string>();
+    try {
+      const raw = localStorage.getItem(this.STORAGE_KEY_DELETED);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set<string>();
+  }
+
+  markTrackDeleted(trackId: string) {
+    if (!trackId || typeof localStorage === 'undefined') return;
+    try {
+      const set = this.getDeletedTrackIds();
+      set.add(trackId);
+      const arr = Array.from(set).slice(-2000);
+      localStorage.setItem(this.STORAGE_KEY_DELETED, JSON.stringify(arr));
+    } catch {}
+  }
 
   getStorageUserId(): string {
     return this.storageUserId;
@@ -216,7 +241,7 @@ export class LibraryService implements OnDestroy {
     { id: 'default-8', name: 'Record Lo-Fi', streamUrl: 'https://radiorecord.hostingradio.ru/lofi96.aacp', genre: 'Lo-Fi / Beats', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-9', name: 'SomaFM: Groove Salad', streamUrl: 'https://ice4.somafm.com/groovesalad-128-mp3', genre: 'Ambient / Downtempo', country: 'US', bitrate: '128k Live' },
     { id: 'default-10', name: 'Record Russian Hits', streamUrl: 'https://radiorecord.hostingradio.ru/rus96.aacp', genre: 'Pop / Russian', country: 'RU', bitrate: '96k AAC' },
-    { id: 'default-11', name: 'Радио Дача', streamUrl: 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7', genre: 'Pop / Retro / Hits', country: 'RU', bitrate: '64k AAC' },
+    { id: 'default-11', name: 'Радио Дача', streamUrl: 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9', genre: 'Pop / Retro / Hits', country: 'RU', bitrate: '128k AAC' },
   ];
 
   readonly tracks = signal<Track[]>([]);
@@ -497,9 +522,17 @@ export class LibraryService implements OnDestroy {
 
   private initLibrary() {
     let savedTracks: Track[] = [];
+    const deletedIds = this.getDeletedTrackIds();
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY_TRACKS);
-      if (stored) savedTracks = JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          savedTracks = parsed.filter(
+            (t: Track) => t && t.id && !deletedIds.has(t.id) && !t.id.startsWith('radio-') && !t.isLiveStream
+          );
+        }
+      }
     } catch {
       savedTracks = [];
     }
@@ -528,7 +561,15 @@ export class LibraryService implements OnDestroy {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
               for (const pt of parsed) {
-                if (pt && pt.id && !pt.id.startsWith('default-track-') && !candidateMap.has(pt.id)) {
+                if (
+                  pt &&
+                  pt.id &&
+                  !deletedIds.has(pt.id) &&
+                  !pt.id.startsWith('default-track-') &&
+                  !pt.id.startsWith('radio-') &&
+                  !pt.isLiveStream &&
+                  !candidateMap.has(pt.id)
+                ) {
                   candidateMap.set(pt.id, pt);
                 }
               }
@@ -542,7 +583,14 @@ export class LibraryService implements OnDestroy {
         const offlineList = this.offlineService.getOfflineTracks();
         if (offlineList && offlineList.length > 0) {
           for (const ot of offlineList) {
-            if (ot && ot.id && !candidateMap.has(ot.id)) {
+            if (
+              ot &&
+              ot.id &&
+              !deletedIds.has(ot.id) &&
+              !ot.id.startsWith('radio-') &&
+              !ot.isLiveStream &&
+              !candidateMap.has(ot.id)
+            ) {
               candidateMap.set(ot.id, { ...ot, isOffline: true });
             }
           }
@@ -651,13 +699,13 @@ export class LibraryService implements OnDestroy {
 
   getDirectStreamNode(): string {
     const cur = this.activeBackendUrl;
-    if (cur && !cur.includes('vercel.app') && cur.startsWith('http')) {
+    if (cur && !cur.includes('vercel.app') && !cur.includes('node-home') && cur.startsWith('http')) {
       return cur;
     }
     if (typeof localStorage !== 'undefined') {
       try {
         const saved = localStorage.getItem('recro_fastest_backend');
-        if (saved && !saved.includes('vercel.app') && saved.startsWith('http')) {
+        if (saved && !saved.includes('vercel.app') && !saved.includes('node-home') && saved.startsWith('http')) {
           return saved;
         }
       } catch {}
@@ -1300,15 +1348,25 @@ export class LibraryService implements OnDestroy {
       return `${a}::${tit}`;
     };
 
+    const deletedIds = this.getDeletedTrackIds();
     const mergedMap = new Map<string, Track>();
     const titleArtistMap = new Map<string, string>();
 
-    // 1. Put cloud tracks into map
-    for (const ct of cloudTracks) {
-      if (ct.id.startsWith('default-track-')) continue;
-      const primaryKey = keyOf(ct);
-      const secKey = secondaryKeyOf(ct);
-      mergedMap.set(primaryKey, { ...ct });
+    // 1. Сначала добавляем локальные треки, чтобы сохранить их точный порядок (треки больше никогда не прыгают!)
+    for (const lt of localTracks) {
+      if (
+        !lt ||
+        !lt.id ||
+        lt.id.startsWith('default-track-') ||
+        lt.id.startsWith('radio-') ||
+        lt.isLiveStream ||
+        deletedIds.has(lt.id)
+      ) {
+        continue;
+      }
+      const primaryKey = keyOf(lt);
+      const secKey = secondaryKeyOf(lt);
+      mergedMap.set(primaryKey, { ...lt });
       if (secKey && secKey !== '::') {
         titleArtistMap.set(secKey, primaryKey);
       }
@@ -1316,11 +1374,20 @@ export class LibraryService implements OnDestroy {
 
     let hasNewLocal = false;
 
-    // 2. Union merge local tracks
-    for (const lt of localTracks) {
-      if (lt.id.startsWith('default-track-')) continue;
-      const primaryKey = keyOf(lt);
-      const secKey = secondaryKeyOf(lt);
+    // 2. Добавляем обновления из облака и прикрепляем новые облачные треки в конец
+    for (const ct of cloudTracks) {
+      if (
+        !ct ||
+        !ct.id ||
+        ct.id.startsWith('default-track-') ||
+        ct.id.startsWith('radio-') ||
+        ct.isLiveStream ||
+        deletedIds.has(ct.id)
+      ) {
+        continue;
+      }
+      const primaryKey = keyOf(ct);
+      const secKey = secondaryKeyOf(ct);
 
       let existingKey = mergedMap.has(primaryKey) ? primaryKey : null;
       if (!existingKey && secKey && titleArtistMap.has(secKey)) {
@@ -1331,21 +1398,20 @@ export class LibraryService implements OnDestroy {
         const existing = mergedMap.get(existingKey)!;
         const mergedTrack: Track = {
           ...existing,
-          isFavorite: Boolean(existing.isFavorite || lt.isFavorite),
-          plays: Math.max(existing.plays || 0, lt.plays || 0),
-          isOffline: Boolean(existing.isOffline || lt.isOffline),
-          audioUrl: existing.audioUrl && !existing.audioUrl.startsWith('blob:') ? existing.audioUrl : lt.audioUrl,
-          coverUrl: existing.coverUrl || lt.coverUrl,
-          album: existing.album || lt.album,
-          genre: existing.genre || lt.genre,
+          isFavorite: Boolean(existing.isFavorite || ct.isFavorite),
+          plays: Math.max(existing.plays || 0, ct.plays || 0),
+          isOffline: Boolean(existing.isOffline || ct.isOffline),
+          audioUrl: existing.audioUrl && !existing.audioUrl.startsWith('blob:') ? existing.audioUrl : ct.audioUrl,
+          coverUrl: existing.coverUrl || ct.coverUrl,
+          album: existing.album || ct.album,
+          genre: existing.genre || ct.genre,
         };
         mergedMap.set(existingKey, mergedTrack);
       } else {
-        mergedMap.set(primaryKey, { ...lt });
+        mergedMap.set(primaryKey, { ...ct });
         if (secKey && secKey !== '::') {
           titleArtistMap.set(secKey, primaryKey);
         }
-        hasNewLocal = true;
       }
     }
 
@@ -1530,11 +1596,11 @@ export class LibraryService implements OnDestroy {
     const sanitized = stations
       .map((st) => {
         const lowerName = (st.name || '').toLowerCase();
-        if (lowerName.includes('dacha') || lowerName.includes('дача') || st.id === 'default-11' || (st.streamUrl && (st.streamUrl.includes('gkvr.ru') || st.streamUrl.includes('14_dacha_64')))) {
+        if (lowerName.includes('dacha') || lowerName.includes('дача') || st.id === 'default-11' || (st.streamUrl && (st.streamUrl.includes('gkvr.ru') || st.streamUrl.includes('14_dacha_64') || st.streamUrl.includes('3B5A19735277E7D7B37FACC403CC5AE7')))) {
           return {
             ...st,
-            streamUrl: 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7',
-            bitrate: '64k AAC'
+            streamUrl: 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9',
+            bitrate: '128k AAC'
           };
         }
         if (lowerName.includes('europa plus') || st.id === 'default-2' || st.id === 'default-3' || (st.streamUrl && st.streamUrl.includes('emgsound.ru')) || isBroken(st.streamUrl)) {
@@ -1623,12 +1689,12 @@ export class LibraryService implements OnDestroy {
 
       const lowerTitle = (t.title || '').toLowerCase();
       const isRadio = t.isLiveStream || t.id.startsWith('radio-') || lowerTitle.includes('европа плюс') || lowerTitle.includes('europa plus') || lowerTitle.includes('дача') || lowerTitle.includes('dacha');
-      if (isRadio && (lowerTitle.includes('дача') || lowerTitle.includes('dacha') || t.id.includes('default-11') || audioUrl.includes('gkvr.ru') || audioUrl.includes('14_dacha_64') || (audioUrl.includes('dacha') && !audioUrl.includes('UID=')))) {
+      if (isRadio && (lowerTitle.includes('дача') || lowerTitle.includes('dacha') || t.id.includes('default-11') || audioUrl.includes('gkvr.ru') || audioUrl.includes('14_dacha_64') || audioUrl.includes('3B5A19735277E7D7B37FACC403CC5AE7') || (audioUrl.includes('dacha') && !audioUrl.includes('UID=')))) {
         return {
           ...t,
-          audioUrl: 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7',
+          audioUrl: 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9',
           coverUrl,
-          bitrate: '64k AAC',
+          bitrate: '128k AAC',
           isLiveStream: true,
         };
       }
@@ -1675,7 +1741,6 @@ export class LibraryService implements OnDestroy {
       addedAt: new Date().toISOString().split('T')[0],
       isLiveStream: true,
     };
-    this.addTrackToLibrary(track);
     return track;
   }
 
@@ -1848,6 +1913,8 @@ export class LibraryService implements OnDestroy {
   }
 
   deleteTrack(trackId: string) {
+    if (!trackId) return;
+    this.markTrackDeleted(trackId);
     this.tracks.update((current) => current.filter((t) => t.id !== trackId));
     this.playlists.update((pls) =>
       pls.map((p) => ({
@@ -1858,6 +1925,32 @@ export class LibraryService implements OnDestroy {
     this.offlineService.removeTrackOffline(trackId).catch(() => {});
     this.persistTracks();
     this.persistPlaylists();
+
+    // Clean up from all fallback keys in localStorage immediately
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const purgeKeys = ['signal_tracks_guest', 'signal_tracks', 'signal_library_tracks'];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('signal_tracks_') || k.startsWith('signal_favs_'))) {
+            purgeKeys.push(k);
+          }
+        }
+        for (const k of Array.from(new Set(purgeKeys))) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            try {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                const cleaned = list.filter((item: any) => typeof item === 'string' ? item !== trackId : item?.id !== trackId);
+                localStorage.setItem(k, JSON.stringify(cleaned));
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
     this.pushLibraryToBackend();
   }
 

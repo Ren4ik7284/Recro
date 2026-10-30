@@ -2902,7 +2902,7 @@
             </h3>
             <p class="modal-subtitle">
               @if (authModalTab() === 'login') {
-                {{ i18n.currentLang() === 'ru' ? 'Вход по имени пользователя или Email' : 'Sign in with username or Email' }}
+                {{ i18n.currentLang() === 'ru' ? 'Вход по логину' : 'Sign in with username' }}
               } @else {
                 {{ i18n.currentLang() === 'ru' ? 'Создание нового профиля в Recro' : 'Create a new Recro profile' }}
               }
@@ -2969,10 +2969,10 @@
 
           @if (authModalTab() === 'login') {
             <div class="input-field">
-              <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Логин или Email' : 'Username or Email' }}</label>
+              <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Логин' : 'Username' }}</label>
               <input 
                 type="text" 
-                [placeholder]="i18n.currentLang() === 'ru' ? 'Имя пользователя или Email...' : 'Username or Email...'" 
+                [placeholder]="i18n.currentLang() === 'ru' ? 'Введите логин...' : 'Username...'" 
                 [ngModel]="authUsernameInput()"
                 (ngModelChange)="authUsernameInput.set($event)"
                 (keyup.enter)="submitAuth()"

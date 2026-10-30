@@ -974,8 +974,6 @@ app-header-bar {
 
       tbody tr.track-row {
         height: 50px;
-        content-visibility: auto;
-        contain-intrinsic-size: 0 50px;
         border-bottom: 1px solid var(--border-subtle);
         transition: background-color 0.1s ease;
         cursor: pointer;

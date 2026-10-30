@@ -47,9 +47,21 @@ export class LiveBackgroundService {
 
   // Реактивные сигналы состояния
   readonly activePreset = signal<string>(this.loadStorage('recro_bg_preset', 'default'));
-  readonly customMediaUrl = signal<string | null>(this.loadStorage('recro_bg_custom_url', '') || null);
+  readonly customMediaUrl = signal<string | null>(this.getInitialCustomMediaUrl());
   readonly customMediaType = signal<'image' | 'video'>((this.loadStorage('recro_bg_custom_type', 'image') as any) || 'image');
   readonly customMediaName = signal<string | null>(this.loadStorage('recro_bg_custom_name', ''));
+
+  private getInitialCustomMediaUrl(): string | null {
+    const raw = this.loadStorage('recro_bg_custom_url', '');
+    if (raw && !raw.startsWith('blob:')) {
+      return raw;
+    }
+    const fast = this.loadStorage('recro_bg_fast_preview', '');
+    if (fast) {
+      return fast;
+    }
+    return null;
+  }
 
   readonly hasCustomWallpaper = computed<boolean>(() => {
     return this.activePreset() === 'custom' && Boolean(this.customMediaUrl());
@@ -355,6 +367,7 @@ export class LiveBackgroundService {
       this.saveStorage('recro_bg_global', 'true');
       this.saveStorage('recro_bg_glass_tint', 'true');
       this.saveStorage('recro_bg_custom_url', mediaUrl);
+      this.saveStorage('recro_bg_fast_preview', mediaUrl);
       this.saveStorage('recro_bg_custom_type', mediaType);
       this.saveStorage('recro_bg_custom_name', title);
 
@@ -398,6 +411,7 @@ export class LiveBackgroundService {
       this.saveStorage('recro_bg_global', 'true');
       this.saveStorage('recro_bg_glass_tint', 'true');
       this.saveStorage('recro_bg_custom_url', trimmed);
+      this.saveStorage('recro_bg_fast_preview', trimmed);
       this.saveStorage('recro_bg_custom_type', mediaType);
       this.saveStorage('recro_bg_custom_name', name);
 
@@ -435,6 +449,7 @@ export class LiveBackgroundService {
     this.saveStorage('recro_bg_global', 'true');
     this.saveStorage('recro_bg_glass_tint', 'true');
     this.saveStorage('recro_bg_custom_url', item.mediaUrl);
+    this.saveStorage('recro_bg_fast_preview', item.mediaUrl);
     this.saveStorage('recro_bg_custom_type', item.mediaType);
     this.saveStorage('recro_bg_custom_name', item.name);
 
@@ -505,6 +520,18 @@ export class LiveBackgroundService {
     this.saveStorage('recro_bg_custom_type', mediaType);
     this.saveStorage('recro_bg_custom_url', objectUrl);
 
+    if (!isVideo && file.size < 5 * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          if (typeof reader.result === 'string') {
+            this.saveStorage('recro_bg_fast_preview', reader.result);
+          }
+        } catch {}
+      };
+      reader.readAsDataURL(file);
+    }
+
     await this.saveToIndexedDb(file);
 
     // Безопасно очищаем старый blob через таймаут, чтобы избежать мигания
@@ -563,6 +590,7 @@ export class LiveBackgroundService {
     this.customMediaName.set(null);
     this.saveStorage('recro_bg_custom_name', '');
     this.saveStorage('recro_bg_custom_url', '');
+    this.saveStorage('recro_bg_fast_preview', '');
     this.setPreset('default');
 
     await this.deleteFromIndexedDb();

@@ -27,8 +27,7 @@ export function resolveDefaultBackend(): string {
   if (typeof localStorage !== 'undefined') {
     try {
       const saved = localStorage.getItem('recro_fastest_backend');
-      if (saved && !saved.includes('vercel.app') && saved.startsWith('http')) {
-        // If saved was monoblock, verify or use Moscow default so startup is never blocked
+      if (saved && !saved.includes('vercel.app') && !saved.includes('node-home') && saved.startsWith('http')) {
         return saved;
       }
     } catch {}

@@ -31,6 +31,22 @@
       });
     })();
   </script>
+  <script>
+    (function() {
+      try {
+        var preset = localStorage.getItem('recro_bg_preset');
+        var customUrl = localStorage.getItem('recro_bg_custom_url');
+        var fastPreview = localStorage.getItem('recro_bg_fast_preview');
+        var url = fastPreview || (customUrl && !customUrl.startsWith('blob:') ? customUrl : '');
+        if (preset === 'custom' && url) {
+          var style = document.createElement('style');
+          style.id = 'early-bg-style';
+          style.innerHTML = 'body, app-root, .live-bg-container { background-image: url("' + url + '") !important; background-size: cover !important; background-position: center !important; }';
+          document.head.appendChild(style);
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <app-root>
