@@ -207,8 +207,8 @@ export class LibraryService implements OnDestroy {
 
   readonly defaultRadioStations: RadioStation[] = [
     { id: 'default-1', name: 'Radio Record', streamUrl: 'https://radiorecord.hostingradio.ru/rr_main96.aacp', genre: 'Dance / EDM', country: 'RU', bitrate: '96k AAC' },
-    { id: 'default-2', name: 'Europa Plus Top 40', streamUrl: 'https://hls-01-regions.emgsound.ru/11_top40/playlist.m3u8', genre: 'Pop / Top 40', country: 'RU', bitrate: '256k MP3' },
-    { id: 'default-3', name: 'Europa Plus Live', streamUrl: 'https://hls-01-regions.emgsound.ru/11_msk/playlist.m3u8', genre: 'Pop / Hits', country: 'RU', bitrate: '128k MP3' },
+    { id: 'default-2', name: 'Europa Plus Top 40', streamUrl: 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3', genre: 'Pop / Top 40', country: 'RU', bitrate: '256k MP3' },
+    { id: 'default-3', name: 'Europa Plus Live', streamUrl: 'https://ep128server.streamr.ru:8030/ep128', genre: 'Pop / Hits', country: 'RU', bitrate: '128k MP3' },
     { id: 'default-4', name: 'Record Chill-Out', streamUrl: 'https://radiorecord.hostingradio.ru/chil96.aacp', genre: 'Chillout / Lounge', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-5', name: 'Record Deep', streamUrl: 'https://radiorecord.hostingradio.ru/deep96.aacp', genre: 'Deep House', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-6', name: 'DFM', streamUrl: 'https://dfm.hostingradio.ru/dfm96.aacp', genre: 'Club / Dance', country: 'RU', bitrate: '96k AAC' },
@@ -216,7 +216,7 @@ export class LibraryService implements OnDestroy {
     { id: 'default-8', name: 'Record Lo-Fi', streamUrl: 'https://radiorecord.hostingradio.ru/lofi96.aacp', genre: 'Lo-Fi / Beats', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-9', name: 'SomaFM: Groove Salad', streamUrl: 'https://ice4.somafm.com/groovesalad-128-mp3', genre: 'Ambient / Downtempo', country: 'US', bitrate: '128k Live' },
     { id: 'default-10', name: 'Record Russian Hits', streamUrl: 'https://radiorecord.hostingradio.ru/rus96.aacp', genre: 'Pop / Russian', country: 'RU', bitrate: '96k AAC' },
-    { id: 'default-11', name: 'Радио Дача', streamUrl: 'https://stream.n340.com/14_dacha_64', genre: 'Pop / Retro / Hits', country: 'RU', bitrate: '64k AAC' },
+    { id: 'default-11', name: 'Радио Дача', streamUrl: 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7', genre: 'Pop / Retro / Hits', country: 'RU', bitrate: '64k AAC' },
   ];
 
   readonly tracks = signal<Track[]>([]);
@@ -1519,34 +1519,36 @@ export class LibraryService implements OnDestroy {
       url.includes(':8052') ||
       url.includes('wostreaming.net') ||
       url.includes('stream.zeno.fm') ||
+      url.includes('emgsound.ru') ||
+      url.includes('14_dacha_64') ||
       url.includes('ep256.hostingradio.ru') ||
       url.includes('europaplus256.mp3') ||
-      url.includes('streamr.ru') ||
-      url.includes('hostingradio.ru:8014') ||
+      (url.includes('streamr.ru') && !url.includes('streamr.ru:8030/ep128')) ||
+      (url.includes('hostingradio.ru:8014') && !url.includes('ep-top256.mp3')) ||
       url.includes('gkvr.ru');
 
     const sanitized = stations
       .map((st) => {
         const lowerName = (st.name || '').toLowerCase();
-        if (lowerName.includes('dacha') || lowerName.includes('дача') || st.id === 'default-11' || (st.streamUrl && st.streamUrl.includes('gkvr.ru'))) {
+        if (lowerName.includes('dacha') || lowerName.includes('дача') || st.id === 'default-11' || (st.streamUrl && (st.streamUrl.includes('gkvr.ru') || st.streamUrl.includes('14_dacha_64')))) {
           return {
             ...st,
-            streamUrl: 'https://stream.n340.com/14_dacha_64',
+            streamUrl: 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7',
             bitrate: '64k AAC'
           };
         }
-        if (lowerName.includes('europa plus') || st.id === 'default-2' || st.id === 'default-3' || isBroken(st.streamUrl)) {
-          if (lowerName.includes('top 40') || st.id === 'default-2') {
+        if (lowerName.includes('europa plus') || st.id === 'default-2' || st.id === 'default-3' || (st.streamUrl && st.streamUrl.includes('emgsound.ru')) || isBroken(st.streamUrl)) {
+          if (lowerName.includes('top 40') || st.id === 'default-2' || (st.streamUrl && st.streamUrl.includes('top'))) {
             return {
               ...st,
-              streamUrl: 'https://hls-01-regions.emgsound.ru/11_top40/playlist.m3u8',
+              streamUrl: 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3',
               bitrate: '256k MP3'
             };
           }
-          if (lowerName.includes('europa plus')) {
+          if (lowerName.includes('europa plus') || st.id === 'default-3') {
             return {
               ...st,
-              streamUrl: 'https://hls-01-regions.emgsound.ru/11_msk/playlist.m3u8',
+              streamUrl: 'https://ep128server.streamr.ru:8030/ep128',
               bitrate: '128k MP3'
             };
           }
@@ -1573,10 +1575,12 @@ export class LibraryService implements OnDestroy {
       url.includes(':8052') ||
       url.includes('wostreaming.net') ||
       url.includes('stream.zeno.fm') ||
+      url.includes('emgsound.ru') ||
+      url.includes('14_dacha_64') ||
       url.includes('ep256.hostingradio.ru') ||
       url.includes('europaplus256.mp3') ||
-      url.includes('streamr.ru') ||
-      url.includes('hostingradio.ru:8014') ||
+      (url.includes('streamr.ru') && !url.includes('streamr.ru:8030/ep128')) ||
+      (url.includes('hostingradio.ru:8014') && !url.includes('ep-top256.mp3')) ||
       url.includes('gkvr.ru');
 
     return tracks.map((t) => {
@@ -1619,20 +1623,20 @@ export class LibraryService implements OnDestroy {
 
       const lowerTitle = (t.title || '').toLowerCase();
       const isRadio = t.isLiveStream || t.id.startsWith('radio-') || lowerTitle.includes('европа плюс') || lowerTitle.includes('europa plus') || lowerTitle.includes('дача') || lowerTitle.includes('dacha');
-      if (isRadio && (lowerTitle.includes('дача') || lowerTitle.includes('dacha') || t.id.includes('default-11') || audioUrl.includes('gkvr.ru'))) {
+      if (isRadio && (lowerTitle.includes('дача') || lowerTitle.includes('dacha') || t.id.includes('default-11') || audioUrl.includes('gkvr.ru') || audioUrl.includes('14_dacha_64') || (audioUrl.includes('dacha') && !audioUrl.includes('UID=')))) {
         return {
           ...t,
-          audioUrl: 'https://stream.n340.com/14_dacha_64',
+          audioUrl: 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7',
           coverUrl,
           bitrate: '64k AAC',
           isLiveStream: true,
         };
       }
-      if (isRadio && isBroken(audioUrl)) {
+      if (isRadio && (isBroken(audioUrl) || audioUrl.includes('emgsound.ru'))) {
         const isTop = lowerTitle.includes('top 40') || t.id.includes('default-2') || audioUrl.includes('top');
         const newUrl = isTop
-          ? 'https://hls-01-regions.emgsound.ru/11_top40/playlist.m3u8'
-          : 'https://hls-01-regions.emgsound.ru/11_msk/playlist.m3u8';
+          ? 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3'
+          : 'https://ep128server.streamr.ru:8030/ep128';
         return {
           ...t,
           audioUrl: newUrl,

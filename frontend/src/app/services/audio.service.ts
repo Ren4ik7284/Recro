@@ -1468,14 +1468,14 @@ export class AudioService {
       }
     }
 
-    if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3') || playUrl.includes('streamr.ru') || playUrl.includes('hostingradio.ru:8014') || playUrl.includes('gkvr.ru'))) {
+    if (playUrl && (playUrl.includes(':8052') || playUrl.includes('ep256.hostingradio.ru') || playUrl.includes('europaplus256.mp3') || playUrl.includes('streamr.ru') || playUrl.includes('hostingradio.ru:8014') || playUrl.includes('gkvr.ru') || playUrl.includes('emgsound.ru') || playUrl.includes('14_dacha_64') || (playUrl.includes('dacha') && !playUrl.includes('UID=')))) {
       const lower = (track.title || '').toLowerCase();
-      if (lower.includes('дача') || lower.includes('dacha') || track.id.includes('default-11') || playUrl.includes('gkvr.ru')) {
-        playUrl = 'https://stream.n340.com/14_dacha_64';
+      if (lower.includes('дача') || lower.includes('dacha') || track.id.includes('default-11') || playUrl.includes('gkvr.ru') || playUrl.includes('dacha') || playUrl.includes('14_dacha_64')) {
+        playUrl = 'https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7';
+      } else if (lower.includes('top 40') || track.id.includes('default-2') || playUrl.includes('top')) {
+        playUrl = 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3';
       } else {
-        playUrl = (lower.includes('top 40') || track.id.includes('default-2') || playUrl.includes('top'))
-          ? 'https://hls-01-regions.emgsound.ru/11_top40/playlist.m3u8'
-          : 'https://hls-01-regions.emgsound.ru/11_msk/playlist.m3u8';
+        playUrl = 'https://ep128server.streamr.ru:8030/ep128';
       }
     }
 

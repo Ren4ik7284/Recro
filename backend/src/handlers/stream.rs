@@ -517,8 +517,16 @@ pub async fn stream_audio(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    if target.contains(":8052") || target.contains("ep256.hostingradio.ru") || target.contains("europaplus256.mp3") {
-        if target.contains("top") || target.contains("256") {
+    if target.contains("emgsound.ru")
+        || target.contains("14_dacha_64")
+        || target.contains(":8052")
+        || target.contains("ep256.hostingradio.ru")
+        || target.contains("europaplus256.mp3")
+        || (target.contains("dacha") && !target.contains("stream2.n340.com"))
+    {
+        if target.contains("dacha") || target.contains("дача") {
+            target = "https://stream2.n340.com/12_dacha_64_reg_1093?type=aac&UID=3B5A19735277E7D7B37FACC403CC5AE7".to_string();
+        } else if target.contains("top") || target.contains("256") {
             target = "https://europaplus.hostingradio.ru:8014/ep-top256.mp3".to_string();
         } else {
             target = "https://ep128server.streamr.ru:8030/ep128".to_string();
