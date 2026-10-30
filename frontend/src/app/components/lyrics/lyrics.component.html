@@ -1,7 +1,7 @@
 <div class="lyrics-overlay" [class.open]="lyricsService.isLyricsOpen()">
   <!-- Dynamic blurred ambient backdrop from album art or live procedural/GIF background -->
   <div class="lyrics-backdrop">
-    @if (bgService.activePreset() !== 'off') {
+    @if (lyricsService.isLyricsOpen() && bgService.activePreset() !== 'off') {
       <app-live-background></app-live-background>
       @if (bgService.activePreset() === 'default') {
         @if (audioService.currentTrack(); as cur) {

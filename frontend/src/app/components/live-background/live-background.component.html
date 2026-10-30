@@ -10,25 +10,27 @@
         [muted]="true" 
         muted 
         playsinline 
-        class="live-bg-element"
+        class="live-bg-element video-element"
+        [class.loaded]="isVideoLoaded()"
         (loadedmetadata)="onVideoReady(bgVideo)"
         (canplay)="onVideoReady(bgVideo)"
         (play)="silenceVideo(bgVideo)"
-        (volumechange)="silenceVideo(bgVideo)"
-        (timeupdate)="silenceVideo(bgVideo)"
       ></video>
     } @else {
       <img 
+        #bgImg
         [src]="url" 
         alt="Background" 
-        class="live-bg-element"
+        class="live-bg-element img-element"
+        [class.loaded]="isImageLoaded()"
+        (load)="onImageLoaded()"
       />
     }
   }
 
   <!-- Procedural canvas animations (Grid, Waves, Rain, Stars) -->
   @if (bgService.activePreset() !== 'default' && bgService.activePreset() !== 'custom' && bgService.activePreset() !== 'off') {
-    <canvas #proceduralCanvas class="live-bg-element"></canvas>
+    <canvas #proceduralCanvas class="live-bg-element canvas-element loaded"></canvas>
   }
 
   <!-- Minimalist Dimmer & Vignette Overlay -->

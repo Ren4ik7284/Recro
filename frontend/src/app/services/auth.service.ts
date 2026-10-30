@@ -497,11 +497,13 @@ export class AuthService {
         });
         if (res.ok) {
           const serverUser: UserInfo = await res.json();
+          const latestCur = this.currentUser() || updated;
           const merged: UserInfo = {
-            ...updated,
+            ...latestCur,
             ...serverUser,
-            avatar_url: serverUser.avatar_url || partial.avatar_url || updated.avatar_url,
-            banner_url: serverUser.banner_url || partial.banner_url || updated.banner_url,
+            profile_tags: latestCur.profile_tags || serverUser.profile_tags,
+            avatar_url: serverUser.avatar_url || partial.avatar_url || latestCur.avatar_url,
+            banner_url: serverUser.banner_url || partial.banner_url || latestCur.banner_url,
           };
           this.currentUser.set(merged);
           try {

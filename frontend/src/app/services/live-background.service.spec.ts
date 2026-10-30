@@ -79,4 +79,30 @@ describe('LiveBackgroundService', () => {
     expect(service.dimmerLevel()).toBe(45);
     expect(service.blurLevel()).toBe(8);
   });
+
+  it('should maintain authoritative local state during rapid background switching', () => {
+    service.setPreset('grid');
+    expect(service.activePreset()).toBe('grid');
+    expect(service.hasCustomWallpaper()).toBe(false);
+
+    service.setPreset('waves');
+    expect(service.activePreset()).toBe('waves');
+
+    service.selectSavedItem({
+      id: 'test_1',
+      rawUrl: 'https://example.com/test.gif',
+      mediaUrl: 'https://example.com/test.gif',
+      mediaType: 'image',
+      name: 'Anime GIF',
+      addedAt: Date.now(),
+    });
+    expect(service.activePreset()).toBe('custom');
+    expect(service.customMediaUrl()).toBe('https://example.com/test.gif');
+    expect(service.hasCustomWallpaper()).toBe(true);
+
+    // Switch to another preset rapidly - custom wallpaper flag must clear
+    service.setPreset('rain');
+    expect(service.activePreset()).toBe('rain');
+    expect(service.hasCustomWallpaper()).toBe(false);
+  });
 });

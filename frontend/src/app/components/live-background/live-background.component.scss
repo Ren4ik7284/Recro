@@ -7,6 +7,7 @@
   pointer-events: none;
   z-index: 0;
   user-select: none;
+  background-color: #06080f;
 }
 
 .live-bg-element {
@@ -17,13 +18,22 @@
   object-fit: cover;
   filter: blur(var(--bg-blur, 8px));
   transform: scale(1.05);
-  transition: filter 0.3s ease;
+  opacity: 0;
+  transition: opacity 0.35s ease-in-out, filter 0.3s ease;
+  will-change: opacity, filter;
+  pointer-events: none;
+  user-select: none;
+
+  &.loaded {
+    opacity: 1;
+  }
 }
 
 .live-bg-tint {
   position: absolute;
   inset: 0;
   background: #000000;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.25s ease;
   z-index: 1;
+  pointer-events: none;
 }

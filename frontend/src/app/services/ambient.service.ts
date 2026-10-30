@@ -42,17 +42,6 @@ export class AmbientService {
       }
       this.updateColorsForTrack(track.title, track.artist, track.coverUrl);
     });
-
-    // При кастомных обоях динамический Glow автоматически отключается
-    effect(() => {
-      const hasCustom = this.bgService?.hasCustomWallpaper();
-      if (hasCustom && this.isEnabled()) {
-        this.isEnabled.set(false);
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(this.STORAGE_KEY, 'false');
-        }
-      }
-    });
   }
 
   toggle() {

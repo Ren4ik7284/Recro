@@ -162,6 +162,24 @@ export class ProfileStatsService {
     } catch {}
   }
 
+  private syncStatsTimeout: any = null;
+
+  private syncStatsToCloud(statsObj: any, badgesObj: any) {
+    if (this.syncStatsTimeout) clearTimeout(this.syncStatsTimeout);
+    this.syncStatsTimeout = setTimeout(() => {
+      try {
+        this.authService.updateProfileCustomization((meta) => {
+          return {
+            ...meta,
+            stats: statsObj,
+            badges: badgesObj,
+            pinnedPlaylists: this.pinnedPlaylistIds(),
+          };
+        }, this.libraryService.getBackendUrl()).catch(() => {});
+      } catch {}
+    }, 2500);
+  }
+
   saveState() {
     if (typeof localStorage === 'undefined') return;
     const uid = this.getUserId();
@@ -188,27 +206,7 @@ export class ProfileStatsService {
 
     // Cloud push to account for cross-device synchronization (Phone / Tablet / PC)
     if (this.authService.isAuthenticated()) {
-      try {
-        let existingMeta: any = {};
-        const curTags = this.authService.currentUser()?.profile_tags;
-        if (curTags) {
-          try {
-            existingMeta = JSON.parse(curTags);
-          } catch {}
-        }
-
-        const mergedPayload = {
-          ...existingMeta,
-          stats: statsObj,
-          badges: badgesObj,
-          pinnedPlaylists: this.pinnedPlaylistIds(),
-        };
-
-        this.authService.updateProfile(
-          { profile_tags: JSON.stringify(mergedPayload) },
-          this.libraryService.getBackendUrl()
-        );
-      } catch {}
+      this.syncStatsToCloud(statsObj, badgesObj);
     }
   }
 

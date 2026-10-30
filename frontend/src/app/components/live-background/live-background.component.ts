@@ -6,6 +6,7 @@ import {
   effect,
   OnDestroy,
   AfterViewInit,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LiveBackgroundService } from '../../services/live-background.service';
@@ -20,7 +21,12 @@ import { LiveBackgroundService } from '../../services/live-background.service';
 export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
   readonly bgService = inject(LiveBackgroundService);
 
+  readonly isImageLoaded = signal<boolean>(false);
+  readonly isVideoLoaded = signal<boolean>(false);
+
   private _canvasElement: HTMLCanvasElement | null = null;
+  private currentRunningPreset: string | null = null;
+  private lastTrackedUrl: string | null = null;
 
   @ViewChild('proceduralCanvas') set proceduralCanvas(ref: ElementRef<HTMLCanvasElement> | undefined) {
     const el = ref?.nativeElement || null;
@@ -56,9 +62,14 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  onImageLoaded() {
+    this.isImageLoaded.set(true);
+  }
+
   onVideoReady(video: HTMLVideoElement) {
     if (!video) return;
     this.silenceVideo(video);
+    this.isVideoLoaded.set(true);
     video.play().catch(() => {});
   }
 
@@ -83,8 +94,21 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
   constructor() {
     effect(() => {
       const preset = this.bgService.activePreset();
+      const url = this.bgService.customMediaUrl();
+
+      // Сбрасываем флаг загрузки только при реальной смене URL
+      if (url !== this.lastTrackedUrl) {
+        this.lastTrackedUrl = url;
+        this.isImageLoaded.set(false);
+        this.isVideoLoaded.set(false);
+      }
+
+      // Перезапускаем процедурную анимацию только если сменился пресет
       if (typeof window !== 'undefined') {
-        requestAnimationFrame(() => this.setupAnimation(preset));
+        if (preset !== this.currentRunningPreset) {
+          this.currentRunningPreset = preset;
+          requestAnimationFrame(() => this.setupAnimation(preset));
+        }
       }
     });
   }
