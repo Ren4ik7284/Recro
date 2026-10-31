@@ -966,7 +966,6 @@ app-header-bar {
         &.th-index { width: 58px; min-width: 58px; max-width: 58px; text-align: center; }
         &.th-title { text-align: left; }
         &.th-artist { text-align: left; }
-        &.th-genre { width: 110px; text-align: left; }
         &.th-format { width: 68px; text-align: center; }
         &.th-duration { width: 72px; text-align: right; }
         &.th-actions { width: 220px; min-width: 220px; max-width: 220px; padding: 10px 18px 10px 8px; text-align: right; }
@@ -1165,17 +1164,6 @@ app-header-bar {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-        }
-
-        .cell-genre .genre-badge {
-          display: inline-block;
-          font-size: 11px;
-          padding: 2px 7px;
-          background-color: var(--bg-card);
-          border: 1px solid var(--border-subtle);
-          border-radius: 4px;
-          color: var(--text-secondary);
-          white-space: nowrap;
         }
 
         .cell-format {
@@ -3447,15 +3435,6 @@ app-header-bar {
       .volume-group .vol-slider-wrap {
         width: 60px;
       }
-    }
-  }
-}
-
-@media (max-width: 860px) {
-  .tracks-table-wrapper .tracks-table {
-    .cell-genre,
-    .th-genre {
-      display: none;
     }
   }
 }

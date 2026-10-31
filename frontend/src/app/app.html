@@ -395,7 +395,7 @@
                       </div>
                       <div class="station-info" (click)="playRadioStation(st)">
                         <div class="station-name">{{ st.name }}</div>
-                        <div class="station-meta">{{ st.genre }} • {{ st.country || 'Live' }} • {{ st.bitrate }}</div>
+                        <div class="station-meta">{{ st.country || 'Live' }} • {{ st.bitrate }}</div>
                       </div>
                       <div class="station-card-actions">
                         <button class="btn-play-station" (click)="playRadioStation(st)" [title]="i18n.t('player.play')">
@@ -432,7 +432,7 @@
                     </div>
                     <div class="station-info" (click)="playRadioStation(st)">
                       <div class="station-name">{{ st.name }}</div>
-                      <div class="station-meta">{{ st.genre }} • {{ st.country || 'Live' }} • {{ st.bitrate }}</div>
+                      <div class="station-meta">{{ st.country || 'Live' }} • {{ st.bitrate }}</div>
                     </div>
                     <div class="station-card-actions">
                       <button class="btn-play-station" (click)="playRadioStation(st)" [title]="i18n.t('player.play')">
@@ -1182,7 +1182,6 @@
                   <th class="th-index">{{ i18n.t('table.index') }}</th>
                   <th class="th-title">{{ i18n.t('table.title') }}</th>
                   <th class="th-artist">{{ i18n.t('table.artistSource') }}</th>
-                  <th class="th-genre">{{ i18n.t('table.genre') }}</th>
                   <th class="th-format">{{ i18n.t('table.format') }}</th>
                   <th class="th-duration">{{ i18n.t('table.duration') }}</th>
                   <th class="th-actions">{{ i18n.t('table.actions') }}</th>
@@ -1249,7 +1248,6 @@
                     </td>
 
                     <td class="cell-artist text-secondary notranslate" translate="no">{{ track.artist }}</td>
-                    <td class="cell-genre"><span class="genre-badge">{{ track.genre }}</span></td>
                     <td class="cell-format text-center font-mono text-muted">{{ track.format | uppercase }}</td>
                     <td class="cell-duration font-mono text-muted text-right">
                       @if (track.isLiveStream) {
@@ -2329,7 +2327,7 @@
                   <div class="preset-card" (click)="playRadioStation(station); closeAddModal()">
                     <div class="preset-info">
                       <span class="preset-title">{{ station.name }}</span>
-                      <span class="preset-genre">{{ station.genre }} • {{ station.country || 'Live' }}</span>
+                      <span class="preset-genre">{{ station.country || 'Live' }}</span>
                     </div>
                     <div class="preset-action">
                       <span class="preset-bitrate font-mono">{{ station.bitrate }}</span>
@@ -2492,17 +2490,6 @@
               placeholder="https://stream.example.com/radio.mp3" 
               [ngModel]="newStationUrl()" 
               (ngModelChange)="newStationUrl.set($event)" 
-              class="form-text-input"
-            />
-          </div>
-
-          <div class="input-field">
-            <label class="field-label">{{ i18n.currentLang() === 'ru' ? 'Жанр / Описание' : 'Genre / Description' }}</label>
-            <input 
-              type="text" 
-              [placeholder]="i18n.currentLang() === 'ru' ? 'Например: Electronic, Rock, Jazz...' : 'E.g. Electronic, Rock, Jazz...'" 
-              [ngModel]="newStationGenre()" 
-              (ngModelChange)="newStationGenre.set($event)" 
               class="form-text-input"
             />
           </div>
@@ -3232,25 +3219,6 @@
               </div>
             }
 
-            @if (ws.top_genres.length > 0) {
-              <div class="w-section-block">
-                <div class="w-block-title font-mono">{{ i18n.t('wrapped.topGenres') }}</div>
-                <div class="w-genres-bars">
-                  @for (g of ws.top_genres; track g.genre) {
-                    <div class="w-genre-bar-item">
-                      <div class="w-genre-meta">
-                        <span class="w-genre-name">{{ g.genre }}</span>
-                        <span class="w-genre-pct font-mono">{{ g.percentage }}%</span>
-                      </div>
-                      <div class="w-genre-track">
-                        <div class="w-genre-fill" [style.width.%]="g.percentage"></div>
-                      </div>
-                    </div>
-                  }
-                </div>
-              </div>
-            }
-
             @if (ws.total_plays === 0) {
               <div class="w-empty-state">
                 <p class="w-empty-msg">{{ i18n.t('wrapped.emptyMsg') }}</p>
@@ -3311,7 +3279,7 @@
                   </div>
                   <div class="h-meta">
                     <span class="h-title notranslate" translate="no">{{ item.track_title }}</span>
-                    <span class="h-artist"><span class="notranslate" translate="no">{{ item.track_artist }}</span> • <span class="font-mono text-muted">{{ item.track_genre || 'Music' }}</span></span>
+                    <span class="h-artist notranslate" translate="no">{{ item.track_artist }}</span>
                   </div>
                   <span class="h-date font-mono text-muted">{{ formatHistoryDate(item.played_at) }}</span>
                   <button class="btn-h-play" (click)="$event.stopPropagation(); playFromHistory(item)" [title]="i18n.t('player.play')">
