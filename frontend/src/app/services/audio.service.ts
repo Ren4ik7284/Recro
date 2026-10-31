@@ -1479,7 +1479,7 @@ export class AudioService {
     if (playUrl && (track.isLiveStream || track.id.startsWith('radio-') || track.id.startsWith('default-') || playUrl.includes('dacha') || playUrl.includes('europa') || playUrl.includes('hostingradio') || playUrl.includes('streamr.ru') || playUrl.includes(':8052') || playUrl.includes('ep256') || playUrl.includes('gkvr.ru') || playUrl.includes('emgsound.ru'))) {
       const lower = (track.title || '').toLowerCase();
       if (lower.includes('дача') || lower.includes('dacha') || track.id.includes('default-11') || playUrl.includes('dacha') || playUrl.includes('gkvr.ru')) {
-        playUrl = 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9';
+        playUrl = 'http://microit.n340.com:9000/VgMv0WV17ZVx1uuo_12_dacha_128_reg_1093';
       } else if (lower.includes('top 40') || track.id.includes('default-2') || playUrl.includes('top')) {
         playUrl = 'https://europaplus.hostingradio.ru:8014/ep-top256.mp3';
       } else if (lower.includes('europa') || track.id.includes('default-3') || playUrl.includes('ep128') || playUrl.includes('streamr.ru')) {

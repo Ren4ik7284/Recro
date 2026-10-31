@@ -241,7 +241,7 @@ export class LibraryService implements OnDestroy {
     { id: 'default-8', name: 'Record Lo-Fi', streamUrl: 'https://radiorecord.hostingradio.ru/lofi96.aacp', genre: 'Lo-Fi / Beats', country: 'RU', bitrate: '96k AAC' },
     { id: 'default-9', name: 'SomaFM: Groove Salad', streamUrl: 'https://ice4.somafm.com/groovesalad-128-mp3', genre: 'Ambient / Downtempo', country: 'US', bitrate: '128k Live' },
     { id: 'default-10', name: 'Record Russian Hits', streamUrl: 'https://radiorecord.hostingradio.ru/rus96.aacp', genre: 'Pop / Russian', country: 'RU', bitrate: '96k AAC' },
-    { id: 'default-11', name: 'Радио Дача', streamUrl: 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9', genre: 'Pop / Retro / Hits', country: 'RU', bitrate: '128k AAC' },
+    { id: 'default-11', name: 'Радио Дача', streamUrl: 'http://microit.n340.com:9000/VgMv0WV17ZVx1uuo_12_dacha_128_reg_1093', genre: 'Pop / Retro / Hits', country: 'RU', bitrate: '128k AAC' },
   ];
 
   readonly tracks = signal<Track[]>([]);
@@ -1596,10 +1596,10 @@ export class LibraryService implements OnDestroy {
     const sanitized = stations
       .map((st) => {
         const lowerName = (st.name || '').toLowerCase();
-        if (lowerName.includes('dacha') || lowerName.includes('дача') || st.id === 'default-11' || (st.streamUrl && (st.streamUrl.includes('gkvr.ru') || st.streamUrl.includes('14_dacha_64') || st.streamUrl.includes('3B5A19735277E7D7B37FACC403CC5AE7')))) {
+        if (lowerName.includes('dacha') || lowerName.includes('дача') || st.id === 'default-11' || (st.streamUrl && (st.streamUrl.includes('gkvr.ru') || st.streamUrl.includes('14_dacha_64') || st.streamUrl.includes('3B5A19735277E7D7B37FACC403CC5AE7') || st.streamUrl.includes('DA5C043538839B160A74AC94A3C2DCA9') || (st.streamUrl.includes('stream2.n340.com') && !st.streamUrl.includes(':9000'))))) {
           return {
             ...st,
-            streamUrl: 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9',
+            streamUrl: 'http://microit.n340.com:9000/VgMv0WV17ZVx1uuo_12_dacha_128_reg_1093',
             bitrate: '128k AAC'
           };
         }
@@ -1689,10 +1689,10 @@ export class LibraryService implements OnDestroy {
 
       const lowerTitle = (t.title || '').toLowerCase();
       const isRadio = t.isLiveStream || t.id.startsWith('radio-') || lowerTitle.includes('европа плюс') || lowerTitle.includes('europa plus') || lowerTitle.includes('дача') || lowerTitle.includes('dacha');
-      if (isRadio && (lowerTitle.includes('дача') || lowerTitle.includes('dacha') || t.id.includes('default-11') || audioUrl.includes('gkvr.ru') || audioUrl.includes('14_dacha_64') || audioUrl.includes('3B5A19735277E7D7B37FACC403CC5AE7') || (audioUrl.includes('dacha') && !audioUrl.includes('UID=')))) {
+      if (isRadio && (lowerTitle.includes('дача') || lowerTitle.includes('dacha') || t.id.includes('default-11') || audioUrl.includes('gkvr.ru') || audioUrl.includes('14_dacha_64') || audioUrl.includes('3B5A19735277E7D7B37FACC403CC5AE7') || audioUrl.includes('DA5C043538839B160A74AC94A3C2DCA9') || (audioUrl.includes('stream2.n340.com') && !audioUrl.includes(':9000')))) {
         return {
           ...t,
-          audioUrl: 'https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9',
+          audioUrl: 'http://microit.n340.com:9000/VgMv0WV17ZVx1uuo_12_dacha_128_reg_1093',
           coverUrl,
           bitrate: '128k AAC',
           isLiveStream: true,

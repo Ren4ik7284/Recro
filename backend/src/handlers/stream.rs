@@ -540,8 +540,8 @@ pub async fn stream_audio(
         || target.contains("дача")
         || target.contains("3B5A19735277E7D7B37FACC403CC5AE7")
     {
-        if target.contains("dacha") || target.contains("дача") || target.contains("3B5A19735277E7D7B37FACC403CC5AE7") {
-            target = "https://stream2.n340.com/12_dacha_128_reg_1093?type=aac&UID=DA5C043538839B160A74AC94A3C2DCA9".to_string();
+        if target.contains("dacha") || target.contains("дача") || target.contains("3B5A19735277E7D7B37FACC403CC5AE7") || target.contains("DA5C043538839B160A74AC94A3C2DCA9") {
+            target = "http://microit.n340.com:9000/VgMv0WV17ZVx1uuo_12_dacha_128_reg_1093".to_string();
         } else if target.contains("top") || target.contains("default-2") {
             target = "https://europaplus.hostingradio.ru:8014/ep-top256.mp3".to_string();
         } else {
@@ -582,6 +582,7 @@ pub async fn stream_audio(
             || target.contains("somafm.com")
             || target.contains("streamr.ru")
             || target.contains("101.ru")
+            || target.contains("n340.com")
             || target.contains(":80"));
 
     if is_direct_candidate && params.ss.unwrap_or(0) == 0 {
