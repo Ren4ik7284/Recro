@@ -5,6 +5,7 @@ export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 export const CLUSTER_BACKENDS = [
   MOSCOW_NODE,    // 1. Москва VPS / recro-player.ru (без VPN в РФ)
   FRANKFURT_NODE, // 2. Франкфурт VPS (с VPN / в Европе)
+  MONOBLOCK_NODE, // 3. Домашний моноблок (423GB RU cache)
 ];
 
 export function resolveDefaultBackend(): string {
@@ -14,17 +15,18 @@ export function resolveDefaultBackend(): string {
     return `http://${host}:8085`;
   }
   if (host === 'recro-player.ru' || host.endsWith('recro-player.ru') || host === '80.87.202.157' || host.includes('80.87.202.157')) {
+    if (host.includes('node-home')) return MONOBLOCK_NODE;
     return MOSCOW_NODE;
   }
   if (host === '177.3.217.64' || host.includes('177.3.217.64')) {
     return FRANKFURT_NODE;
   }
 
-  // Очищаем старые закэшированные в localStorage узлы, если там был сломанный узел
+  // Check if we already cached a proven healthy node from a previous session
   if (typeof localStorage !== 'undefined') {
     try {
       const saved = localStorage.getItem('recro_fastest_backend');
-      if (saved && !saved.includes('vercel.app') && !saved.includes('node-home') && saved.startsWith('http')) {
+      if (saved && !saved.includes('vercel.app') && saved.startsWith('http')) {
         return saved;
       }
     } catch {}
@@ -52,6 +54,9 @@ export function getClusterCandidates(): string[] {
 
 export function getNodeDisplayName(url: string): string {
   if (!url) return 'Основной сервер';
+  if (url.includes('node-home') || url === MONOBLOCK_NODE) {
+    return 'Домашний моноблок';
+  }
   if (url.includes('177.3.217.64') || url.includes('recro.177.3.217.64') || url === FRANKFURT_NODE) {
     return 'Франкфурт (VPN)';
   }

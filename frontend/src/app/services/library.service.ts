@@ -742,7 +742,7 @@ export class LibraryService implements OnDestroy {
     this.activeBackendUrl = winner;
     this.activeBackendUrlSignal.set(winner);
     try {
-      localStorage.removeItem('recro_fastest_backend');
+      localStorage.setItem('recro_fastest_backend', winner);
     } catch {}
 
     this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);

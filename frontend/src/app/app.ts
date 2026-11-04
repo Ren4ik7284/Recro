@@ -268,11 +268,6 @@ export class App implements OnInit {
   }
 
   ngOnInit() {
-    // Гарантированное удаление устаревших/сломанных нод из кэша браузера
-    try {
-      localStorage.removeItem('recro_fastest_backend');
-    } catch {}
-
     // Гарантированное снятие сплэш-экрана по таймауту безопасности (400мс)
     setTimeout(() => {
       if (this.isInitialLoading()) {
