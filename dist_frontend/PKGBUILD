@@ -8,7 +8,7 @@ url="https://recro.online"
 license=('MIT')
 provides=('recro')
 conflicts=('recro')
-source=("recro-${pkgver}.AppImage::https://recro-player.vercel.app/recro.AppImage")
+source=("recro-${pkgver}.AppImage::https://recro-player.ru/recro.AppImage")
 sha256sums=('SKIP')
 
 package() {

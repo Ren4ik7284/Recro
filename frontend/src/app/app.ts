@@ -543,7 +543,7 @@ export class App implements OnInit {
         if (this.canInstallPwa()) {
           this.pwaService.promptInstall();
         } else {
-          this.copyInstallCommand('curl -fsSL https://recro-player.vercel.app/install.sh | bash');
+          this.copyInstallCommand('curl -fsSL https://recro-player.ru/install.sh | bash');
           this.showToast(this.i18n.currentLang() === 'ru' ? 'Команда установки скопирована в буфер обмена' : 'Install command copied to clipboard');
         }
       } else if (distro === 'deb') {
@@ -570,7 +570,7 @@ export class App implements OnInit {
       const distro = this.selectedIosDistro();
       if (distro === 'pwa') {
         if (this.pwaService.isInAppBrowser()) {
-          const currentUrl = typeof window !== 'undefined' ? window.location.origin : 'https://recro-player.vercel.app';
+          const currentUrl = typeof window !== 'undefined' ? window.location.origin : 'https://recro-player.ru';
           this.copyInstallCommand(currentUrl);
           this.showToast(this.i18n.currentLang() === 'ru' ? 'Ссылка скопирована! Откройте её в Safari' : 'Link copied! Open it in Safari');
         } else {
@@ -601,7 +601,7 @@ export class App implements OnInit {
     }
   }
 
-  copyInstallCommand(cmd: string = 'curl -sSL https://recro-player.vercel.app/install.sh | bash') {
+  copyInstallCommand(cmd: string = 'curl -sSL https://recro-player.ru/install.sh | bash') {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(cmd).then(() => {
         this.showToast(this.i18n.currentLang() === 'ru' ? 'Команда скопирована! Вставьте в терминал.' : 'Command copied to clipboard!');

@@ -1,9 +1,9 @@
-export const MOSCOW_NODE = 'https://recro.80.87.202.157.sslip.io';
+export const MOSCOW_NODE = 'https://recro-player.ru';
 export const FRANKFURT_NODE = 'https://recro.177.3.217.64.sslip.io';
 export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 
 export const CLUSTER_BACKENDS = [
-  MOSCOW_NODE,    // 1. Moscow VPS (24/7 direct in RU without VPN, 100% reliable)
+  MOSCOW_NODE,    // 1. Moscow VPS / recro-player.ru (24/7 direct in RU without VPN and worldwide with VPN, 100% reliable)
   FRANKFURT_NODE, // 2. Frankfurt VPS (Direct in Europe / with VPN / YouTube proxy)
   MONOBLOCK_NODE, // 3. Monoblock Edge Node (High-Capacity 423GB RU cache)
 ];
@@ -14,8 +14,8 @@ export function resolveDefaultBackend(): string {
   if (host === 'localhost' || host === '127.0.0.1') {
     return `http://${host}:8085`;
   }
-  // If running directly on a VPS host (raw IP or domain)
-  if (host === '80.87.202.157' || host.includes('80.87.202.157')) {
+  // If running directly on a VPS host (raw IP, recro-player.ru, or sslip.io)
+  if (host === 'recro-player.ru' || host.endsWith('recro-player.ru') || host === '80.87.202.157' || host.includes('80.87.202.157')) {
     if (host.includes('node-home')) return MONOBLOCK_NODE;
     return MOSCOW_NODE;
   }
@@ -33,7 +33,7 @@ export function resolveDefaultBackend(): string {
     } catch {}
   }
 
-  // Default for Vercel / generic web: rock-solid Moscow node (never hangs on offline home nodes)
+  // Default for Vercel / generic web: rock-solid Moscow node (recro-player.ru)
   return MOSCOW_NODE;
 }
 
@@ -43,7 +43,7 @@ export function getClusterCandidates(): string[] {
   const host = window.location.hostname || '';
   if (host === 'localhost' || host === '127.0.0.1') {
     candidates.push(`http://${host}:8085`);
-  } else if (host === '80.87.202.157') {
+  } else if (host === 'recro-player.ru' || host.endsWith('recro-player.ru') || host === '80.87.202.157') {
     candidates.push(MOSCOW_NODE);
   } else if (host === '177.3.217.64') {
     candidates.push(FRANKFURT_NODE);
@@ -63,8 +63,8 @@ export function getNodeDisplayName(url: string): string {
   if (url.includes('node-home') || url === MONOBLOCK_NODE) {
     return 'Домашний моноблок';
   }
-  if (url.includes('80.87.202.157') || url.includes('recro.80.87.202.157') || url === MOSCOW_NODE) {
-    return 'Москва (Прямой)';
+  if (url.includes('recro-player.ru') || url.includes('80.87.202.157') || url.includes('recro.80.87.202.157') || url === MOSCOW_NODE) {
+    return 'Москва (recro-player.ru)';
   }
   if (url.includes('localhost') || url.includes('127.0.0.1')) {
     return 'Локальный сервер';

@@ -79,10 +79,10 @@ node-home.80.87.202.157.sslip.io {
     import common_static
 }
 
-recro.80.87.202.157.sslip.io, 80-87-202-157.sslip.io {
+recro-player.ru, www.recro-player.ru, recro.80.87.202.157.sslip.io, 80-87-202-157.sslip.io {
     import common
 }
 
-http://80.87.202.157, http://recro.80.87.202.157.sslip.io, http://80-87-202-157.sslip.io, :80, :10000 {
+http://80.87.202.157, :10000 {
     import common
 }

@@ -6,7 +6,7 @@ echo "════════════════════════�
 echo "  🎵 Установка плеера Recro в систему..."
 echo "══════════════════════════════════════════════════════"
 
-BASE_URL="https://recro-player.vercel.app"
+BASE_URL="https://recro-player.ru"
 BIN_DIR="${HOME}/.local/bin"
 APP_DIR="${HOME}/.local/share/applications"
 ICON_DIR="${HOME}/.local/share/icons/hicolor/512x512/apps"
@@ -24,7 +24,7 @@ fi
 
 cat << 'EOF' > "${BIN_DIR}/recro"
 #!/usr/bin/env bash
-TARGET_URL="https://recro-player.vercel.app/#/"
+TARGET_URL="https://recro-player.ru/#/"
 
 if command -v chromium &>/dev/null; then
   exec chromium --app="${TARGET_URL}" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"
