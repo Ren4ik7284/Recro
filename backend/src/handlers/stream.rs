@@ -850,7 +850,7 @@ pub async fn stream_audio(
                     &cache_file_path,
                     cache_mime,
                     is_lossless_requested,
-                    Duration::from_millis(3500),
+                    Duration::from_secs(12),
                 ).await {
                     return Ok(resp);
                 }
