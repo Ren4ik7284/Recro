@@ -56,6 +56,13 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
     return this._canvasElement ? new ElementRef(this._canvasElement) : undefined;
   }
 
+  @ViewChild('bgImg') set bgImgRef(ref: ElementRef<HTMLImageElement> | undefined) {
+    const img = ref?.nativeElement;
+    if (img && img.complete && img.naturalWidth > 0) {
+      this.onImageLoaded();
+    }
+  }
+
   @ViewChild('bgVideo') set bgVideoRef(ref: ElementRef<HTMLVideoElement> | undefined) {
     if (ref?.nativeElement) {
       this.onVideoReady(ref.nativeElement);
@@ -64,13 +71,19 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
 
   onImageLoaded() {
     this.isImageLoaded.set(true);
+    this.bgService.notifyBackgroundReady();
   }
 
   onVideoReady(video: HTMLVideoElement) {
     if (!video) return;
     this.silenceVideo(video);
     this.isVideoLoaded.set(true);
+    this.bgService.notifyBackgroundReady();
     video.play().catch(() => {});
+  }
+
+  onMediaError() {
+    this.bgService.notifyBackgroundReady();
   }
 
   silenceVideo(video: HTMLVideoElement) {
@@ -176,6 +189,7 @@ export class LiveBackgroundComponent implements AfterViewInit, OnDestroy {
     } else if (preset === 'stars') {
       this.startStarsAnimation();
     }
+    this.bgService.notifyBackgroundReady();
   }
 
   // 1. Минималистичная кибер-сетка (Grid)

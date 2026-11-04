@@ -15,6 +15,7 @@
         (loadedmetadata)="onVideoReady(bgVideo)"
         (canplay)="onVideoReady(bgVideo)"
         (play)="silenceVideo(bgVideo)"
+        (error)="onMediaError()"
       ></video>
     } @else {
       <img 
@@ -24,6 +25,7 @@
         class="live-bg-element img-element"
         [class.loaded]="isImageLoaded()"
         (load)="onImageLoaded()"
+        (error)="onMediaError()"
       />
     }
   }

@@ -4117,4 +4117,24 @@
       <span class="toast-content">{{ toastMessage() }}</span>
     </div>
   }
+
+  @if (isInitialLoading()) {
+    <div 
+      class="app-initial-splash" 
+      [class.fading-out]="isInitialLoadingFading()"
+      aria-hidden="true"
+    >
+      <div class="splash-content">
+        <div class="splash-logo">
+          <span class="logo-text">Recro</span>
+          <span class="logo-dot"></span>
+        </div>
+        <div class="splash-spinner"></div>
+        <div class="splash-status">{{ i18n.currentLang() === 'ru' ? 'Загрузка...' : 'Loading...' }}</div>
+        <div class="splash-progress">
+          <div class="splash-progress-bar"></div>
+        </div>
+      </div>
+    </div>
+  }
 </div>

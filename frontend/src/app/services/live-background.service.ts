@@ -67,6 +67,22 @@ export class LiveBackgroundService {
     return this.activePreset() === 'custom' && Boolean(this.customMediaUrl());
   });
 
+  // Сигналы готовности обоев для первоначального экрана загрузки
+  readonly isBackgroundReady = signal<boolean>(false);
+
+  readonly needsBackgroundLoading = computed<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (!this.applyGlobally()) return false;
+    const p = this.activePreset();
+    return p !== 'off' && p !== 'default';
+  });
+
+  notifyBackgroundReady() {
+    if (!this.isBackgroundReady()) {
+      this.isBackgroundReady.set(true);
+    }
+  }
+
   // Опции отображения
   readonly dimmerLevel = signal<number>(this.loadStorageNumber('recro_bg_dimmer', 45)); // 20 - 80%
   readonly blurLevel = signal<number>(this.loadStorageNumber('recro_bg_blur', 8)); // 0, 8, 16, 24px
@@ -104,7 +120,17 @@ export class LiveBackgroundService {
 
   constructor() {
     if (typeof window !== 'undefined') {
+      if (!this.needsBackgroundLoading()) {
+        this.notifyBackgroundReady();
+      }
       this.initIndexedDbAndRestore();
+
+      // Гарантированный таймаут безопасности (2.5с), чтобы никогда не блокировать приложение
+      setTimeout(() => {
+        this.notifyBackgroundReady();
+      }, 2500);
+    } else {
+      this.notifyBackgroundReady();
     }
 
     // Синхронизация фонового оформления с облаком (только если в облаке реально более новая ревизия)
@@ -647,7 +673,10 @@ export class LiveBackgroundService {
       // Восстанавливаем локальный blob из IndexedDB ТОЛЬКО если пресет custom и нет активного веб-URL
       const curPreset = untracked(() => this.activePreset());
       const curUrl = untracked(() => this.customMediaUrl());
-      if (curPreset !== 'custom') return;
+      if (curPreset !== 'custom') {
+        this.notifyBackgroundReady();
+        return;
+      }
       if (curUrl && !curUrl.startsWith('blob:')) return;
 
       const db = await this.openDb();
@@ -656,7 +685,10 @@ export class LiveBackgroundService {
       const req = store.get(KEY_CUSTOM);
 
       req.onsuccess = () => {
-        if (this.activePreset() !== 'custom') return;
+        if (this.activePreset() !== 'custom') {
+          this.notifyBackgroundReady();
+          return;
+        }
         const currentUrl = this.customMediaUrl();
         if (currentUrl && !currentUrl.startsWith('blob:')) return;
 
@@ -672,10 +704,17 @@ export class LiveBackgroundService {
           if (this.syncThemeWithBg()) {
             this.extractPaletteAndApply(url, isVideo);
           }
+        } else {
+          // Нет сохраненного медиа в IndexedDB
+          this.notifyBackgroundReady();
         }
+      };
+      req.onerror = () => {
+        this.notifyBackgroundReady();
       };
     } catch (e) {
       console.warn('[LiveBackgroundService] Could not restore from IndexedDB:', e);
+      this.notifyBackgroundReady();
     }
   }
 

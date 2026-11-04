@@ -84,7 +84,19 @@ export class App implements OnInit {
   get timerMoods() { return this.timerService.localizedMoods(); }
   readonly Math = Math;
 
+  // Сигналы первоначального экрана загрузки плеера (пока подгружаются обои и интерфейс)
+  readonly isInitialLoading = signal<boolean>(true);
+  readonly isInitialLoadingFading = signal<boolean>(false);
+
   constructor() {
+    // Отслеживание готовности фона/обоев для плавного завершения экрана загрузки
+    effect(() => {
+      const isBgReady = this.bgService.isBackgroundReady();
+      if (isBgReady && this.isInitialLoading() && !this.isInitialLoadingFading()) {
+        this.dismissInitialLoading();
+      }
+    });
+
     // Динамический заголовок вкладки в браузере (Track - Artist | Recro)
     effect(() => {
       if (typeof document === 'undefined') return;
@@ -244,7 +256,25 @@ export class App implements OnInit {
     return this.libraryService.formatCoverUrl(url, title, artist) || url;
   }
 
+  dismissInitialLoading(delayMs: number = 80) {
+    if (this.isInitialLoadingFading() || !this.isInitialLoading()) return;
+    setTimeout(() => {
+      if (!this.isInitialLoading()) return;
+      this.isInitialLoadingFading.set(true);
+      setTimeout(() => {
+        this.isInitialLoading.set(false);
+      }, 420);
+    }, delayMs);
+  }
+
   ngOnInit() {
+    // Гарантированное снятие сплэш-экрана по таймауту безопасности (2.5с)
+    setTimeout(() => {
+      if (this.isInitialLoading()) {
+        this.dismissInitialLoading(0);
+      }
+    }, 2500);
+
     const cachedHome = this.libraryService.getCachedHomeExplore();
     if (cachedHome) {
       this.homeData.set(cachedHome);
