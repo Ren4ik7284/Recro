@@ -100,4 +100,4 @@ if [ -n "$DEPLOY_URL" ]; then
     vercel alias set "$DEPLOY_URL" recro-player.vercel.app || true
 fi
 
-echo "✅ Готово! Плеер доступен: https://recro-player.vercel.app/#/"
+echo "✅ Готово! Плеер доступен: https://recro-player.vercel.app"

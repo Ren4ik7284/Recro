@@ -24,7 +24,7 @@ fi
 
 cat << 'EOF' > "${BIN_DIR}/recro"
 #!/usr/bin/env bash
-TARGET_URL="https://recro-player.ru/#/"
+TARGET_URL="https://recro-player.ru"
 
 if command -v chromium &>/dev/null; then
   exec chromium --app="${TARGET_URL}" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"

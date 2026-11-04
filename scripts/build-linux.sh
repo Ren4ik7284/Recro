@@ -82,7 +82,7 @@ if [ -f "${APPDIR}/recro.desktop" ] && [ ! -f "${HOME}/.local/share/applications
   which update-desktop-database &>/dev/null && update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
 fi
 
-TARGET_URL="https://recro-player.vercel.app/#/"
+TARGET_URL="https://recro-player.ru"
 
 if command -v chromium &>/dev/null; then
   exec chromium --app="${TARGET_URL}" --class=recro --user-data-dir="${HOME}/.config/recro" "$@"

@@ -61,10 +61,11 @@ export class NavigationService {
       } else {
         this.appHistoryDepth = 0;
         const initialHash = window.location.hash || this.buildHash(parsed.tab, parsed.playlistId, parsed.overlay);
+        const targetUrl = initialHash || (window.location.pathname + window.location.search);
         window.history.replaceState(
           { signalApp: true, depth: 0, tab: parsed.tab, playlistId: parsed.playlistId, overlay: parsed.overlay },
           '',
-          initialHash
+          targetUrl
         );
       }
       this.handleLocationChange(true);
@@ -99,7 +100,10 @@ export class NavigationService {
   }
 
   buildHash(tab: AppTab, playlistId?: string | null, overlay?: AppOverlay | null): string {
-    let path = tab === 'all' && !overlay && !playlistId ? '' : `/${tab}`;
+    if (tab === 'all' && !overlay && !playlistId) {
+      return '';
+    }
+    let path = `/${tab}`;
     if (tab === 'playlist' && playlistId) {
       path = `/playlist/${playlistId}`;
     }
@@ -122,12 +126,13 @@ export class NavigationService {
 
     if (pushState && typeof window !== 'undefined') {
       this.isNavigatingInternally = true;
+      const targetUrl = newHash || (window.location.pathname + window.location.search);
       if (window.location.hash !== newHash) {
         this.appHistoryDepth++;
         window.history.pushState(
           { signalApp: true, depth: this.appHistoryDepth, tab, playlistId, overlay: currentOverlay },
           '',
-          newHash
+          targetUrl
         );
       }
       setTimeout(() => (this.isNavigatingInternally = false), 50);
@@ -140,12 +145,13 @@ export class NavigationService {
 
     if (typeof window !== 'undefined') {
       const newHash = this.buildHash(this.currentTab(), this.currentPlaylistId(), overlay);
+      const targetUrl = newHash || (window.location.pathname + window.location.search);
       this.isNavigatingInternally = true;
       this.appHistoryDepth++;
       window.history.pushState(
         { signalApp: true, depth: this.appHistoryDepth, tab: this.currentTab(), playlistId: this.currentPlaylistId(), overlay },
         '',
-        newHash
+        targetUrl
       );
       setTimeout(() => (this.isNavigatingInternally = false), 50);
     }
@@ -163,10 +169,11 @@ export class NavigationService {
       const targetTab = this.currentTab();
       if (typeof window !== 'undefined') {
         const newHash = this.buildHash(targetTab, this.currentPlaylistId(), null);
+        const targetUrl = newHash || (window.location.pathname + window.location.search);
         window.history.replaceState(
           { signalApp: true, depth: this.appHistoryDepth, tab: targetTab, playlistId: this.currentPlaylistId(), overlay: null },
           '',
-          newHash
+          targetUrl
         );
       }
       return;
@@ -183,10 +190,11 @@ export class NavigationService {
     this.currentOverlay.set(null);
     if (typeof window !== 'undefined') {
       const newHash = this.buildHash(this.currentTab(), this.currentPlaylistId(), null);
+      const targetUrl = newHash || (window.location.pathname + window.location.search);
       window.history.replaceState(
         { signalApp: true, depth: this.appHistoryDepth, tab: this.currentTab(), playlistId: this.currentPlaylistId(), overlay: null },
         '',
-        newHash
+        targetUrl
       );
     }
   }

@@ -43,7 +43,7 @@ describe('NavigationService', () => {
   });
 
   it('should build hash correctly for tabs and overlays', () => {
-    expect(service.buildHash('all', null, null)).toBe('#/');
+    expect(service.buildHash('all', null, null)).toBe('');
     expect(service.buildHash('favorites', null, null)).toBe('#/favorites');
     expect(service.buildHash('playlist', 'rock-123', null)).toBe('#/playlist/rock-123');
     expect(service.buildHash('favorites', null, 'lyrics')).toBe('#/favorites/lyrics');
