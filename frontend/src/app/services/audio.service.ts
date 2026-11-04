@@ -738,48 +738,21 @@ export class AudioService {
 
   private setupEventListeners() {
     let stallTimer: any = null;
-    let deepStallTimer: any = null;
     const onStall = () => {
       if (!this.isPlaying() || this.audio.paused || this.isHandlingEnd || this.isSwitchingTrack) return;
       if (stallTimer) clearTimeout(stallTimer);
-      if (deepStallTimer) clearTimeout(deepStallTimer);
 
-      // Быстрая реакция на буферизацию/зависание потока при смене VPN (1.8с):
       stallTimer = setTimeout(() => {
-        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
-          console.warn('[AudioService] Playback stall detected (>1.8s), testing real-time cluster health...');
-          this.libraryService.checkBackendHealth(true).then((winner) => {
-            if (this.isPlaying() && !this.audio.ended && this.audio.readyState < 3) {
-              const pos = this.currentTime();
-              console.warn(`[AudioService] Auto-recovering stalled stream at ${pos.toFixed(1)}s on node ${winner}`);
-              this.seek(pos, true);
-            }
-          }).catch(() => {
-            this.audio.play().catch(() => {});
-          });
+        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying && this.audio.paused) {
+          this.audio.play().catch(() => {});
         }
-      }, 1800);
-
-      // Глубокий стоп (>4.0с): принудительный переход на следующий альтернативный узел
-      deepStallTimer = setTimeout(() => {
-        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
-          console.warn('[AudioService] Deep stall (>4.0s), forcing cluster failover and recovery...');
-          this.libraryService.failoverBackend().then(() => {
-            const pos = this.currentTime();
-            this.seek(pos, true);
-          });
-        }
-      }, 4000);
+      }, 5000);
     };
 
     const clearStall = () => {
       if (stallTimer) {
         clearTimeout(stallTimer);
         stallTimer = null;
-      }
-      if (deepStallTimer) {
-        clearTimeout(deepStallTimer);
-        deepStallTimer = null;
       }
     };
 

@@ -268,12 +268,17 @@ export class App implements OnInit {
   }
 
   ngOnInit() {
-    // Гарантированное снятие сплэш-экрана по таймауту безопасности (2.5с)
+    // Гарантированное удаление устаревших/сломанных нод из кэша браузера
+    try {
+      localStorage.removeItem('recro_fastest_backend');
+    } catch {}
+
+    // Гарантированное снятие сплэш-экрана по таймауту безопасности (400мс)
     setTimeout(() => {
       if (this.isInitialLoading()) {
         this.dismissInitialLoading(0);
       }
-    }, 2500);
+    }, 400);
 
     const cachedHome = this.libraryService.getCachedHomeExplore();
     if (cachedHome) {

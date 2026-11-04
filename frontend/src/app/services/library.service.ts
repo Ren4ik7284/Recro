@@ -742,7 +742,7 @@ export class LibraryService implements OnDestroy {
     this.activeBackendUrl = winner;
     this.activeBackendUrlSignal.set(winner);
     try {
-      localStorage.setItem('recro_fastest_backend', winner);
+      localStorage.removeItem('recro_fastest_backend');
     } catch {}
 
     this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -864,11 +864,10 @@ export class LibraryService implements OnDestroy {
   async failoverBackend(): Promise<string> {
     const current = this.getBackendUrl();
     const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
-    const curIdx = cluster.findIndex((b) => current.includes(b) || b.includes(current));
-    const nextIdx = curIdx >= 0 ? (curIdx + 1) % cluster.length : 0;
-    const alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
-    console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt}`);
-    this.applyClusterNode(alt, 'manual_failover');
+    const alt = cluster[0] || MOSCOW_NODE;
+    if (current !== alt) {
+      this.applyClusterNode(alt, 'manual_failover');
+    }
     return alt;
   }
 
