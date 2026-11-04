@@ -751,7 +751,7 @@ export class LibraryService implements OnDestroy {
     this.authService.verifyRemoteSession(winner);
 
     if (hasChanged) {
-      console.log(`[Cluster] ⚡ Real-time failover executed: ${previous} -> ${winner} (reason: ${reason})`);
+      console.log(`[Cluster] Real-time failover executed: ${previous} -> ${winner} (reason: ${reason})`);
       this.coverUrlCache.clear();
       this.connectRealtimeSync();
 
@@ -782,8 +782,22 @@ export class LibraryService implements OnDestroy {
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        // Быстрая параллельная гонка всех узлов кластера с анти-кэшем и таймаутом 1.5с:
-        // Побеждает первый ответивший здоровый узел без блокировки интерфейса!
+        const current = this.getBackendUrl();
+        // 1. Если текущий активный узел здоров, не переключаем его!
+        // Это полностью устраняет «дребезг» (флаппинг) серверов при включении/выключении VPN.
+        if (!force && current) {
+          try {
+            const currentPing = await fetch(`${current}/api/health?_t=${Date.now()}`, {
+              signal: AbortSignal.timeout(1200),
+              cache: 'no-store',
+            });
+            if (currentPing.ok) {
+              return current;
+            }
+          } catch {}
+        }
+
+        // 2. Если текущий узел не ответил или вызов принудительный (force), выбираем доступный узел кластера
         const candidates = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
         const pingNode = async (url: string): Promise<string> => {

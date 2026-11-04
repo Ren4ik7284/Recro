@@ -806,7 +806,19 @@ pub async fn stream_audio(
                 resolved_title = stripped.trim().to_string();
             }
 
-            // 1. On Frankfurt node, SoundCloud resolves in 150ms natively.
+            // 0. On Frankfurt node, SoundCloud resolves by track ID in ~150ms
+            if is_frankfurt() && direct_url.is_empty() {
+                if let Some(sc_id) = params.id.as_deref().and_then(|id| id.strip_prefix("sc-")) {
+                    if sc_id.chars().all(|c| c.is_ascii_digit()) {
+                        if let Ok(Some(u)) = tokio::time::timeout(Duration::from_millis(2500), state.soundcloud.resolve_stream_url(sc_id)).await {
+                            eprintln!("[STREAM] SoundCloud track resolved directly by ID {}: {}", sc_id, u);
+                            direct_url = u;
+                        }
+                    }
+                }
+            }
+
+            // 1. On Frankfurt node, SoundCloud resolves text search in 150ms natively.
             // On Moscow (RU) node, SoundCloud CDN blocks Russian IP addresses with 403 Forbidden,
             // so we skip SoundCloud directly and resolve via YouTube first. If YouTube fails, Fallback 3 proxies from Frankfurt.
             if is_frankfurt() && direct_url.is_empty() && !resolved_title.is_empty() {
@@ -819,7 +831,7 @@ pub async fn stream_audio(
                 };
 
                 eprintln!("[STREAM] Querying SoundCloud with sc_query={:?}", sc_query);
-                if let Ok(Some(u)) = tokio::time::timeout(Duration::from_millis(3500), state.soundcloud.search_and_resolve_stream(&sc_query)).await {
+                if let Ok(Some(u)) = tokio::time::timeout(Duration::from_millis(3000), state.soundcloud.search_and_resolve_stream(&sc_query)).await {
                     eprintln!("[STREAM] SoundCloud stream resolved directly: {}", u);
                     direct_url = u;
                 }
@@ -838,7 +850,7 @@ pub async fn stream_audio(
                     &cache_file_path,
                     cache_mime,
                     is_lossless_requested,
-                    Duration::from_secs(7),
+                    Duration::from_millis(3500),
                 ).await {
                     return Ok(resp);
                 }

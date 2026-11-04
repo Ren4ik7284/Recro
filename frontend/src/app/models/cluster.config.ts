@@ -5,7 +5,6 @@ export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 export const CLUSTER_BACKENDS = [
   MOSCOW_NODE,    // 1. Moscow VPS / recro-player.ru (24/7 direct in RU without VPN and worldwide with VPN, 100% reliable)
   FRANKFURT_NODE, // 2. Frankfurt VPS (Direct in Europe / with VPN / YouTube proxy)
-  MONOBLOCK_NODE, // 3. Monoblock Edge Node (High-Capacity 423GB RU cache)
 ];
 
 export function resolveDefaultBackend(): string {

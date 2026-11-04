@@ -1063,7 +1063,7 @@ export class AudioService {
     nodeName?: string
   ) {
     if (!newNode) return;
-    console.log(`[AudioService] ⚡ Real-time cluster failover: ${oldNode} -> ${newNode} (${reason})`);
+    console.log(`[AudioService] Real-time cluster failover: ${oldNode} -> ${newNode} (${reason})`);
 
     const cur = this.currentTrack();
     if (!cur) return;
@@ -1080,7 +1080,6 @@ export class AudioService {
       // Инвалидируем предзагрузку следующего трека, чтобы он предзагрузился уже с нового хоста!
       this.lastPreloadedTrackId = null;
       this.preloadNextTrack();
-      this.notifyUser(`⚡ Сеть обновлена: активен узел ${nodeName || 'кластера'}`);
       return;
     }
 
@@ -1089,7 +1088,6 @@ export class AudioService {
       const pos = this.currentTime();
       console.warn(`[AudioService] Audio stream stalled or interrupted by VPN toggle. Seamlessly reconnecting at ${pos.toFixed(1)}s on ${nodeName}...`);
       this.seek(pos, true);
-      this.notifyUser(`⚡ Сеть обновлена: ${nodeName || 'кластер'} (${Math.round(pos)} сек)`);
     }
   }
 
@@ -2774,20 +2772,28 @@ export class AudioService {
         }
       }
     } else {
-      // Emergency online discovery
+      // Instant discovery start: check pre-buffered discoveries or curated non-library starters
       let discoveryTracks = this.recService.getBufferedDiscoveries(effectiveLang, 5)
         .filter((t) => !this.recService.isLibraryTrack(t));
 
       if (discoveryTracks.length === 0) {
-        if (candidates.length > 0) {
+        const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
+          .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
+        if (starters.length > 0) {
+          discoveryTracks = starters.slice(0, 4);
+          // Фоновая подгрузка онлайн-открытий без блокировки запуска плеера:
+          this.recService.fetchOnlineDiscoveryTracks(4, new Set(starters.map((t) => t.id)), new Set(), starters[0])
+            .then((fetched) => {
+              const pure = fetched.filter((t) => !this.recService.isLibraryTrack(t));
+              if (pure.length > 0) {
+                this.queue.update((cur) => [...cur, ...pure]);
+                this.preloadNextTrack();
+              }
+            })
+            .catch(() => {});
+        } else {
           const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), null);
           discoveryTracks = fetched.filter((t) => !this.recService.isLibraryTrack(t));
-        } else {
-          const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
-            .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
-          if (starters.length > 0) {
-            discoveryTracks = starters.slice(0, 4);
-          }
         }
       }
 
