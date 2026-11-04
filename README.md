@@ -4,9 +4,9 @@
 
 ### Minimalist Modern Web Audio Player, Smart Wave & Daily Spotify Charts
 
-[![Live Demo](https://img.shields.io/badge/⚡_СЛУШАТЬ_ОНЛАЙН_(БЕЗ_VPN_И_С_VPN)-recro--player.vercel.app-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro-player.vercel.app)
-[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro-player.vercel.app/recro.apk)
-[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](https://recro-player.vercel.app/recro.ipa)
+[![Live Demo](https://img.shields.io/badge/⚡_СЛУШАТЬ_ОНЛАЙН_(ANYCAST_/_БЕЗ_VPN_И_С_VPN)-recro--player.ru-007AFF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://recro-player.ru)
+[![Download APK](https://img.shields.io/badge/📱_СКАЧАТЬ_APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://recro-player.ru/recro.apk)
+[![Download IPA](https://img.shields.io/badge/🍏_СКАЧАТЬ_IPA-iOS_(Сертификат)-white?style=for-the-badge&logo=apple&logoColor=black)](https://recro-player.ru/recro.ipa)
 
 [![Angular](https://img.shields.io/badge/Angular-21-dd0031.svg?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
 [![Rust](https://img.shields.io/badge/Rust-Axum-dea584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
@@ -23,17 +23,17 @@
 
 > ### ⚡ **ОНЛАЙН ДОСТУП И СКАЧИВАНИЕ (РАБОТАЕТ ПРЯМО СЕЙЧАС):**
 >
-> 🌐 **Основной веб-плеер (Vercel Anycast Edge, работает без VPN в РФ и по всему миру с VPN):**  
-> 👉 **[https://recro-player.vercel.app](https://recro-player.vercel.app)** 👈  
+> 🌐 **Основной веб-плеер (Cloudflare Anycast CDN, работает без VPN в РФ и по всему миру с VPN):**  
+> 👉 **[https://recro-player.ru](https://recro-player.ru)** 👈  
 >
 > 📱 **Скачать приложение на Android (APK):**  
-> 👉 **[https://recro-player.vercel.app/recro.apk](https://recro-player.vercel.app/recro.apk)** *(зеркала: [https://recro-player.ru/recro.apk](https://recro-player.ru/recro.apk), [http://80.87.202.157/recro.apk](http://80.87.202.157/recro.apk))* 👈  
+> 👉 **[https://recro-player.ru/recro.apk](https://recro-player.ru/recro.apk)** *(зеркала: [https://recro-player.vercel.app/recro.apk](https://recro-player.vercel.app/recro.apk), [http://80.87.202.157/recro.apk](http://80.87.202.157/recro.apk))* 👈  
 >
 > 🍏 **Скачать приложение на iPhone / iPad (IPA):**  
-> 👉 **[https://recro-player.vercel.app/recro.ipa](https://recro-player.vercel.app/recro.ipa)** *(зеркала: [https://recro-player.ru/recro.ipa](https://recro-player.ru/recro.ipa), [http://80.87.202.157/recro.ipa](http://80.87.202.157/recro.ipa))* 👈  
+> 👉 **[https://recro-player.ru/recro.ipa](https://recro-player.ru/recro.ipa)** *(зеркала: [https://recro-player.vercel.app/recro.ipa](https://recro-player.vercel.app/recro.ipa), [http://80.87.202.157/recro.ipa](http://80.87.202.157/recro.ipa))* 👈  
 >
 > 🌐 **Зеркала и узлы кластера:**  
-> • 🇷🇺 **Прямой домен (РФ):** [https://recro-player.ru](https://recro-player.ru) *(делегируется на Cloudflare Anycast)*  
+> • ☁️ **Vercel Anycast Edge:** [https://recro-player.vercel.app](https://recro-player.vercel.app)  
 > • 🇩🇪 **Франкфурт VPS (Европа):** [https://recro.177.3.217.64.sslip.io](https://recro.177.3.217.64.sslip.io)  
 > • 🇷🇺 **Москва VPS (прямой IP):** [http://80.87.202.157](http://80.87.202.157)  
 >
