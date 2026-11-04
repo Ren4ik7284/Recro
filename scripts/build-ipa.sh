@@ -36,9 +36,90 @@ echo "  ✓ CLANG:    $CLANG"
 echo "  ✓ LD64.LLD: $LD64"
 echo "  ✓ ZIP:      $ZIP"
 
-# 2. Prepare build workspace
+# 2. Prepare build workspace and synthetic iOS TBD SDK
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/src" "$BUILD_DIR/Payload/Recro.app"
+mkdir -p "$BUILD_DIR/sdk/usr/lib" \
+         "$BUILD_DIR/sdk/System/Library/Frameworks/UIKit.framework" \
+         "$BUILD_DIR/sdk/System/Library/Frameworks/Foundation.framework" \
+         "$BUILD_DIR/sdk/System/Library/Frameworks/WebKit.framework" \
+         "$BUILD_DIR/sdk/System/Library/Frameworks/AVFoundation.framework"
+
+# Create minimal Apple TBD v2 symbol stubs so ld64 records actual LC_LOAD_DYLIB entries in Mach-O
+cat << 'EOF' > "$BUILD_DIR/sdk/usr/lib/libSystem.tbd"
+--- !tapi-tbd-v2
+archs:           [ arm64 ]
+uuids:           [ 'arm64: 00000000-0000-0000-0000-000000000000' ]
+platform:        ios
+install-name:    /usr/lib/libSystem.B.dylib
+current-version: 1319.100.3
+compatibility-version: 1.0.0
+exports:
+  - archs:           [ arm64 ]
+    symbols:         [ ___stack_chk_guard, ___stack_chk_fail ]
+...
+EOF
+
+cat << 'EOF' > "$BUILD_DIR/sdk/usr/lib/libobjc.tbd"
+--- !tapi-tbd-v2
+archs:           [ arm64 ]
+uuids:           [ 'arm64: 00000000-0000-0000-0000-000000000000' ]
+platform:        ios
+install-name:    /usr/lib/libobjc.A.dylib
+current-version: 1.0.0
+compatibility-version: 1.0.0
+exports:
+  - archs:           [ arm64 ]
+    symbols:         [ _objc_allocateClassPair, _objc_registerClassPair, _class_addMethod, _objc_getClass, _sel_registerName, _objc_msgSend ]
+...
+EOF
+
+cat << 'EOF' > "$BUILD_DIR/sdk/System/Library/Frameworks/UIKit.framework/UIKit.tbd"
+--- !tapi-tbd-v2
+archs:           [ arm64 ]
+uuids:           [ 'arm64: 00000000-0000-0000-0000-000000000000' ]
+platform:        ios
+install-name:    /System/Library/Frameworks/UIKit.framework/UIKit
+current-version: 1.0.0
+compatibility-version: 1.0.0
+exports:
+  - archs:           [ arm64 ]
+    symbols:         [ _UIApplicationMain ]
+...
+EOF
+
+cat << 'EOF' > "$BUILD_DIR/sdk/System/Library/Frameworks/Foundation.framework/Foundation.tbd"
+--- !tapi-tbd-v2
+archs:           [ arm64 ]
+uuids:           [ 'arm64: 00000000-0000-0000-0000-000000000000' ]
+platform:        ios
+install-name:    /System/Library/Frameworks/Foundation.framework/Foundation
+current-version: 1.0.0
+compatibility-version: 1.0.0
+...
+EOF
+
+cat << 'EOF' > "$BUILD_DIR/sdk/System/Library/Frameworks/WebKit.framework/WebKit.tbd"
+--- !tapi-tbd-v2
+archs:           [ arm64 ]
+uuids:           [ 'arm64: 00000000-0000-0000-0000-000000000000' ]
+platform:        ios
+install-name:    /System/Library/Frameworks/WebKit.framework/WebKit
+current-version: 1.0.0
+compatibility-version: 1.0.0
+...
+EOF
+
+cat << 'EOF' > "$BUILD_DIR/sdk/System/Library/Frameworks/AVFoundation.framework/AVFoundation.tbd"
+--- !tapi-tbd-v2
+archs:           [ arm64 ]
+uuids:           [ 'arm64: 00000000-0000-0000-0000-000000000000' ]
+platform:        ios
+install-name:    /System/Library/Frameworks/AVFoundation.framework/AVFoundation
+current-version: 1.0.0
+compatibility-version: 1.0.0
+...
+EOF
 
 # 3. Write native iOS launcher source (Objective-C runtime based)
 cat << 'EOF' > "$BUILD_DIR/src/main.c"
@@ -77,6 +158,16 @@ extern id objc_msgSend(id self, SEL op, ...);
 
 extern int UIApplicationMain(int argc, char *argv[], void *principalClassName, void *delegateClassName);
 
+static id g_window = 0;
+
+static id getWindow(id self, SEL _cmd) {
+    return g_window;
+}
+
+static void setWindow(id self, SEL _cmd, id win) {
+    g_window = win;
+}
+
 static BOOL didFinishLaunching(id self, SEL _cmd, id application, id launchOptions) {
     Class UIScreen = objc_getClass("UIScreen");
     id mainScreen = ((id (*)(id, SEL))objc_msgSend)(UIScreen, sel_registerName("mainScreen"));
@@ -85,6 +176,7 @@ static BOOL didFinishLaunching(id self, SEL _cmd, id application, id launchOptio
     Class UIWindow = objc_getClass("UIWindow");
     id window = ((id (*)(id, SEL))objc_msgSend)(UIWindow, sel_registerName("alloc"));
     window = ((id (*)(id, SEL, CGRect))objc_msgSend)(window, sel_registerName("initWithFrame:"), bounds);
+    g_window = window;
 
     Class UIViewController = objc_getClass("UIViewController");
     id vc = ((id (*)(id, SEL))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)(UIViewController, sel_registerName("alloc")), sel_registerName("init"));
@@ -132,6 +224,8 @@ int main(int argc, char *argv[]) {
     Class UIResponder = objc_getClass("UIResponder");
     Class appDelegateClass = objc_allocateClassPair(UIResponder, "RecroAppDelegate", 0);
     class_addMethod(appDelegateClass, sel_registerName("application:didFinishLaunchingWithOptions:"), (void (*)(void))didFinishLaunching, "c@:@@");
+    class_addMethod(appDelegateClass, sel_registerName("window"), (void (*)(void))getWindow, "@@:");
+    class_addMethod(appDelegateClass, sel_registerName("setWindow:"), (void (*)(void))setWindow, "v@:@");
     objc_registerClassPair(appDelegateClass);
 
     Class NSString = objc_getClass("NSString");
@@ -141,10 +235,15 @@ int main(int argc, char *argv[]) {
 }
 EOF
 
-# 4. Compile Mach-O 64-bit ARM64 iOS Binary with Ad-Hoc Signature
-echo "🔨 Compiling native ARM64 iOS executable..."
+# 4. Compile Mach-O 64-bit ARM64 iOS Binary with Proper Dylib Load Commands
+echo "🔨 Compiling native ARM64 iOS executable with Framework links..."
 "$CLANG" -target arm64-apple-ios14.0 -O2 -c "$BUILD_DIR/src/main.c" -o "$BUILD_DIR/src/main.o"
-"$LD64" -arch arm64 -platform_version ios 14.0 14.0 -adhoc_codesign -o "$BUILD_DIR/Payload/Recro.app/Recro" "$BUILD_DIR/src/main.o" -undefined dynamic_lookup
+"$LD64" -arch arm64 -platform_version ios 14.0 14.0 -adhoc_codesign \
+  -syslibroot "$BUILD_DIR/sdk" \
+  -F "$BUILD_DIR/sdk/System/Library/Frameworks" \
+  -L "$BUILD_DIR/sdk/usr/lib" \
+  -lSystem -lobjc -framework UIKit -framework Foundation -framework WebKit -framework AVFoundation \
+  -o "$BUILD_DIR/Payload/Recro.app/Recro" "$BUILD_DIR/src/main.o"
 chmod +x "$BUILD_DIR/Payload/Recro.app/Recro"
 
 # 5. Write Info.plist
@@ -171,10 +270,20 @@ cat << 'EOF' > "$BUILD_DIR/Payload/Recro.app/Info.plist"
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>iPhoneOS</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>MinimumOSVersion</key>
 	<string>14.0</string>
+	<key>DTPlatformName</key>
+	<string>iphoneos</string>
+	<key>DTSDKName</key>
+	<string>iphoneos18.0</string>
+	<key>UILaunchScreen</key>
+	<dict/>
 	<key>UIDeviceFamily</key>
 	<array>
 		<integer>1</integer>

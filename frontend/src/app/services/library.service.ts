@@ -2,7 +2,7 @@ import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angula
 import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist, ChartSummary, ChartDetail, ReleaseItem, HomeExploreData } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
-import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates, MONOBLOCK_NODE, MOSCOW_NODE, FRANKFURT_NODE } from '../models/cluster.config';
+import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates, MONOBLOCK_NODE, MOSCOW_NODE, FRANKFURT_NODE, getNodeDisplayName } from '../models/cluster.config';
 
 export interface ExtractedResult {
   playlistTitle: string | null;
@@ -39,6 +39,8 @@ export class LibraryService implements OnDestroy {
   }
 
   private activeBackendUrl = '';
+  readonly activeBackendUrlSignal = signal<string>(resolveDefaultBackend());
+  readonly activeNodeName = computed(() => getNodeDisplayName(this.activeBackendUrlSignal()));
 
   readonly offlineService = inject(OfflineService);
   readonly authService = inject(AuthService);
@@ -347,12 +349,12 @@ export class LibraryService implements OnDestroy {
         this.checkBackendHealth().then(() => {
           this.syncWithBackendOnStartup();
           this.startAutoSync();
-          this.startEdgeNodeMonitor();
+          this.startRealtimeClusterMonitor();
         });
       }, 50);
 
       window.addEventListener('online', () => {
-        this.checkBackendHealth();
+        this.checkBackendHealth(true);
       });
     } else {
       this.checkBackendHealth().then(() => {
@@ -390,47 +392,64 @@ export class LibraryService implements OnDestroy {
     }
   }
 
-  private startEdgeNodeMonitor() {
+  private lastFullClusterProbeTime = 0;
+
+  private startRealtimeClusterMonitor() {
     if (typeof window === 'undefined') return;
     if (this.edgeNodeMonitorInterval) clearInterval(this.edgeNodeMonitorInterval);
 
-    // Периодический мониторинг edge-ноды моноблока в реальном времени (каждые 15 секунд)
+    // Фоновый сторож кластера в реальном времени (каждые 8 секунд):
+    // Мгновенно подстраивается под актуальный хост при включении/выключении VPN без перезагрузки страницы!
     this.edgeNodeMonitorInterval = setInterval(async () => {
       try {
-        const monoRes = await fetch(`${MONOBLOCK_NODE}/api/health`, { signal: AbortSignal.timeout(1600) });
-        const isOnline = monoRes.ok;
-        if (isOnline !== this.isMonoblockOnline()) {
-          this.isMonoblockOnline.set(isOnline);
-          console.log(`[Cluster] Monoblock edge node status changed in real-time: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+        const cur = this.getBackendUrl();
 
-          if (isOnline) {
-            // Моноблок подключился в реальном времени! Мягко переводим запросы на моноблок
-            this.activeBackendUrl = MONOBLOCK_NODE;
-            try { localStorage.setItem('recro_fastest_backend', MONOBLOCK_NODE); } catch {}
-            this.authService.setActiveBackendUrl(MONOBLOCK_NODE);
-            this.connectRealtimeSync();
-          } else if (this.activeBackendUrl === MONOBLOCK_NODE) {
-            // Моноблок отключился: мгновенный фоллбэк на Москву
-            console.warn('[Cluster] Monoblock disconnected, failing over to Moscow VPS');
-            this.activeBackendUrl = MOSCOW_NODE;
-            try { localStorage.setItem('recro_fastest_backend', MOSCOW_NODE); } catch {}
-            this.authService.setActiveBackendUrl(MOSCOW_NODE);
-            this.connectRealtimeSync();
+        // 1. Проверяем текущий активный узел сверхбыстрым пингом (1200мс)
+        let curHealthy = false;
+        try {
+          const curRes = await fetch(`${cur}/api/health?_t=${Date.now()}`, {
+            signal: AbortSignal.timeout(1200),
+            cache: 'no-store',
+          });
+          curHealthy = curRes.ok;
+        } catch {
+          curHealthy = false;
+        }
+
+        // 2. Если текущий узел перестал отвечать (например, пользователь включил/выключил VPN)
+        if (!curHealthy) {
+          console.warn(`[Cluster] Active node ${cur} stopped responding (VPN switched?). Triggering real-time failover race...`);
+          await this.checkBackendHealth(true);
+        } else {
+          // 3. Периодически (каждые 24с) проверяем альтернативные ноды, если появился более приоритетный/быстрый узел (моноблок или Франкфурт)
+          const now = Date.now();
+          if (now - this.lastFullClusterProbeTime > 24_000) {
+            this.lastFullClusterProbeTime = now;
+            await this.checkBackendHealth(true);
           }
         }
-      } catch {
-        if (this.isMonoblockOnline()) {
-          this.isMonoblockOnline.set(false);
-          console.warn('[Cluster] Monoblock edge node went OFFLINE, failing over to Moscow VPS');
-          if (this.activeBackendUrl === MONOBLOCK_NODE) {
-            this.activeBackendUrl = MOSCOW_NODE;
-            try { localStorage.setItem('recro_fastest_backend', MOSCOW_NODE); } catch {}
-            this.authService.setActiveBackendUrl(MOSCOW_NODE);
-            this.connectRealtimeSync();
-          }
-        }
+      } catch {}
+    }, 8_000);
+
+    // Мгновенные триггеры при изменении состояния сети (VPN toggle, смена интерфейса, возврат во вкладку):
+    const handleNetworkStateChange = () => {
+      console.log('[Cluster] Network state change event detected. Probing cluster in real-time...');
+      this.checkBackendHealth(true);
+    };
+
+    window.addEventListener('online', handleNetworkStateChange);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        // Пользователь переключился обратно из приложения VPN (Wireguard, Outline, OpenVPN) в плеер
+        handleNetworkStateChange();
       }
-    }, 15_000);
+    });
+
+    if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+      try {
+        (navigator as any).connection?.addEventListener('change', handleNetworkStateChange);
+      } catch {}
+    }
   }
 
   connectRealtimeSync() {
@@ -715,43 +734,76 @@ export class LibraryService implements OnDestroy {
 
   private activeHealthCheckPromise: Promise<string> | null = null;
 
-  checkBackendHealth(): Promise<string> {
-    if (this.activeHealthCheckPromise) {
+  applyClusterNode(winner: string, reason: string): boolean {
+    const previous = this.activeBackendUrl;
+    const isFirstRun = !previous;
+    const hasChanged = Boolean(previous && previous !== winner);
+
+    this.activeBackendUrl = winner;
+    this.activeBackendUrlSignal.set(winner);
+    try {
+      localStorage.setItem('recro_fastest_backend', winner);
+    } catch {}
+
+    this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    this.isMonoblockOnline.set(winner === MONOBLOCK_NODE);
+    this.authService.setActiveBackendUrl(winner);
+    this.authService.verifyRemoteSession(winner);
+
+    if (hasChanged) {
+      console.log(`[Cluster] ⚡ Real-time failover executed: ${previous} -> ${winner} (reason: ${reason})`);
+      this.coverUrlCache.clear();
+      this.connectRealtimeSync();
+
+      const nodeName = getNodeDisplayName(winner);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('recro:cluster-failover', {
+            detail: {
+              previousNode: previous,
+              activeNode: winner,
+              reason,
+              nodeName,
+            },
+          })
+        );
+      }
+    } else if (isFirstRun) {
+      this.connectRealtimeSync();
+    }
+
+    return hasChanged;
+  }
+
+  checkBackendHealth(force = false): Promise<string> {
+    if (this.activeHealthCheckPromise && !force) {
       return this.activeHealthCheckPromise;
     }
 
     this.activeHealthCheckPromise = (async () => {
       try {
-        // Быстрая параллельная гонка всех узлов с таймаутом 2с:
-        // Побеждает первый ответивший здоровый узел без блокировки!
+        // Быстрая параллельная гонка всех узлов кластера с анти-кэшем и таймаутом 1.5с:
+        // Побеждает первый ответивший здоровый узел без блокировки интерфейса!
         const candidates = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
         const pingNode = async (url: string): Promise<string> => {
-          const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(2000) });
+          const res = await fetch(`${url}/api/health?_t=${Date.now()}`, {
+            signal: AbortSignal.timeout(1500),
+            cache: 'no-store',
+          });
           if (res.ok) return url;
           throw new Error(`HTTP ${res.status}`);
         };
 
         const winner = await Promise.any(candidates.map((u) => pingNode(u)));
 
-        console.log(`[Cluster] Active node selected via fast race: ${winner}`);
-        this.activeBackendUrl = winner;
-        try {
-          localStorage.setItem('recro_fastest_backend', winner);
-        } catch {}
-        this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);
-        this.isMonoblockOnline.set(winner === MONOBLOCK_NODE);
-        this.authService.setActiveBackendUrl(this.activeBackendUrl);
-        this.authService.verifyRemoteSession(this.activeBackendUrl);
+        console.log(`[Cluster] Active node selected via fast race: ${winner} (${getNodeDisplayName(winner)})`);
+        this.applyClusterNode(winner, force ? 'forced_probe' : 'fast_race');
         return winner;
       } catch (e) {
         console.warn('[Cluster] Parallel health race failed, falling back to Moscow VPS:', e);
         const fallback = MOSCOW_NODE;
-        this.activeBackendUrl = fallback;
-        this.isBackendOnline.set(typeof navigator !== 'undefined' ? navigator.onLine : true);
-        this.isMonoblockOnline.set(false);
-        this.authService.setActiveBackendUrl(this.activeBackendUrl);
-        this.authService.verifyRemoteSession(this.activeBackendUrl);
+        this.applyClusterNode(fallback, 'fallback_error');
         return fallback;
       } finally {
         this.activeHealthCheckPromise = null;
@@ -767,7 +819,9 @@ export class LibraryService implements OnDestroy {
     const ordered = [current, ...cluster.filter((c) => c !== current)];
 
     let lastError: any = null;
+    let attemptIndex = 0;
     for (const baseUrl of ordered) {
+      attemptIndex++;
       try {
         const url = path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
         const controller = new AbortController();
@@ -778,16 +832,16 @@ export class LibraryService implements OnDestroy {
 
         if (res.ok) {
           if (this.activeBackendUrl !== baseUrl) {
-            this.activeBackendUrl = baseUrl;
-            try {
-              localStorage.setItem('recro_fastest_backend', baseUrl);
-            } catch {}
-            this.authService.setActiveBackendUrl(baseUrl);
+            this.applyClusterNode(baseUrl, 'failover_request');
           }
           return res;
         }
       } catch (err) {
         lastError = err;
+        // Если первый (активный) узел дал сбой, параллельно в фоне запускаем быструю перепроверку кластера
+        if (attemptIndex === 1) {
+          this.checkBackendHealth(true).catch(() => {});
+        }
       }
     }
     throw lastError || new Error(`All cluster nodes failed for ${path}`);
@@ -800,13 +854,7 @@ export class LibraryService implements OnDestroy {
     const nextIdx = curIdx >= 0 ? (curIdx + 1) % cluster.length : 0;
     const alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
     console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt}`);
-    this.activeBackendUrl = alt;
-    try {
-      localStorage.setItem('recro_fastest_backend', alt);
-    } catch {}
-    this.authService.setActiveBackendUrl(alt);
-    this.authService.verifyRemoteSession(alt);
-    this.connectRealtimeSync();
+    this.applyClusterNode(alt, 'manual_failover');
     return alt;
   }
 
@@ -1372,7 +1420,8 @@ export class LibraryService implements OnDestroy {
       }
     }
 
-    let hasNewLocal = false;
+    const cloudIds = new Set(cloudTracks.map((t) => t.id));
+    const hasNewLocal = localTracks.some((t) => t && t.id && !cloudIds.has(t.id) && !t.id.startsWith('default-track-') && !t.id.startsWith('radio-'));
 
     // 2. Добавляем обновления из облака и прикрепляем новые облачные треки в конец
     for (const ct of cloudTracks) {

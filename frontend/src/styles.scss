@@ -90,8 +90,8 @@ app-root {
   inset: 0;
 }
 
-/* Prevent iOS Safari from auto-zooming viewport on input focus */
-@media (max-width: 768px) {
+/* Prevent iOS Safari from auto-zooming viewport on input focus (applies to all touch devices) */
+@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
   input[type="text"],
   input[type="search"],
   input[type="password"],

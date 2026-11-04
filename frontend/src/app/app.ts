@@ -457,10 +457,17 @@ export class App implements OnInit {
       this.closeMobilePlaylists();
     }
 
-    this.openPwaInstallModal(platform);
+    if (!platform && this.canInstallPwa()) {
+      this.pwaService.promptInstall();
+      return;
+    }
+
+    this.openPwaInstallModal(platform || undefined);
   }
 
   readonly selectedLinuxDistro = signal<'pwa' | 'deb' | 'rpm' | 'appimage' | 'aur'>('pwa');
+  readonly selectedAndroidDistro = signal<'pwa' | 'apk'>('pwa');
+  readonly selectedIosDistro = signal<'pwa' | 'ipa'>('pwa');
 
   getDownloadButtonLabel(): string {
     const tab = this.installPlatformTab();
@@ -473,8 +480,28 @@ export class App implements OnInit {
       if (distro === 'rpm') return isRu ? 'Скачать .rpm' : 'Download .rpm';
       if (distro === 'appimage') return isRu ? 'Скачать AppImage' : 'Download AppImage';
     }
-    if (tab === 'android') return isRu ? 'Скачать APK' : 'Download APK';
-    if (tab === 'ios') return isRu ? 'Скачать IPA' : 'Download IPA';
+    if (tab === 'android') {
+      const distro = this.selectedAndroidDistro();
+      if (distro === 'pwa') {
+        if (this.pwaService.isStandalone()) return isRu ? 'Уже установлено' : 'Already installed';
+        return isRu ? 'Установить PWA на телефон' : 'Install PWA to Phone';
+      }
+      return isRu ? 'Скачать APK' : 'Download APK';
+    }
+    if (tab === 'ios') {
+      const distro = this.selectedIosDistro();
+      if (distro === 'pwa') {
+        if (this.pwaService.isInAppBrowser()) {
+          return isRu ? 'Скопировать ссылку для Safari' : 'Copy Link for Safari';
+        }
+        return isRu ? 'Понятно (Закрыть)' : 'Got It (Close)';
+      }
+      return isRu ? 'Скачать IPA' : 'Download IPA';
+    }
+    if (tab === 'windows' || tab === 'macos') {
+      if (this.pwaService.isStandalone()) return isRu ? 'Уже установлено' : 'Already installed';
+      return isRu ? 'Установить PWA' : 'Install PWA';
+    }
     return isRu ? 'Установить' : 'Install';
   }
 
@@ -499,14 +526,35 @@ export class App implements OnInit {
         this.copyInstallCommand('yay -S recro-bin');
       }
     } else if (tab === 'android') {
-      this.triggerDownload('/recro.apk', 'recro.apk');
+      const distro = this.selectedAndroidDistro();
+      if (distro === 'pwa') {
+        if (this.canInstallPwa()) {
+          this.pwaService.promptInstall();
+        } else {
+          this.showToast(this.i18n.currentLang() === 'ru' ? 'Нажмите меню ⋮ в браузере → «Установить приложение»' : 'Tap menu ⋮ in browser → "Install app"');
+        }
+      } else {
+        this.triggerDownload('/recro.apk', 'recro.apk');
+      }
     } else if (tab === 'ios') {
-      this.triggerDownload('/recro.ipa', 'recro.ipa');
+      const distro = this.selectedIosDistro();
+      if (distro === 'pwa') {
+        if (this.pwaService.isInAppBrowser()) {
+          const currentUrl = typeof window !== 'undefined' ? window.location.origin : 'https://recro-player.vercel.app';
+          this.copyInstallCommand(currentUrl);
+          this.showToast(this.i18n.currentLang() === 'ru' ? 'Ссылка скопирована! Откройте её в Safari' : 'Link copied! Open it in Safari');
+        } else {
+          this.closePwaModal();
+          this.showToast(this.i18n.currentLang() === 'ru' ? 'Нажмите значок «Поделиться» (⎋) внизу Safari → «На экран Домой»' : 'Tap Share (⎋) in Safari → "Add to Home Screen"');
+        }
+      } else {
+        this.triggerDownload('/recro.ipa', 'recro.ipa');
+      }
     } else if (tab === 'windows' || tab === 'macos') {
       if (this.canInstallPwa()) {
         this.pwaService.promptInstall();
       } else {
-        this.showToast(this.i18n.currentLang() === 'ru' ? 'Для Windows и macOS доступна установка PWA' : 'For Windows and macOS install via PWA');
+        this.showToast(this.i18n.currentLang() === 'ru' ? 'Нажмите иконку установки в адресной строке браузера' : 'Click the install icon in your browser address bar');
       }
     }
   }

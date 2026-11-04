@@ -6,10 +6,19 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "window-controls-overlay"
+  ],
+  "orientation": "any",
   "background_color": "#09090b",
   "theme_color": "#09090b",
-  "categories": ["music", "entertainment", "audio"],
+  "categories": [
+    "music",
+    "entertainment",
+    "audio"
+  ],
   "prefer_related_applications": false,
   "icons": [
     {
@@ -35,6 +44,50 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Моя музыка",
+      "short_name": "Музыка",
+      "description": "Открыть библиотеку треков",
+      "url": "/?view=library",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Поиск",
+      "short_name": "Поиск",
+      "description": "Найти трек или радио",
+      "url": "/?view=search",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Моя волна",
+      "short_name": "Волна",
+      "description": "Умный поток музыки",
+      "url": "/?action=smart-mix",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

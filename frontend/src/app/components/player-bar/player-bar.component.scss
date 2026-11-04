@@ -1,14 +1,18 @@
 .app-player-bar {
-  height: 72px;
-  min-height: 72px;
+  height: calc(72px + max(env(safe-area-inset-bottom, 0px), 0px));
+  min-height: calc(72px + max(env(safe-area-inset-bottom, 0px), 0px));
   background-color: var(--bg-panel);
   border-top: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  gap: 24px;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-top: 0;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+  gap: 20px;
   z-index: 30;
+  box-sizing: border-box;
 
   .player-left {
     display: flex;
@@ -372,6 +376,82 @@
   width: 100%;
 }
 
+/* Tablet Breakpoint (769px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-player-bar {
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+    gap: 12px;
+    height: calc(68px + max(env(safe-area-inset-bottom, 0px), 0px));
+    min-height: calc(68px + max(env(safe-area-inset-bottom, 0px), 0px));
+
+    .player-left {
+      min-width: 140px;
+      max-width: 210px;
+      gap: 8px;
+
+      .now-playing-cover {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        min-height: 38px;
+      }
+
+      .player-track-title {
+        font-size: 12px;
+      }
+
+      .player-track-artist {
+        font-size: 11px;
+      }
+
+      .player-fav-btn {
+        display: none !important;
+      }
+    }
+
+    .player-center {
+      flex: 1 1 0%;
+      min-width: 200px;
+
+      .player-buttons {
+        gap: 6px;
+
+        .ctrl-btn {
+          width: 30px;
+          height: 30px;
+        }
+
+        .play-main-btn {
+          width: 36px;
+          height: 36px;
+        }
+      }
+
+      .player-scrubber-row {
+        gap: 6px;
+
+        .time-display {
+          font-size: 10.5px;
+        }
+      }
+    }
+
+    .player-right {
+      min-width: auto;
+      gap: 6px;
+
+      .pip-btn {
+        display: none !important;
+      }
+
+      .vol-slider-wrap {
+        width: 50px;
+      }
+    }
+  }
+}
+
 @media (max-width: 768px) {
   .app-player-bar {
     position: relative;
@@ -386,7 +466,10 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid var(--border-subtle);
-    padding: 0 10px;
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+    padding-top: 0;
+    padding-bottom: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;

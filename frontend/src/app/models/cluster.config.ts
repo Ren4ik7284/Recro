@@ -54,3 +54,20 @@ export function getClusterCandidates(): string[] {
 
   return Array.from(new Set(candidates.map((u) => u.replace(/\/+$/, ''))));
 }
+
+export function getNodeDisplayName(url: string): string {
+  if (!url) return 'Основной сервер';
+  if (url.includes('177.3.217.64') || url.includes('recro.177.3.217.64') || url === FRANKFURT_NODE) {
+    return 'Франкфурт (VPN)';
+  }
+  if (url.includes('node-home') || url === MONOBLOCK_NODE) {
+    return 'Домашний моноблок';
+  }
+  if (url.includes('80.87.202.157') || url.includes('recro.80.87.202.157') || url === MOSCOW_NODE) {
+    return 'Москва (Прямой)';
+  }
+  if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    return 'Локальный сервер';
+  }
+  return 'Облачный узел';
+}

@@ -2679,6 +2679,16 @@
   @if (isPwaModalOpen()) {
     <div class="modal-backdrop" (click)="closePwaModal()">
       <div class="modal-dialog dotify-dialog" (click)="$event.stopPropagation()">
+        @if (pwaService.isInAppBrowser()) {
+          <div class="inapp-warning-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>{{ i18n.currentLang() === 'ru' ? 'Встроенный браузер (Telegram/VK) ограничивает фоновую музыку и PWA. Нажмите ⋯ вверху и откройте в Safari или Chrome.' : 'In-app browser detected. For background music and full PWA, open in Safari or Chrome via ⋯ menu.' }}</span>
+          </div>
+        }
+
         <!-- Top Pill OS Tabs: Windows, macOS, Linux, Android, iOS -->
         <div class="dotify-os-tabs">
           <button 
@@ -2811,25 +2821,131 @@
               }
             </div>
           } @else if (installPlatformTab() === 'android') {
-            <div class="dotify-row selected">
+            <!-- 1-Click PWA (Recommended) -->
+            <div 
+              class="dotify-row" 
+              [class.selected]="selectedAndroidDistro() === 'pwa'"
+              (click)="selectedAndroidDistro.set('pwa')"
+            >
+              <div class="dotify-info">
+                <span class="dotify-title">{{ i18n.currentLang() === 'ru' ? 'В 1 клик на телефон (PWA)' : '1-Click Install to Phone (PWA)' }}</span>
+                <span class="dotify-sub">{{ i18n.currentLang() === 'ru' ? 'Рекомендуется • Без загрузки файлов, автообновления' : 'Recommended • Instant launch, auto updates' }}</span>
+              </div>
+              @if (selectedAndroidDistro() === 'pwa') {
+                <div class="dotify-check">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              }
+            </div>
+
+            <!-- Standalone APK -->
+            <div 
+              class="dotify-row" 
+              [class.selected]="selectedAndroidDistro() === 'apk'"
+              (click)="selectedAndroidDistro.set('apk')"
+            >
               <div class="dotify-info">
                 <span class="dotify-title">Recro APK</span>
-                <span class="dotify-sub">apk, ARM64 / Universal</span>
+                <span class="dotify-sub">{{ i18n.currentLang() === 'ru' ? 'Установочный файл .apk (прямая установка)' : 'Direct .apk install file' }}</span>
               </div>
-              <div class="dotify-check">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
+              @if (selectedAndroidDistro() === 'apk') {
+                <div class="dotify-check">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              }
             </div>
+
+            @if (selectedAndroidDistro() === 'pwa' && !canInstallPwa() && !pwaService.isStandalone()) {
+              <div class="pwa-browser-tip">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                <span>{{ i18n.currentLang() === 'ru' ? 'В Chrome / Edge: нажмите меню ⋮ в правом верхнем углу → «Установить приложение» или «Добавить на главный экран».' : 'In Chrome / Edge: tap menu ⋮ top right → "Install app" or "Add to Home screen".' }}</span>
+              </div>
+            }
           } @else if (installPlatformTab() === 'ios') {
-            <div class="dotify-row selected">
+            <!-- iOS Safari PWA (Recommended) -->
+            <div 
+              class="dotify-row" 
+              [class.selected]="selectedIosDistro() === 'pwa'"
+              (click)="selectedIosDistro.set('pwa')"
+            >
+              <div class="dotify-info">
+                <span class="dotify-title">{{ i18n.currentLang() === 'ru' ? 'На экран «Домой» (PWA Safari)' : 'Add to Home Screen (Safari PWA)' }}</span>
+                <span class="dotify-sub">{{ i18n.currentLang() === 'ru' ? 'Рекомендуется • Полноэкранный плеер без браузера' : 'Recommended • Fullscreen app without browser bars' }}</span>
+              </div>
+              @if (selectedIosDistro() === 'pwa') {
+                <div class="dotify-check">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              }
+            </div>
+
+            @if (selectedIosDistro() === 'pwa') {
+              <div class="ios-install-steps">
+                <div class="ios-step-item">
+                  <div class="ios-step-num font-mono">1</div>
+                  <div class="ios-step-content">
+                    <span class="ios-step-title">{{ i18n.currentLang() === 'ru' ? 'Нажмите значок «Поделиться»' : 'Tap the Share icon' }}</span>
+                    <span class="ios-step-subtext">
+                      {{ i18n.currentLang() === 'ru' ? 'В нижней панели Safari иконка со стрелочкой вверх' : 'In bottom toolbar of Safari (box with arrow up)' }}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block; vertical-align:middle; margin-left:2px;">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                        <polyline points="16 6 12 2 8 6"/>
+                        <line x1="12" y1="2" x2="12" y2="15"/>
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="ios-step-item">
+                  <div class="ios-step-num font-mono">2</div>
+                  <div class="ios-step-content">
+                    <span class="ios-step-title">{{ i18n.currentLang() === 'ru' ? 'Прокрутите и нажмите' : 'Scroll down and tap' }}</span>
+                    <span class="ios-step-highlight">«{{ i18n.currentLang() === 'ru' ? 'На экран «Домой»' : 'Add to Home Screen' }}»</span>
+                  </div>
+                </div>
+
+                <div class="ios-step-item">
+                  <div class="ios-step-num font-mono">3</div>
+                  <div class="ios-step-content">
+                    <span class="ios-step-title">{{ i18n.currentLang() === 'ru' ? 'Нажмите «Добавить»' : 'Tap "Add"' }}</span>
+                    <span class="ios-step-subtext">{{ i18n.currentLang() === 'ru' ? 'В правом верхнем углу. Иконка Recro появится на домашнем экране.' : 'In the top right corner. The Recro icon will appear on your home screen.' }}</span>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- Standalone IPA -->
+            <div 
+              class="dotify-row" 
+              [class.selected]="selectedIosDistro() === 'ipa'"
+              (click)="selectedIosDistro.set('ipa')"
+            >
               <div class="dotify-info">
                 <span class="dotify-title">Recro IPA</span>
-                <span class="dotify-sub">ipa, Sideload / AltStore</span>
+                <span class="dotify-sub">{{ i18n.currentLang() === 'ru' ? 'Для AltStore / Sideloadly / TrollStore' : 'For AltStore / Sideloadly / TrollStore' }}</span>
               </div>
-              <div class="dotify-check">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
+              @if (selectedIosDistro() === 'ipa') {
+                <div class="dotify-check">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              }
             </div>
+
+            @if (selectedIosDistro() === 'ipa') {
+              <div class="pwa-browser-tip" style="margin-top: 10px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                <span>
+                  {{ i18n.currentLang() === 'ru'
+                    ? 'При установке по сертификату: 1) Включите «Режим разработчика» (Настройки → Конфиденциальность и безопасность → Режим разработчика внизу). 2) Подтвердите доверие (Настройки → Основные → VPN и управление устройством → Доверять).'
+                    : 'When installing via certificate: 1) Enable "Developer Mode" (Settings → Privacy & Security → Developer Mode). 2) Trust the certificate (Settings → General → VPN & Device Management → Trust).'
+                  }}
+                </span>
+              </div>
+            }
           } @else if (installPlatformTab() === 'windows') {
             <div class="dotify-row selected">
               <div class="dotify-info">

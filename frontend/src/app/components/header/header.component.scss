@@ -1,15 +1,19 @@
 .app-header {
-  height: 56px;
-  min-height: 56px;
+  height: calc(56px + max(env(safe-area-inset-top, 0px), 0px));
+  min-height: calc(56px + max(env(safe-area-inset-top, 0px), 0px));
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
   background-color: var(--bg-sidebar);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-bottom: 0;
   gap: 16px;
   position: relative;
   z-index: 1000;
+  box-sizing: border-box;
 
   .header-left {
     display: flex;
@@ -563,6 +567,63 @@
   z-index: 500;
 }
 
+/* Tablet Breakpoint (769px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-header {
+    padding-left: max(14px, env(safe-area-inset-left, 0px));
+    padding-right: max(14px, env(safe-area-inset-right, 0px));
+    gap: 10px;
+
+    .header-left {
+      min-width: 130px;
+      flex-shrink: 0;
+
+      .brand-badge {
+        gap: 6px;
+        .brand-title { font-size: 14px; }
+        .brand-tag { display: none; }
+      }
+    }
+
+    .header-search {
+      flex: 1 1 0%;
+      min-width: 0;
+      max-width: 380px;
+
+      .search-box .search-input {
+        height: 36px;
+        font-size: 13px;
+      }
+    }
+
+    .header-actions {
+      gap: 6px;
+      flex-shrink: 0;
+
+      .backend-status-pill {
+        display: none !important;
+      }
+
+      .btn-pwa-install {
+        padding: 5px 9px;
+        font-size: 11px;
+      }
+
+      .btn-auth-trigger {
+        padding: 0 10px;
+        height: 34px;
+        font-size: 12px;
+      }
+
+      .btn-user-profile {
+        height: 34px;
+        padding: 0 8px 0 4px;
+        font-size: 12px;
+      }
+    }
+  }
+}
+
 @media (max-width: 768px) {
   .app-header {
     padding-top: max(env(safe-area-inset-top, 0px), 12px);
@@ -678,8 +739,40 @@
       white-space: nowrap;
     }
 
+    .btn-header-mymusic {
+      display: none !important;
+    }
+
     .btn-pwa-install span {
       display: none !important;
+    }
+  }
+}
+
+@media (max-width: 380px) {
+  .app-header {
+    gap: 4px;
+    padding-left: max(6px, env(safe-area-inset-left, 0px));
+    padding-right: max(6px, env(safe-area-inset-right, 0px));
+
+    .header-left .brand-badge .brand-title {
+      display: none !important;
+    }
+
+    .header-actions {
+      gap: 4px;
+
+      .btn-lang-toggle {
+        padding: 3px 5px;
+        font-size: 11px;
+      }
+
+      .btn-add-track,
+      .btn-auth-trigger {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 4px;
+      }
     }
   }
 }

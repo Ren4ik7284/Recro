@@ -524,9 +524,13 @@
 @media (max-width: 768px) {
   .vis-fullscreen-overlay {
     .vis-header {
-      padding: 0 14px;
-      height: 56px;
-      min-height: 56px;
+      padding-top: max(env(safe-area-inset-top, 0px), 8px);
+      padding-left: max(14px, env(safe-area-inset-left, 0px));
+      padding-right: max(14px, env(safe-area-inset-right, 0px));
+      padding-bottom: 8px;
+      height: auto;
+      min-height: calc(56px + max(env(safe-area-inset-top, 0px), 8px));
+      box-sizing: border-box;
       gap: 12px;
 
       .vis-track-info {
@@ -604,7 +608,8 @@
     }
 
     .vis-footer {
-      padding: 10px 14px 18px;
+      padding: 10px max(14px, env(safe-area-inset-right, 0px)) calc(18px + max(env(safe-area-inset-bottom, 0px), 8px)) max(14px, env(safe-area-inset-left, 0px));
+      box-sizing: border-box;
 
       .vis-playback-wrap {
         gap: 8px;

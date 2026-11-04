@@ -744,23 +744,32 @@ export class AudioService {
       if (stallTimer) clearTimeout(stallTimer);
       if (deepStallTimer) clearTimeout(deepStallTimer);
 
-      // Fast responsive nudge at 3.5s to prevent long awkward pauses
+      // Быстрая реакция на буферизацию/зависание потока при смене VPN (1.8с):
       stallTimer = setTimeout(() => {
         if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
-          console.warn('[AudioService] Playback buffer wait (>3.5s), nudging stream...');
-          this.audio.play().catch(() => {});
+          console.warn('[AudioService] Playback stall detected (>1.8s), testing real-time cluster health...');
+          this.libraryService.checkBackendHealth(true).then((winner) => {
+            if (this.isPlaying() && !this.audio.ended && this.audio.readyState < 3) {
+              const pos = this.currentTime();
+              console.warn(`[AudioService] Auto-recovering stalled stream at ${pos.toFixed(1)}s on node ${winner}`);
+              this.seek(pos, true);
+            }
+          }).catch(() => {
+            this.audio.play().catch(() => {});
+          });
         }
-      }, 3500);
+      }, 1800);
 
-      // Auto-recover stream position without skipping if frozen for >7s
+      // Глубокий стоп (>4.0с): принудительный переход на следующий альтернативный узел
       deepStallTimer = setTimeout(() => {
         if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
-          console.warn('[AudioService] Deep stall (>7s), auto-recovering stream position...');
-          const pos = this.currentTime();
-          this.seek(pos);
-          this.audio.play().catch(() => {});
+          console.warn('[AudioService] Deep stall (>4.0s), forcing cluster failover and recovery...');
+          this.libraryService.failoverBackend().then(() => {
+            const pos = this.currentTime();
+            this.seek(pos, true);
+          });
         }
-      }, 7000);
+      }, 4000);
     };
 
     const clearStall = () => {
@@ -953,8 +962,10 @@ export class AudioService {
       // 3. Преждевременный обрыв потока в середине/конце трека — бесшовно переподключаем с текущей секунды!
       if (this.prematureEndedRetryCount < 3) {
         this.prematureEndedRetryCount++;
-        console.warn(`[AudioService] Stream cut off prematurely at ${totalPlayed.toFixed(1)}s / ${dur}s, reconnecting from position (attempt ${this.prematureEndedRetryCount}/3)...`);
-        this.seek(totalPlayed, true);
+        console.warn(`[AudioService] Stream cut off prematurely at ${totalPlayed.toFixed(1)}s / ${dur}s, probing cluster health and reconnecting (attempt ${this.prematureEndedRetryCount}/3)...`);
+        this.libraryService.checkBackendHealth(true).finally(() => {
+          this.seek(totalPlayed, true);
+        });
         return;
       }
 
@@ -1031,6 +1042,55 @@ export class AudioService {
       window.addEventListener('focus', keepAudioAlive);
       window.addEventListener('blur', keepAudioAlive);
     }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('recro:cluster-failover', (event: any) => {
+        const detail = event?.detail;
+        this.handleRealtimeClusterFailover(
+          detail?.activeNode,
+          detail?.previousNode,
+          detail?.reason,
+          detail?.nodeName
+        );
+      });
+    }
+  }
+
+  private handleRealtimeClusterFailover(
+    newNode: string,
+    oldNode: string,
+    reason: string,
+    nodeName?: string
+  ) {
+    if (!newNode) return;
+    console.log(`[AudioService] ⚡ Real-time cluster failover: ${oldNode} -> ${newNode} (${reason})`);
+
+    const cur = this.currentTrack();
+    if (!cur) return;
+
+    // Обновляем аудио-ссылку текущего трека на новый активный хост
+    if (cur.audioUrl && cur.audioUrl.includes('/api/stream')) {
+      cur.audioUrl = this.formatStreamUrl(cur);
+    }
+
+    // Ситуация 1: Трек уже подгружен в кэш/буфер и играет гладко
+    const isSmoothlyPlaying = !this.audio.paused && !this.audio.ended && this.audio.readyState >= 3;
+    if (isSmoothlyPlaying) {
+      console.log('[AudioService] Audio is already buffered and playing smoothly. Keeping audio stream uninterrupted.');
+      // Инвалидируем предзагрузку следующего трека, чтобы он предзагрузился уже с нового хоста!
+      this.lastPreloadedTrackId = null;
+      this.preloadNextTrack();
+      this.notifyUser(`⚡ Сеть обновлена: активен узел ${nodeName || 'кластера'}`);
+      return;
+    }
+
+    // Ситуация 2: Поток завис, буферизуется или оборвался из-за смены VPN
+    if (this.isPlaying() && !this.audio.ended) {
+      const pos = this.currentTime();
+      console.warn(`[AudioService] Audio stream stalled or interrupted by VPN toggle. Seamlessly reconnecting at ${pos.toFixed(1)}s on ${nodeName}...`);
+      this.seek(pos, true);
+      this.notifyUser(`⚡ Сеть обновлена: ${nodeName || 'кластер'} (${Math.round(pos)} сек)`);
+    }
   }
 
   private handlePlaybackFailure(source: string) {
@@ -1058,39 +1118,49 @@ export class AudioService {
     if (!this.recService.isMixActive()) {
       this.consecutiveErrorCount++;
 
-      // Попытка 1: мгновенно переключить ноду кластера (Москва <-> Франкфурт) и повторить
+      // Попытка 1: мгновенно проверить здоровье кластера и повторить
       if (this.consecutiveErrorCount === 1) {
         const cur = this.currentTrack();
         if (cur) {
-          console.warn('[AudioService] Transient failure or stall, failing over cluster (attempt 1)...');
-          this.libraryService.failoverBackend();
-          const activeBase = this.libraryService.getBackendUrl();
-          const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
-          const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
-          const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
-          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
-          const updatedTrack = { ...cur, audioUrl: altUrl };
-          this.errorTimeoutId = setTimeout(() => {
-            this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
-          }, 150);
+          const pos = this.currentTime();
+          console.warn('[AudioService] Transient failure or stall, checking cluster health in real time (attempt 1)...');
+          this.libraryService.checkBackendHealth(true).then((activeBase) => {
+            const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
+            const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
+            const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
+            const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
+            const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.errorTimeoutId = setTimeout(() => {
+              if (pos > 2) {
+                this.seek(pos, true);
+              } else {
+                this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
+              }
+            }, 150);
+          });
           return;
         }
       }
 
-      // Попытка 2: повторить со вторым фоллбэком через search query на альтернативной ноде
+      // Попытка 2: принудительный фоллбэк на альтернативную ноду через search query
       if (this.consecutiveErrorCount === 2) {
         const cur = this.currentTrack();
         if (cur) {
+          const pos = this.currentTime();
           console.warn('[AudioService] Attempt 2: failover to alternative node with search query...');
-          this.libraryService.failoverBackend();
-          const activeBase = this.libraryService.getBackendUrl();
-          const cleanTitle = cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim();
-          const cleanArt = (cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim();
-          const altUrl = `${activeBase}/api/stream?url=${encodeURIComponent(`search:${cleanTitle} ${cleanArt}`.trim())}`;
-          const updatedTrack = { ...cur, audioUrl: altUrl };
-          this.errorTimeoutId = setTimeout(() => {
-            this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
-          }, 150);
+          this.libraryService.failoverBackend().then((activeBase) => {
+            const cleanTitle = cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim();
+            const cleanArt = (cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim();
+            const altUrl = `${activeBase}/api/stream?url=${encodeURIComponent(`search:${cleanTitle} ${cleanArt}`.trim())}`;
+            const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.errorTimeoutId = setTimeout(() => {
+              if (pos > 2) {
+                this.seek(pos, true);
+              } else {
+                this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
+              }
+            }, 150);
+          });
           return;
         }
       }
@@ -1108,21 +1178,26 @@ export class AudioService {
 
     if (this.recService.isMixActive()) {
       if (this.consecutiveErrorCount === 1) {
-        console.warn(`[AudioService] Transient failure in mix (attempt 1), failing over cluster immediately...`);
-        this.libraryService.failoverBackend();
+        console.warn(`[AudioService] Transient failure in mix (attempt 1), checking cluster health immediately...`);
         const cur = this.currentTrack();
         if (cur) {
-          const activeBase = this.libraryService.getBackendUrl();
-          const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
-          const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
-          const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
-          const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
-          const updatedTrack = { ...cur, audioUrl: altUrl };
-          this.errorTimeoutId = setTimeout(() => {
-            if (this.recService.isMixActive()) {
-              this.playTrack(updatedTrack, undefined, true);
-            }
-          }, 150);
+          const pos = this.currentTime();
+          this.libraryService.checkBackendHealth(true).then((activeBase) => {
+            const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
+            const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
+            const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
+            const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
+            const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.errorTimeoutId = setTimeout(() => {
+              if (this.recService.isMixActive()) {
+                if (pos > 2) {
+                  this.seek(pos, true);
+                } else {
+                  this.playTrack(updatedTrack, undefined, true);
+                }
+              }
+            }, 150);
+          });
           return;
         }
       }
@@ -1130,18 +1205,23 @@ export class AudioService {
       if (this.consecutiveErrorCount === 2) {
         const cur = this.currentTrack();
         if (cur && cur.title) {
+          const pos = this.currentTime();
           console.warn('[AudioService] Primary stream failed in mix (attempt 2), failing over cluster and resolving search stream...');
-          this.libraryService.failoverBackend();
-          const activeBase = this.libraryService.getBackendUrl();
-          const cleanTitle = cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim();
-          const cleanArt = (cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim();
-          const altUrl = `${activeBase}/api/stream?url=${encodeURIComponent(`search:${cleanTitle} ${cleanArt}`.trim())}`;
-          const updatedTrack = { ...cur, audioUrl: altUrl };
-          this.errorTimeoutId = setTimeout(() => {
-            if (this.recService.isMixActive()) {
-              this.playTrack(updatedTrack, undefined, true);
-            }
-          }, 150);
+          this.libraryService.failoverBackend().then((activeBase) => {
+            const cleanTitle = cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim();
+            const cleanArt = (cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim();
+            const altUrl = `${activeBase}/api/stream?url=${encodeURIComponent(`search:${cleanTitle} ${cleanArt}`.trim())}`;
+            const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.errorTimeoutId = setTimeout(() => {
+              if (this.recService.isMixActive()) {
+                if (pos > 2) {
+                  this.seek(pos, true);
+                } else {
+                  this.playTrack(updatedTrack, undefined, true);
+                }
+              }
+            }, 150);
+          });
           return;
         }
       }

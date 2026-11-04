@@ -11,6 +11,8 @@ export class PwaService {
 
   readonly isMobile = signal<boolean>(false);
   readonly isIos = signal<boolean>(false);
+  readonly isAndroid = signal<boolean>(false);
+  readonly isTablet = signal<boolean>(false);
   readonly isLinux = signal<boolean>(false);
   readonly isInAppBrowser = signal<boolean>(false);
   readonly isStandalone = signal<boolean>(false);
@@ -20,7 +22,7 @@ export class PwaService {
   readonly activeInstallTab = signal<InstallPlatform>('linux');
 
   readonly shouldShowInstallButton = computed(() => {
-    return this.isMobile() && !this.isStandalone();
+    return !this.isStandalone();
   });
 
   constructor() {
@@ -32,18 +34,33 @@ export class PwaService {
     if (typeof window === 'undefined') return;
 
     const ua = navigator.userAgent || '';
+    const platform = (navigator as any).platform || '';
 
-    const isIosDevice = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isIosDevice = /iPhone|iPad|iPod/i.test(ua) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     this.isIos.set(isIosDevice);
+
+    const isAndroidDevice = /Android/i.test(ua);
+    this.isAndroid.set(isAndroidDevice);
 
     const isInApp = /Telegram|VKApp|Instagram|FBAN|FBAV|Line|WeChat/i.test(ua);
     this.isInAppBrowser.set(isInApp);
 
+    // Tablet detection (iPad, iPad Pro, Android tablets, touch devices >= 600px width)
+    const width = typeof window !== 'undefined' ? window.innerWidth : 1024;
+    const height = typeof window !== 'undefined' ? window.innerHeight : 768;
+    const minDim = Math.min(width, height);
+    const isTabletCheck =
+      /iPad/i.test(ua) ||
+      (platform === 'MacIntel' && navigator.maxTouchPoints > 1 && width >= 768) ||
+      (isAndroidDevice && !/Mobile/i.test(ua)) ||
+      (minDim >= 600 && minDim <= 1024);
+    this.isTablet.set(isTabletCheck);
+
     // Only actual phones/mobile devices (iOS, Android, etc.) - never desktop/PC
-    const isMobileCheck = isIosDevice || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const isMobileCheck = isIosDevice || isAndroidDevice || /webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
     this.isMobile.set(isMobileCheck);
 
-    const isLinuxCheck = !isMobileCheck && /Linux/i.test(ua || (navigator as any).platform || '');
+    const isLinuxCheck = !isMobileCheck && /Linux/i.test(ua || platform);
     this.isLinux.set(isLinuxCheck);
 
     const isNativeApp =
@@ -162,8 +179,12 @@ export class PwaService {
       this.activeInstallTab.set(platform);
     } else if (this.isIos()) {
       this.activeInstallTab.set('ios');
-    } else if (this.isMobile()) {
+    } else if (this.isAndroid() || /Android/i.test(navigator.userAgent || '')) {
       this.activeInstallTab.set('android');
+    } else if (/Mac/i.test((navigator as any).platform || navigator.userAgent || '')) {
+      this.activeInstallTab.set('macos');
+    } else if (/Win/i.test((navigator as any).platform || navigator.userAgent || '')) {
+      this.activeInstallTab.set('windows');
     } else {
       this.activeInstallTab.set('linux');
     }
