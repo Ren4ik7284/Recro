@@ -346,18 +346,22 @@ export class LibraryService implements OnDestroy {
     this.initLibrary();
     if (typeof window !== 'undefined') {
       setTimeout(() => {
-        this.checkBackendHealth().then(() => {
+        // Cold start race: detect in 15-30ms if user is in RU without VPN or using VPN in Europe
+        this.checkBackendHealth(true).then((winner) => {
           this.syncWithBackendOnStartup();
           this.startAutoSync();
           this.startRealtimeClusterMonitor();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('recro:fastest-node-ready', { detail: { node: winner } }));
+          }
         });
-      }, 50);
+      }, 0);
 
       window.addEventListener('online', () => {
         this.checkBackendHealth(true);
       });
     } else {
-      this.checkBackendHealth().then(() => {
+      this.checkBackendHealth(true).then(() => {
         this.syncWithBackendOnStartup();
         this.startAutoSync();
       });
@@ -797,21 +801,26 @@ export class LibraryService implements OnDestroy {
           } catch {}
         }
 
-        // 2. Если текущий узел не ответил или вызов принудительный (force), выбираем доступный узел кластера
+        // 2. Если текущий узел не ответил или вызов принудительный (force), выбираем доступный узел кластера через параллельную гонку
         const candidates = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
         const pingNode = async (url: string): Promise<string> => {
+          const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
           const res = await fetch(`${url}/api/health?_t=${Date.now()}`, {
-            signal: AbortSignal.timeout(1500),
+            signal: AbortSignal.timeout(1200),
             cache: 'no-store',
           });
-          if (res.ok) return url;
+          if (res.ok) {
+            const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
+            console.log(`[Cluster] Node responded: ${getNodeDisplayName(url)} in ${rtt}ms (${url})`);
+            return url;
+          }
           throw new Error(`HTTP ${res.status}`);
         };
 
         const winner = await Promise.any(candidates.map((u) => pingNode(u)));
 
-        console.log(`[Cluster] Active node selected via fast race: ${winner} (${getNodeDisplayName(winner)})`);
+        console.log(`[Cluster] Fast race winner selected: ${winner} (${getNodeDisplayName(winner)})`);
         this.applyClusterNode(winner, force ? 'forced_probe' : 'fast_race');
         return winner;
       } catch (e) {
@@ -1715,6 +1724,13 @@ export class LibraryService implements OnDestroy {
     return tracks.map((t) => {
       let audioUrl = t.audioUrl || '';
       let coverUrl = t.coverUrl;
+
+      if (!audioUrl && t.title) {
+        const cleanTitle = encodeURIComponent((t.title || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
+        const cleanArtist = encodeURIComponent((t.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
+        const idParam = t.id && !t.id.startsWith('default-') && !t.id.startsWith('radio-') ? `&id=${encodeURIComponent(t.id)}` : '';
+        audioUrl = `${backendUrl || ''}/api/stream?title=${cleanTitle}&artist=${cleanArtist}${idParam}`;
+      }
 
       // Rewrites all /api/ endpoints (e.g. /api/stream, /api/cover) to current backendUrl,
       // regardless of whether they were originally stored with localhost, raw IP (80.87.202.157), or another domain

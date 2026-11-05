@@ -203,7 +203,7 @@ async fn proxy_direct_stream(
             res_headers.insert(header::CONTENT_RANGE, cr.clone());
         }
     } else {
-        res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("none"));
+        res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
     }
 
     let body = Body::from_stream(upstream.bytes_stream());
@@ -1293,7 +1293,7 @@ pub async fn stream_audio(
     let mut res_headers = HeaderMap::new();
     res_headers.insert(header::CONTENT_TYPE, cache_mime.parse().unwrap());
     res_headers.insert(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate".parse().unwrap());
-    res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("none"));
+    res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
     if is_lossless_requested {
         res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("lossless"));
         res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("flac"));

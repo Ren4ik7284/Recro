@@ -635,7 +635,7 @@ pub async fn fetch_deezer_related_artists(artist_name: &str) -> Vec<String> {
     }
 
     let client = match reqwest::Client::builder()
-        .timeout(Duration::from_millis(3000))
+        .timeout(Duration::from_millis(2000))
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .build()
     {
@@ -771,7 +771,7 @@ pub async fn fetch_deezer_artist_radio(artist_name: &str, limit: usize, base_url
     }
 
     let client = match reqwest::Client::builder()
-        .timeout(Duration::from_millis(3500))
+        .timeout(Duration::from_millis(2000))
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .build()
     {
@@ -1019,59 +1019,63 @@ pub async fn get_recommendations(
 
     if !artist.is_empty() {
         let is_russian = is_russian_artist(artist);
+        let feat_query = format!("{} feat", artist);
 
-        let dz_tracks = fetch_deezer_artist_radio(artist, limit * 2, &base_url).await;
+        // Run Deezer radio, feat search, and SoundCloud search concurrently in parallel!
+        let (dz_tracks, dz_feats, sc_res) = tokio::join!(
+            fetch_deezer_artist_radio(artist, limit * 2, &base_url),
+            execute_deezer_search(&feat_query, 6, &base_url),
+            state.soundcloud.search_tracks(artist, limit * 2, &base_url)
+        );
+
         for t in dz_tracks {
             if seen_ids.insert(t.id.clone()) {
                 tracks.push(t);
             }
         }
-
-        // Discover features and collaborations for this artist
-        let feat_query = format!("{} feat", artist);
-        let dz_feats = execute_deezer_search(&feat_query, 6, &base_url).await;
         for t in dz_feats {
             if seen_ids.insert(t.id.clone()) {
                 tracks.push(t);
             }
         }
 
+        let mut first_sc_id: Option<String> = None;
+        for t in sc_res {
+            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                && !is_noisy_compilation(&t.title)
+                && !is_junk_track(&t.title, &t.artist, is_russian)
+            {
+                if first_sc_id.is_none() {
+                    first_sc_id = Some(t.id.clone());
+                }
+                if seen_ids.insert(t.id.clone()) {
+                    tracks.push(t);
+                }
+            }
+        }
+
         if tracks.len() < limit * 2 {
             let rel_names = fetch_deezer_related_artists(artist).await;
-            for rel_name in rel_names.into_iter().take(3) {
-                if tracks.len() >= limit * 2 {
-                    break;
-                }
-                let rel_tracks = fetch_deezer_artist_radio(&rel_name, 5, &base_url).await;
-                for t in rel_tracks {
-                    if seen_ids.insert(t.id.clone()) {
-                        tracks.push(t);
+            if !rel_names.is_empty() {
+                let base_clone = base_url.clone();
+                let futures = rel_names.into_iter().take(3).map(|rel_name| {
+                    let b = base_clone.clone();
+                    async move {
+                        fetch_deezer_artist_radio(&rel_name, 5, &b).await
                     }
-                    if tracks.len() >= limit * 2 {
-                        break;
+                });
+                let rel_results = futures_util::future::join_all(futures).await;
+                for rel_tracks in rel_results {
+                    for t in rel_tracks {
+                        if seen_ids.insert(t.id.clone()) {
+                            tracks.push(t);
+                        }
                     }
                 }
             }
         }
 
         if tracks.len() < limit {
-            let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
-            let mut first_sc_id: Option<String> = None;
-            for t in sc_res {
-                if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
-                    && !is_noisy_compilation(&t.title)
-                    && !is_junk_track(&t.title, &t.artist, is_russian)
-                {
-                    if first_sc_id.is_none() {
-                        first_sc_id = Some(t.id.clone());
-                    }
-                    if seen_ids.insert(t.id.clone()) {
-                        tracks.push(t);
-                    }
-                }
-            }
-
-            // Query SoundCloud related tracks for the first track found for this artist
             if let Some(sc_id) = first_sc_id {
                 let sc_related = state.soundcloud.get_related_tracks(&sc_id, limit, &base_url).await;
                 for t in sc_related {
@@ -1195,7 +1199,15 @@ pub async fn get_similar_tracks(
 
     if !artist.is_empty() {
         let is_russian = is_russian_artist(artist);
-        let dz_tracks = fetch_deezer_artist_radio(artist, limit * 2, &base_url).await;
+        let feat_query = format!("{} feat", artist);
+
+        // Run Deezer radio, feat search, and SoundCloud search concurrently in parallel!
+        let (dz_tracks, dz_feats, sc_res) = tokio::join!(
+            fetch_deezer_artist_radio(artist, limit * 2, &base_url),
+            execute_deezer_search(&feat_query, 6, &base_url),
+            state.soundcloud.search_tracks(artist, limit * 2, &base_url)
+        );
+
         for t in dz_tracks {
             let norm_art = t.artist.to_lowercase();
             if seen_artists.contains(&norm_art) {
@@ -1207,9 +1219,6 @@ pub async fn get_similar_tracks(
             }
         }
 
-        // Discover features and collaborations for this artist
-        let feat_query = format!("{} feat", artist);
-        let dz_feats = execute_deezer_search(&feat_query, 6, &base_url).await;
         for t in dz_feats {
             let norm_art = t.artist.to_lowercase();
             if seen_ids.insert(t.id.clone()) {
@@ -1218,46 +1227,49 @@ pub async fn get_similar_tracks(
             }
         }
 
+        let mut first_sc_id: Option<String> = None;
+        for t in sc_res {
+            if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
+                && !is_noisy_compilation(&t.title)
+                && !is_junk_track(&t.title, &t.artist, is_russian)
+            {
+                if first_sc_id.is_none() {
+                    first_sc_id = Some(t.id.clone());
+                }
+                let norm_art = t.artist.to_lowercase();
+                if seen_artists.insert(norm_art) && seen_ids.insert(t.id.clone()) {
+                    tracks.push(t);
+                }
+            }
+        }
+
         if tracks.len() < limit * 2 {
             let rel_names = fetch_deezer_related_artists(artist).await;
-            for rel_name in rel_names.into_iter().take(4) {
-                if tracks.len() >= limit * 2 {
-                    break;
-                }
-                let rel_tracks = fetch_deezer_artist_radio(&rel_name, 5, &base_url).await;
-                for t in rel_tracks {
-                    let norm_art = t.artist.to_lowercase();
-                    if seen_artists.contains(&norm_art) {
-                        continue;
+            if !rel_names.is_empty() {
+                let base_clone = base_url.clone();
+                let futures = rel_names.into_iter().take(4).map(|rel_name| {
+                    let b = base_clone.clone();
+                    async move {
+                        fetch_deezer_artist_radio(&rel_name, 5, &b).await
                     }
-                    if seen_ids.insert(t.id.clone()) {
-                        seen_artists.insert(norm_art);
-                        tracks.push(t);
-                    }
-                    if tracks.len() >= limit * 2 {
-                        break;
+                });
+                let rel_results = futures_util::future::join_all(futures).await;
+                for rel_tracks in rel_results {
+                    for t in rel_tracks {
+                        let norm_art = t.artist.to_lowercase();
+                        if seen_artists.contains(&norm_art) {
+                            continue;
+                        }
+                        if seen_ids.insert(t.id.clone()) {
+                            seen_artists.insert(norm_art);
+                            tracks.push(t);
+                        }
                     }
                 }
             }
         }
-        if tracks.len() < limit {
-            let sc_res = state.soundcloud.search_tracks(artist, limit * 2, &base_url).await;
-            let mut first_sc_id: Option<String> = None;
-            for t in sc_res {
-                if (t.duration == 0.0 || (t.duration >= 50.0 && t.duration <= 500.0))
-                    && !is_noisy_compilation(&t.title)
-                    && !is_junk_track(&t.title, &t.artist, is_russian)
-                {
-                    if first_sc_id.is_none() {
-                        first_sc_id = Some(t.id.clone());
-                    }
-                    let norm_art = t.artist.to_lowercase();
-                    if seen_artists.insert(norm_art) && seen_ids.insert(t.id.clone()) {
-                        tracks.push(t);
-                    }
-                }
-            }
 
+        if tracks.len() < limit {
             if let Some(sc_id) = first_sc_id {
                 let sc_related = state.soundcloud.get_related_tracks(&sc_id, limit, &base_url).await;
                 for t in sc_related {

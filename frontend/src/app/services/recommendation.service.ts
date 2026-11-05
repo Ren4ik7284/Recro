@@ -2422,7 +2422,8 @@ export class RecommendationService {
       }
       this.onlineDiscoveryPool = bufferPool.slice(0, 60);
 
-      if (selectedTracks.length < count) {
+      // Only fall back to starter mix tracks if the user has a completely empty library (first-time user)
+      if (selectedTracks.length < count && candidates.length === 0) {
         const starters = this.getStarterCandidates(mood, count * 3, effectiveLang);
         for (const st of starters) {
           if (selectedTracks.length >= count) break;
@@ -2470,25 +2471,13 @@ export class RecommendationService {
         return true;
       });
 
-      // Count unique artists in the valid pool to detect small/monotone libraries
-      const uniqueArtists = new Set(valid.map((t) => normalizeArtist(t.artist)).filter(Boolean));
-
-      // For small libraries (< 8 unique artists in balanced mode), probabilistically
-      // fall through to discovery/starters to prevent the same track starting every day.
-      // The smaller the library, the higher the chance of picking from discovery instead.
-      if (source === 'balanced' && uniqueArtists.size < 8 && mood !== 'favorites') {
-        // Probability of skipping library starter: 70% for 1 artist, 50% for 3, ~15% for 7
-        const skipLibraryChance = Math.max(0.10, 0.80 - uniqueArtists.size * 0.10);
-        if (Math.random() < skipLibraryChance) {
-          // Fall through to discovery buffer and curated starters below
-          // (intentionally skip the library picker this time)
-        } else if (valid.length > 0) {
-          const picked = this.pickFromLibraryPool(valid);
-          if (picked) return picked;
-        }
-      } else if (valid.length > 0) {
+      if (valid.length > 0) {
         const picked = this.pickFromLibraryPool(valid);
         if (picked) return picked;
+        // If all valid tracks in library were recently used as starters, pick the least recent one
+        const nonRecent = valid.filter((t) => !this.isRecentStarter(t, 1));
+        const pool = nonRecent.length > 0 ? nonRecent : valid;
+        return pool[Math.floor(Math.random() * pool.length)];
       }
     }
 
@@ -2505,7 +2494,7 @@ export class RecommendationService {
       return pool[Math.floor(Math.random() * pool.length)];
     }
 
-    // 3. Fallback: Curated STARTER_MIX_TRACKS
+    // 3. Fallback: Curated STARTER_MIX_TRACKS if discovery buffer was empty
     const starters = this.getStarterCandidates(mood, 15, effectiveLang)
       .filter((t) => !this.isLibraryTrack(t));
     if (starters.length > 0) {

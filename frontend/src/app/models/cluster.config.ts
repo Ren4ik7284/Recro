@@ -1,11 +1,13 @@
 export const MOSCOW_NODE = 'https://recro-player.ru';
+export const MOSCOW_DIRECT_NODE = 'https://recro.80.87.202.157.sslip.io';
 export const FRANKFURT_NODE = 'https://recro.177.3.217.64.sslip.io';
 export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 
 export const CLUSTER_BACKENDS = [
-  MOSCOW_NODE,    // 1. Москва VPS / recro-player.ru (без VPN в РФ)
-  FRANKFURT_NODE, // 2. Франкфурт VPS (с VPN / в Европе)
-  MONOBLOCK_NODE, // 3. Домашний моноблок (423GB RU cache)
+  MOSCOW_NODE,        // 1. Москва VPS / recro-player.ru (без VPN в РФ через Cloudflare)
+  MOSCOW_DIRECT_NODE, // 2. Москва VPS Прямой (прямой SSL без Cloudflare IPv6 задержек)
+  FRANKFURT_NODE,     // 3. Франкфурт VPS (с VPN / в Европе)
+  MONOBLOCK_NODE,     // 4. Домашний моноблок (423GB RU cache)
 ];
 
 export function resolveDefaultBackend(): string {

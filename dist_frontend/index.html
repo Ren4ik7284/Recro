@@ -55,13 +55,41 @@
     </div>
   </app-root>
   <script>
+    // Self-healing boot-guard: If the initial splash screen is still present after 4.5s
+    // (e.g. an old cached JS bundle failed with 404 on mobile), wipe old caches and reload
+    (function() {
+      var watchdog = setTimeout(function() {
+        var statusEl = document.getElementById('recro-status');
+        if (statusEl) {
+          statusEl.textContent = 'Обновление...';
+          if (window.caches) {
+            caches.keys().then(function(keys) {
+              return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+            }).then(function() {
+              if (navigator.serviceWorker) {
+                return navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  return Promise.all(regs.map(function(r) { return r.unregister(); }));
+                });
+              }
+            }).then(function() {
+              window.location.reload();
+            }).catch(function() {
+              window.location.reload();
+            });
+          } else {
+            window.location.reload();
+          }
+        }
+      }, 4500);
+    })();
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js?v=57').then(function(reg) {
+        navigator.serviceWorker.register('/sw.js?v=58').then(function(reg) {
           reg.update();
         }).catch(function() {});
       });
     }
   </script>
-<script src="main-WJY4SZ4E.js" type="module"></script></body>
+<script src="main-IENSRJPY.js" type="module"></script></body>
 </html>
