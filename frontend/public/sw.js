@@ -83,9 +83,9 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         const cache = await caches.open(CACHE_NAME);
         try {
-          // Fetch fresh HTML from network with a 2-second timeout so slow network or offline still works
+          // Fetch fresh HTML from network with a 5-second timeout so slow network, VPN or offline still works
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
 
           const networkResponse = await fetch(event.request, { signal: controller.signal });
           clearTimeout(timeoutId);
