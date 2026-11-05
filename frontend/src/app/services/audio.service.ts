@@ -1033,6 +1033,13 @@ export class AudioService {
           this.prewarmSmartWaveStarter().catch(() => {});
         }
       });
+
+      // Safety net: in case fastest-node-ready fired before AudioService attached listeners
+      setTimeout(() => {
+        if (!this.isPlaying() && !this.prewarmedWaveTrack()) {
+          this.prewarmSmartWaveStarter().catch(() => {});
+        }
+      }, 350);
     }
   }
 
@@ -2376,23 +2383,27 @@ export class AudioService {
           starter = null;
         }
 
-        // Proactively fetch a real personalized discovery track from the fastest cluster node!
-        if (!starter && this.recService.getAllLocalCandidates().length > 0) {
-          try {
-            const fresh = await this.recService.fetchOnlineDiscoveryTracks(3, new Set(), new Set(), null);
-            const pure = fresh.filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
-            if (pure.length > 0) {
-              starter = pure[0];
-            }
-          } catch {}
+        // 2a. Pre-buffered discoveries if available
+        if (!starter) {
+          const buffered = this.recService.getBufferedDiscoveries(effectiveLang, 5)
+            .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
+          if (buffered.length > 0) {
+            starter = buffered[0];
+          }
         }
 
-        if (!starter && this.recService.getAllLocalCandidates().length === 0) {
+        // 2b. Curated starter candidate for instant 0ms prewarm
+        if (!starter) {
           const starters = this.recService.getStarterCandidates(mood, 8, effectiveLang)
-            .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isRecentStarter(t, 5));
+            .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isRecentStarter(t, 4));
           if (starters.length > 0) {
             starter = starters[Math.floor(Math.random() * starters.length)] || null;
           }
+        }
+
+        // 2c. Non-blocking background fetch for fresh online discoveries
+        if (this.recService.getAllLocalCandidates().length > 0) {
+          this.recService.fetchOnlineDiscoveryTracks(4, new Set(), new Set(), null).catch(() => {});
         }
 
         if (!starter && offlineTracks.length > 0) {
@@ -2650,6 +2661,15 @@ export class AudioService {
       }
     }
 
+    // Pass 3: Safety net - ensure the wave queue never runs dry
+    if (strictlyUniqueTracks.length === 0) {
+      const fallbackStarters = this.recService.getStarterCandidates(mood, 10, effectiveLang)
+        .filter((t) => !existingQueueIds.has(t.id) && !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
+      if (fallbackStarters.length > 0) {
+        strictlyUniqueTracks.push(...fallbackStarters.slice(0, 3));
+      }
+    }
+
     if (strictlyUniqueTracks.length > 0) {
       this.queue.update((curQ) => [...curQ, ...strictlyUniqueTracks]);
       // Note: next track prefetch is handled in timeupdate when nearing completion (>75%),
@@ -2780,31 +2800,28 @@ export class AudioService {
     } else {
       // Instant discovery start: check pre-buffered discoveries or curated non-library starters
       let discoveryTracks = this.recService.getBufferedDiscoveries(effectiveLang, 5)
-        .filter((t) => !this.recService.isLibraryTrack(t));
+        .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
 
       if (discoveryTracks.length === 0) {
-        if (candidates.length > 0) {
+        const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
+          .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
+        if (starters.length > 0) {
+          discoveryTracks = starters.slice(0, 4);
+          // Фоновая подгрузка онлайн-открытий без блокировки запуска плеера (0 мс старт):
+          this.recService.fetchOnlineDiscoveryTracks(4, new Set(starters.map((t) => t.id)), new Set(), starters[0])
+            .then((fetched) => {
+              const pure = fetched.filter((t) => !this.recService.isLibraryTrack(t));
+              if (pure.length > 0) {
+                this.queue.update((cur) => [...cur, ...pure]);
+                this.preloadNextTrack();
+              }
+            })
+            .catch(() => {});
+        } else if (candidates.length > 0) {
           try {
             const fetched = await this.recService.fetchOnlineDiscoveryTracks(5, new Set(), new Set(), null);
             discoveryTracks = fetched.filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
           } catch {}
-        }
-        if (discoveryTracks.length === 0) {
-          const starters = this.recService.getStarterCandidates(mood, 6, effectiveLang)
-            .filter((t) => !this.recService.isLibraryTrack(t) && !this.recService.isSessionDuplicate(t));
-          if (starters.length > 0) {
-            discoveryTracks = starters.slice(0, 4);
-            // Фоновая подгрузка онлайн-открытий без блокировки запуска плеера:
-            this.recService.fetchOnlineDiscoveryTracks(4, new Set(starters.map((t) => t.id)), new Set(), starters[0])
-              .then((fetched) => {
-                const pure = fetched.filter((t) => !this.recService.isLibraryTrack(t));
-                if (pure.length > 0) {
-                  this.queue.update((cur) => [...cur, ...pure]);
-                  this.preloadNextTrack();
-                }
-              })
-              .catch(() => {});
-          }
         }
       }
 

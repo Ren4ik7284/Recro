@@ -804,21 +804,51 @@ export class LibraryService implements OnDestroy {
         // 2. Если текущий узел не ответил или вызов принудительный (force), выбираем доступный узел кластера через параллельную гонку
         const candidates = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
 
-        const pingNode = async (url: string): Promise<string> => {
+        interface NodePingResult {
+          url: string;
+          rtt: number;
+        }
+
+        const pingNode = async (url: string): Promise<NodePingResult> => {
           const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+          const timeout = url.includes('node-home') ? 700 : 1200;
           const res = await fetch(`${url}/api/health?_t=${Date.now()}`, {
-            signal: AbortSignal.timeout(1200),
+            signal: AbortSignal.timeout(timeout),
             cache: 'no-store',
           });
           if (res.ok) {
             const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
             console.log(`[Cluster] Node responded: ${getNodeDisplayName(url)} in ${rtt}ms (${url})`);
-            return url;
+            return { url, rtt };
           }
           throw new Error(`HTTP ${res.status}`);
         };
 
-        const winner = await Promise.any(candidates.map((u) => pingNode(u)));
+        const settled = await Promise.allSettled(candidates.map((u) => pingNode(u)));
+        const successful = settled
+          .filter((r): r is PromiseFulfilledResult<NodePingResult> => r.status === 'fulfilled')
+          .map((r) => r.value)
+          .sort((a, b) => a.rtt - b.rtt);
+
+        if (successful.length === 0) {
+          throw new Error('All cluster nodes unreachable');
+        }
+
+        let winner = successful[0].url;
+
+        // Оптимизация для пользователей под VPN в Европе:
+        // Cloudflare Anycast (recro-player.ru) всегда отдает ложно-низкий пинг (15-20мс) из-за локального SSL-проксирования,
+        // но сам сервер находится в РФ, где SoundCloud заблокирован, а YouTube замедлен.
+        // Если Франкфурт (европейский VPS) доступен и отвечает быстро (< 350мс):
+        // Приоритезируем Франкфурт, так как на нем стримы отдаются мгновенно за 1 сек без проксирования через Москву!
+        const frankfurt = successful.find((s) => s.url === FRANKFURT_NODE);
+        if (frankfurt && frankfurt.rtt <= 350) {
+          const fastest = successful[0];
+          if (fastest.url === MOSCOW_NODE && frankfurt.rtt < fastest.rtt + 160) {
+            console.log(`[Cluster] VPN / Europe connection detected: prioritizing Frankfurt VPS (${frankfurt.rtt}ms) for unblocked direct streaming.`);
+            winner = FRANKFURT_NODE;
+          }
+        }
 
         console.log(`[Cluster] Fast race winner selected: ${winner} (${getNodeDisplayName(winner)})`);
         this.applyClusterNode(winner, force ? 'forced_probe' : 'fast_race');
@@ -844,11 +874,16 @@ export class LibraryService implements OnDestroy {
     let lastError: any = null;
     let attemptIndex = 0;
     for (const baseUrl of ordered) {
+      // Не зависать на выключенном домашнем моноблоке при фейловере
+      if (baseUrl.includes('node-home') && !this.isMonoblockOnline()) {
+        continue;
+      }
       attemptIndex++;
       try {
         const url = path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const effectiveTimeout = baseUrl.includes('node-home') ? 750 : timeoutMs;
+        const timer = setTimeout(() => controller.abort(), effectiveTimeout);
 
         const res = await fetch(url, { ...init, signal: controller.signal });
         clearTimeout(timer);
