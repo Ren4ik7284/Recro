@@ -30,7 +30,7 @@
     </div>
     @if (audioService.currentTrack(); as cur) {
       <button 
-        class="player-fav-btn desktop-only" 
+        class="player-fav-btn player-btn-like desktop-only" 
         [class.favorited]="libraryService.isTrackFavorite(cur)"
         (click)="toggleFavorite(cur); $event.stopPropagation()"
         [title]="i18n.t('player.like') + ' (L)'"
@@ -41,7 +41,7 @@
       </button>
 
       <button 
-        class="player-fav-btn desktop-only" 
+        class="player-fav-btn player-btn-playlist desktop-only" 
         (click)="openAddToPlaylist.emit(cur); $event.stopPropagation()"
         [title]="i18n.t('player.addToPlaylist')"
       >
@@ -52,7 +52,7 @@
       </button>
 
       <button 
-        class="player-fav-btn player-dislike-btn desktop-only" 
+        class="player-fav-btn player-dislike-btn player-btn-dislike desktop-only" 
         (click)="audioService.dislikeCurrentTrack(); $event.stopPropagation()"
         [title]="i18n.t('player.dislike')"
       >
@@ -64,7 +64,7 @@
 
       @if (!cur.isLiveStream) {
         <button 
-          class="player-fav-btn desktop-only" 
+          class="player-fav-btn player-btn-offline desktop-only" 
           [class.favorited]="offlineService.isTrackOffline(cur.id)"
           (click)="toggleOfflineTrack(cur); $event.stopPropagation()"
           [title]="offlineService.isTrackOffline(cur.id) ? i18n.t('player.savedOffline') : i18n.t('player.downloadOffline')"
@@ -284,11 +284,11 @@
     </div>
 
     <!-- Mini Visualizer (Desktop) -->
-    <app-visualizer [mode]="'mini'" class="desktop-only"></app-visualizer>
+    <app-visualizer [mode]="'mini'" class="desktop-only bar-visualizer"></app-visualizer>
 
     <!-- Audio Effects Toggles -->
     <button 
-      class="utility-btn ls-btn" 
+      class="utility-btn ls-btn bar-effect-ls" 
       [class.active]="audioService.isLosslessScalingActive()"
       (click)="audioService.cycleLosslessScaling()"
       [title]="audioService.getLosslessScalingTooltip()"
@@ -298,7 +298,7 @@
     </button>
 
     <button 
-      class="utility-btn lossless-btn" 
+      class="utility-btn lossless-btn bar-effect-quality" 
       [class.active]="audioService.audioQuality() !== 'auto'"
       (click)="audioService.cycleAudioQuality()"
       [title]="audioService.audioQuality() === 'auto' ? (i18n.currentLang() === 'ru' ? 'Качество: AUTO (нажмите для переключения)' : 'Quality: AUTO (click to change)') : (i18n.currentLang() === 'ru' ? 'Качество: ' + (audioService.audioQuality() === 'lossless' ? 'Lossless FLAC' : audioService.audioQuality().toUpperCase()) : 'Quality: ' + (audioService.audioQuality() === 'lossless' ? 'Lossless FLAC' : audioService.audioQuality().toUpperCase()))"
@@ -308,7 +308,7 @@
     </button>
 
     <button 
-      class="utility-btn" 
+      class="utility-btn bar-effect-norm" 
       [class.active]="audioService.isNormalizationEnabled()"
       (click)="audioService.toggleNormalization()"
       [title]="audioService.isNormalizationEnabled() ? i18n.t('player.normOn') : i18n.t('player.normOff')"
@@ -318,7 +318,7 @@
     </button>
 
     <button 
-      class="utility-btn" 
+      class="utility-btn bar-effect-fade" 
       [class.active]="audioService.isCrossfadeEnabled()"
       (click)="audioService.toggleCrossfade()"
       [title]="i18n.currentLang() === 'ru' ? (audioService.isCrossfadeEnabled() ? 'Fade: Плавное затухание и перекрестный переход между треками (ВКЛ)' : 'Fade: Плавный переход между треками (ВЫКЛ)') : (audioService.isCrossfadeEnabled() ? 'Crossfade: Smooth track fade transition (ON)' : 'Crossfade: Smooth track transition (OFF)')"
@@ -328,7 +328,7 @@
     </button>
 
     <button 
-      class="utility-btn desktop-only" 
+      class="utility-btn desktop-only bar-effect-glow" 
       [class.active]="ambientService.isEnabled() && !bgService.hasCustomWallpaper()"
       [disabled]="bgService.hasCustomWallpaper()"
       (click)="toggleAmbientGlow()"
