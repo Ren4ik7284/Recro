@@ -743,6 +743,20 @@ pub async fn stream_audio(
                 if let Some(u) = state.soundcloud.resolve_stream_by_permalink(&target).await {
                     direct_url = u;
                 }
+            } else if !CLOUD_FALLBACK_URL.is_empty() {
+                // В РФ SoundCloud заблокирован — мгновенно стримим через европейский узел без 5-секундного таймаута локального yt-dlp!
+                if let Some(resp) = try_cloud_stream(
+                    &state.http_client,
+                    &params,
+                    &target,
+                    &headers,
+                    &cache_file_path,
+                    cache_mime,
+                    is_lossless_requested,
+                    Duration::from_secs(12),
+                ).await {
+                    return Ok(resp);
+                }
             } else {
                 let mut sc_cmd = Command::new(&yt_cmd);
                 apply_yt_dlp_common_args_no_cookies(&mut sc_cmd);

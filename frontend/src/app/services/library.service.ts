@@ -402,13 +402,13 @@ export class LibraryService implements OnDestroy {
     if (typeof window === 'undefined') return;
     if (this.edgeNodeMonitorInterval) clearInterval(this.edgeNodeMonitorInterval);
 
-    // Фоновый сторож кластера в реальном времени (каждые 8 секунд):
-    // Мгновенно подстраивается под актуальный хост при включении/выключении VPN без перезагрузки страницы!
+    // Фоновый сторож кластера в реальном времени (каждые 15 секунд):
+    // Подстраивается под актуальный хост при включении/выключении VPN без перезагрузки страницы!
     this.edgeNodeMonitorInterval = setInterval(async () => {
       try {
         const cur = this.getBackendUrl();
 
-        // 1. Проверяем текущий активный узел сверхбыстрым пингом (1200мс)
+        // 1. Проверяем текущий активный узел быстрым пингом (1200мс)
         let curHealthy = false;
         try {
           const curRes = await fetch(`${cur}/api/health?_t=${Date.now()}`, {
@@ -420,20 +420,14 @@ export class LibraryService implements OnDestroy {
           curHealthy = false;
         }
 
-        // 2. Если текущий узел перестал отвечать (например, пользователь включил/выключил VPN)
+        // 2. Если текущий узел перестал отвечать (например, пользователь переключил VPN):
+        // только тогда запускаем перепроверку кластера (failover)
         if (!curHealthy) {
           console.warn(`[Cluster] Active node ${cur} stopped responding (VPN switched?). Triggering real-time failover race...`);
           await this.checkBackendHealth(true);
-        } else {
-          // 3. Периодически (каждые 24с) проверяем альтернативные ноды, если появился более приоритетный/быстрый узел (моноблок или Франкфурт)
-          const now = Date.now();
-          if (now - this.lastFullClusterProbeTime > 24_000) {
-            this.lastFullClusterProbeTime = now;
-            await this.checkBackendHealth(true);
-          }
         }
       } catch {}
-    }, 8_000);
+    }, 15_000);
 
     // Мгновенные триггеры при изменении состояния сети (VPN toggle, смена интерфейса, возврат во вкладку):
     const handleNetworkStateChange = () => {
@@ -802,7 +796,11 @@ export class LibraryService implements OnDestroy {
         }
 
         // 2. Если текущий узел не ответил или вызов принудительный (force), выбираем доступный узел кластера через параллельную гонку
-        const candidates = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
+        const candidates = getClusterCandidates().filter((u) => {
+          if (u.includes('vercel.app')) return false;
+          if (u.includes('node-home') && !this.isMonoblockOnline()) return false;
+          return true;
+        });
 
         interface NodePingResult {
           url: string;

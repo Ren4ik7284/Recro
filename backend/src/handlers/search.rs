@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 
-use crate::config::{apply_yt_dlp_common_args, get_base_url, get_yt_dlp_cmd, is_cloud_env, CLOUD_FALLBACK_URL};
+use crate::config::{apply_yt_dlp_common_args, get_base_url, get_yt_dlp_cmd, is_cloud_env, is_frankfurt, CLOUD_FALLBACK_URL};
 use crate::models::{ChartArtist, ExtractParams, ExtractResponse, SearchParams, SearchTrack};
 use crate::security::{check_rate_limit, check_url_ssrf, get_client_ip};
 use crate::ytdlp::{execute_cloud_search, execute_yt_dlp_search, parse_track_json};
@@ -120,20 +120,22 @@ pub async fn search_music(
 
     // Fallback: If both Deezer and SoundCloud had no hits, fallback to YouTube search
     if combined.is_empty() {
-        let yt_arg = format!("ytsearch8:{}", query);
-        let yt_res = execute_yt_dlp_search(&yt_cmd, &yt_arg, 8, &base_url).await;
-        for t in yt_res {
-            if is_valid_duration(t.duration) && seen_ids.insert(t.id.clone()) {
-                combined.push(t);
+        if is_cloud_env() || is_frankfurt() {
+            let yt_arg = format!("ytsearch8:{}", query);
+            let yt_res = execute_yt_dlp_search(&yt_cmd, &yt_arg, 8, &base_url).await;
+            for t in yt_res {
+                if is_valid_duration(t.duration) && seen_ids.insert(t.id.clone()) {
+                    combined.push(t);
+                }
             }
-        }
-    }
-
-    if combined.is_empty() && !is_cloud_env() && !CLOUD_FALLBACK_URL.is_empty() {
-        let cloud_tracks = execute_cloud_search(query, &base_url).await;
-        for t in cloud_tracks {
-            if seen_ids.insert(t.id.clone()) {
-                combined.push(t);
+        } else if !CLOUD_FALLBACK_URL.is_empty() {
+            // В РФ YouTube замедлен/заблокирован, поэтому не висим на локальном yt-dlp,
+            // а сразу запрашиваем результаты у незаблокированного европейского узла во Франкфурте!
+            let cloud_tracks = execute_cloud_search(query, &base_url).await;
+            for t in cloud_tracks {
+                if seen_ids.insert(t.id.clone()) {
+                    combined.push(t);
+                }
             }
         }
     }

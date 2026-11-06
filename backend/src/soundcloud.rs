@@ -52,6 +52,11 @@ impl SoundCloudClient {
     }
 
     async fn fetch_fresh_client_id(&self) -> Option<String> {
+        // На узлах в РФ (Москва) SoundCloud заблокирован РКН — не тратим время на таймауты
+        if !crate::config::is_frankfurt() && !crate::config::CLOUD_FALLBACK_URL.is_empty() {
+            return None;
+        }
+
         let sc_html = self
             .http
             .get("https://soundcloud.com")
@@ -118,6 +123,28 @@ impl SoundCloudClient {
     }
 
     pub async fn search_tracks(&self, query: &str, limit: usize, base_url: &str) -> Vec<SearchTrack> {
+        // В РФ (на московском VPS) SoundCloud заблокирован РКН.
+        // Запрашиваем треки напрямую через европейский узел кластера (Франкфурт),
+        // чтобы поиск и «Моя Волна» не зависали на 6 секунд по таймауту!
+        if !crate::config::is_frankfurt() && !crate::config::CLOUD_FALLBACK_URL.is_empty() {
+            let cloud_sc_url = format!(
+                "{}/api/search?q={}",
+                crate::config::CLOUD_FALLBACK_URL,
+                urlencoding::encode(query)
+            );
+            if let Ok(resp) = self.http.get(&cloud_sc_url).timeout(Duration::from_millis(2500)).send().await {
+                if resp.status().is_success() {
+                    if let Ok(tracks) = resp.json::<Vec<SearchTrack>>().await {
+                        let sc_only: Vec<SearchTrack> = tracks.into_iter().filter(|t| t.id.starts_with("sc-")).collect();
+                        if !sc_only.is_empty() {
+                            return sc_only;
+                        }
+                    }
+                }
+            }
+            return Vec::new();
+        }
+
         let client_id = self.get_client_id().await;
         let url = format!(
             "https://api-v2.soundcloud.com/search/tracks?q={}&client_id={}&limit={}&offset=0",
