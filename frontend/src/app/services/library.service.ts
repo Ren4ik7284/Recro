@@ -836,18 +836,13 @@ export class LibraryService implements OnDestroy {
 
         let winner = successful[0].url;
 
-        // Оптимизация для пользователей под VPN в Европе:
-        // Cloudflare Anycast (recro-player.ru) всегда отдает ложно-низкий пинг (15-20мс) из-за локального SSL-проксирования,
-        // но сам сервер находится в РФ, где SoundCloud заблокирован, а YouTube замедлен.
-        // Если Франкфурт (европейский VPS) доступен и отвечает быстро (< 350мс):
-        // Приоритезируем Франкфурт, так как на нем стримы отдаются мгновенно за 1 сек без проксирования через Москву!
-        const frankfurt = successful.find((s) => s.url === FRANKFURT_NODE);
-        if (frankfurt && frankfurt.rtt <= 350) {
-          const fastest = successful[0];
-          if (fastest.url === MOSCOW_NODE && frankfurt.rtt < fastest.rtt + 160) {
-            console.log(`[Cluster] VPN / Europe connection detected: prioritizing Frankfurt VPS (${frankfurt.rtt}ms) for unblocked direct streaming.`);
-            winner = FRANKFURT_NODE;
-          }
+        // Если текущий хост пользователя recro-player.ru или 80.87.202.157, и он ответил успешно:
+        // Всегда остаемся на нем! Same-origin запросы работают без междоменных CORS-задержек
+        // и без риска блокировки сторонних динамических DNS-доменов (sslip.io) у интернет-провайдеров РФ.
+        const currentOrigin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin.replace(/\/+$/, '') : '';
+        const sameOriginNode = successful.find((s) => s.url === currentOrigin || (currentOrigin.includes('recro-player.ru') && s.url === MOSCOW_NODE));
+        if (sameOriginNode) {
+          winner = sameOriginNode.url;
         }
 
         console.log(`[Cluster] Fast race winner selected: ${winner} (${getNodeDisplayName(winner)})`);
