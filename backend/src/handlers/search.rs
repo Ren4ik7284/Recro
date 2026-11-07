@@ -741,7 +741,7 @@ pub fn is_russian_artist(name: &str) -> bool {
         "mukka", "playingtheangel", "zivert", "serega пират", "midix", "polmateri",
         "fallen777angel", "fortuna 812", "doxxxelll", "kristiee", "bond s knopkoy",
         "villian", "v!ll!an", "aquakey", "whole lotta swag", "4jaycard",
-        "onda andar", "ivycraft", "kudokushi", "odasu", "sh0tty", "eryn martin",
+        "onda andar", "ivycraft", "kudokushi", "odasu", "sh0tty",
         "mapt0v", "volhey", "автоспорт", "перемотка", "буерак", "дурной вкус",
         "увула", "ssshhhiiittt", "ssshhhiiittt!", "щенки", "свидетельство о смерти",
         "конец солнечных дней", "горемыка", "петля пристрастия", "дарья виардо",

@@ -618,7 +618,9 @@ pub async fn stream_audio(
     let _ = std::fs::create_dir_all(&cache_dir);
     let cache_file_path = format!("{}/{}", cache_dir, cache_filename);
 
-    if params.ss.unwrap_or(0) == 0 && !is_live {
+    let mut direct_url = String::new();
+
+    if !is_live {
         let is_transcoding = state
             .active_transcodes
             .lock()
@@ -648,55 +650,61 @@ pub async fn stream_audio(
                         return Ok(StatusCode::NO_CONTENT.into_response());
                     }
 
-                    let mut res_headers = HeaderMap::new();
-                    res_headers.insert(header::CONTENT_TYPE, cache_mime.parse().unwrap());
-                    res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
-                    res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, immutable"));
-                    if is_lossless_requested {
-                        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("lossless"));
-                        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("flac"));
-                        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("1411k"));
-                    } else {
-                        res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("high"));
-                        res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("mp3"));
-                        res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("320k"));
-                    }
-
-                    if let Some(range_header) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
-                        if let Some((start, end)) = parse_byte_range(range_header, total_size) {
-                            if file.seek(SeekFrom::Start(start)).await.is_ok() {
-                                let length_to_read = end - start + 1;
-                                let limited_reader = file.take(length_to_read);
-                                let stream = tokio_util::io::ReaderStream::new(limited_reader);
-                                let body = Body::from_stream(stream);
-
-                                res_headers.insert(header::CONTENT_LENGTH, length_to_read.to_string().parse().unwrap());
-                                res_headers.insert(header::CONTENT_RANGE, format!("bytes {}-{}/{}", start, end, total_size).parse().unwrap());
-
-                                return Ok((StatusCode::PARTIAL_CONTENT, res_headers, body).into_response());
-                            }
+                    if params.ss.unwrap_or(0) == 0 {
+                        let mut res_headers = HeaderMap::new();
+                        res_headers.insert(header::CONTENT_TYPE, cache_mime.parse().unwrap());
+                        res_headers.insert(header::ACCEPT_RANGES, header::HeaderValue::from_static("bytes"));
+                        res_headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, immutable"));
+                        if is_lossless_requested {
+                            res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("lossless"));
+                            res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("flac"));
+                            res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("1411k"));
                         } else {
-                            let mut err_headers = HeaderMap::new();
-                            err_headers.insert(header::CONTENT_RANGE, format!("bytes */{}", total_size).parse().unwrap());
-                            return Ok((StatusCode::RANGE_NOT_SATISFIABLE, err_headers, Body::empty()).into_response());
+                            res_headers.insert("X-Audio-Quality", header::HeaderValue::from_static("high"));
+                            res_headers.insert("X-Audio-Codec", header::HeaderValue::from_static("mp3"));
+                            res_headers.insert("X-Audio-Bitrate", header::HeaderValue::from_static("320k"));
                         }
-                    }
 
-                    let stream = tokio_util::io::ReaderStream::new(file);
-                    let body = Body::from_stream(stream);
-                    res_headers.insert(header::CONTENT_LENGTH, total_size.to_string().parse().unwrap());
-                    return Ok((StatusCode::OK, res_headers, body).into_response());
+                        if let Some(range_header) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
+                            if let Some((start, end)) = parse_byte_range(range_header, total_size) {
+                                if file.seek(SeekFrom::Start(start)).await.is_ok() {
+                                    let length_to_read = end - start + 1;
+                                    let limited_reader = file.take(length_to_read);
+                                    let stream = tokio_util::io::ReaderStream::new(limited_reader);
+                                    let body = Body::from_stream(stream);
+
+                                    res_headers.insert(header::CONTENT_LENGTH, length_to_read.to_string().parse().unwrap());
+                                    res_headers.insert(header::CONTENT_RANGE, format!("bytes {}-{}/{}", start, end, total_size).parse().unwrap());
+
+                                    return Ok((StatusCode::PARTIAL_CONTENT, res_headers, body).into_response());
+                                }
+                            } else {
+                                let mut err_headers = HeaderMap::new();
+                                err_headers.insert(header::CONTENT_RANGE, format!("bytes */{}", total_size).parse().unwrap());
+                                return Ok((StatusCode::RANGE_NOT_SATISFIABLE, err_headers, Body::empty()).into_response());
+                            }
+                        }
+
+                        let stream = tokio_util::io::ReaderStream::new(file);
+                        let body = Body::from_stream(stream);
+                        res_headers.insert(header::CONTENT_LENGTH, total_size.to_string().parse().unwrap());
+                        return Ok((StatusCode::OK, res_headers, body).into_response());
+                    } else {
+                        // params.ss > 0 and cache_file_path exists and is complete!
+                        // Fast seek on disk via ffmpeg without yt-dlp re-resolving!
+                        direct_url = cache_file_path.clone();
+                    }
                 }
             }
         }
     }
 
-    let mut direct_url = String::new();
-
-    if let Ok(guard) = state.stream_cache.lock() {
-        if let Some((cached_url, cached_at)) = guard.get(&cache_key) {
-            if cached_at.elapsed() < Duration::from_secs(600) {
-                direct_url = cached_url.clone();
+    if direct_url.is_empty() {
+        if let Ok(guard) = state.stream_cache.lock() {
+            if let Some((cached_url, cached_at)) = guard.get(&cache_key) {
+                if cached_at.elapsed() < Duration::from_secs(600) {
+                    direct_url = cached_url.clone();
+                }
             }
         }
     }
@@ -1113,23 +1121,26 @@ pub async fn stream_audio(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36".to_string(),
         "-referer".to_string(),
         referer.to_string(),
-        "-reconnect".to_string(),
-        "1".to_string(),
-        "-reconnect_streamed".to_string(),
-        "1".to_string(),
-        "-reconnect_on_network_error".to_string(),
-        "1".to_string(),
-        "-reconnect_on_http_error".to_string(),
-        "4xx,5xx".to_string(),
-        "-reconnect_delay_max".to_string(),
-        "5".to_string(),
-        "-seg_max_retry".to_string(),
-        "8".to_string(),
-        "-rw_timeout".to_string(),
-        "15000000".to_string(),
-        "-i".to_string(),
-        direct_url.clone(),
     ];
+
+    if direct_url.starts_with("http://") || direct_url.starts_with("https://") {
+        ffmpeg_args.extend([
+            "-reconnect".to_string(),
+            "1".to_string(),
+            "-reconnect_streamed".to_string(),
+            "1".to_string(),
+            "-reconnect_on_network_error".to_string(),
+            "1".to_string(),
+            "-reconnect_on_http_error".to_string(),
+            "4xx,5xx".to_string(),
+            "-reconnect_delay_max".to_string(),
+            "5".to_string(),
+            "-seg_max_retry".to_string(),
+            "8".to_string(),
+            "-rw_timeout".to_string(),
+            "15000000".to_string(),
+        ]);
+    }
 
     if let Some(seek_sec) = params.ss {
         if seek_sec > 0 {
@@ -1137,6 +1148,9 @@ pub async fn stream_audio(
             ffmpeg_args.push(seek_sec.to_string());
         }
     }
+
+    ffmpeg_args.push("-i".to_string());
+    ffmpeg_args.push(direct_url.clone());
 
     let is_flac_direct = direct_url.ends_with(".flac") || direct_url.contains(".flac?");
     let is_mp3_direct = direct_url.ends_with(".mp3") || direct_url.contains(".mp3?");

@@ -419,17 +419,32 @@ export class App implements OnInit {
   private sheetTouchCurrentY = 0;
 
   onSheetTouchStart(e: TouchEvent) {
+    const target = e.target as HTMLElement;
+    if (target && target.closest('input, button, app-wavy-slider, .scrub-slider-container, .sheet-vol-row, .sheet-lyrics-card, .sheet-art-wrap')) {
+      this.sheetTouchStartY = 0;
+      this.sheetTouchCurrentY = 0;
+      return;
+    }
+    const sheet = e.currentTarget as HTMLElement;
+    // Only allow swipe-down to close if the sheet is at the top of its scroll container
+    if (sheet && sheet.scrollTop > 6) {
+      this.sheetTouchStartY = 0;
+      this.sheetTouchCurrentY = 0;
+      return;
+    }
     this.sheetTouchStartY = e.touches[0].clientY;
     this.sheetTouchCurrentY = this.sheetTouchStartY;
   }
 
   onSheetTouchMove(e: TouchEvent) {
+    if (!this.sheetTouchStartY) return;
     this.sheetTouchCurrentY = e.touches[0].clientY;
   }
 
   onSheetTouchEnd() {
+    if (!this.sheetTouchStartY) return;
     const deltaY = this.sheetTouchCurrentY - this.sheetTouchStartY;
-    if (deltaY > 65) {
+    if (deltaY > 85) {
       this.collapseMobilePlayer();
     }
     this.sheetTouchStartY = 0;

@@ -739,12 +739,15 @@ export class AudioService {
   private setupEventListeners() {
     let stallTimer: any = null;
     const onStall = () => {
-      if (!this.isPlaying() || this.audio.paused || this.isHandlingEnd || this.isSwitchingTrack) return;
+      if (!this.isPlaying() || this.isHandlingEnd || this.isSwitchingTrack) return;
       if (stallTimer) clearTimeout(stallTimer);
 
       stallTimer = setTimeout(() => {
-        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying && this.audio.paused) {
-          this.audio.play().catch(() => {});
+        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
+          if (this.audio.paused || this.audio.readyState < 3) {
+            console.warn('[AudioService] Playback stalled for >5s, attempting gentle resume...');
+            this.audio.play().catch(() => {});
+          }
         }
       }, 5000);
     };
@@ -916,6 +919,7 @@ export class AudioService {
       const played = this.audio.currentTime || 0;
       const totalPlayed = this.streamSeekOffset() + played;
       const dur = this.duration() || this.currentTrack()?.duration || 0;
+      const audioDur = this.audio.duration;
 
       // 1. Если поток завершился едва начавшись (<1.5с) — сбой сети
       if (totalPlayed < 1.5) {
@@ -924,15 +928,24 @@ export class AudioService {
         return;
       }
 
-      // 2. Трек завершился естественно ТОЛЬКО если доиграл практически до конца (в пределах 2.5с до duration)
-      // или если длительность трека неизвестна/очень короткая (<= 15с)
-      if (dur <= 15 || totalPlayed >= dur - 2.5) {
+      // 2. Трек завершился естественно если:
+      // - Длительность короткая / неизвестна (dur <= 15)
+      // - Доиграл в пределах 8с от общей длительности (устраняет разницу в метаданных треков)
+      // - Сыграно более 90% длительности трека
+      // - Сам HTMLAudioElement доиграл до своего конца (audioDur > 0 && played >= audioDur - 1.5)
+      const isNaturalEnd =
+        dur <= 15 ||
+        totalPlayed >= dur - 8.0 ||
+        (dur > 0 && totalPlayed >= dur * 0.90) ||
+        (audioDur && !isNaN(audioDur) && played >= audioDur - 1.5);
+
+      if (isNaturalEnd) {
         this.prematureEndedRetryCount = 0;
         this.handleTrackEnded();
         return;
       }
 
-      // 3. Преждевременный обрыв потока в середине/конце трека — бесшовно переподключаем с текущей секунды!
+      // 3. Преждевременный обрыв потока в середине трека — бесшовно переподключаем с текущей секунды!
       if (this.prematureEndedRetryCount < 3) {
         this.prematureEndedRetryCount++;
         console.warn(`[AudioService] Stream cut off prematurely at ${totalPlayed.toFixed(1)}s / ${dur}s, probing cluster health and reconnecting (attempt ${this.prematureEndedRetryCount}/3)...`);
@@ -942,10 +955,17 @@ export class AudioService {
         return;
       }
 
-      // Если 3 попытки переподключения не удались, не скипаем трек молча в медиатеке, а останавливаем воспроизведение
-      console.warn('[AudioService] Stream repeatedly cut off, pausing cleanly without skipping library queue');
+      // Если 3 попытки переподключения не удались:
+      // В режиме волны/микса плавно переключаем на следующий трек, не зависая!
+      // В обычной очереди при явном обрыве останавливаем воспроизведение.
       this.prematureEndedRetryCount = 0;
-      this.pause();
+      if (this.recService.isMixActive()) {
+        console.warn('[AudioService] Stream repeatedly cut off in mix, smoothly advancing to next track');
+        this.next();
+      } else {
+        console.warn('[AudioService] Stream repeatedly cut off, pausing cleanly without skipping library queue');
+        this.pause();
+      }
     });
 
     this.audio.addEventListener('error', (e) => {
@@ -1115,6 +1135,8 @@ export class AudioService {
             const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
             const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
             const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.currentTrack.set(updatedTrack);
+            this.queue.update((q) => q.map((t) => (t.id === cur.id ? { ...t, audioUrl: altUrl } : t)));
             this.errorTimeoutId = setTimeout(() => {
               if (pos > 2) {
                 this.seek(pos, true);
@@ -1138,6 +1160,8 @@ export class AudioService {
             const cleanArt = (cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim();
             const altUrl = `${activeBase}/api/stream?url=${encodeURIComponent(`search:${cleanTitle} ${cleanArt}`.trim())}`;
             const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.currentTrack.set(updatedTrack);
+            this.queue.update((q) => q.map((t) => (t.id === cur.id ? { ...t, audioUrl: altUrl } : t)));
             this.errorTimeoutId = setTimeout(() => {
               if (pos > 2) {
                 this.seek(pos, true);
@@ -1173,6 +1197,8 @@ export class AudioService {
             const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
             const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
             const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.currentTrack.set(updatedTrack);
+            this.queue.update((q) => q.map((t) => (t.id === cur.id ? { ...t, audioUrl: altUrl } : t)));
             this.errorTimeoutId = setTimeout(() => {
               if (this.recService.isMixActive()) {
                 if (pos > 2) {
@@ -1197,6 +1223,8 @@ export class AudioService {
             const cleanArt = (cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim();
             const altUrl = `${activeBase}/api/stream?url=${encodeURIComponent(`search:${cleanTitle} ${cleanArt}`.trim())}`;
             const updatedTrack = { ...cur, audioUrl: altUrl };
+            this.currentTrack.set(updatedTrack);
+            this.queue.update((q) => q.map((t) => (t.id === cur.id ? { ...t, audioUrl: altUrl } : t)));
             this.errorTimeoutId = setTimeout(() => {
               if (this.recService.isMixActive()) {
                 if (pos > 2) {
@@ -1713,9 +1741,12 @@ export class AudioService {
   }
 
   pause() {
-    if (!this.audio.paused) {
-      this.togglePlay();
-    }
+    try {
+      this.audio.pause();
+    } catch {}
+    this.isPlaying.set(false);
+    this.updateMediaSessionPlaybackState('paused');
+    this.releaseWakeLock();
   }
 
   stopPlayback() {
@@ -1797,11 +1828,23 @@ export class AudioService {
     }
 
     // 3. Fast Stream Range Seek via backend with ss parameter:
-    const baseStreamUrl = this.formatStreamUrl(track).split('&ss=')[0].split('&_t=')[0];
-    const glue = baseStreamUrl.includes('?') ? '&' : '?';
-    const ssParam = clamped > 0 ? `${glue}ss=${Math.round(clamped)}` : '';
-    const tsParam = `${ssParam ? '&' : glue}_t=${Date.now()}`;
-    const newUrl = `${baseStreamUrl}${ssParam}${tsParam}`;
+    let newUrl = this.formatStreamUrl(track);
+    try {
+      const parsedUrl = new URL(newUrl, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+      parsedUrl.searchParams.delete('ss');
+      parsedUrl.searchParams.delete('_t');
+      if (clamped > 0) {
+        parsedUrl.searchParams.set('ss', String(Math.round(clamped)));
+      }
+      parsedUrl.searchParams.set('_t', String(Date.now()));
+      newUrl = parsedUrl.toString();
+    } catch {
+      const baseStreamUrl = newUrl.split('&ss=')[0].split('&_t=')[0];
+      const glue = baseStreamUrl.includes('?') ? '&' : '?';
+      const ssParam = clamped > 0 ? `${glue}ss=${Math.round(clamped)}` : '';
+      const tsParam = `${ssParam ? '&' : glue}_t=${Date.now()}`;
+      newUrl = `${baseStreamUrl}${ssParam}${tsParam}`;
+    }
 
     this.streamSeekOffset.set(clamped);
     this.currentTime.set(clamped);
@@ -1815,18 +1858,26 @@ export class AudioService {
       this.audio.removeAttribute('crossorigin');
     }
 
+    const wasPlaying = this.isPlaying();
     this.audio.src = newUrl;
     try {
       this.audio.load();
     } catch {}
-    this.audio
-      .play()
-      .then(() => {
-        this.isPlaying.set(true);
-        this.updateMediaSessionPlaybackState('playing');
-        this.updateMediaSessionPosition();
-      })
-      .catch(() => {});
+
+    if (wasPlaying) {
+      this.audio
+        .play()
+        .then(() => {
+          this.isPlaying.set(true);
+          this.updateMediaSessionPlaybackState('playing');
+          this.updateMediaSessionPosition();
+        })
+        .catch(() => {});
+    } else {
+      this.isPlaying.set(false);
+      this.updateMediaSessionPlaybackState('paused');
+      this.updateMediaSessionPosition();
+    }
   }
 
   seekPercent(percent: number) {
@@ -1951,7 +2002,8 @@ export class AudioService {
             if (pureRecs.length > 0) {
               this.queue.update((curQ) => [...curQ, ...pureRecs]);
             } else {
-              nextIdx = 0;
+              this.pause();
+              return;
             }
           }
         }
@@ -2015,7 +2067,11 @@ export class AudioService {
     }, 1000);
 
     if (this.repeatMode() === 'one') {
-      if (this.audio) {
+      this.isSwitchingTrack = false;
+      this.isHandlingEnd = false;
+      if (this.streamSeekOffset() > 0) {
+        this.seek(0, true);
+      } else if (this.audio) {
         this.audio.currentTime = 0;
         this.currentTime.set(0);
         this.audio.play().catch(() => {});
@@ -2135,11 +2191,24 @@ export class AudioService {
   }
 
   removeFromQueue(index: number) {
+    const curIdx = this.queueIndex();
+    const isRemovingCurrent = (index === curIdx);
     this.queue.update((q) => q.filter((_, i) => i !== index));
-    if (index === this.queueIndex()) {
-      this.next();
-    } else if (index < this.queueIndex()) {
-      this.queueIndex.update((idx) => idx - 1);
+
+    if (isRemovingCurrent) {
+      const updatedQ = this.queue();
+      if (updatedQ.length === 0) {
+        this.stopPlayback();
+        return;
+      }
+      const nextTargetIdx = index < updatedQ.length ? index : 0;
+      this.queueIndex.set(nextTargetIdx);
+      const targetTrack = updatedQ[nextTargetIdx];
+      if (targetTrack) {
+        this.playTrack(targetTrack, undefined, this.recService.isMixActive(), nextTargetIdx);
+      }
+    } else if (index < curIdx) {
+      this.queueIndex.update((idx) => Math.max(0, idx - 1));
     }
   }
 

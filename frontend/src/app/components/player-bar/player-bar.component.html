@@ -1,10 +1,10 @@
 @if (audioService.currentTrack()) {
-<footer class="app-player-bar">
+<footer class="app-player-bar" (click)="onBarClick($event)">
   <!-- Mobile Mini Scrubber Bar along top edge -->
   <div class="mobile-mini-scrubber mobile-only" [style.width.%]="audioService.progressPercent()"></div>
 
   <!-- Left Column: Current Track Info (tapping opens mobile full player) -->
-  <div class="player-left" (click)="onLeftClick()">
+  <div class="player-left" (click)="onLeftClick($event)">
     <div class="now-playing-cover">
       @if (audioService.currentTrack(); as cur) {
         <img 

@@ -85,7 +85,7 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js?v=61').then(function(reg) {
+        navigator.serviceWorker.register('/sw.js?v=62').then(function(reg) {
           reg.update();
         }).catch(function() {});
       });
