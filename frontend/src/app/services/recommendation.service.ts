@@ -185,15 +185,15 @@ export const STARTER_MIX_TRACKS: Track[] = [
     addedAt: '2026-01-01T00:00:00.000Z',
   },
 
-  // --- Foreign / International Tracks ---
+  // --- Foreign / International Tracks (Alternative Metal / Shoegaze / Underground Phonk / Jerk) ---
   {
     id: 'starter-en-1',
-    title: 'Get Lucky',
-    artist: 'Daft Punk feat. Pharrell Williams',
-    duration: 248,
-    audioUrl: '/api/stream?title=Get%20Lucky&artist=Daft%20Punk',
-    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/2c5aa8c057ee13d8031e42845c48bce6/500x500.jpg',
-    genre: 'Disco / Funk',
+    title: 'Change (In the House of Flies)',
+    artist: 'Deftones',
+    duration: 300,
+    audioUrl: '/api/stream?title=Change%20(In%20the%20House%20of%20Flies)&artist=Deftones',
+    coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/98bb1cb76241b714b13a7c642e13eb98/500x500.jpg',
+    genre: 'Alternative Metal / Shoegaze',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -201,12 +201,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-en-2',
-    title: 'Do I Wanna Know?',
-    artist: 'Arctic Monkeys',
-    duration: 272,
-    audioUrl: '/api/stream?title=Do%20I%20Wanna%20Know&artist=Arctic%20Monkeys',
+    title: 'Just Your Doll',
+    artist: 'Snow Strippers',
+    duration: 165,
+    audioUrl: '/api/stream?title=Just%20Your%20Doll&artist=Snow%20Strippers',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6c65b1cbca5aa2771b0292b3bafe6288/500x500.jpg',
-    genre: 'Indie Rock',
+    genre: 'Electronic / Jerk',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -214,12 +214,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-en-3',
-    title: 'Blinding Lights',
-    artist: 'The Weeknd',
-    duration: 200,
-    audioUrl: '/api/stream?title=Blinding%20Lights&artist=The%20Weeknd',
+    title: 'Is It Really You?',
+    artist: 'Loathe',
+    duration: 288,
+    audioUrl: '/api/stream?title=Is%20It%20Really%20You%3F&artist=Loathe',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/e00f95ecb2649666cfeb317f2be021a8/500x500.jpg',
-    genre: 'Synthpop',
+    genre: 'Shoegaze / Alt-Metal',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -227,12 +227,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-en-4',
-    title: 'Starboy',
-    artist: 'The Weeknd',
-    duration: 230,
-    audioUrl: '/api/stream?title=Starboy&artist=The%20Weeknd',
+    title: 'Ball',
+    artist: 'Eryn Martin',
+    duration: 172,
+    audioUrl: '/api/stream?title=Ball&artist=Eryn%20Martin',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/6a7605d311394b3063fec65a19fb0962/500x500.jpg',
-    genre: 'Pop / R&B',
+    genre: 'Ambient Trap',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -253,12 +253,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-en-6',
-    title: 'Bohemian Rhapsody',
-    artist: 'Queen',
-    duration: 354,
-    audioUrl: '/api/stream?title=Bohemian%20Rhapsody&artist=Queen',
+    title: 'Suffocation',
+    artist: 'Crystal Castles',
+    duration: 242,
+    audioUrl: '/api/stream?title=Suffocation&artist=Crystal%20Castles',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/03f0bbfb776269dfb48c0aee7144e54a/500x500.jpg',
-    genre: 'Classic Rock',
+    genre: 'Dark Electronic / Witch House',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -266,12 +266,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-en-7',
-    title: 'In The End',
-    artist: 'Linkin Park',
-    duration: 216,
-    audioUrl: '/api/stream?title=In%20The%20End&artist=Linkin%20Park',
+    title: 'Be Quiet and Drive (Far Away)',
+    artist: 'Deftones',
+    duration: 212,
+    audioUrl: '/api/stream?title=Be%20Quiet%20and%20Drive%20(Far%20Away)&artist=Deftones',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/4ee6246aa577ebaf16b25a388f72aa98/500x500.jpg',
-    genre: 'Rock / Nu Metal',
+    genre: 'Alternative Rock / Shoegaze',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -279,12 +279,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-en-8',
-    title: 'Believer',
-    artist: 'Imagine Dragons',
-    duration: 204,
-    audioUrl: '/api/stream?title=Believer&artist=Imagine%20Dragons',
+    title: 'CtrlAltDelete',
+    artist: 'Bones',
+    duration: 156,
+    audioUrl: '/api/stream?title=CtrlAltDelete&artist=Bones',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/d513725c4ef68ee410dfa6c7ecb1e5fe/500x500.jpg',
-    genre: 'Alternative / Rock',
+    genre: 'Cloud Rap / Underground',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -318,12 +318,12 @@ export const STARTER_MIX_TRACKS: Track[] = [
   },
   {
     id: 'starter-en-11',
-    title: 'Goosebumps',
-    artist: 'Travis Scott',
-    duration: 243,
-    audioUrl: '/api/stream?title=Goosebumps&artist=Travis%20Scott',
+    title: 'Ginseng Strip 2002',
+    artist: 'Yung Lean',
+    duration: 184,
+    audioUrl: '/api/stream?title=Ginseng%20Strip%202002&artist=Yung%20Lean',
     coverUrl: 'https://e-cdns-images.dzcdn.net/images/cover/7864aa9c80d5d5a71f005470d0879e60/500x500.jpg',
-    genre: 'Hip-Hop / Rap',
+    genre: 'Cloud Rap / Underground',
     format: 'mp3',
     plays: 0,
     isFavorite: false,
@@ -512,15 +512,26 @@ export const KNOWN_RUSSIAN_LATIN_ARTISTS = new Set<string>([
   'madkid', 'madk1d', 'cupsize', 'zhanulka', 'unki', 'dakook', '13karat', 'polmateri',
   'aipfs', 'midix', 'serega pirat', 'fallen777angel', 'fortuna 812', 'doxxxelll', 'kristiee', 'bond s knopkoy',
   'villian', 'v!ll!an', 'aquakey', 'whole lotta swag', '4jaycard',
-  'onda andar', 'unda under', 'ivycraft', 'kudokushi', 'odasu', 'sh0tty', 'eryn martin',
+  'onda andar', 'unda under', 'ivycraft', 'kudokushi', 'odasu', 'sh0tty',
   'mapt0v', 'volhey', 'автоспорт', 'перемотка', 'буерак', 'дурной вкус',
   'увула', 'где фантом', 'где фантом?', 'ssshhhiiittt', 'ssshhhiiittt!',
   'щенки', 'свидетельство о смерти', 'конец солнечных дней', 'горемыка',
   'петля пристрастия', 'электрофорез', 'дайте танк', 'дайте танк (!)',
-  'snow strippers', 'jaydes', 'mirele', 'mirel', 'crucify april', 'skullface', 'juicebox',
+  'mirele', 'mirel', 'lil kidd', 'лилкидд', 'boogshi'
+]);
+
+export const KNOWN_FOREIGN_SCENE_ARTISTS = new Set<string>([
+  'snow strippers', 'jaydes', 'crucify april', 'skullface', 'juicebox',
   'fakemink', 'chasingwhiterabbits', 'lots of hands', 'jades', 'nowayback', 'yom', 'cult member',
   'otuka', 'akkiemi', 'h4rtbrkr', 'sinister sane', 'laydownrot', 'auratoshi', 'duskydemise archive',
-  'bbygirl', 'kempachii', 'lil kidd', 'лилкидд', 'boogshi', 'locked23', 'cynipal', 'julia wolf'
+  'bbygirl', 'kempachii', 'locked23', 'cynipal', 'julia wolf', 'eryn martin',
+  'bladee', 'ecco2k', 'yung lean', 'black kray', 'sickboyrari', 'keshore',
+  'deftones', 'team sleep', 'crosses', 'loathe', 'narrow head', 'hum', 'failure',
+  'katatonia', 'tool', 'a perfect circle', 'chevelle', 'alice in chains',
+  'fleshwater', 'whirr', 'nothing', 'superheaven', 'title fight', 'pantera',
+  'kordhell', 'sxmpra', 'freddie dredd', 'ghostemane', 'suicideboys', 'bones',
+  'xavier wulf', 'lil peep', 'scarlxrd', 'pastel ghost', 'crystal castles',
+  'sidewalks and skeletons', 'mr kitty', 'joji'
 ]);
 
 export function isRussianArtist(artist?: string): boolean {
@@ -1339,7 +1350,11 @@ export class RecommendationService {
     const HOODTRAP_ARTISTS = new Set([
       'onda andar', 'unda under', 'fortuna 812', '812', 'kristiee', 'kudokushi', 'odasu',
       'sh0tty', 'boogshi', 'villian', 'cynipal', 'ivycraft', 'locked23', 'snow strippers',
-      'jaydes', 'sqwore', 'scally milano', 'uglystephan', 'shadowraze', 'zxcursed', 'dvrst'
+      'jaydes', 'sqwore', 'scally milano', 'uglystephan', 'shadowraze', 'zxcursed', 'dvrst',
+      'aquakey', 'type_0', 'hateboyyyy557', 'dabbackwood', 'choppa', 'eryn martin', 'fakemink',
+      'bladee', 'ecco2k', 'yung lean', 'black kray', 'sickboyrari', 'lots of hands',
+      'chasingwhiterabbits', 'bones', 'xavier wulf', 'ghostemane', 'suicideboys', 'sxmpra',
+      'kordhell', 'freddie dredd', 'crystal castles', 'pastel ghost'
     ]);
     if (HOODTRAP_ARTISTS.has(normArt) || text.includes('hoodtrap') || text.includes('hyperpop') || text.includes('glitchcore')) {
       energy += 0.35;
@@ -1347,6 +1362,20 @@ export class RecommendationService {
       electronic += 0.70;
       hiphop += 0.65;
       acoustic -= 0.20;
+    }
+
+    // Alternative Metal / Nu Metal / Shoegaze / Dark Rock
+    const ALT_ROCK_METAL_ARTISTS = new Set([
+      'deftones', 'tool', 'katatonia', 'pantera', 'team sleep', 'crosses', 'loathe',
+      'narrow head', 'hum', 'failure', 'a perfect circle', 'chevelle', 'alice in chains',
+      'fleshwater', 'whirr', 'nothing', 'superheaven', 'title fight', 'nirvana', 'soundgarden',
+      'korn', 'static-x', 'slipknot'
+    ]);
+    if (ALT_ROCK_METAL_ARTISTS.has(normArt) || text.includes('shoegaze') || text.includes('nu metal') || text.includes('alt metal')) {
+      energy += 0.35;
+      tempo += 0.20;
+      rock += 0.88;
+      electronic += 0.15;
     }
 
     // Post-Punk / Russian Indie / Midwest Emo / Alt Rock
@@ -1976,10 +2005,10 @@ export class RecommendationService {
         ? ['Сироткин', 'Молчат Дома', 'Скриптонит', 'polnalyubvi', 'Моя Мишель', 'Zivert']
         : ['Кино', 'Би-2', 'Король и Шут', 'Скриптонит', 'SALUKI', 'Сироткин', 'Молчат Дома'];
       const defaultEnArtists = mood === 'energetic'
-        ? ['The Prodigy', 'Arctic Monkeys', 'The Weeknd', 'Linkin Park', 'Nirvana', 'Muse']
+        ? ['Deftones', 'Snow Strippers', 'Loathe', 'Kordhell', 'Bones', 'SXMPRA', 'Ghostemane', 'TOOL', 'Pantera']
         : mood === 'chill'
-        ? ['Joji', 'Radiohead', 'Massive Attack', 'Depeche Mode', 'Tame Impala', 'Cigarettes After Sex']
-        : ['Daft Punk', 'Queen', 'Arctic Monkeys', 'The Weeknd', 'Radiohead', 'Nirvana'];
+        ? ['Crystal Castles', 'Team Sleep', 'Katatonia', 'Eryn Martin', 'Bladee', 'Yung Lean', 'Whirr', 'Joji']
+        : ['Deftones', 'Snow Strippers', 'Katatonia', 'TOOL', 'Jaydes', 'Loathe', 'Yung Lean', 'Bones', 'Pantera'];
 
       const seedList = lang === 'ru' ? defaultRuArtists : lang === 'en' ? defaultEnArtists : [...defaultRuArtists.slice(0, 2), ...defaultEnArtists.slice(0, 2)];
       for (const artist of seedList) {
@@ -1997,31 +2026,31 @@ export class RecommendationService {
     // Mood & genre specific queries
     if (mood === 'energetic') {
       ruQueries.push('бодрый русский рэп', 'энергичный рок', 'дрифт фонк', 'русский фонк');
-      enQueries.push('energetic rap hits', 'hard rock hits', 'drift phonk', 'workout beats');
+      enQueries.push('drift phonk', 'alternative metal', 'hard rock', 'underground trap');
     } else if (mood === 'chill') {
       ruQueries.push('спокойная русская музыка', 'русский лоуфай', 'русский инди поп', 'русский пост-панк');
-      enQueries.push('chill beats lofi', 'chill indie rock', 'r&b chill vibes', 'relaxing pop');
+      enQueries.push('chill beats lofi', 'shoegaze dreampop', 'dark ambient synth', 'cloud rap chill');
     }
 
     if (userTaste.hiphop > 0.40) {
       ruQueries.push('русский рэп хиты', 'хип хоп новинки');
-      enQueries.push('hip hop hits', 'rap trending');
+      enQueries.push('underground rap soundcloud', 'cloud rap', 'hoodtrap');
     }
     if (userTaste.electronic > 0.40) {
       ruQueries.push('русская электронная музыка', 'фонк новинки');
-      enQueries.push('electronic dance hits', 'synthwave');
+      enQueries.push('drift phonk hits', 'witch house electronic', 'dark synthwave');
     }
     if (userTaste.rock > 0.40) {
       ruQueries.push('русский рок хиты', 'русский пост панк', 'альтернативный рок');
-      enQueries.push('rock hits', 'modern rock', 'indie alternative');
+      enQueries.push('alternative metal shoegaze', 'dark rock', 'nu metal', 'grunge');
     }
     if (userTaste.pop > 0.40) {
       ruQueries.push('русские поп хиты', 'русская инди музыка');
-      enQueries.push('pop hits', 'top billboard hits');
+      enQueries.push('indie shoegaze', 'dream pop', 'alt pop underground');
     }
 
     if (ruQueries.length === 0) ruQueries.push('русские хиты', 'русский инди рок', 'русский рэп');
-    if (enQueries.length === 0) enQueries.push('indie rock', 'alternative hits', 'top hits global');
+    if (enQueries.length === 0) enQueries.push('alternative metal', 'underground cloud rap', 'drift phonk');
 
     if (lang === 'ru') {
       queries.push(...ruQueries);
@@ -2192,26 +2221,48 @@ export class RecommendationService {
         .map(([name]) => name)
         .filter((a) => !this.libraryService.isArtistDisliked(a));
 
-      const langTopArtists = allUserTopArtists.filter((a) => {
-        if (effectiveLang === 'all' || this.isCyrillicUserLibrary()) return true;
-        const isRu = isRussianArtist(a);
-        return effectiveLang === 'ru' ? isRu : !isRu;
-      });
+      let sampledArtists: string[] = [];
+      const queried = new Set<string>();
+      if (primarySeedArtist) queried.add(normalizeArtist(primarySeedArtist));
 
-      const artistsToQuery = langTopArtists.length > 0 ? langTopArtists : allUserTopArtists;
+      const fallbackEnScene = ['Deftones', 'Snow Strippers', 'Loathe', 'Katatonia', 'TOOL', 'Jaydes', 'Bones', 'Yung Lean', 'Crystal Castles', 'Eryn Martin', 'Pantera'];
+
+      if (effectiveLang === 'ru') {
+        const ruArtists = allUserTopArtists.filter((a) => isRussianArtist(a));
+        const list = ruArtists.length > 0 ? ruArtists : allUserTopArtists;
+        if (list.length > 0) {
+          this.artistSeedOffset = (this.artistSeedOffset + 2) % list.length;
+          for (let i = 0; i < Math.min(4, list.length); i++) {
+            sampledArtists.push(list[(this.artistSeedOffset + i) % list.length]);
+          }
+        }
+      } else if (effectiveLang === 'en') {
+        const enArtists = allUserTopArtists.filter((a) => !isRussianArtist(a));
+        const list = enArtists.length > 0 ? enArtists : fallbackEnScene;
+        this.artistSeedOffset = (this.artistSeedOffset + 2) % list.length;
+        for (let i = 0; i < Math.min(4, list.length); i++) {
+          sampledArtists.push(list[(this.artistSeedOffset + i) % list.length]);
+        }
+      } else {
+        // 'all': ensure BOTH Russian taste and matching English/foreign underground & alt-rock taste are queried!
+        const ruArtists = allUserTopArtists.filter((a) => isRussianArtist(a));
+        const enArtists = allUserTopArtists.filter((a) => !isRussianArtist(a));
+        const activeEnList = enArtists.length > 0 ? enArtists : fallbackEnScene;
+
+        if (ruArtists.length > 0) {
+          this.artistSeedOffset = (this.artistSeedOffset + 1) % ruArtists.length;
+          for (let i = 0; i < Math.min(2, ruArtists.length); i++) {
+            sampledArtists.push(ruArtists[(this.artistSeedOffset + i) % ruArtists.length]);
+          }
+        }
+        for (let i = 0; i < Math.min(2, activeEnList.length); i++) {
+          const idx = (Math.floor(Math.random() * activeEnList.length) + i) % activeEnList.length;
+          sampledArtists.push(activeEnList[idx]);
+        }
+      }
 
       // 2. Multi-artist taste expansion: Rotate through user's favorite artists and query collaborations
-      if (artistsToQuery.length > 0) {
-        const queried = new Set<string>();
-        if (primarySeedArtist) queried.add(normalizeArtist(primarySeedArtist));
-
-        this.artistSeedOffset = (this.artistSeedOffset + 2) % Math.max(1, artistsToQuery.length);
-        const sampledArtists: string[] = [];
-        for (let i = 0; i < Math.min(4, artistsToQuery.length); i++) {
-          const idx = (this.artistSeedOffset + i) % artistsToQuery.length;
-          sampledArtists.push(artistsToQuery[idx]);
-        }
-
+      if (sampledArtists.length > 0) {
         for (const art of sampledArtists) {
           const normA = normalizeArtist(art);
           if (normA && !queried.has(normA) && !seenArtists.has(normA)) {
@@ -2234,10 +2285,10 @@ export class RecommendationService {
           : ['Скриптонит', 'SALUKI', 'Три дня дождя', 'Сироткин', 'Молчат Дома', 'polnalyubvi', 'Oxxxymiron']
         ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curatedEn = (mood === 'energetic'
-          ? ['The Prodigy', 'The Weeknd', 'Travis Scott', 'Chase Atlantic', 'Metro Boomin']
+          ? ['Deftones', 'Snow Strippers', 'Loathe', 'Kordhell', 'Bones', 'SXMPRA', 'Ghostemane', 'Narrow Head', 'Pantera', 'TOOL']
           : mood === 'chill'
-          ? ['Joji', 'Frank Ocean', 'Cigarettes After Sex', 'Mac Miller', 'Lana Del Rey']
-          : ['The Weeknd', 'Travis Scott', 'Drake', 'Post Malone', 'Gorillaz']
+          ? ['Crystal Castles', 'Team Sleep', 'Katatonia', 'Eryn Martin', 'Bladee', 'Yung Lean', 'Whirr', 'Joji']
+          : ['Deftones', 'Snow Strippers', 'Katatonia', 'TOOL', 'Jaydes', 'Loathe', 'Yung Lean', 'Bones', 'Team Sleep']
         ).filter((a) => !this.libraryService.isArtistDisliked(a));
         const curated = effectiveLang === 'ru' ? curatedRu : curatedEn;
         const art = curated[Math.floor(Math.random() * curated.length)];

@@ -91,13 +91,13 @@ EOF
 
 echo "🚀 Деплой на Vercel (recro-player)..."
 cd "$DEPLOY_DIR"
-DEPLOY_OUTPUT=$(vercel --prod --yes)
+DEPLOY_OUTPUT=$(CI=1 NO_UPDATE_NOTIFIER=1 vercel --prod --yes)
 echo "$DEPLOY_OUTPUT"
 DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -Eo "https://[a-zA-Z0-9.-]+\.vercel\.app" | tail -n 1)
 
 if [ -n "$DEPLOY_URL" ]; then
     echo "🔗 Назначение алиаса recro-player.vercel.app -> $DEPLOY_URL..."
-    vercel alias set "$DEPLOY_URL" recro-player.vercel.app || true
+    CI=1 NO_UPDATE_NOTIFIER=1 vercel alias set "$DEPLOY_URL" recro-player.vercel.app || true
 fi
 
 echo "✅ Готово! Плеер доступен: https://recro-player.vercel.app"
