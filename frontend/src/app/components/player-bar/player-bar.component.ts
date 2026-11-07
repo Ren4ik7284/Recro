@@ -13,7 +13,6 @@ import { Track } from '../../models/track.model';
 import { I18nService } from '../../services/i18n.service';
 import { PipService } from '../../services/pip.service';
 import { LiveBackgroundService } from '../../services/live-background.service';
-import { PwaService } from '../../services/pwa.service';
 
 @Component({
   selector: 'app-player-bar',
@@ -33,7 +32,6 @@ export class PlayerBarComponent {
   readonly i18n = inject(I18nService);
   readonly pipService = inject(PipService);
   readonly bgService = inject(LiveBackgroundService);
-  readonly pwaService = inject(PwaService);
 
   @Output() toggleQueueDrawer = new EventEmitter<void>();
   @Output() expandMobilePlayer = new EventEmitter<void>();
@@ -46,29 +44,10 @@ export class PlayerBarComponent {
     this.ambientService.toggle();
   }
 
-  onLeftClick(event?: MouseEvent) {
-    if (event) {
-      event.stopPropagation();
+  onLeftClick() {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      this.expandMobilePlayer.emit();
     }
-    if (typeof window !== 'undefined') {
-      const isMobileOrTablet = window.innerWidth <= 1024 || this.pwaService.isMobile();
-      if (isMobileOrTablet) {
-        this.expandMobilePlayer.emit();
-      }
-    }
-  }
-
-  onBarClick(event: MouseEvent) {
-    if (typeof window === 'undefined') return;
-    const isMobileOrTablet = window.innerWidth <= 1024 || this.pwaService.isMobile();
-    if (!isMobileOrTablet) return;
-
-    // Do not trigger full sheet if clicking directly on a button, slider or control
-    const target = event.target as HTMLElement;
-    if (target && target.closest('button, input, a, .vol-slider-wrap, .scrub-slider-container')) {
-      return;
-    }
-    this.expandMobilePlayer.emit();
   }
 
   onCoverError(event: Event, track?: Track | null) {

@@ -3893,17 +3893,16 @@ app-header-bar {
       }
     }
   }
-}
 
-.mobile-player-sheet {
-  position: fixed;
-  inset: 0;
-  background: #09090b;
-  z-index: 150;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) calc(18px + max(env(safe-area-inset-bottom, 0px), 10px)) max(18px, env(safe-area-inset-left, 0px));
+  .mobile-player-sheet {
+    position: fixed;
+    inset: 0;
+    background: #09090b;
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) calc(18px + max(env(safe-area-inset-bottom, 0px), 10px)) max(18px, env(safe-area-inset-left, 0px));
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -4292,16 +4291,15 @@ app-header-bar {
     }
   }
 
-@keyframes sheetSlideUp {
-  from {
-    transform: translateY(100%);
+  @keyframes sheetSlideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
   }
-  to {
-    transform: translateY(0);
-  }
-}
 
-@media (max-width: 768px) {
   .modal-backdrop {
     padding: 0;
     align-items: flex-end;

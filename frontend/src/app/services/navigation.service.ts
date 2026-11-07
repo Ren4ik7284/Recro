@@ -161,9 +161,9 @@ export class NavigationService {
     const active = this.currentOverlay();
     if (!active || (overlay && active !== overlay)) return;
 
-    if (active === 'lyrics' || active === 'player') {
+    if (active === 'lyrics') {
       this.currentOverlay.set(null);
-      if (this.currentTab() === 'profile' && active === 'lyrics') {
+      if (this.currentTab() === 'profile') {
         this.currentTab.set('all');
       }
       const targetTab = this.currentTab();
