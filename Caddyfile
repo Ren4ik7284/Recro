@@ -16,6 +16,8 @@
 }
 
 (common_static) {
+    encode zstd gzip
+
     handle /recro.apk {
         root * /var/www/recro/frontend
         import cors
