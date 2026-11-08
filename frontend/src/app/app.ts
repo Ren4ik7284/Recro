@@ -579,6 +579,9 @@ export class App implements OnInit {
           this.showToast(this.i18n.currentLang() === 'ru' ? 'Нажмите меню ⋮ в браузере → «Установить приложение»' : 'Tap menu ⋮ in browser → "Install app"');
         }
       } else {
+        if (this.pwaService.isInAppBrowser()) {
+          this.showToast(this.i18n.currentLang() === 'ru' ? 'Встроенный браузер блокирует APK. Нажмите ⋮ вверху → «Открыть в Chrome»' : 'In-app browser blocks APK. Tap ⋮ → "Open in Chrome"');
+        }
         this.triggerDownload('/recro.apk', 'recro.apk');
       }
     } else if (tab === 'ios') {
