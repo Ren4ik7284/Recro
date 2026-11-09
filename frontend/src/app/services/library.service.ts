@@ -2,7 +2,7 @@ import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angula
 import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist, ChartSummary, ChartDetail, ReleaseItem, HomeExploreData } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
-import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates, MONOBLOCK_NODE, MOSCOW_NODE, FRANKFURT_NODE, getNodeDisplayName } from '../models/cluster.config';
+import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates, MONOBLOCK_NODE, MOSCOW_NODE, MOSCOW_DIRECT_NODE, FRANKFURT_NODE, getNodeDisplayName } from '../models/cluster.config';
 
 export interface ExtractedResult {
   playlistTitle: string | null;
@@ -727,7 +727,7 @@ export class LibraryService implements OnDestroy {
         }
       } catch {}
     }
-    return MOSCOW_NODE;
+    return resolveDefaultBackend();
   }
 
   private activeHealthCheckPromise: Promise<string> | null = null;
@@ -781,12 +781,11 @@ export class LibraryService implements OnDestroy {
     this.activeHealthCheckPromise = (async () => {
       try {
         const current = this.getBackendUrl();
-        // 1. Если текущий активный узел здоров, не переключаем его!
-        // Это полностью устраняет «дребезг» (флаппинг) серверов при включении/выключении VPN.
+        // 1. Если текущий активный узел здоров и вызов НЕ принудительный (не force и не failover)
         if (!force && current) {
           try {
             const currentPing = await fetch(`${current}/api/health?_t=${Date.now()}`, {
-              signal: AbortSignal.timeout(1200),
+              signal: AbortSignal.timeout(1800),
               cache: 'no-store',
             });
             if (currentPing.ok) {
@@ -795,7 +794,7 @@ export class LibraryService implements OnDestroy {
           } catch {}
         }
 
-        // 2. Если текущий узел не ответил или вызов принудительный (force), выбираем доступный узел кластера через параллельную гонку
+        // 2. Выбираем доступный узел кластера через параллельную гонку с адекватным таймаутом (2500мс)
         const candidates = getClusterCandidates().filter((u) => {
           if (u.includes('vercel.app')) return false;
           if (u.includes('node-home') && !this.isMonoblockOnline()) return false;
@@ -809,7 +808,7 @@ export class LibraryService implements OnDestroy {
 
         const pingNode = async (url: string): Promise<NodePingResult> => {
           const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-          const timeout = url.includes('node-home') ? 700 : 1200;
+          const timeout = url.includes('node-home') ? 1000 : 2500;
           const res = await fetch(`${url}/api/health?_t=${Date.now()}`, {
             signal: AbortSignal.timeout(timeout),
             cache: 'no-store',
@@ -835,11 +834,10 @@ export class LibraryService implements OnDestroy {
         let winner = successful[0].url;
 
         // Если текущий хост пользователя recro-player.ru или 80.87.202.157, и он ответил успешно:
-        // Всегда остаемся на нем! Same-origin запросы работают без междоменных CORS-задержек
-        // и без риска блокировки сторонних динамических DNS-доменов (sslip.io) у интернет-провайдеров РФ.
+        // Остаемся на нем только если Франкфурт не быстрее его заметно (при VPN Франкфурт выигрывает)
         const currentOrigin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin.replace(/\/+$/, '') : '';
         const sameOriginNode = successful.find((s) => s.url === currentOrigin || (currentOrigin.includes('recro-player.ru') && s.url === MOSCOW_NODE));
-        if (sameOriginNode) {
+        if (sameOriginNode && (!force || sameOriginNode.rtt < successful[0].rtt * 1.6)) {
           winner = sameOriginNode.url;
         }
 
@@ -847,8 +845,9 @@ export class LibraryService implements OnDestroy {
         this.applyClusterNode(winner, force ? 'forced_probe' : 'fast_race');
         return winner;
       } catch (e) {
-        console.warn('[Cluster] Parallel health race failed, falling back to Moscow VPS:', e);
-        const fallback = MOSCOW_NODE;
+        console.warn('[Cluster] Parallel health race failed, falling back:', e);
+        const current = this.getBackendUrl();
+        const fallback = current && (current.includes('recro-player.ru') || current.includes('80.87.202.157')) ? FRANKFURT_NODE : MOSCOW_NODE;
         this.applyClusterNode(fallback, 'fallback_error');
         return fallback;
       } finally {
@@ -900,11 +899,23 @@ export class LibraryService implements OnDestroy {
 
   async failoverBackend(): Promise<string> {
     const current = this.getBackendUrl();
-    const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
-    const curIdx = cluster.findIndex((b) => current.includes(b) || b.includes(current));
-    const nextIdx = curIdx >= 0 ? (curIdx + 1) % cluster.length : 0;
-    const alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
-    console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt}`);
+    let alt: string;
+
+    // Мгновенный географический фейловер:
+    // Если текущий узел в Москве (recro-player.ru или 80.87.202.157), переключаем на Франкфурт (VPN узел)!
+    // Если во Франкфурте — переключаем на прямой узел Москвы.
+    if (current.includes('recro-player.ru') || current.includes('80.87.202.157') || current === MOSCOW_NODE || current === MOSCOW_DIRECT_NODE) {
+      alt = FRANKFURT_NODE;
+    } else if (current.includes('177.3.217.64') || current === FRANKFURT_NODE) {
+      alt = MOSCOW_DIRECT_NODE;
+    } else {
+      const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
+      const curIdx = cluster.findIndex((b) => current.includes(b) || b.includes(current));
+      const nextIdx = curIdx >= 0 ? (curIdx + 1) % cluster.length : 0;
+      alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
+    }
+
+    console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt} (${getNodeDisplayName(alt)})`);
     this.applyClusterNode(alt, 'manual_failover');
     return alt;
   }

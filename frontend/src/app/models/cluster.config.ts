@@ -5,8 +5,8 @@ export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 
 export const CLUSTER_BACKENDS = [
   MOSCOW_NODE,        // 1. Москва VPS / recro-player.ru (без VPN в РФ через Cloudflare)
-  MOSCOW_DIRECT_NODE, // 2. Москва VPS Прямой (прямой SSL без Cloudflare IPv6 задержек)
-  FRANKFURT_NODE,     // 3. Франкфурт VPS (с VPN / в Европе)
+  FRANKFURT_NODE,     // 2. Франкфурт VPS (с VPN / в Европе)
+  MOSCOW_DIRECT_NODE, // 3. Москва VPS Прямой (прямой SSL без Cloudflare IPv6 задержек)
   MONOBLOCK_NODE,     // 4. Домашний моноблок (423GB RU cache)
 ];
 
@@ -32,6 +32,12 @@ export function resolveDefaultBackend(): string {
         return saved;
       }
     } catch {}
+  }
+
+  // На международных/облачных CDN доменах (vercel.app, github pages) по умолчанию выбираем Франкфурт,
+  // так как за пределами РФ (или с VPN) соединение с Франкфуртом на порядок быстрее и стабильнее
+  if (host.includes('vercel.app')) {
+    return FRANKFURT_NODE;
   }
 
   return MOSCOW_NODE;

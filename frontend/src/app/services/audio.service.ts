@@ -117,13 +117,12 @@ export class AudioService {
     this.clearStartupWatchdog();
     this.startupWatchdogTimer = setTimeout(() => {
       if (requestId !== this.currentPlayRequestId) return;
-      // В HTML5 Audio play() сразу переводит audio.paused в false, даже во время загрузки сети.
-      // Поэтому проверка audio.paused блокировала срабатывание вотчдога при зависании сети.
-      if (!this.hasAudioStartedPlaying && (this.audio.currentTime === 0 || isNaN(this.audio.currentTime))) {
-        console.warn(`[AudioService] Track startup stalled (>14.0s) for "${track.title}", failing over cluster...`);
+      const currentPos = this.audio.currentTime || 0;
+      if (!this.hasAudioStartedPlaying || currentPos < 0.3 || this.audio.paused || this.audio.readyState < 2) {
+        console.warn(`[AudioService] Track startup stalled (>4.5s, pos=${currentPos.toFixed(2)}s, readyState=${this.audio.readyState}) for "${track.title}", failing over cluster...`);
         this.handlePlaybackFailure('startup_stall');
       }
-    }, 14000);
+    }, 4500);
   }
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
@@ -738,21 +737,28 @@ export class AudioService {
 
   private setupEventListeners() {
     let stallTimer: any = null;
+    let lastProgressTime = Date.now();
+
     const onStall = () => {
       if (!this.isPlaying() || this.isHandlingEnd || this.isSwitchingTrack) return;
       if (stallTimer) clearTimeout(stallTimer);
 
       stallTimer = setTimeout(() => {
-        if (this.isPlaying() && !this.audio.ended && this.hasAudioStartedPlaying) {
-          if (this.audio.paused || this.audio.readyState < 3) {
-            console.warn('[AudioService] Playback stalled for >5s, attempting gentle resume...');
+        if (this.isPlaying() && !this.audio.ended) {
+          const currentPos = this.currentTime();
+          const isReallyStuck = (this.audio.paused || this.audio.readyState < 3) && (Date.now() - lastProgressTime >= 3500);
+          if (isReallyStuck) {
+            console.warn(`[AudioService] Audio playback stalled for >3.5s at ${currentPos.toFixed(1)}s (network frozen on current node), triggering instant failover...`);
+            this.handlePlaybackFailure('playback_stall');
+          } else {
             this.audio.play().catch(() => {});
           }
         }
-      }, 5000);
+      }, 3500);
     };
 
     const clearStall = () => {
+      lastProgressTime = Date.now();
       if (stallTimer) {
         clearTimeout(stallTimer);
         stallTimer = null;
@@ -761,9 +767,12 @@ export class AudioService {
 
     this.audio.addEventListener('waiting', onStall);
     this.audio.addEventListener('stalled', onStall);
+    this.audio.addEventListener('progress', () => {
+      lastProgressTime = Date.now();
+    });
 
     this.audio.addEventListener('timeupdate', () => {
-      if (this.audio.currentTime > 0) {
+      if (this.audio.currentTime > 0.3) {
         this.clearStartupWatchdog();
         this.hasAudioStartedPlaying = true;
       }
@@ -1123,13 +1132,13 @@ export class AudioService {
     if (!this.recService.isMixActive()) {
       this.consecutiveErrorCount++;
 
-      // Попытка 1: мгновенно проверить здоровье кластера и повторить
+      // Попытка 1: мгновенный географический фейловер на альтернативную ноду
       if (this.consecutiveErrorCount === 1) {
         const cur = this.currentTrack();
         if (cur) {
           const pos = this.currentTime();
-          console.warn('[AudioService] Transient failure or stall, checking cluster health in real time (attempt 1)...');
-          this.libraryService.checkBackendHealth(true).then((activeBase) => {
+          console.warn('[AudioService] Transient failure or stall, failing over cluster node immediately (attempt 1)...');
+          this.libraryService.failoverBackend().then((activeBase) => {
             const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
             const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
             const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
@@ -1143,7 +1152,7 @@ export class AudioService {
               } else {
                 this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
               }
-            }, 150);
+            }, 100);
           });
           return;
         }
@@ -1187,11 +1196,11 @@ export class AudioService {
 
     if (this.recService.isMixActive()) {
       if (this.consecutiveErrorCount === 1) {
-        console.warn(`[AudioService] Transient failure in mix (attempt 1), checking cluster health immediately...`);
+        console.warn(`[AudioService] Transient failure in mix (attempt 1), failing over cluster node immediately...`);
         const cur = this.currentTrack();
         if (cur) {
           const pos = this.currentTime();
-          this.libraryService.checkBackendHealth(true).then((activeBase) => {
+          this.libraryService.failoverBackend().then((activeBase) => {
             const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
             const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
             const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
@@ -1207,7 +1216,7 @@ export class AudioService {
                   this.playTrack(updatedTrack, undefined, true);
                 }
               }
-            }, 150);
+            }, 100);
           });
           return;
         }
@@ -1439,6 +1448,7 @@ export class AudioService {
       url.startsWith('/') ||
       url.startsWith(window.location.origin) ||
       url.includes('/api/stream') ||
+      url.includes('recro-player.ru') ||
       url.includes('80.87.202.157') ||
       url.includes('177.3.217.64') ||
       url.includes('sslip.io')
