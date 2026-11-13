@@ -1079,6 +1079,10 @@ export class AudioService {
     nodeName?: string
   ) {
     if (!newNode) return;
+    if (reason === 'manual_failover') {
+      // Ручной фейловер из handlePlaybackFailure сам управляет переподключением
+      return;
+    }
     console.log(`[AudioService] Real-time cluster failover: ${oldNode} -> ${newNode} (${reason})`);
 
     const cur = this.currentTrack();
@@ -1139,10 +1143,13 @@ export class AudioService {
           const pos = this.currentTime();
           console.warn('[AudioService] Transient failure or stall, failing over cluster node immediately (attempt 1)...');
           this.libraryService.failoverBackend().then((activeBase) => {
-            const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
-            const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
-            const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
-            const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
+            let altUrl = (cur.audioUrl || '').trim();
+            if (altUrl.includes('/api/stream')) {
+              const streamIdx = altUrl.indexOf('/api/stream');
+              altUrl = `${activeBase}${altUrl.slice(streamIdx)}`;
+            } else {
+              altUrl = this.formatStreamUrl(cur);
+            }
             const updatedTrack = { ...cur, audioUrl: altUrl };
             this.currentTrack.set(updatedTrack);
             this.queue.update((q) => q.map((t) => (t.id === cur.id ? { ...t, audioUrl: altUrl } : t)));
@@ -1152,7 +1159,7 @@ export class AudioService {
               } else {
                 this.playTrack(updatedTrack, this.queue(), false, this.queueIndex());
               }
-            }, 100);
+            }, 80);
           });
           return;
         }
@@ -1201,10 +1208,13 @@ export class AudioService {
         if (cur) {
           const pos = this.currentTime();
           this.libraryService.failoverBackend().then((activeBase) => {
-            const cleanTitle = encodeURIComponent(cur.title.replace(/\(.*?\)|\[.*?]/g, '').trim());
-            const cleanArt = encodeURIComponent((cur.artist || '').replace(/\(.*?\)|\[.*?]/g, '').trim());
-            const idParam = cur.id && !cur.id.startsWith('default-') && !cur.id.startsWith('radio-') ? `&id=${encodeURIComponent(cur.id)}` : '';
-            const altUrl = `${activeBase}/api/stream?title=${cleanTitle}&artist=${cleanArt}${idParam}`;
+            let altUrl = (cur.audioUrl || '').trim();
+            if (altUrl.includes('/api/stream')) {
+              const streamIdx = altUrl.indexOf('/api/stream');
+              altUrl = `${activeBase}${altUrl.slice(streamIdx)}`;
+            } else {
+              altUrl = this.formatStreamUrl(cur);
+            }
             const updatedTrack = { ...cur, audioUrl: altUrl };
             this.currentTrack.set(updatedTrack);
             this.queue.update((q) => q.map((t) => (t.id === cur.id ? { ...t, audioUrl: altUrl } : t)));
@@ -1216,7 +1226,7 @@ export class AudioService {
                   this.playTrack(updatedTrack, undefined, true);
                 }
               }
-            }, 100);
+            }, 80);
           });
           return;
         }
@@ -1970,51 +1980,10 @@ export class AudioService {
               this.queue.set(reshuffled);
             }
           } else {
-            // Бесконечное автовоспроизведение: если очередь закончилась (например, доиграли треки или играл 1 трек),
-            // бесшовно подхватываем следующие похожие треки, которые могут понравиться пользователю,
-            // И СТРОГО ИСКЛЮЧАЕМ ЛЮБЫЕ ТРЕКИ ИЗ ЕГО МЕДИАТЕКИ!
-            const recentIds = new Set<string>(q.map((t) => t.id));
-            const recentArtists = new Set<string>(q.slice(-4).map((t) => t.artist).filter(Boolean));
-            const cur = this.currentTrack();
-
-            let recs: Track[] = [];
-            try {
-              recs = await this.recService.fetchOnlineDiscoveryTracks(4, recentIds, recentArtists, cur || null);
-            } catch (e) {
-              console.warn('[AudioService] Failed to fetch discovery tracks for auto-advance:', e);
-            }
-
-            if (recs.length === 0 && cur && (cur.title || cur.artist)) {
-              try {
-                const similar = await this.libraryService.getSimilarTracks(cur.title, cur.artist, 8, cur.genre);
-                recs = similar.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t) && !this.recService.isLibraryTrack(t));
-              } catch (e) {
-                console.warn('[AudioService] Failed to fetch online similar tracks for auto-advance:', e);
-              }
-            }
-
-            if (recs.length === 0) {
-              if (this.recService.getAllLocalCandidates().length > 0) {
-                try {
-                  const fresh = await this.recService.fetchOnlineDiscoveryTracks(4, recentIds, recentArtists, cur || null);
-                  recs = fresh.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t) && !this.recService.isLibraryTrack(t));
-                } catch {}
-              } else {
-                const mood = this.recService.currentMood();
-                const lang = this.recService.mixConfig().language;
-                const starters = this.recService.getStarterCandidates(mood, 6, lang);
-                recs = starters.filter((t) => !recentIds.has(t.id) && !this.libraryService.isDisliked(t) && !this.recService.isLibraryTrack(t));
-              }
-            }
-
-            const pureRecs = recs.filter((t) => !this.recService.isLibraryTrack(t));
-
-            if (pureRecs.length > 0) {
-              this.queue.update((curQ) => [...curQ, ...pureRecs]);
-            } else {
-              this.pause();
-              return;
-            }
+            // Очередь подошла к концу и повтор выключен — останавливаем воспроизведение.
+            // Вне режима "Микс" сторонние рекомендации не подмешиваются.
+            this.pause();
+            return;
           }
         }
       }

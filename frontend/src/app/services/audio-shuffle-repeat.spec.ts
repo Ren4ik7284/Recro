@@ -61,6 +61,17 @@ describe('AudioService - Shuffle and Repeat functionality', () => {
       // Should wrap around to index 0
       expect(audioService.queueIndex()).toBe(0);
     });
+
+    it('should pause and not inject mix when queue ends in repeat off mode', async () => {
+      audioService.queue.set([...mockTracks]);
+      audioService.queueIndex.set(mockTracks.length - 1);
+      audioService.repeatMode.set('off');
+
+      await audioService.next(true);
+
+      expect(audioService.isPlaying()).toBe(false);
+      expect(audioService.queue().length).toBe(mockTracks.length);
+    });
   });
 
   describe('Shuffle functionality', () => {

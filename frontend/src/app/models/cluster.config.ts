@@ -16,15 +16,8 @@ export function resolveDefaultBackend(): string {
   if (host === 'localhost' || host === '127.0.0.1') {
     return `http://${host}:8085`;
   }
-  if (host === 'recro-player.ru' || host.endsWith('recro-player.ru') || host === '80.87.202.157' || host.includes('80.87.202.157')) {
-    if (host.includes('node-home')) return MONOBLOCK_NODE;
-    return MOSCOW_NODE;
-  }
-  if (host === '177.3.217.64' || host.includes('177.3.217.64')) {
-    return FRANKFURT_NODE;
-  }
 
-  // Check if we already cached a proven healthy node from a previous session
+  // 1. Check if we already cached a proven healthy node from a previous session (e.g. Frankfurt on VPN or Moscow in RU)
   if (typeof localStorage !== 'undefined') {
     try {
       const saved = localStorage.getItem('recro_fastest_backend');
@@ -34,10 +27,12 @@ export function resolveDefaultBackend(): string {
     } catch {}
   }
 
-  // На международных/облачных CDN доменах (vercel.app, github pages) по умолчанию выбираем Франкфурт,
-  // так как за пределами РФ (или с VPN) соединение с Франкфуртом на порядок быстрее и стабильнее
-  if (host.includes('vercel.app')) {
+  // 2. Host-specific defaults
+  if (host === '177.3.217.64' || host.includes('177.3.217.64') || host.includes('vercel.app')) {
     return FRANKFURT_NODE;
+  }
+  if (host.includes('node-home')) {
+    return MONOBLOCK_NODE;
   }
 
   return MOSCOW_NODE;

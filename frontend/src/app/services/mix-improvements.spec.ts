@@ -275,7 +275,7 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       }
     });
 
-    it('auto-advance at end of queue outside mix should never dump library tracks', async () => {
+    it('auto-advance at end of queue outside mix should stop and not dump library or mix tracks', async () => {
       const mockOfflineService = {
         isTrackOffline: () => false,
         getCachedBlobUrlSync: () => null,
@@ -340,9 +340,10 @@ describe('Mix and My Wave Pure Discovery Improvements', () => {
       await audioService.next();
 
       const newQ = audioService.queue();
-      // Should NOT have dumped other library tracks (like user-lib-2: Группа крови)
-      const libraryDumps = newQ.filter((t) => t.id === 'user-lib-2');
-      expect(libraryDumps.length).toBe(0);
+      // Outside mix, queue ends and stops cleanly without fetching mix/discoveries
+      expect(newQ.length).toBe(1);
+      expect(rec.fetchOnlineDiscoveryTracks).not.toHaveBeenCalled();
+      expect(audioService.isPlaying()).toBe(false);
     });
 
     it('getBufferedDiscoveries should enforce strict artist diversity with max 1 track per artist', () => {

@@ -402,32 +402,13 @@ export class LibraryService implements OnDestroy {
     if (typeof window === 'undefined') return;
     if (this.edgeNodeMonitorInterval) clearInterval(this.edgeNodeMonitorInterval);
 
-    // Фоновый сторож кластера в реальном времени (каждые 15 секунд):
-    // Подстраивается под актуальный хост при включении/выключении VPN без перезагрузки страницы!
+    // Фоновый сторож кластера в реальном времени (каждые 20 секунд):
+    // Автоматически переключает между Москвой и Франкфуртом при включении/выключении VPN на лету!
     this.edgeNodeMonitorInterval = setInterval(async () => {
       try {
-        const cur = this.getBackendUrl();
-
-        // 1. Проверяем текущий активный узел быстрым пингом (1200мс)
-        let curHealthy = false;
-        try {
-          const curRes = await fetch(`${cur}/api/health?_t=${Date.now()}`, {
-            signal: AbortSignal.timeout(1200),
-            cache: 'no-store',
-          });
-          curHealthy = curRes.ok;
-        } catch {
-          curHealthy = false;
-        }
-
-        // 2. Если текущий узел перестал отвечать (например, пользователь переключил VPN):
-        // только тогда запускаем перепроверку кластера (failover)
-        if (!curHealthy) {
-          console.warn(`[Cluster] Active node ${cur} stopped responding (VPN switched?). Triggering real-time failover race...`);
-          await this.checkBackendHealth(true);
-        }
+        await this.checkBackendHealth(true);
       } catch {}
-    }, 15_000);
+    }, 20_000);
 
     // Мгновенные триггеры при изменении состояния сети (VPN toggle, смена интерфейса, возврат во вкладку):
     const handleNetworkStateChange = () => {
@@ -833,11 +814,12 @@ export class LibraryService implements OnDestroy {
 
         let winner = successful[0].url;
 
-        // Если текущий хост пользователя recro-player.ru или 80.87.202.157, и он ответил успешно:
-        // Остаемся на нем только если Франкфурт не быстрее его заметно (при VPN Франкфурт выигрывает)
+        // Если разница в задержке минимальна (<= 25мс) и среди ответивших есть узел того же источника (same-origin):
+        // остаемся на нем во избежание лишних междоменных CORS-запросов.
+        // Если один из узлов быстрее (например, Франкфурт с VPN или Москва в РФ) — всегда выбираем быстрейший!
         const currentOrigin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin.replace(/\/+$/, '') : '';
         const sameOriginNode = successful.find((s) => s.url === currentOrigin || (currentOrigin.includes('recro-player.ru') && s.url === MOSCOW_NODE));
-        if (sameOriginNode && (!force || sameOriginNode.rtt < successful[0].rtt * 1.6)) {
+        if (sameOriginNode && Math.abs(sameOriginNode.rtt - successful[0].rtt) <= 25) {
           winner = sameOriginNode.url;
         }
 
@@ -903,11 +885,11 @@ export class LibraryService implements OnDestroy {
 
     // Мгновенный географический фейловер:
     // Если текущий узел в Москве (recro-player.ru или 80.87.202.157), переключаем на Франкфурт (VPN узел)!
-    // Если во Франкфурте — переключаем на прямой узел Москвы.
+    // Если во Франкфурте — переключаем на основной узел Москвы.
     if (current.includes('recro-player.ru') || current.includes('80.87.202.157') || current === MOSCOW_NODE || current === MOSCOW_DIRECT_NODE) {
       alt = FRANKFURT_NODE;
     } else if (current.includes('177.3.217.64') || current === FRANKFURT_NODE) {
-      alt = MOSCOW_DIRECT_NODE;
+      alt = MOSCOW_NODE;
     } else {
       const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
       const curIdx = cluster.findIndex((b) => current.includes(b) || b.includes(current));
