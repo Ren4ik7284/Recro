@@ -156,4 +156,40 @@ describe('Cross-device Sync & Token Persistence', () => {
     const cloudOnly = result.merged.find((t: Track) => t.id === 'cloud-1');
     expect(cloudOnly).toBeDefined();
   });
+
+  it('should failover to Frankfurt when primary node sync stalls and successfully load cloud tracks', async () => {
+    const testToken = 'jwt-mock-token-xyz';
+    const testUser = { id: 'user-vpn-1', username: 'Recroz' };
+    (authService as any).persistSession(testToken, testUser);
+
+    const cloudPayload = {
+      updated_at: Date.now(),
+      tracks: [
+        {
+          id: 'dz-12345',
+          title: 'Cloud Track 1',
+          artist: 'Cloud Artist',
+          audioUrl: 'https://recro.177.3.217.64.sslip.io/api/stream?title=Cloud%20Track%201',
+          genre: 'Rock',
+          format: 'mp3',
+          plays: 10,
+          isFavorite: true,
+          duration: 200,
+          addedAt: '2026-11-13',
+        },
+      ],
+      playlists: [],
+      radio_stations: [],
+    };
+
+    // Mock fetchJsonWithClusterFailover to simulate failover to Frankfurt returning cloudPayload
+    vi.spyOn(libraryService, 'fetchJsonWithClusterFailover').mockResolvedValue(cloudPayload);
+
+    await libraryService.syncWithBackendOnStartup(true);
+
+    expect(libraryService.tracks().length).toBe(1);
+    expect(libraryService.tracks()[0].id).toBe('dz-12345');
+    expect(libraryService.tracks()[0].title).toBe('Cloud Track 1');
+    expect(libraryService.isCloudSynced()).toBe(true);
+  });
 });

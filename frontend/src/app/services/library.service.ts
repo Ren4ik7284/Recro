@@ -256,7 +256,7 @@ export class LibraryService implements OnDestroy {
 
   readonly onlineSearchResults = signal<Track[]>([]);
   readonly isSearchingOnline = signal<boolean>(false);
-  readonly isBackendOnline = signal<boolean>(false);
+  readonly isBackendOnline = signal<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   readonly isMonoblockOnline = signal<boolean>(false);
   private edgeNodeMonitorInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -734,6 +734,13 @@ export class LibraryService implements OnDestroy {
       this.coverUrlCache.clear();
       this.connectRealtimeSync();
 
+      const currentTracks = this.tracks();
+      if (currentTracks.length > 0) {
+        this.tracks.set(this.sanitizeTracks(currentTracks));
+      }
+
+      this.syncWithBackendOnStartup(true).catch(() => {});
+
       const nodeName = getNodeDisplayName(winner);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -762,20 +769,24 @@ export class LibraryService implements OnDestroy {
     this.activeHealthCheckPromise = (async () => {
       try {
         const current = this.getBackendUrl();
-        // 1. Если текущий активный узел здоров и вызов НЕ принудительный (не force и не failover)
+        // 1. Если текущий активный узел здоров по реальной пропускной способности (>500B body) и вызов НЕ принудительный:
         if (!force && current) {
           try {
-            const currentPing = await fetch(`${current}/api/health?_t=${Date.now()}`, {
+            const probePath = current.includes('node-home') ? '/api/health' : '/api/home';
+            const currentPing = await fetch(`${current}${probePath}?_t=${Date.now()}`, {
               signal: AbortSignal.timeout(1800),
               cache: 'no-store',
             });
             if (currentPing.ok) {
-              return current;
+              const body = await currentPing.text();
+              if (body.length > 500) {
+                return current;
+              }
             }
           } catch {}
         }
 
-        // 2. Выбираем доступный узел кластера через параллельную гонку с адекватным таймаутом (2500мс)
+        // 2. Выбираем доступный узел кластера через параллельную гонку с проверкой пропускной способности
         const candidates = getClusterCandidates().filter((u) => {
           if (u.includes('vercel.app')) return false;
           if (u.includes('node-home') && !this.isMonoblockOnline()) return false;
@@ -790,16 +801,38 @@ export class LibraryService implements OnDestroy {
         const pingNode = async (url: string): Promise<NodePingResult> => {
           const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
           const timeout = url.includes('node-home') ? 1000 : 2500;
-          const res = await fetch(`${url}/api/health?_t=${Date.now()}`, {
-            signal: AbortSignal.timeout(timeout),
-            cache: 'no-store',
-          });
-          if (res.ok) {
-            const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
-            console.log(`[Cluster] Node responded: ${getNodeDisplayName(url)} in ${rtt}ms (${url})`);
-            return { url, rtt };
-          }
-          throw new Error(`HTTP ${res.status}`);
+          const probePath = url.includes('node-home') ? '/api/health' : '/api/home';
+
+          try {
+            const res = await fetch(`${url}${probePath}?_t=${Date.now()}`, {
+              signal: AbortSignal.timeout(timeout),
+              cache: 'no-store',
+            });
+            if (res.ok) {
+              const body = await res.text();
+              if (body.length > 500) {
+                const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
+                console.log(`[Cluster] Node throughput ok: ${getNodeDisplayName(url)} in ${rtt}ms (${url})`);
+                return { url, rtt };
+              }
+            }
+          } catch {}
+
+          // Fallback probe via /api/health with penalization if throughput failed
+          try {
+            const fallbackRes = await fetch(`${url}/api/health?_t=${Date.now()}`, {
+              signal: AbortSignal.timeout(1200),
+              cache: 'no-store',
+            });
+            if (fallbackRes.ok) {
+              await fallbackRes.text();
+              const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0) + 1500;
+              console.log(`[Cluster] Node fallback ping: ${getNodeDisplayName(url)} in ${rtt}ms (penalized, throughput failed)`);
+              return { url, rtt };
+            }
+          } catch {}
+
+          throw new Error(`Node ${url} unreachable or throttled`);
         };
 
         const settled = await Promise.allSettled(candidates.map((u) => pingNode(u)));
@@ -815,8 +848,6 @@ export class LibraryService implements OnDestroy {
         let winner = successful[0].url;
 
         // Если разница в задержке минимальна (<= 25мс) и среди ответивших есть узел того же источника (same-origin):
-        // остаемся на нем во избежание лишних междоменных CORS-запросов.
-        // Если один из узлов быстрее (например, Франкфурт с VPN или Москва в РФ) — всегда выбираем быстрейший!
         const currentOrigin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin.replace(/\/+$/, '') : '';
         const sameOriginNode = successful.find((s) => s.url === currentOrigin || (currentOrigin.includes('recro-player.ru') && s.url === MOSCOW_NODE));
         if (sameOriginNode && Math.abs(sameOriginNode.rtt - successful[0].rtt) <= 25) {
@@ -840,7 +871,7 @@ export class LibraryService implements OnDestroy {
     return this.activeHealthCheckPromise;
   }
 
-  async fetchWithClusterFailover(path: string, init?: RequestInit, timeoutMs = 2500): Promise<Response> {
+  async fetchWithClusterFailover(path: string, init?: RequestInit, timeoutMs = 3500): Promise<Response> {
     const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
     const current = this.getBackendUrl();
     const ordered = [current, ...cluster.filter((c) => c !== current)];
@@ -848,19 +879,19 @@ export class LibraryService implements OnDestroy {
     let lastError: any = null;
     let attemptIndex = 0;
     for (const baseUrl of ordered) {
-      // Не зависать на выключенном домашнем моноблоке при фейловере
       if (baseUrl.includes('node-home') && !this.isMonoblockOnline()) {
         continue;
       }
       attemptIndex++;
+      let timer: ReturnType<typeof setTimeout> | null = null;
       try {
         const url = path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
         const controller = new AbortController();
-        const effectiveTimeout = baseUrl.includes('node-home') ? 750 : timeoutMs;
-        const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+        const effectiveTimeout = baseUrl.includes('node-home') ? 1000 : timeoutMs;
+        timer = setTimeout(() => controller.abort(), effectiveTimeout);
 
         const res = await fetch(url, { ...init, signal: controller.signal });
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
 
         if (res.ok) {
           if (this.activeBackendUrl !== baseUrl) {
@@ -869,8 +900,57 @@ export class LibraryService implements OnDestroy {
           return res;
         }
       } catch (err) {
+        if (timer) clearTimeout(timer);
         lastError = err;
-        // Если первый (активный) узел дал сбой, параллельно в фоне запускаем быструю перепроверку кластера
+        if (attemptIndex === 1) {
+          this.checkBackendHealth(true).catch(() => {});
+        }
+      }
+    }
+    throw lastError || new Error(`All cluster nodes failed for ${path}`);
+  }
+
+  async fetchJsonWithClusterFailover<T = any>(path: string, init?: RequestInit, timeoutMs = 3500): Promise<T> {
+    const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
+    const current = this.getBackendUrl();
+    const ordered = [current, ...cluster.filter((c) => c !== current)];
+
+    let lastError: any = null;
+    let attemptIndex = 0;
+    for (const baseUrl of ordered) {
+      if (baseUrl.includes('node-home') && !this.isMonoblockOnline()) {
+        continue;
+      }
+      attemptIndex++;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      try {
+        const url = path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+        const controller = new AbortController();
+        const effectiveTimeout = baseUrl.includes('node-home') ? 1000 : timeoutMs;
+        timer = setTimeout(() => controller.abort(), effectiveTimeout);
+
+        const res = await fetch(url, { ...init, signal: controller.signal });
+        if (res.status === 401) {
+          if (timer) clearTimeout(timer);
+          throw new Error('UNAUTHORIZED_401');
+        }
+        if (res.ok) {
+          const data = await res.json();
+          if (timer) clearTimeout(timer);
+          if (this.activeBackendUrl !== baseUrl) {
+            this.applyClusterNode(baseUrl, 'failover_request');
+          }
+          return data as T;
+        }
+        if (timer) clearTimeout(timer);
+        throw new Error(`HTTP ${res.status}`);
+      } catch (err: any) {
+        if (timer) clearTimeout(timer);
+        if (err?.message === 'UNAUTHORIZED_401') {
+          throw err;
+        }
+        lastError = err;
+        console.warn(`[Cluster] Request to ${baseUrl}${path} failed/stalled:`, err?.message || err);
         if (attemptIndex === 1) {
           this.checkBackendHealth(true).catch(() => {});
         }
@@ -888,13 +968,8 @@ export class LibraryService implements OnDestroy {
     // Если во Франкфурте — переключаем на основной узел Москвы.
     if (current.includes('recro-player.ru') || current.includes('80.87.202.157') || current === MOSCOW_NODE || current === MOSCOW_DIRECT_NODE) {
       alt = FRANKFURT_NODE;
-    } else if (current.includes('177.3.217.64') || current === FRANKFURT_NODE) {
-      alt = MOSCOW_NODE;
     } else {
-      const cluster = getClusterCandidates().filter((u) => !u.includes('vercel.app'));
-      const curIdx = cluster.findIndex((b) => current.includes(b) || b.includes(current));
-      const nextIdx = curIdx >= 0 ? (curIdx + 1) % cluster.length : 0;
-      alt = cluster[nextIdx] || cluster[0] || this.defaultBackendUrl;
+      alt = MOSCOW_NODE;
     }
 
     console.warn(`[LibraryService] Failing over backend from ${current} -> ${alt} (${getNodeDisplayName(alt)})`);
@@ -911,19 +986,10 @@ export class LibraryService implements OnDestroy {
 
     this.isSearchingOnline.set(true);
     try {
-      let res: Response;
-      try {
-        res = await this.fetchWithClusterFailover(`/api/search?q=${encodeURIComponent(q)}`, undefined, 4500);
-        if (!res.ok) throw new Error(`Search HTTP ${res.status}`);
-      } catch (err) {
-        console.warn('Search failed across cluster:', err);
-        this.onlineSearchResults.set([]);
-        return [];
-      }
+      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] =
+        await this.fetchJsonWithClusterFailover(`/api/search?q=${encodeURIComponent(q)}`, undefined, 4500);
 
-      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
-
-      const tracks: Track[] = data
+      const tracks: Track[] = (Array.isArray(data) ? data : [])
         .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
         .map((item) => ({
           id: item.id.startsWith('yt-') || item.id.startsWith('sc-') || item.id.startsWith('dz-') ? item.id : (item.id.length === 11 ? 'yt-' + item.id : item.id),
@@ -944,6 +1010,7 @@ export class LibraryService implements OnDestroy {
       return tracks;
     } catch (e) {
       console.warn('Online search error:', e);
+      this.onlineSearchResults.set([]);
       return [];
     } finally {
       this.isSearchingOnline.set(false);
@@ -963,12 +1030,10 @@ export class LibraryService implements OnDestroy {
       if (g) queryParams.set('genre', g);
       queryParams.set('limit', limit.toString());
 
-      const res = await this.fetchWithClusterFailover(`/api/recommendations?${queryParams.toString()}`, undefined, 3500);
-      if (!res.ok) return [];
+      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] =
+        await this.fetchJsonWithClusterFailover(`/api/recommendations?${queryParams.toString()}`, undefined, 3500);
 
-      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
-
-      return data
+      return (Array.isArray(data) ? data : [])
         .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
         .map((item) => ({
           id: item.id.startsWith('dz-') || item.id.startsWith('sc-') || item.id.startsWith('yt-') ? item.id : 'sc-' + item.id,
@@ -997,12 +1062,10 @@ export class LibraryService implements OnDestroy {
       if (genre) queryParams.set('genre', genre);
       queryParams.set('limit', limit.toString());
 
-      const res = await this.fetchWithClusterFailover(`/api/recommendations?${queryParams.toString()}`, undefined, 3500);
-      if (!res.ok) return [];
+      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] =
+        await this.fetchJsonWithClusterFailover(`/api/recommendations?${queryParams.toString()}`, undefined, 3500);
 
-      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
-
-      return data
+      return (Array.isArray(data) ? data : [])
         .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
         .map((item) => ({
           id: item.id.startsWith('dz-') || item.id.startsWith('sc-') || item.id.startsWith('yt-') ? item.id : 'sc-' + item.id,
@@ -1035,10 +1098,8 @@ export class LibraryService implements OnDestroy {
       if (a) queryParams.set('artist', a);
       queryParams.set('limit', limit.toString());
 
-      const res = await this.fetchWithClusterFailover(`/api/similar-tracks?${queryParams.toString()}`, undefined, 3500);
-      if (!res.ok) return [];
-
-      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] = await res.json();
+      const data: { id: string; title: string; artist: string; duration: number; audio_url: string; cover_url?: string }[] =
+        await this.fetchJsonWithClusterFailover(`/api/similar-tracks?${queryParams.toString()}`, undefined, 3500);
 
       return data
         .filter((item) => !item.id.startsWith('audius-') && !item.audio_url?.includes('audius.co'))
@@ -1246,7 +1307,7 @@ export class LibraryService implements OnDestroy {
         disliked_ids: Array.from(this.dislikedTrackIds()),
       };
 
-      const res = await fetch(`${this.getBackendUrl()}/api/sync`, {
+      const res = await this.fetchWithClusterFailover('/api/sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1254,7 +1315,7 @@ export class LibraryService implements OnDestroy {
         },
         credentials: 'include',
         body: JSON.stringify(payload),
-      });
+      }, 4000);
 
       if (res.status === 401) {
         console.warn('[LibraryService] /api/sync POST returned 401, preserving local library.');
@@ -1329,16 +1390,20 @@ export class LibraryService implements OnDestroy {
     if (!this.authService.isAuthenticated()) return;
 
     try {
-      const res = await fetch(`${this.getBackendUrl()}/api/sync`, {
-        headers: this.authService.getAuthHeaders(),
-        credentials: 'include',
-      });
-      if (res.status === 401) {
-        console.warn('[LibraryService] /api/sync GET returned 401, preserving local library.');
+      let data: any;
+      try {
+        data = await this.fetchJsonWithClusterFailover('/api/sync', {
+          headers: this.authService.getAuthHeaders(),
+          credentials: 'include',
+        }, 3500);
+      } catch (e: any) {
+        if (e?.message === 'UNAUTHORIZED_401') {
+          console.warn('[LibraryService] /api/sync GET returned 401, preserving local library.');
+          return;
+        }
+        console.warn('[LibraryService] /api/sync failed across all cluster nodes:', e);
         return;
       }
-      if (!res.ok) return;
-      const data = await res.json();
       if (!data) return;
 
       if (data.mix_config) {
@@ -2325,6 +2390,7 @@ export class LibraryService implements OnDestroy {
             ...this.authService.getAuthHeaders(),
           },
           credentials: 'include',
+          signal: AbortSignal.timeout(2500),
           body: JSON.stringify({
             track_id: track.id,
             title: track.title,
@@ -2347,6 +2413,7 @@ export class LibraryService implements OnDestroy {
       const res = await fetch(`${this.getBackendUrl()}/api/history`, {
         headers: this.authService.getAuthHeaders(),
         credentials: 'include',
+        signal: AbortSignal.timeout(3500),
       });
       if (res.ok) {
         const remote: HistoryItem[] = await res.json();
@@ -2378,6 +2445,7 @@ export class LibraryService implements OnDestroy {
           method: 'DELETE',
           headers: this.authService.getAuthHeaders(),
           credentials: 'include',
+          signal: AbortSignal.timeout(3500),
         });
       } catch {}
     }
@@ -2391,6 +2459,7 @@ export class LibraryService implements OnDestroy {
         const res = await fetch(`${this.getBackendUrl()}/api/stats/wrapped`, {
           headers: this.authService.getAuthHeaders(),
           credentials: 'include',
+          signal: AbortSignal.timeout(3500),
         });
         if (res.ok) {
           const stats = await res.json();

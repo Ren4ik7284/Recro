@@ -240,6 +240,7 @@ export class AuthService {
       const res = await fetch(`${base}/api/auth/me`, {
         headers: this.getAuthHeaders(),
         credentials: 'include',
+        signal: AbortSignal.timeout(3500),
       });
       if (res.ok) {
         const user: UserInfo = await res.json();

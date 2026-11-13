@@ -4,10 +4,10 @@ export const FRANKFURT_NODE = 'https://recro.177.3.217.64.sslip.io';
 export const MONOBLOCK_NODE = 'https://node-home.80.87.202.157.sslip.io';
 
 export const CLUSTER_BACKENDS = [
-  MOSCOW_NODE,        // 1. Москва VPS / recro-player.ru (без VPN в РФ через Cloudflare)
+  MOSCOW_NODE,        // 1. Москва VPS / recro-player.ru (без VPN в РФ)
   FRANKFURT_NODE,     // 2. Франкфурт VPS (с VPN / в Европе)
-  MOSCOW_DIRECT_NODE, // 3. Москва VPS Прямой (прямой SSL без Cloudflare IPv6 задержек)
-  MONOBLOCK_NODE,     // 4. Домашний моноблок (423GB RU cache)
+  MONOBLOCK_NODE,     // 3. Домашний моноблок (423GB RU cache)
+  MOSCOW_DIRECT_NODE, // 4. Москва VPS Прямой (прямой SSL без Cloudflare IPv6 задержек)
 ];
 
 export function resolveDefaultBackend(): string {
@@ -44,10 +44,10 @@ export function getClusterCandidates(): string[] {
   const host = window.location.hostname || '';
   if (host === 'localhost' || host === '127.0.0.1') {
     return [`http://${host}:8085`];
-  } else if (host === 'recro-player.ru' || host.endsWith('recro-player.ru') || host === '80.87.202.157') {
-    candidates.push(MOSCOW_NODE);
-  } else if (host === '177.3.217.64') {
-    candidates.push(FRANKFURT_NODE);
+  } else if (host === '177.3.217.64' || host.includes('177.3.217.64') || host.includes('vercel.app')) {
+    candidates.push(FRANKFURT_NODE, MOSCOW_NODE);
+  } else {
+    candidates.push(MOSCOW_NODE, FRANKFURT_NODE);
   }
 
   candidates.push(...CLUSTER_BACKENDS);

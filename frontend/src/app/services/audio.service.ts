@@ -119,10 +119,10 @@ export class AudioService {
       if (requestId !== this.currentPlayRequestId) return;
       const currentPos = this.audio.currentTime || 0;
       if (!this.hasAudioStartedPlaying || currentPos < 0.3 || this.audio.paused || this.audio.readyState < 2) {
-        console.warn(`[AudioService] Track startup stalled (>4.5s, pos=${currentPos.toFixed(2)}s, readyState=${this.audio.readyState}) for "${track.title}", failing over cluster...`);
+        console.warn(`[AudioService] Track startup stalled (>3.5s, pos=${currentPos.toFixed(2)}s, readyState=${this.audio.readyState}) for "${track.title}", failing over cluster...`);
         this.handlePlaybackFailure('startup_stall');
       }
-    }, 4500);
+    }, 3500);
   }
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
