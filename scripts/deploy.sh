@@ -10,8 +10,8 @@ REMOTE_PATH="/var/www/recro"
 if [ -n "$TARGET_SERVER" ]; then
     SERVERS=("$TARGET_SERVER")
 else
-    # По умолчанию деплоим на узлы кластера (Москва, Франкфурт и моноблок если доступен)
-    SERVERS=("bebragnom89" "recroz")
+    # По умолчанию деплоим на рабочий сервер Москвы bebragnom89
+    SERVERS=("bebragnom89")
     if ssh -o ConnectTimeout=2 monoblock "true" 2>/dev/null; then
         SERVERS+=("monoblock")
     fi

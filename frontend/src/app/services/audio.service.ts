@@ -119,10 +119,10 @@ export class AudioService {
       if (requestId !== this.currentPlayRequestId) return;
       const currentPos = this.audio.currentTime || 0;
       if (!this.hasAudioStartedPlaying || currentPos < 0.3 || this.audio.paused || this.audio.readyState < 2) {
-        console.warn(`[AudioService] Track startup stalled (>3.5s, pos=${currentPos.toFixed(2)}s, readyState=${this.audio.readyState}) for "${track.title}", failing over cluster...`);
+        console.warn(`[AudioService] Track startup stalled (>6.0s, pos=${currentPos.toFixed(2)}s, readyState=${this.audio.readyState}) for "${track.title}", failing over cluster...`);
         this.handlePlaybackFailure('startup_stall');
       }
-    }, 3500);
+    }, 6000);
   }
   // Timestamp-дебаунс для ensureSmartQueue в timeupdate: не спамить вызов каждые 250ms
   private lastQueueEnsureTime = 0;
@@ -746,15 +746,15 @@ export class AudioService {
       stallTimer = setTimeout(() => {
         if (this.isPlaying() && !this.audio.ended) {
           const currentPos = this.currentTime();
-          const isReallyStuck = (this.audio.paused || this.audio.readyState < 3) && (Date.now() - lastProgressTime >= 3500);
+          const isReallyStuck = (this.audio.paused || this.audio.readyState < 3) && (Date.now() - lastProgressTime >= 6000);
           if (isReallyStuck) {
-            console.warn(`[AudioService] Audio playback stalled for >3.5s at ${currentPos.toFixed(1)}s (network frozen on current node), triggering instant failover...`);
+            console.warn(`[AudioService] Audio playback stalled for >6.0s at ${currentPos.toFixed(1)}s (network frozen on current node), triggering instant failover...`);
             this.handlePlaybackFailure('playback_stall');
           } else {
             this.audio.play().catch(() => {});
           }
         }
-      }, 3500);
+      }, 6000);
     };
 
     const clearStall = () => {
@@ -1460,7 +1460,6 @@ export class AudioService {
       url.includes('/api/stream') ||
       url.includes('recro-player.ru') ||
       url.includes('80.87.202.157') ||
-      url.includes('177.3.217.64') ||
       url.includes('sslip.io')
     ) {
       return true;
@@ -2253,7 +2252,7 @@ export class AudioService {
       } else if (activeBase.includes('80.87.202.157')) {
         activeBase = 'https://recro.80.87.202.157.sslip.io';
       } else if (activeBase.includes('177.3.217.64')) {
-        activeBase = 'https://recro.177.3.217.64.sslip.io';
+        activeBase = 'https://recro-player.ru';
       } else if (activeBase.startsWith('http://') && !activeBase.includes('localhost') && !activeBase.includes('127.0.0.1')) {
         activeBase = activeBase.replace(/^http:\/\//, 'https://');
       }

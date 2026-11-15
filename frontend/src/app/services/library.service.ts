@@ -2,7 +2,7 @@ import { Injectable, signal, computed, inject, effect, OnDestroy } from '@angula
 import { Track, Playlist, RadioStation, MixConfig, DEFAULT_MIX_CONFIG, ChartArtist, ChartSummary, ChartDetail, ReleaseItem, HomeExploreData } from '../models/track.model';
 import { OfflineService } from './offline.service';
 import { AuthService, HistoryItem, WrappedStats } from './auth.service';
-import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates, MONOBLOCK_NODE, MOSCOW_NODE, MOSCOW_DIRECT_NODE, FRANKFURT_NODE, getNodeDisplayName } from '../models/cluster.config';
+import { CLUSTER_BACKENDS, resolveDefaultBackend, getClusterCandidates, MONOBLOCK_NODE, MOSCOW_NODE, MOSCOW_DIRECT_NODE, getNodeDisplayName } from '../models/cluster.config';
 
 export interface ExtractedResult {
   playlistTitle: string | null;
@@ -343,6 +343,14 @@ export class LibraryService implements OnDestroy {
   private sseReconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('recro_fastest_backend');
+        if (saved && (saved.includes('177.3.217.64') || saved.includes('vercel.app'))) {
+          localStorage.removeItem('recro_fastest_backend');
+        }
+      } catch {}
+    }
     this.initLibrary();
     if (typeof window !== 'undefined') {
       setTimeout(() => {
@@ -769,26 +777,23 @@ export class LibraryService implements OnDestroy {
     this.activeHealthCheckPromise = (async () => {
       try {
         const current = this.getBackendUrl();
-        // 1. Если текущий активный узел здоров по реальной пропускной способности (>500B body) и вызов НЕ принудительный:
+        // 1. Быстрая проверка текущего активного узла через легкий /api/health (без прокачки 21KB /api/home)
         if (!force && current) {
           try {
-            const probePath = current.includes('node-home') ? '/api/health' : '/api/home';
-            const currentPing = await fetch(`${current}${probePath}?_t=${Date.now()}`, {
-              signal: AbortSignal.timeout(1800),
+            const currentPing = await fetch(`${current}/api/health?_t=${Date.now()}`, {
+              signal: AbortSignal.timeout(3500),
               cache: 'no-store',
             });
             if (currentPing.ok) {
-              const body = await currentPing.text();
-              if (body.length > 500) {
-                return current;
-              }
+              return current;
             }
           } catch {}
         }
 
-        // 2. Выбираем доступный узел кластера через параллельную гонку с проверкой пропускной способности
+        // 2. Проверяем доступные узлы кластера
         const candidates = getClusterCandidates().filter((u) => {
           if (u.includes('vercel.app')) return false;
+          if (u.includes('177.3.217.64')) return false;
           if (u.includes('node-home') && !this.isMonoblockOnline()) return false;
           return true;
         });
@@ -800,39 +805,21 @@ export class LibraryService implements OnDestroy {
 
         const pingNode = async (url: string): Promise<NodePingResult> => {
           const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-          const timeout = url.includes('node-home') ? 1000 : 2500;
-          const probePath = url.includes('node-home') ? '/api/health' : '/api/home';
+          const timeout = 4000;
 
           try {
-            const res = await fetch(`${url}${probePath}?_t=${Date.now()}`, {
+            const res = await fetch(`${url}/api/health?_t=${Date.now()}`, {
               signal: AbortSignal.timeout(timeout),
               cache: 'no-store',
             });
             if (res.ok) {
-              const body = await res.text();
-              if (body.length > 500) {
-                const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
-                console.log(`[Cluster] Node throughput ok: ${getNodeDisplayName(url)} in ${rtt}ms (${url})`);
-                return { url, rtt };
-              }
-            }
-          } catch {}
-
-          // Fallback probe via /api/health with penalization if throughput failed
-          try {
-            const fallbackRes = await fetch(`${url}/api/health?_t=${Date.now()}`, {
-              signal: AbortSignal.timeout(1200),
-              cache: 'no-store',
-            });
-            if (fallbackRes.ok) {
-              await fallbackRes.text();
-              const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0) + 1500;
-              console.log(`[Cluster] Node fallback ping: ${getNodeDisplayName(url)} in ${rtt}ms (penalized, throughput failed)`);
+              const rtt = Math.round(((typeof performance !== 'undefined') ? performance.now() : Date.now()) - t0);
+              console.log(`[Cluster] Node ok: ${getNodeDisplayName(url)} in ${rtt}ms (${url})`);
               return { url, rtt };
             }
           } catch {}
 
-          throw new Error(`Node ${url} unreachable or throttled`);
+          throw new Error(`Node ${url} unreachable`);
         };
 
         const settled = await Promise.allSettled(candidates.map((u) => pingNode(u)));
@@ -858,9 +845,8 @@ export class LibraryService implements OnDestroy {
         this.applyClusterNode(winner, force ? 'forced_probe' : 'fast_race');
         return winner;
       } catch (e) {
-        console.warn('[Cluster] Parallel health race failed, falling back:', e);
-        const current = this.getBackendUrl();
-        const fallback = current && (current.includes('recro-player.ru') || current.includes('80.87.202.157')) ? FRANKFURT_NODE : MOSCOW_NODE;
+        console.warn('[Cluster] Parallel health race failed, falling back to Moscow:', e);
+        const fallback = MOSCOW_NODE;
         this.applyClusterNode(fallback, 'fallback_error');
         return fallback;
       } finally {
@@ -963,11 +949,9 @@ export class LibraryService implements OnDestroy {
     const current = this.getBackendUrl();
     let alt: string;
 
-    // Мгновенный географический фейловер:
-    // Если текущий узел в Москве (recro-player.ru или 80.87.202.157), переключаем на Франкфурт (VPN узел)!
-    // Если во Франкфурте — переключаем на основной узел Москвы.
-    if (current.includes('recro-player.ru') || current.includes('80.87.202.157') || current === MOSCOW_NODE || current === MOSCOW_DIRECT_NODE) {
-      alt = FRANKFURT_NODE;
+    // Переключение между основным доменом и прямым SSL-узлом Москвы
+    if (current.includes('recro-player.ru') || current === MOSCOW_NODE) {
+      alt = MOSCOW_DIRECT_NODE;
     } else {
       alt = MOSCOW_NODE;
     }
@@ -1836,7 +1820,7 @@ export class LibraryService implements OnDestroy {
         if (audioUrl.includes('80.87.202.157')) {
           audioUrl = audioUrl.replace(/https?:\/\/80\.87\.202\.157(:3000|:8085)?/, 'https://recro.80.87.202.157.sslip.io');
         } else if (audioUrl.includes('177.3.217.64')) {
-          audioUrl = audioUrl.replace(/https?:\/\/177\.3\.217\.64(:3000|:8085)?/, 'https://recro.177.3.217.64.sslip.io');
+          audioUrl = audioUrl.replace(/https?:\/\/(recro\.)?177\.3\.217\.64(\.sslip\.io)?(:3000|:8085)?/, 'https://recro-player.ru');
         } else if (audioUrl.startsWith('http://') && !audioUrl.includes('localhost') && !audioUrl.includes('127.0.0.1')) {
           audioUrl = audioUrl.replace(/^http:\/\//, 'https://');
         }
@@ -1845,7 +1829,7 @@ export class LibraryService implements OnDestroy {
           if (coverUrl.includes('80.87.202.157')) {
             coverUrl = coverUrl.replace(/https?:\/\/80\.87\.202\.157(:3000|:8085)?/, 'https://recro.80.87.202.157.sslip.io');
           } else if (coverUrl.includes('177.3.217.64')) {
-            coverUrl = coverUrl.replace(/https?:\/\/177\.3\.217\.64(:3000|:8085)?/, 'https://recro.177.3.217.64.sslip.io');
+            coverUrl = coverUrl.replace(/https?:\/\/(recro\.)?177\.3\.217\.64(\.sslip\.io)?(:3000|:8085)?/, 'https://recro-player.ru');
           } else if (coverUrl.startsWith('http://')) {
             coverUrl = coverUrl.replace(/^http:\/\//, 'https://');
           }
