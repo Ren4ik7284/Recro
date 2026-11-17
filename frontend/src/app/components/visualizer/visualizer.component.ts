@@ -102,7 +102,13 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit() {
     this.setupResizeObserver();
+    this.adjustCanvasResolution();
     this.startRenderLoop();
+  }
+
+  @HostListener('window:resize')
+  onResize() {
+    this.adjustCanvasResolution();
   }
 
   ngOnDestroy() {
@@ -396,8 +402,6 @@ export class VisualizerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    this.adjustCanvasResolution();
 
     const w = canvas.width;
     const h = canvas.height;

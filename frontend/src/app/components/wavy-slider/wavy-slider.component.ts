@@ -61,6 +61,10 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
   private lastTimestamp = 0;
   private wavePhase = 0;
   private resizeObserver?: ResizeObserver;
+  private cachedWidth = 0;
+  private cachedHeight = 0;
+  private cachedActiveColor = '#ffffff';
+  private cachedRemainingColor = 'rgba(255, 255, 255, 0.2)';
 
   // Bound window listener references for safe removal
   private onWindowPointerMoveRef = (e: PointerEvent) => this.onWindowPointerMove(e);
@@ -107,6 +111,11 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
         this.stopWaveAnimation();
         this.requestDraw();
       }
+    }
+
+    if (changes['color']) {
+      this.updateCachedColors();
+      this.requestDraw();
     }
 
     if (changes['value'] || changes['max'] || changes['amplitude'] || changes['waveLength']) {
@@ -189,6 +198,26 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
     this.resizeObserver.observe(this.hostRef.nativeElement);
   }
 
+  private updateCachedColors(): void {
+    const canvas = this.canvasRef?.nativeElement;
+    if (!canvas || !this.isBrowser) return;
+    try {
+      const style = getComputedStyle(canvas);
+      this.cachedActiveColor =
+        this.color ||
+        style.getPropertyValue('--slider-fill-color').trim() ||
+        style.getPropertyValue('--theme-c1').trim() ||
+        style.getPropertyValue('--accent-blue').trim() ||
+        '#ffffff';
+      this.cachedRemainingColor =
+        style.getPropertyValue('--slider-bg-color').trim() ||
+        'rgba(255, 255, 255, 0.2)';
+    } catch {
+      this.cachedActiveColor = this.color || '#ffffff';
+      this.cachedRemainingColor = 'rgba(255, 255, 255, 0.2)';
+    }
+  }
+
   private syncCanvasSize(): void {
     const canvas = this.canvasRef?.nativeElement;
     if (!canvas) return;
@@ -198,9 +227,16 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
     const width = Math.max(10, Math.floor(rect.width));
     const height = Math.max(10, Math.floor(rect.height));
 
-    if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
+    this.cachedWidth = width;
+    this.cachedHeight = height;
+    this.updateCachedColors();
+
+    const targetW = Math.floor(width * dpr);
+    const targetH = Math.floor(height * dpr);
+
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
     }
   }
 
@@ -210,9 +246,8 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
     if (!canvas || !this.ctx) return;
 
     const ctx = this.ctx;
-    const rect = canvas.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
+    const width = this.cachedWidth > 0 ? this.cachedWidth : (canvas.width > 0 ? canvas.width : 200);
+    const height = this.cachedHeight > 0 ? this.cachedHeight : (canvas.height > 0 ? canvas.height : 24);
     if (width <= 0 || height <= 0) return;
 
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -221,17 +256,9 @@ export class WavySliderComponent implements OnInit, AfterViewInit, OnChanges, On
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    // Color resolution from CSS theme or fallback
-    const style = getComputedStyle(canvas);
-    const activeColor =
-      this.color ||
-      style.getPropertyValue('--slider-fill-color').trim() ||
-      style.getPropertyValue('--theme-c1').trim() ||
-      style.getPropertyValue('--accent-blue').trim() ||
-      '#ffffff';
-    const remainingColor =
-      style.getPropertyValue('--slider-bg-color').trim() ||
-      'rgba(255, 255, 255, 0.2)';
+    // Fast cached colors without getComputedStyle layout recalculation
+    const activeColor = this.color || this.cachedActiveColor;
+    const remainingColor = this.cachedRemainingColor;
 
     const centerY = height / 2;
     const effectiveValue = this.isDragging ? this.currentDragPct * this.max : this.value;

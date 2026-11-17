@@ -100,6 +100,7 @@ export class AudioService {
   private isReplenishingQueue = false;
   private replenishingPromise: Promise<void> | null = null;
   private consecutiveErrorCount = 0;
+  private consecutiveTrackFailures = 0;
   private errorTimeoutId: any = null;
   private fadeIntervalId: any = null;
   private currentPlayRequestId = 0;
@@ -479,62 +480,87 @@ export class AudioService {
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtxClass) return;
 
-      this.audioCtx = new AudioCtxClass({
-        latencyHint: 'playback'
-      });
-      if (this.audioCtx.sampleRate) {
-        this.audioSampleRate.set(this.audioCtx.sampleRate);
+      // 1. Maintain a single singleton AudioContext. Never instantiate multiple AudioContexts.
+      if (!this.audioCtx || this.audioCtx.state === 'closed') {
+        this.audioCtx = new AudioCtxClass({
+          latencyHint: 'playback'
+        });
+        if (this.audioCtx.sampleRate) {
+          this.audioSampleRate.set(this.audioCtx.sampleRate);
+        }
+
+        this.audioCtx.onstatechange = () => {
+          if (this.audioCtx && this.audioCtx.state === 'suspended' && this.isPlaying()) {
+            this.audioCtx.resume().catch(() => {});
+          }
+        };
       }
 
-      this.audioCtx.onstatechange = () => {
-        if (this.audioCtx && this.audioCtx.state === 'suspended' && this.isPlaying()) {
-          this.audioCtx.resume().catch(() => {});
-        }
-      };
-
-      try {
-        if (!this.sourceNode) {
+      // 2. HTMLMediaElement can only be bound once to createMediaElementSource
+      if (!this.sourceNode) {
+        try {
           this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
+        } catch (err) {
+          console.warn('[AudioService] Failed to create MediaElementSource, using direct audio output:', err);
+          this.sourceNode = null;
+          return;
         }
-      } catch (err) {
-        console.warn('[AudioService] Failed to create MediaElementSource, using direct audio output:', err);
-        this.sourceNode = null;
-        return;
       }
 
-      // 1. Lossless Scaling DSP Engine: 3-band high-precision studio mastering filters
-      this.lsBassFilter = this.audioCtx.createBiquadFilter();
-      this.lsBassFilter.type = 'lowshelf';
-      this.lsBassFilter.frequency.setValueAtTime(75, this.audioCtx.currentTime);
+      // 3. Lossless Scaling DSP Engine: 3-band high-precision studio mastering filters
+      if (!this.lsBassFilter) {
+        this.lsBassFilter = this.audioCtx.createBiquadFilter();
+        this.lsBassFilter.type = 'lowshelf';
+        this.lsBassFilter.frequency.setValueAtTime(75, this.audioCtx.currentTime);
+      }
 
-      this.lsClarityFilter = this.audioCtx.createBiquadFilter();
-      this.lsClarityFilter.type = 'peaking';
-      this.lsClarityFilter.frequency.setValueAtTime(3200, this.audioCtx.currentTime);
-      this.lsClarityFilter.Q.setValueAtTime(0.9, this.audioCtx.currentTime);
+      if (!this.lsClarityFilter) {
+        this.lsClarityFilter = this.audioCtx.createBiquadFilter();
+        this.lsClarityFilter.type = 'peaking';
+        this.lsClarityFilter.frequency.setValueAtTime(3200, this.audioCtx.currentTime);
+        this.lsClarityFilter.Q.setValueAtTime(0.9, this.audioCtx.currentTime);
+      }
 
-      this.lsAirFilter = this.audioCtx.createBiquadFilter();
-      this.lsAirFilter.type = 'highshelf';
-      this.lsAirFilter.frequency.setValueAtTime(11800, this.audioCtx.currentTime);
+      if (!this.lsAirFilter) {
+        this.lsAirFilter = this.audioCtx.createBiquadFilter();
+        this.lsAirFilter.type = 'highshelf';
+        this.lsAirFilter.frequency.setValueAtTime(11800, this.audioCtx.currentTime);
+      }
 
       // Apply initial DSP gains
       this.applyLosslessScaling(true);
 
-      // 2. DynamicsCompressor for gentle peak leveling without squashing dynamics or causing pumping
-      this.compressorNode = this.audioCtx.createDynamicsCompressor();
-      this.compressorNode.threshold.setValueAtTime(-14, this.audioCtx.currentTime);
-      this.compressorNode.knee.setValueAtTime(16, this.audioCtx.currentTime);
-      this.compressorNode.ratio.setValueAtTime(4, this.audioCtx.currentTime);
-      this.compressorNode.attack.setValueAtTime(0.01, this.audioCtx.currentTime);
-      this.compressorNode.release.setValueAtTime(0.18, this.audioCtx.currentTime);
+      // 4. DynamicsCompressor for gentle peak leveling without squashing dynamics or causing pumping
+      if (!this.compressorNode) {
+        this.compressorNode = this.audioCtx.createDynamicsCompressor();
+        this.compressorNode.threshold.setValueAtTime(-14, this.audioCtx.currentTime);
+        this.compressorNode.knee.setValueAtTime(16, this.audioCtx.currentTime);
+        this.compressorNode.ratio.setValueAtTime(4, this.audioCtx.currentTime);
+        this.compressorNode.attack.setValueAtTime(0.01, this.audioCtx.currentTime);
+        this.compressorNode.release.setValueAtTime(0.18, this.audioCtx.currentTime);
+      }
 
-      // 3. GainNode for smooth crossfades and click-free track transitions
-      this.gainNode = this.audioCtx.createGain();
-      this.gainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+      // 5. GainNode for smooth crossfades and click-free track transitions
+      if (!this.gainNode) {
+        this.gainNode = this.audioCtx.createGain();
+        this.gainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+      }
 
-      // 4. AnalyserNode for real-time audio visualization
-      this.analyserNode = this.audioCtx.createAnalyser();
-      this.analyserNode.fftSize = 256;
-      this.analyserNode.smoothingTimeConstant = 0.82;
+      // 6. AnalyserNode for real-time audio visualization
+      if (!this.analyserNode) {
+        this.analyserNode = this.audioCtx.createAnalyser();
+        this.analyserNode.fftSize = 256;
+        this.analyserNode.smoothingTimeConstant = 0.82;
+      }
+
+      // Disconnect existing graph to prevent duplicate connections
+      try { this.sourceNode.disconnect(); } catch {}
+      try { this.lsBassFilter.disconnect(); } catch {}
+      try { this.lsClarityFilter.disconnect(); } catch {}
+      try { this.lsAirFilter.disconnect(); } catch {}
+      try { this.compressorNode.disconnect(); } catch {}
+      try { this.gainNode.disconnect(); } catch {}
+      try { this.analyserNode.disconnect(); } catch {}
 
       // Connect graph: Source -> LS Bass -> LS Clarity -> LS Air -> Compressor -> Gain -> Analyser -> Destination
       this.sourceNode.connect(this.lsBassFilter);
@@ -874,6 +900,7 @@ export class AudioService {
       this.isSwitchingTrack = false;
       this.hasAudioStartedPlaying = true;
       this.consecutiveErrorCount = 0;
+      this.consecutiveTrackFailures = 0;
       this.isPlaying.set(true);
       this.updateMediaSessionPlaybackState('playing');
       const cur = this.currentTrack();
@@ -1195,7 +1222,9 @@ export class AudioService {
       this.isPlaying.set(false);
       this.updateMediaSessionPlaybackState('paused');
       this.consecutiveErrorCount = 0;
+      this.consecutiveTrackFailures = 0;
       this.releaseWakeLock();
+      this.notifyUser('Не удалось воспроизвести трек.');
       return;
     }
 
@@ -1258,13 +1287,25 @@ export class AudioService {
         }
       }
 
-      console.warn('[AudioService] Playback failure in mix after cluster retries, smoothly advancing to next track');
+      this.consecutiveTrackFailures++;
+      if (this.consecutiveTrackFailures >= 3) {
+        console.warn('[AudioService] Mix playback aborted: multiple tracks failed consecutively, network or backend likely unavailable');
+        this.isPlaying.set(false);
+        this.updateMediaSessionPlaybackState('paused');
+        this.consecutiveErrorCount = 0;
+        this.consecutiveTrackFailures = 0;
+        this.releaseWakeLock();
+        this.notifyUser('Не удалось загрузить треки с сервера. Воспроизведение приостановлено.');
+        return;
+      }
+
+      console.warn(`[AudioService] Playback failure in mix after cluster retries, smoothly advancing to next track (consecutive failure #${this.consecutiveTrackFailures})`);
       this.consecutiveErrorCount = 0;
       this.errorTimeoutId = setTimeout(() => {
         if (this.recService.isMixActive()) {
           this.next();
         }
-      }, 300);
+      }, 500);
       return;
     }
   }
@@ -1507,6 +1548,7 @@ export class AudioService {
     if (!fromMix && newQueue !== undefined) {
       this.recService.isMixActive.set(false);
       this.consecutiveErrorCount = 0;
+      this.consecutiveTrackFailures = 0;
     }
 
     // 1. Initialize Web Audio API on user gesture (non-blocking)

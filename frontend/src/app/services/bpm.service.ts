@@ -17,6 +17,7 @@ export class BpmService {
   private energyHistory: number[] = [];
   private rafId: number | null = null;
   private currentTrackId: string | null = null;
+  private readonly freqData = new Uint8Array(32);
 
   startDetectionForTrack(trackId: string, initialBpm?: number | null) {
     if (initialBpm && initialBpm >= 45 && initialBpm <= 240) {
@@ -56,10 +57,9 @@ export class BpmService {
       return;
     }
 
-    const freqData = new Uint8Array(32);
-    if (this.audioService.getAudioFrequencyData(freqData)) {
+    if (this.audioService.getAudioFrequencyData(this.freqData)) {
       // Focus on low frequencies / kick transients: bins 0, 1, 2 (~40Hz - 180Hz)
-      const bassEnergy = (freqData[0] * 1.2 + freqData[1] * 1.5 + freqData[2] * 0.8) / 3.5;
+      const bassEnergy = (this.freqData[0] * 1.2 + this.freqData[1] * 1.5 + this.freqData[2] * 0.8) / 3.5;
       const now = performance.now();
 
       this.energyHistory.push(bassEnergy);
