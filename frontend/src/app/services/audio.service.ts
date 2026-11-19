@@ -1083,19 +1083,12 @@ export class AudioService {
         );
       });
 
-      // Once the fastest node is resolved on cold start, immediately prewarm the first wave track!
+      // Once the fastest node is resolved on cold start, prewarm the first wave track
       window.addEventListener('recro:fastest-node-ready', () => {
         if (!this.isPlaying()) {
           this.prewarmSmartWaveStarter().catch(() => {});
         }
       });
-
-      // Safety net: in case fastest-node-ready fired before AudioService attached listeners
-      setTimeout(() => {
-        if (!this.isPlaying() && !this.prewarmedWaveTrack()) {
-          this.prewarmSmartWaveStarter().catch(() => {});
-        }
-      }, 350);
     }
   }
 

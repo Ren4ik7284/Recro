@@ -47,9 +47,7 @@
       background: transparent !important;
 
       thead th {
-        background: rgba(10, 13, 20, 0.72) !important;
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+        background: rgba(10, 13, 20, 0.92) !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
         color: rgba(255, 255, 255, 0.75) !important;
       }
@@ -77,9 +75,7 @@
     .mobile-track-card {
       content-visibility: auto;
       contain-intrinsic-size: 0 56px;
-      background: rgba(12, 15, 24, 0.52) !important;
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      background: rgba(12, 15, 24, 0.72) !important;
       border: 1px solid rgba(255, 255, 255, 0.08) !important;
 
       &:hover, &:active {
@@ -95,10 +91,8 @@
 
   /* Жанровые чипы */
   .genre-chip {
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
 
     &:hover {
       background: rgba(255, 255, 255, 0.12) !important;
@@ -113,10 +107,8 @@
   }
 
   .btn-header-action {
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
 
     &:hover:not(:disabled) {
       background: rgba(255, 255, 255, 0.12) !important;
@@ -145,16 +137,12 @@
   }
 
   .playlist-card, .album-card, .radio-station-card, .station-card, .profile-theme-box, .stat-card, .badge-card {
-    background: rgba(14, 17, 26, 0.55) !important;
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    background: rgba(14, 17, 26, 0.78) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
   }
 
   .search-state-card, .explore-hero-card, .guest-welcome-banner {
-    background: rgba(14, 17, 26, 0.55) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(14, 17, 26, 0.78) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
   }
 
@@ -178,11 +166,12 @@
   .ambient-orb {
     position: absolute;
     border-radius: 50%;
-    filter: blur(115px);
-    opacity: 0.55;
+    filter: blur(36px);
+    opacity: 0.5;
     mix-blend-mode: screen;
     will-change: transform;
     pointer-events: none;
+    transform: translateZ(0);
   }
 
   .orb-1 {

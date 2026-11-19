@@ -79,8 +79,8 @@ if [ "$MODE" = "backend" ] || [ "$MODE" = "all" ]; then
 fi
 
 # Smoke-test CORS and health on bebragnom89
-if curl -s -I "http://80.87.202.157/api/health" | grep -q "Access-Control-Allow-Origin"; then
-    DUP_COUNT=$(curl -s -I "http://80.87.202.157/api/health" | grep -ci "Access-Control-Allow-Origin" || true)
+if curl -s -I --connect-timeout 4 -m 5 "http://80.87.202.157/api/health" | grep -q "Access-Control-Allow-Origin"; then
+    DUP_COUNT=$(curl -s -I --connect-timeout 4 -m 5 "http://80.87.202.157/api/health" | grep -ci "Access-Control-Allow-Origin" || true)
     if [ "$DUP_COUNT" -gt 1 ]; then
         echo "⚠️ ВНИМАНИЕ: Обнаружены дубликаты CORS заголовков ($DUP_COUNT)!"
     else
